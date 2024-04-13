@@ -13,34 +13,26 @@ Persistent
 ; for logging.  The log gets saved to file every X minutes. 
 ; The log also saves to file on exit.
 ; Moving the cursor or left-clicking resets the cache. 
-; 3-26-2024 version.  
+; 4-13-2024 version.  
 
 TraySetIcon("icons/JustLog.ico") ; A fun homemade "log" icon that Steve made.
-tMenu := A_TrayMenu ; Tells script to use this when right-click system tray icon.
-tMenu.Delete ; Removes all of the defalt memu items, so we can add our own. 
-;tMenu.Add("Log and Reload Script", (*) => Reload())
-tMenu.Add("Log and Reload Script", JustReload)
-tMenu.SetIcon("Log and Reload Script", "icons/data_backup-Brown.ico")
-tMenu.Add("Edit This Script", EditThisLog)
-tMenu.SetIcon("Edit This Script", "icons/edit-Brown.ico")
-tMenu.Add("Analyze Manual Corrections", runAnalysis)
-tMenu.SetIcon("Analyze Manual Corrections", "icons/search-Brown.ico")
-tMenu.Add("Exit Script", (*) => ExitApp())
-tMenu.SetIcon("Exit Script", "icons/exit-Brown.ico")
-tMenu.SetColor("C29A6A") ; #CD853F is "Peru"
+mclMenu := A_TrayMenu ; Tells script to use this when right-click system tray icon.
+mclMenu.Delete ; Removes all of the defalt memu items, so we can add our own. 
+mclMenu.Add("Log and Reload Script", (*) => Reload())
+mclMenu.SetIcon("Log and Reload Script", "icons/data_backup-Brown.ico")
+mclMenu.Add("Edit This Script", EditThisLog)
+mclMenu.SetIcon("Edit This Script", "icons/edit-Brown.ico")
+mclMenu.Add("Analyze Manual Corrections", runAnalysis)
+mclMenu.SetIcon("Analyze Manual Corrections", "icons/search-Brown.ico")
+mclMenu.Add("List Lines Debug", (*) => ListLines())
+mclMenu.SetIcon("List Lines Debug", "icons/ListLines-Brown.ico")
+mclMenu.Add("Exit Script", (*) => ExitApp())
+mclMenu.SetIcon("Exit Script", "icons/exit-Brown.ico")
+mclMenu.SetColor("C29A6A") ; #CD853F is "Peru"
 
 ;========= TOOLTIP COLORS ======================================================
-; The iniReads are specific to Steve's computer -- If you see them, he forgot to remove them.
-lColor := IniRead("WayText\wtFiles\Settings.ini", "MainSettings", "ListColor", "Default")
-fColor := iniread("WayText\wtFiles\Settings.ini", "MainSettings", "FontColor", "Default")
-;-----------------
-ListColor := strReplace(subStr(lColor, -6), "efault", "Default")
-FontColor := strReplace(subStr(fColor, -6), "efault", "Default")
-
-If not FileExist("WayText\wtFiles\Settings.ini") {
-   ListColor := "Default"
-   FontColor := "Default"
-}
+ListColor := "Default"
+FontColor := "Default"
 
 ;========= LOGGER OPTIONS ====================================================== 
 saveIntervalMinutes := 10     ; Collect the log items in RAM, then save to disc this often. 
@@ -76,10 +68,11 @@ WordList := FileRead(wordListPath) ; Get word list into variable.
 wordListArray := strSplit(WordList, "`n") ; Segment variable into array.
 
 #HotIf WinActive("ManualCorrectionLogger.ahk")
-!+r::  ; hotkey "falls through" to next function
+$^s::  ; hotkey "falls through" to next function
 #HotIf
-JustReload(*)
-{   Reload()
+SaveAndReload(*) ; Save, but also reload script in RAM.
+{  Send "^s"
+   Reload()
 }
 
 !+l::
@@ -160,7 +153,7 @@ tih_EndChar(tih, vk, sc) {
          If not inStr(lastSavedHS, newTrig) ; Don't save duplicate of one just saved.
          {  keepText(newHs) ; All validity criteria met, so save for appending.
             If CaretGetPos(&mcx, &mcy)
-               ToolTip "::" newTrig "::" newRepl, mcx+10, mcy+25, 6
+               ToolTip "::" newTrig "::" newRepl, mcx-15, mcy+40, 6
             Else
                ToolTip "::" newTrig "::" newRepl,,, 6
             soundBeep(1200, 200)       ; announcement of capture.	
@@ -253,7 +246,6 @@ runAnalysis(*)
 		else break
 
 	pg.Destroy() ; Remove progress bar.
-	;msgbox trunkReport, "Manual Correct Report"
    A_Clipboard := "Manual Correct Report`n=====================`n" TrunkReport
 	ToolTip("Manual Correct Report`n" trunkReport,,,5)
    trunkReport := ""
@@ -353,10 +345,10 @@ Class ToolTipOptions {
       This.TxtColor := TxtColor = "" ? "" : BGR(TxtColor)
       BGR(Color, Default := "") { ; converts colors to BGR
          ; HTML Colors (BGR)
-         Static HTML := {AQUA:   0xFFFF00, BLACK: 0x000000, BLUE:   0xFF0000, FUCHSIA: 0xFF00FF, GRAY:  0x808080,
-                         GREEN:  0x008000, LIME:  0x00FF00, MAROON: 0x000080, NAVY:    0x800000, OLIVE: 0x008080,
-                         PURPLE: 0x800080, RED:   0x0000FF, SILVER: 0xC0C0C0, TEAL:    0x808000, WHITE: 0xFFFFFF,
-                         YELLOW: 0x00FFFF}
+         Static HTML := {AQUA:   0x00FFFF, BLACK: 0x000000, BLUE:   0x0000FF, FUCHSIA: 0xFF00FF, GRAY:  0x808080,
+                         GREEN:  0x008000, LIME:  0x00FF00, MAROON: 0x800000, NAVY:    0x000080, OLIVE: 0x808000,
+                         PURPLE: 0x800080, RED:   0xFF0000, SILVER: 0xC0C0C0, TEAL:    0x008080, WHITE: 0xFFFFFF,
+                         YELLOW: 0xFFFF00 }
          If IsInteger(Color)
             Return ((Color >> 16) & 0xFF) | (Color & 0x00FF00) | ((Color & 0xFF) << 16)
          Return HTML.HasProp(Color) ? HTML.%Color% : Default
@@ -505,7 +497,6 @@ Capture Date	Formatted Hotstring
 ================================================================
 2024-03-07 -- ::forgorren::forgotten
 2024-03-07 -- ::checge::change
-2024-03-07 -- ::thet::that 
 2024-03-07 -- ::qualigy::qualify 
 2024-03-07 -- ::rrevaluation::reevaluation 
 2024-03-07 -- ::complteed::completed 
@@ -588,7 +579,6 @@ Capture Date	Formatted Hotstring
 2024-03-07 -- ::haivng::having
 2024-03-07 -- ::hji::him
 2024-03-07 -- ::interstinng::interesting
-2024-03-07 -- ::thi::the
 2024-03-07 -- ::aprtil::april
 2024-03-07 -- ::seld::held
 2024-03-07 -- ::threefore::therefore
@@ -653,7 +643,6 @@ Capture Date	Formatted Hotstring
 2024-03-08 -- ::sertain::certain
 2024-03-08 -- ::varaable::variable
 2024-03-08 -- ::languege::language
-2024-03-08 -- ::tha::the
 2024-03-09 -- ::liee::like
 2024-03-09 -- ::heree::there
 2024-03-11 -- ::chande::change
@@ -667,8 +656,6 @@ Capture Date	Formatted Hotstring
 2024-03-11 -- ::cty::cy
 2024-03-11 -- ::peovbem::problem
 2024-03-11 -- ::highewr::higher
-2024-03-11 -- ::thet::that
-2024-03-11 -- ::thet::that
 2024-03-11 -- ::stfff::stuff
 2024-03-11 -- ::ther::this
 2024-03-11 -- ::thrie::three
@@ -698,7 +685,6 @@ Capture Date	Formatted Hotstring
 2024-03-13 -- ::thatn::than
 2024-03-13 -- ::speciale::special
 2024-03-13 -- ::bordiring::bordering
-2024-03-13 -- ::tha::the
 2024-03-13 -- ::loger::lower
 2024-03-13 -- ::commenications::communications
 2024-03-13 -- ::assignemnts::assignments
@@ -749,7 +735,6 @@ Capture Date	Formatted Hotstring
 2024-03-16 -- ::keypoard::keyboard
 2024-03-16 -- ::tnan::than
 2024-03-16 -- ::fole::file
-2024-03-16 -- ::thise::these
 2024-03-16 -- ::jsut::just
 2024-03-16 -- ::mechanizm::mechanism
 2024-03-17 -- ::rivvon::ribbon
@@ -875,7 +860,6 @@ Capture Date	Formatted Hotstring
 2024-03-21 -- ::concider::consider
 2024-03-21 -- ::modelye::modeled
 2024-03-21 -- ::scprpt::script
-2024-03-21 -- ::thi::the
 2024-03-21 -- ::abstratt::abstract
 2024-03-21 -- ::allke::alike
 2024-03-21 -- ::alsoe::alone
@@ -903,7 +887,6 @@ Capture Date	Formatted Hotstring
 2024-03-21 -- ::interswting::interesting
 2024-03-21 -- ::nerr::near
 2024-03-21 -- ::ourt::or
-2024-03-21 -- ::renuwal::renewal
 2024-03-21 -- ::actua::is
 2024-03-21 -- ::withh::which
 2024-03-21 -- ::confirmeng::confirming
@@ -915,8 +898,6 @@ Capture Date	Formatted Hotstring
 2024-03-21 -- ::sooled::solved
 2024-03-21 -- ::caet::cert
 2024-03-21 -- ::memver::member
-2024-03-21 -- ::renuwal::renewal
-2024-03-22 -- ::butause::because
 2024-03-22 -- ::anicdotal::anecdotal
 2024-03-22 -- ::conterence::conference
 2024-03-22 -- ::optimictic::optimistic
@@ -959,7 +940,6 @@ Capture Date	Formatted Hotstring
 2024-03-22 -- ::benn::been
 2024-03-22 -- ::hareey::harley
 2024-03-22 -- ::ocyober::october
-2024-03-22 -- ::renuwal::renewal
 2024-03-22 -- ::harelys::harleys
 2024-03-22 -- ::timedut::timeout
 2024-03-22 -- ::waty::way
@@ -1019,7 +999,6 @@ Capture Date	Formatted Hotstring
 2024-03-25 -- ::thesae::these
 2024-03-25 -- ::witl::will
 2024-03-25 -- ::sleection::selection
-2024-03-25 -- ::butause::because
 2024-03-25 -- ::makker::marker
 2024-03-25 -- ::seledctd::selected
 2024-03-25 -- ::sorre::store
@@ -1150,7 +1129,6 @@ Capture Date	Formatted Hotstring
 2024-03-28 -- ::capuured::captured
 2024-03-28 -- ::charaster::character
 2024-03-28 -- ::contant::content
-2024-03-28 -- ::eash::each
 2024-03-28 -- ::messgge::message
 2024-03-28 -- ::pag::chrome
 2024-03-28 -- ::pastss::pastes
@@ -1203,7 +1181,6 @@ Capture Date	Formatted Hotstring
 2024-03-29 -- ::replaed::related
 2024-03-29 -- ::scheuuled::scheduled
 2024-03-30 -- ::analyings::analyzing
-2024-03-30 -- ::eash::each
 2024-03-30 -- ::enrirely::entirely
 2024-03-30 -- ::limmitd::limited
 2024-03-30 -- ::nood::need
@@ -1238,3 +1215,379 @@ Capture Date	Formatted Hotstring
 2024-03-31 -- ::whowing::showing
 2024-03-31 -- ::rethinging::rethinking
 2024-03-31 -- ::unchacked::unchecked
+2024-03-31 -- ::douple::double
+2024-04-01 -- ::autocoorect::autocorrect
+2024-04-01 -- ::misspecled::misspelled
+2024-04-01 -- ::ork::ord
+2024-04-01 -- ::wou::you
+2024-04-01 -- ::analyzeres::analyzers
+2024-04-01 -- ::backgroupd::background
+2024-04-01 -- ::colloct::collect
+2024-04-01 -- ::stattup::startup
+2024-04-01 -- ::typeng::typing
+2024-04-01 -- ::incouded::included
+2024-04-01 -- ::mathh::match
+2024-04-01 -- ::mathhing::matching
+2024-04-01 -- ::bosue::bonus
+2024-04-01 -- ::ligrary::library
+2024-04-01 -- ::menually::manually
+2024-04-01 -- ::oerr::over
+2024-04-01 -- ::particualr::particular
+2024-04-01 -- ::reveewing::reviewing
+2024-04-01 -- ::specidic::specific
+2024-04-02 -- ::ratture::rapture
+2024-04-02 -- ::regictration::registration
+2024-04-02 -- ::thikn::think
+2024-04-02 -- ::withh::which
+2024-04-02 -- ::actuan::action
+2024-04-02 -- ::behavoir::is
+2024-04-02 -- ::dieable::disable
+2024-04-02 -- ::instand::instant
+2024-04-02 -- ::brude::bruce
+2024-04-02 -- ::chantgng::changing
+2024-04-02 -- ::itonic::ironic
+2024-04-02 -- ::resonn::reason
+2024-04-02 -- ::setinng::setting
+2024-04-02 -- ::shold::could
+2024-04-02 -- ::thould::should
+2024-04-03 -- ::awweome::awesome
+2024-04-03 -- ::welsome::welcome
+2024-04-03 -- ::neaghbors::neighbors
+2024-04-03 -- ::propertie::property
+2024-04-03 -- ::cansel::order
+2024-04-03 -- ::checiing::checking
+2024-04-03 -- ::comppny::company
+2024-04-03 -- ::oedered::ordered
+2024-04-03 -- ::chenged::changed
+2024-04-03 -- ::installdd::installed
+2024-04-03 -- ::mayyer::matter
+2024-04-03 -- ::vauue::value
+2024-04-03 -- ::forered::altered
+2024-04-03 -- ::anbou::about
+2024-04-03 -- ::chacking::checking
+2024-04-03 -- ::duplitate::duplicate
+2024-04-03 -- ::exampol::example
+2024-04-03 -- ::identiyy::identify
+2024-04-03 -- ::juet::just
+2024-04-03 -- ::miespelled::misspelled
+2024-04-03 -- ::nfg::ng
+2024-04-03 -- ::potittially::potentially
+2024-04-03 -- ::potyntially::potentially
+2024-04-03 -- ::pressy::pretty
+2024-04-03 -- ::tyhy::they
+2024-04-03 -- ::exrre::extra
+2024-04-03 -- ::madk::make
+2024-04-03 -- ::opeion::option
+2024-04-04 -- ::doay::dows
+2024-04-04 -- ::welsome::welcome
+2024-04-04 -- ::copi::copy
+2024-04-04 -- ::ediot::editor
+2024-04-04 -- ::fouums::forums
+2024-04-04 -- ::orror::error
+2024-04-04 -- ::passorrd::password
+2024-04-04 -- ::pist::post
+2024-04-04 -- ::reseiting::resetting
+2024-04-04 -- ::probaem::problem
+2024-04-04 -- ::decect::detect
+2024-04-04 -- ::desktyo::desktop
+2024-04-04 -- ::laptyp::laptop
+2024-04-04 -- ::neeved::needed
+2024-04-04 -- ::articulalry::articularly
+2024-04-04 -- ::autht::aught
+2024-04-04 -- ::dou::do
+2024-04-04 -- ::drrin::drain
+2024-04-04 -- ::pisza::pizza
+2024-04-04 -- ::poiunt::point
+2024-04-04 -- ::popint::point
+2024-04-04 -- ::servously::seriously
+2024-04-04 -- ::sitytng::sitting
+2024-04-04 -- ::ssemed::seemed
+2024-04-04 -- ::thowe::whole
+2024-04-04 -- ::whan::when
+2024-04-04 -- ::wilh::with
+2024-04-05 -- ::properites::properties
+2024-04-05 -- ::renamted::renamed
+2024-04-05 -- ::thiee::these
+2024-04-05 -- ::mauually::manually
+2024-04-05 -- ::mauually::manually
+2024-04-05 -- ::colorizaioon::colorization
+2024-04-05 -- ::interted::inverted
+2024-04-05 -- ::pairt::pairs
+2024-04-05 -- ::xome::some
+2024-04-05 -- ::colorizaioon::colorization
+2024-04-05 -- ::interted::inverted
+2024-04-05 -- ::pairt::pairs
+2024-04-05 -- ::xome::some
+2024-04-05 -- ::ther::your
+2024-04-05 -- ::ther::your
+2024-04-05 -- ::styrin::string
+2024-04-05 -- ::outlion::outline
+2024-04-05 -- ::rpleace::replace
+2024-04-06 -- ::replyed::replied
+2024-04-06 -- ::ablv::able
+2024-04-06 -- ::maen::main
+2024-04-06 -- ::onle::only
+2024-04-06 -- ::scritts::scripts
+2024-04-06 -- ::singel::single
+2024-04-06 -- ::thouough::thorough
+2024-04-06 -- ::unigue::unique
+2024-04-06 -- ::uniqui::unique
+2024-04-06 -- ::contants::contents
+2024-04-06 -- ::intented::intended
+2024-04-06 -- ::varaable::variable
+2024-04-06 -- ::complle::compile
+2024-04-06 -- ::realted::related
+2024-04-06 -- ::stripts::scripts
+2024-04-06 -- ::zup::ip
+2024-04-06 -- ::fiet::fist
+2024-04-06 -- ::inique::unique
+2024-04-06 -- ::scritps::scripts
+2024-04-06 -- ::socr::sort
+2024-04-06 -- ::straig::string
+2024-04-06 -- ::neerr::newer
+2024-04-06 -- ::qui::que
+2024-04-06 -- ::twece::twice
+2024-04-06 -- ::ujut::just
+2024-04-06 -- ::uneiue::unique
+2024-04-06 -- ::couopl::couple
+2024-04-06 -- ::imporeant::important
+2024-04-06 -- ::thourugh::thorough
+2024-04-07 -- ::ceting::ceding
+2024-04-07 -- ::combingng::combining
+2024-04-07 -- ::contect::context
+2024-04-07 -- ::ggogle::google
+2024-04-07 -- ::gove::give
+2024-04-07 -- ::interestid::interested
+2024-04-07 -- ::joaon::jason
+2024-04-07 -- ::launceed::launched
+2024-04-07 -- ::typcially::typically
+2024-04-07 -- ::youut::about
+2024-04-07 -- ::collows::follows
+2024-04-07 -- ::foreus::forums
+2024-04-07 -- ::attmptts::attempts
+2024-04-07 -- ::hotstring::matches
+2024-04-07 -- ::draam::dream
+2024-04-07 -- ::blinss::blings
+2024-04-07 -- ::boice::boise
+2024-04-07 -- ::bordng::boring
+2024-04-07 -- ::meeinng::missing
+2024-04-07 -- ::ololg::ology
+2024-04-07 -- ::socialogy::sociology
+2024-04-07 -- ::spreig::spring
+2024-04-07 -- ::thoough::through
+2024-04-07 -- ::ytoi::you
+2024-04-08 -- ::uploakld::upload
+2024-04-08 -- ::manuallly::manually
+2024-04-08 -- ::relaase::release
+2024-04-08 -- ::speedh::speech
+2024-04-08 -- ::thei::the
+2024-04-08 -- ::collest::coolest
+2024-04-08 -- ::ginee::agree
+2024-04-08 -- ::bucch::bunch
+2024-04-08 -- ::edif::edit
+2024-04-08 -- ::reverrals::referrals
+2024-04-08 -- ::scoool::school
+2024-04-08 -- ::desember::december
+2024-04-08 -- ::woung::young
+2024-04-08 -- ::woung::young
+2024-04-08 -- ::indernship::internship
+2024-04-08 -- ::janualy::january
+2024-04-08 -- ::formms::forums
+2024-04-08 -- ::lovations::locations
+2024-04-08 -- ::marro::macro
+2024-04-08 -- ::packege::package
+2024-04-08 -- ::recoderr::recorder
+2024-04-08 -- ::recpoder::recorder
+2024-04-08 -- ::todether::together
+2024-04-08 -- ::wiil::will
+2024-04-08 -- ::bewween::between
+2024-04-08 -- ::differente::difference
+2024-04-08 -- ::ediroty::editor
+2024-04-08 -- ::experimentition::experimentation
+2024-04-08 -- ::internect::internet
+2024-04-08 -- ::sciipt::script
+2024-04-08 -- ::weems::seems
+2024-04-08 -- ::wothout::without
+2024-04-08 -- ::acceds::access
+2024-04-08 -- ::taiin::train
+2024-04-09 -- ::adament::adamant
+2024-04-09 -- ::coverege::coverage
+2024-04-09 -- ::onee::once
+2024-04-09 -- ::sayd::said
+2024-04-09 -- ::couud::could
+2024-04-09 -- ::duplatate::duplicate
+2024-04-09 -- ::tirggers::triggers
+2024-04-09 -- ::stiing::string
+2024-04-09 -- ::developmin::developing
+2024-04-09 -- ::impriving::improving
+2024-04-09 -- ::phinics::phonics
+2024-04-09 -- ::strangths::strengths
+2024-04-09 -- ::discracted::distracted
+2024-04-09 -- ::quered::quired
+2024-04-09 -- ::monirot::monitor
+2024-04-09 -- ::discbling::disabling
+2024-04-09 -- ::disgnosis::diagnosis
+2024-04-09 -- ::beleeve::believe
+2024-04-09 -- ::paperoork::paperwork
+2024-04-09 -- ::procesd::proceed
+2024-04-09 -- ::speedc::speech
+2024-04-09 -- ::thiughts::thoughts
+2024-04-09 -- ::morm::form
+2024-04-09 -- ::tomottow::tomorrow
+2024-04-09 -- ::itea::idea
+2024-04-09 -- ::expevted::expected
+2024-04-09 -- ::thoghhts::thoughts
+2024-04-09 -- ::tobble::toggle
+2024-04-09 -- ::consenns::concerns
+2024-04-09 -- ::vbu::but
+2024-04-10 -- ::allergi::allergy
+2024-04-10 -- ::aloogether::altogether
+2024-04-10 -- ::bslled::called
+2024-04-10 -- ::cdoe::code
+2024-04-10 -- ::greduate::graduate
+2024-04-10 -- ::houtr::hours
+2024-04-10 -- ::interuments::instruments
+2024-04-10 -- ::interveew::interview
+2024-04-10 -- ::metting::meeting
+2024-04-10 -- ::migh::may
+2024-04-10 -- ::probram::program
+2024-04-10 -- ::scaels::scales
+2024-04-10 -- ::scorrl::school
+2024-04-10 -- ::calide::valid
+2024-04-10 -- ::deveition::deviation
+2024-04-10 -- ::exactyl::exactly
+2024-04-10 -- ::reoort::report
+2024-04-10 -- ::skility::ability
+2024-04-10 -- ::thie::the
+2024-04-10 -- ::yould::would
+2024-04-10 -- ::tleegram::telegram
+2024-04-10 -- ::conserns::concerns
+2024-04-10 -- ::jutt::just
+2024-04-10 -- ::ssnt::sent
+2024-04-10 -- ::comlleted::completed
+2024-04-10 -- ::confising::confusing
+2024-04-10 -- ::contctting::contacting
+2024-04-10 -- ::dedide::decide
+2024-04-10 -- ::discuptive::disruptive
+2024-04-10 -- ::imaediately::immediately
+2024-04-10 -- ::looksd::looked
+2024-04-10 -- ::needeng::needing
+2024-04-10 -- ::pronounse::pronounce
+2024-04-10 -- ::reoommended::recommended
+2024-04-10 -- ::speedh::speech
+2024-04-10 -- ::dource::source
+2024-04-10 -- ::bup::hub
+2024-04-10 -- ::puthing::pushing
+2024-04-10 -- ::disktop::desktop
+2024-04-10 -- ::mapters::matters
+2024-04-10 -- ::mige::mike
+2024-04-10 -- ::probessional::professional
+2024-04-10 -- ::qeustions::questions
+2024-04-11 -- ::diccussion::discussion
+2024-04-11 -- ::fouum::forum
+2024-04-11 -- ::klep::keep
+2024-04-11 -- ::notivication::notification
+2024-04-11 -- ::uncold::unfold
+2024-04-11 -- ::abain::again
+2024-04-11 -- ::adviced::advised
+2024-04-11 -- ::colledting::collecting
+2024-04-11 -- ::invicible::invisible
+2024-04-11 -- ::trangser::transfer
+2024-04-11 -- ::obvervation::observation
+2024-04-11 -- ::psperwork::paperwork
+2024-04-11 -- ::recuiring::requiring
+2024-04-11 -- ::wehn::when
+2024-04-11 -- ::procedurel::procedural
+2024-04-11 -- ::recults::results
+2024-04-11 -- ::advocaty::advocacy
+2024-04-11 -- ::beeter::better
+2024-04-11 -- ::espression::expression
+2024-04-11 -- ::sevb::seb
+2024-04-11 -- ::algorythm::algorithm
+2024-04-11 -- ::laxiness::laziness
+2024-04-11 -- ::thothh::though
+2024-04-11 -- ::ckageack::feedback
+2024-04-11 -- ::commng::coming
+2024-04-11 -- ::triennnal::triennial
+2024-04-11 -- ::frief::brief
+2024-04-11 -- ::amandment::amendment
+2024-04-11 -- ::averere::average
+2024-04-11 -- ::cuirous::curious
+2024-04-11 -- ::learnin::learn
+2024-04-11 -- ::presty::pretty
+2024-04-11 -- ::psychl::school
+2024-04-11 -- ::psyting::pasting
+2024-04-11 -- ::satff::staff
+2024-04-11 -- ::sourh::south
+2024-04-11 -- ::thigram::program
+2024-04-11 -- ::autohotky::default
+2024-04-11 -- ::identificd::identified
+2024-04-11 -- ::optiona::options
+2024-04-11 -- ::othersise::otherwise
+2024-04-11 -- ::otherwwse::otherwise
+2024-04-11 -- ::paggs::pages
+2024-04-11 -- ::scring::string
+2024-04-11 -- ::sertain::certain
+2024-04-11 -- ::shoeter::shorter
+2024-04-11 -- ::soet::sort
+2024-04-11 -- ::sory::sort
+2024-04-11 -- ::strat::start
+2024-04-11 -- ::stringly::strictly
+2024-04-11 -- ::thereas::whereas
+2024-04-11 -- ::thr::the
+2024-04-11 -- ::unser::under
+2024-04-11 -- ::vanella::vanilla
+2024-04-11 -- ::yould::could
+2024-04-12 -- ::galazy::galaxy
+2024-04-12 -- ::mroning::morning
+2024-04-12 -- ::accieent::accident
+2024-04-12 -- ::analuzing::analyzing
+2024-04-12 -- ::analzze::analyze
+2024-04-12 -- ::anyoning::anything
+2024-04-12 -- ::butause::because
+2024-04-12 -- ::cace::case
+2024-04-12 -- ::clqss::class
+2024-04-12 -- ::cretit::credit
+2024-04-12 -- ::cunction::function
+2024-04-12 -- ::extyra::extra
+2024-04-12 -- ::haden::hant
+2024-04-12 -- ::helptr::helper
+2024-04-12 -- ::scheduleng::scheduling
+2024-04-12 -- ::ststem::system
+2024-04-12 -- ::stym::stem
+2024-04-12 -- ::tyht::that
+2024-04-12 -- ::useed::used
+2024-04-12 -- ::vai::via
+2024-04-12 -- ::vancage::vantage
+2024-04-12 -- ::whe::did
+2024-04-12 -- ::migtt::might
+2024-04-12 -- ::reaease::release
+2024-04-12 -- ::whan::when
+2024-04-12 -- ::showtly::shortly
+2024-04-12 -- ::showtly::shortly
+2024-04-12 -- ::ites::ires
+2024-04-12 -- ::unsdrstand::understand
+2024-04-12 -- ::exqal::equal
+2024-04-12 -- ::rinnstalled::reinstalled
+2024-04-12 -- ::lional::lionel
+2024-04-12 -- ::acto::acro
+2024-04-12 -- ::additioanlly::additionally
+2024-04-12 -- ::basid::based
+2024-04-12 -- ::elemtanery::elementary
+2024-04-12 -- ::graund::ground
+2024-04-12 -- ::hav::had
+2024-04-12 -- ::homebade::homemade
+2024-04-12 -- ::onlykely::unlikely
+2024-04-12 -- ::pronounsed::pronounced
+2024-04-12 -- ::raintgs::ratings
+2024-04-12 -- ::revover::recover
+2024-04-12 -- ::rmemmber::remember
+2024-04-12 -- ::scoresrd::standard
+2024-04-12 -- ::contribuee::contribute
+2024-04-12 -- ::staffinf::staffing
+2024-04-13 -- ::commet::commit
+2024-04-13 -- ::derference::difference
+2024-04-13 -- ::commet::commit
+2024-04-13 -- ::deo::do
+2024-04-13 -- ::progect::project
+2024-04-13 -- ::minur::minor
