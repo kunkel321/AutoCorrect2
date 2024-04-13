@@ -2,350 +2,762 @@
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
-;------------------------------------------------------------------------------
+#Include "DateTool.ahk"
+; AutoCorrect for v2 thread:
+; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
+;===============================================================================
+; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
+NameOfThisFile := "AutoCorrect for v2.ahk"
 
-; Startup anouncement
+;===============================================================================
+; TraySetIcon(A_ScriptDir . "/SubFolder/IconFileName.ico")
+TraySetIcon('imageres.dll', 281) ; Blue right-pointing triangle (aka 'Play' icon).
+
+; Startup anouncement.  Also beeps whenever HotString Helper appends an item.
 SoundBeep(900, 200)
 SoundBeep(1200, 100)
 
-;------------------------------------------------------------------------------
-;       AUto-COrrect TWo COnsecutive CApitals
-; This version by forum user Ntepa. Updated 8-7-2023.
-; https://www.autohotkey.com/boards/viewtopic.php?p=533067#p533067
-;------------------------------------------------------------------------------
-
-Run "CaseCorrector.exe"
-; Decided to have CaseCorrector as a separate script, so that it would use its own process. 
-
-;------------------------------------------------------------------------------
-;      Hotstring Helper - Multi line
-; By Kunkel321, with much help from forum members and others. Version 9-4-2023
+;===============================================================================
+;            			Hotstring Helper 2.0
+;          Hotkey: Win + H | By: Kunkel321 | Version: 2-19-2024
 ; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=114688
-; A version of Hotstring Helper that will support block multi-line replacements.
-; Customization options are present throughout, and are flagged as such.
-; Needs AHK v2. Partly auto-converted from v1, partly rewritten.
+; A version of Hotstring Helper that will support block multi-line replacements and 
+; allow user to examine hotstring for multi-word matches. The "Examine/Analyze" 
+; pop-down part of the form is based on the WAG tool here
+; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120377
+; Customization options are below, near top of code.
 ; Please get a copy of AutoHotkey.exe (v2) and rename it to match the name of this
 ; script file, so that the .exe and the .ahk have the same name, in the same folder.
 ; DO NOT COMPILE, or the Append command won't work. The Gui stays in RAM, but gets
 ; repopulated upon hotkey press. HotStrings will be appended (added) by the
-; script at the bottom.Remove these comments as desired.
-;------------------------------------------------------------------------------
+; script at the bottom. Shift+Append saves to clipboard instead of appending. 
+; This tool is intended to be embedded in your AutoCorrect list.
+;===============================================================================
 
-;==Change=colors=as=desired========================
-GuiColor := "F0F8FF" ; "F0F8FF" is light blue
-FontColor := "003366" ; "003366" is dark blue
-;==================================================
+;==Change=color=of=Hotstring=Helper=form=as=desired===========================
+GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
+FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
 
-Global hFactor := 0 ; Don't change size here.  Change in TogSize() function, below.
-Global wFactor := 0 ; Don't change here.  Change in TogSize() function.
-;hhFormName := "Hotstring Helper -- Multi-Line" ; Change here, if desired.
+; ===Change=Settings=for=Big=Validity=Dialog=Message=Box========================
+myGreen := 'c1D7C08' ; light green 'cB5FFA4' (for use with dark backgrounds.)
+myRed := 'cB90012' ; light red 'cFFB2AD'
+myBigFont := 's13'
 
-hh := Gui('', "Hotstring Helper -- Multi-Line")
+;==Change=Hotstring=Helper=Activation=Hotkey=as=desired=========================
+hh_Hotkey := "#h" ; The activation hotkey-combo (not string) is Win+h. 
+
+;==Change=title=of=Hotstring=Helper=form=as=desired=============================
+hhFormName := "HotString Helper 2.0" ; The name at the top of the form. Change here, if desired.
+
+; ======Change=size=of=GUI=when="Make Bigger"=is=invoked========================
+HeightSizeIncrease := 300 ; Numbers, not 'strings,' so no quotation marks. 
+WidthSizeIncrease := 400
+
+;====Assign=symbols=for="Show Symb"=button======================================
+myPilcrow := "¶"    ; Okay to change symbols if desired.
+myDot := "• "       ; adding a space (optional) allows more natural wrapping.
+myTab := "⟹ "      ; adding a space (optional) allows more natural wrapping.
+
+;===Change=options=for=MULTI=word=entry=options=and=trigger=strings=as=desired==
+; These are the defaults for "acronym" based boiler plate template trigger strings. 
+DefaultBoilerPlateOpts := ""  ; PreEnter these multi-word hotstring options; "*" = end char not needed, etc.
+myPrefix := ";"        ; Optional character that you want suggested at the beginning of each hotstring.
+addFirstLetters := 5   ; Add first letter of this many words. (5 recommended; 0 = don't use feature.)
+tooSmallLen := 2       ; Only first letters from words longer than this. (Moot if addFirstLetters = 0)
+mySuffix := ""         ; An empty string "" means don't use feature.
+
+;===============Change=options=AUTOCORRECT=words=as=desired=====================
+; PreEnter these (single-word) autocorrect options; "T" = raw text mode, etc.
+DefaultAutoCorrectOpts := "*" ; An empty string "" means don't use feature.
+
+;=====List=of=words=use=for=examination=lookup==================================
+WordListFile := 'GitHubComboList249k.txt' ; Mostly from github: Copyright (c) 2020 Wordnik
+; WordListFile := 'wlist_match6.txt' ; From https://www.keithv.com/software/wlist/
+
+;=====Other=Settings============================================================
+; Add "Fixes X words, but misspells Y" to the end of autocorrect items. 
+; 1 = Yes, 0 = No. Multi-line Continuation Section items are never auto-commented.
+AutoCommentFixesAndMisspells := 1
+
+;====Window=specific=hotkeys====================================================
+; These can be edited... Cautiously. 
+#HotIf WinActive(hhFormName) ; Allows window-specific hotkeys.
+$Enter:: ; When Enter is pressed, but only in this GUI. "$" prevents accidental Enter key loop.
+{ 	If (hh['SymTog'].text = "Hide Symb")
+		return ; If 'Show symbols' is active, do nothing.
+	Else if ReplaceString.Focused {
+		Send("{Enter}") ; Just normal typing; Enter yields Enter key press.
+		Return
+	}
+	Else hhButtonAppend() ; Replacement box not focused, so press Append button.
+}
++Left:: ; Shift+Left: Got to trigger, move cursor far left.
+{	TriggerString.Focus()
+		Send "{Home}"
+}
+Esc::
+{ 	hh.Hide()
+	A_Clipboard := ClipboardOld
+}
+^z:: GoUndo() ; Undo last 'word exam' trims, one at a time.
+^+z:: GoReStart() ; Put the whole trigger and replacement back (restart).
+^Up:: 		; Ctrl+Up Arrow, or 
+^WheelUp::	; Ctrl+Mouse Wheel Up to increase font size (toggle, not zoom.)
+{	MyDefaultOpts.SetFont('s15')  ; sets at 15
+	TriggerString.SetFont('s15')
+	ReplaceString.SetFont('s15')
+}
+^Down:: 		; Ctrl+Down Arrow, or 
+^WheelDown:: 	; Ctrl+Mouse Wheel Down to put font size back.
+{	MyDefaultOpts.SetFont('s11')  ; sets back at 11
+	TriggerString.SetFont('s11')
+	ReplaceString.SetFont('s11')
+}
+#HotIf ; Turn off window-specific behavior.
+
+; Make sure word list is there. Change name of word list subfolder, if desired. 
+WordListPath := A_ScriptDir '\WordListsForHH\' WordListFile
+If not FileExist(WordListPath)
+	MsgBox("This error means that the big list of comparison words at:`n" . WordListPath . 
+	"`nwas not found.`n`nTherefore the 'Exam' button of the Hotstring Helper tool won't work.")
+SplitPath WordListPath, &WordListName ; Extract just the name of the file.
+
+;===== Main Graphical User Interface (GUI) is built here =======================
+hh := Gui('', hhFormName)
 hh.Opt("-MinimizeBox +alwaysOnTop")
 hh.BackColor := GuiColor
-FontColor := FontColor != "" ? " c" . FontColor : ""
-hh.SetFont("s11" . FontColor)
-; -----  Trigger string parts
+FontColor := FontColor != "" ? "c" . FontColor : ""
+hh.SetFont("s11 " . FontColor)
+hFactor := 0, wFactor := 0 ; Don't change size here. 
+; -----  Trigger string parts ----
 hh.AddText('y4 w30', 'Options')
-hh.AddText('vTrigStrLbl x+20 w250', 'Trigger String')
-hh.AddEdit('vMyDefaultOpts yp+20 xm+10 w30 h24')
-DefHotStr := hh.AddEdit('vDefHotStr x+28 w' . wFactor + 250, '')
-; ----- Replacement string parts
-hh.AddText('xm', 'Enter Replacement String')
+(TrigLbl := hh.AddText('x+40 w250', 'Trigger String'))
+(MyDefaultOpts := hh.AddEdit('yp+20 xm+2 w70 h24'))
+(TriggerString := hh.AddEdit('x+18 w' . wFactor + 280, '')).OnEvent('Change', TriggerChanged)
+; ----- Replacement string parts ----
+hh.AddText('xm', 'Replacement')
 hh.SetFont('s9')
-hh.AddButton('vSizeTog x+5 yp-5 h8 +notab', 'Make Bigger').OnEvent("Click", TogSize)
+hh.AddButton('vSizeTog x+75 yp-5 h8 +notab', 'Make Bigger').OnEvent("Click", TogSize)
 hh.AddButton('vSymTog x+5 h8 +notab', '+ Symbols').OnEvent("Click", TogSym)
 hh.SetFont('s11')
-RepStr := hh.AddEdit('vRepStr +Wrap y+1 xs h' . hFactor + 100 . ' w' . wFactor + 320, '')
-ComLbl := hh.AddText('xm y' . hFactor + 182, 'Enter Comment')
-
-(AsFunc := hh.AddCheckbox('vAsFunc x+' wFactor + 79, "function")).OnEvent("Click", hhBoxAsFunction)
-
+(ReplaceString := hh.AddEdit('vReplaceString +Wrap y+1 xs h' . hFactor + 100 . ' w' . wFactor + 370, '')).OnEvent('Change', GoFilter)
+; ---- Below Replacement ----
+ComLbl := hh.AddText('xm y' . hFactor + 182, 'Comment')
+(ChkFunc := hh.AddCheckbox('vFunc, x+70 y' . hFactor + 182, 'Make Function')).onEvent('click', FormAsFunc)
+ChkFunc.Value := 1 ; 'Make Function' box checked by default?  1 = checked.  
 hh.SetFont("s11 cGreen")
-ComStr := hh.AddEdit('vComStr xs y' . hFactor + 200 . ' w' . wFactor + 315)
-; ---- Buttons
-(ButApp := hh.AddButton('xm y' . hFactor + 234, '&Append')).OnEvent("Click", hhButtonAppend)
-(ButVal := hh.AddButton('+notab x+5 y' . hFactor + 234, '&Validate')).OnEvent("Click", hhButtonValidate)
-(ButSpell := hh.AddButton('+notab x+5 y' . hFactor + 234, '&Spell')).OnEvent("Click", hhButtonSpell)
-(ButOpen := hh.AddButton('+notab x+5 y' . hFactor + 234, '&Open')).OnEvent("Click", hhButtonOpen)
-(ButCancel := hh.AddButton('+notab x+5 y' . hFactor + 234, '&Cancel')).OnEvent("Click", hhButtonCancel)
+ComStr := hh.AddEdit('vComStr xs y' . hFactor + 200 . ' w' . wFactor + 370)
+hh.SetFont("s11 " . FontColor)
+; ---- Buttons ----
+(ButApp := hh.AddButton('xm y' . hFactor + 234, 'Append')).OnEvent("Click", hhButtonAppend)
+(ButCheck := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Check')).OnEvent("Click", hhButtonCheck)
+(ButExam := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Exam')).OnEvent("Click", hhButtonExam)
+(ButSpell := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Spell')).OnEvent("Click", hhButtonSpell)
+(ButOpen := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Open')).OnEvent("Click", hhButtonOpen)
+(ButCancel := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Cancel')).OnEvent("Click", hhButtonCancel)
+hh.OnEvent("Close", hhButtonCancel)
+; ============== Bottom (toggling) "Exam Pane" part of GUI =====================
+; ---- delta string ----
+hh.SetFont('s10')
+(ButLTrim := hh.AddButton('vbutLtrim xm h50  w' . (wFactor+182/6), '>>')).onEvent('click', GoLTrim)
+hh.SetFont('s14')
+(TxtTypo := hh.AddText('vTypoLabel -wrap +center cBlue x+1 w' . (wFactor+182*5/3), hhFormName))
+hh.SetFont('s10')
+(ButRTrim := hh.AddButton('vbutRtrim x+1 h50 w' . (wFactor+182/6), '<<')).onEvent('click', GoRTrim)
+; ---- radio buttons -----
+hh.SetFont('s11')
+(RadBeg := hh.AddRadio('vBegRadio y+-18 x' . (wFactor+182/3), '&Beginnings')).onEvent('click', GoFilter)
+(RadMid := hh.AddRadio('vMidRadio x+5', '&Middles')).onEvent('click', GoMidRadio)
+(RadEnd := hh.AddRadio('vEndRadio x+5', '&Endings')).onEvent('click', GoFilter)
+; ---- bottom buttons -----
+(ButUndo := hh.AddButton('xm y+3 h26 w' . (wFactor+182*2), "Undo (+Reset)")).OnEvent('Click', GoUndo)
+ButUndo.Enabled := false
+; ---- results lists -----
+hh.SetFont('s12')
+(TxtTLable := hh.AddText('vTrigLabel center y+4 h25 xm w' . wFactor+182, 'Misspells'))
+(TxtRLable := hh.AddText('vReplLabel center h25 x+5 w' . wFactor+182, 'Fixes'))
+(EdtTMatches := hh.AddEdit('vTrigMatches y+1 xm h' . hFactor+300 . ' w' . wFactor+182,))
+(EdtRMatches := hh.AddEdit('vReplMatches x+5 h' . hFactor+300 . ' w' . wFactor+182,))
+; ---- word list file ----
+hh.SetFont('bold s10')
+(TxtWordList := hh.AddText('vWordList center xm y+1 h14 w' . wFactor*2+364 , WordListName)).OnEvent('DoubleClick', ChangeWordList)
 
-#h::   ; HotString Helper activation hotkey-combo (not string) is Win+h. Change if desired.
-{ MyDefaultOpts := ""
-	DefaultHotStr := ""
-	Global myPrefix := ""
-	Global mySuffix := ""
+SubButtonExam(Visibility := False) ; Hides bottom part of GUI as default. 
+
+ExamPaneOpen := 0
+OrigTrigger := "" ; Used to restore original content.
+OrigReplacment := ""
+tArrStep := [] ; array for trigger undos
+rArrStep := [] ; array for replacement undos
+
+;===The=main=function=for=showing=the=Hotstring=Helper=Tool=====================
+; This code block copies the selected text, then determines if a hotstring is present.
+; If present, hotstring is parsed and HH form is populated and ExamineWords() called. 
+; If not, NormalStartup() function is called.
+Hotkey hh_Hotkey, CheckClipboard ; Change hotkey above, if desired. 
+CheckClipboard(*)
+{ 	DefaultHotStr := "" ; Clear each time. 
+	TrigLbl.SetFont(FontColor) ; Reset color of Label, in case it's red. 
+	EdtRMatches.CurrMatches := "" ; reset custom property
 	Global ClipboardOld := ClipboardAll() ; Save and put back later.
 	A_Clipboard := ""  ; Must start off blank for detection to work.
 	Send("^c") ; Copy selected text.
 	Errorlevel := !ClipWait(0.3) ; Wait for clipboard to contain text.
-	If !InStr(A_Clipboard, "`n") ; Only trim NON multi line text strings.
-		A_Clipboard := Trim(A_Clipboard) ; Because MS Word keeps leaving spaces.
 
-	; If white space present in selected text, probably not an Autocorrect entry.
-	If (InStr(A_Clipboard, " ") || InStr(A_Clipboard, "`n"))
-	{
-		;=======Change=options=for=MULTI=word=entry=options=and=trigger=strings=as=desired==============
-		MyDefaultOpts := ""    ; PreEnter these multi-word hotstring options; "*" = end char not needed, etc.
-		myPrefix := ";"        ; Optional character that you want suggested at the beginning of each hotstring.
-		addFirstLetters := 5   ; Add first letter of this many words. (5 recommended; 0 = don't use feature.)
-		tooSmallLen := 2      ; Only first letters from words longer than this. (Moot if addFirstLetters = 0)
-		mySuffix := ""         ; An empty string "" means don't use feature.
-		;===========================================================one=more=below=======================
+	Global Opts:= "", Trig := "", Repl := "", Opts := ""
+	hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<fCom>\h*;\h*(?:\bFIXES\h*\d+\h*WORDS?\b)?(?:\h;)?\h*(?<mCom>.*))?$" ; Jim 156
+	; Awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
+	; The regex will detect, and parse, a hotstring, whether normal, or embedded in an f() function. 
+	thisHotStr := Trim(A_Clipboard," `t`n`r")
+	If RegExMatch(thisHotStr, hsRegex, &hotstr) {
+		thisHotStr := "" ; Reset to blank each use.
+		TriggerString.text := hotstr.Trig  ; Send to top of GUI. 
+		MyDefaultOpts.Value := hotstr.Opts
+		sleep(200) ; prevents intermitent error on next line.
+		Global OrigTrigger := hotstr.Trig
+		hotstr.Repl := Trim(hotstr.Repl, '"')
+		ReplaceString.text := hotstr.Repl
+		ComStr.text := hotstr.mCom ; Removes autmated part of comment, leaves manual part. 
+		Global OrigReplacement := hotstr.Repl
+		; ---- For parse text label ----
+		Global strT := hotstr.Trig
+		Global TrigNeedle_Orig := hotstr.Trig  ; used for TriggerChnged function below.
+		Global strR := hotstr.Repl
+		hh.origHotStr := hotstr.Repl ; Used if Rarify checkbox undone. 
+		; set radio buttons, based on options of copied hotstring... 
+		If InStr(hotstr.Opts, "*") && InStr(hotstr.Opts, "?")
+			RadMid.Value := 1 ; Set Radio to "middle"
+		Else If InStr(hotstr.Opts, "*") 
+			RadBeg.Value := 1 ; Set Radio to "beginning"
+		Else If InStr(hotstr.Opts, "?")
+			RadEnd.Value := 1 ; Set Radio to "end"
+		Else
+			RadMid.Value := 1 ; Also set Radio to "middle"
+		ExamineWords(strT, strR)
+	}
+	Else {
+		Global strT := A_Clipboard
+		Global TrigNeedle_Orig := strT ; used for TriggerChnged function below.
+		Global strR := A_Clipboard	
+		hh.origHotStr := A_Clipboard ; Used if Rarify checkbox undone. 
+		NormalStartup(strT, strR)
+	}
+
+	Global tMatches := 0 ; <--- Need this or can't run validiy check w/o first filtering. 
+	; ---- clear/reset undo history --- 
+	ButUndo.Enabled := false
+	Loop tArrStep.Length
+		tArrStep.pop
+	Loop rArrStep.Length
+		rArrStep.pop
+	; ---------------------------
+}
+
+; This function tries to determine if the content of the clipboard is an AutoCorrect
+; item, or a selection of boilerplate text.  If boilerplate text, an acronym is
+; generated from the first letters.  (e.g. ::ttyl::talk to you later)
+NormalStartup(strT, strR)
+{	; If multiple spaces or `n present, probably not an Autocorrect entry, so make acronym.
+	If ((StrLen(A_Clipboard) - StrLen(StrReplace(A_Clipboard," ")) > 2) || InStr(A_Clipboard, "`n"))
+	{	DefaultOpts := DefaultBoilerPlateOpts 
+		ReplaceString.value := A_Clipboard
 		If (addFirstLetters > 0)
-		{ LBLhotstring := "Edit trigger string as needed"
+		{ ;LBLhotstring := "Edit trigger string as needed"
 			initials := "" ; Initials will be the first letter of each word as a hotstring suggestion.
 			HotStrSug := StrReplace(A_Clipboard, "`n", " ") ; Unwrap, but only for hotstr suggestion.
-			Loop Parse, HotStrSug, A_Space
-			{ If (Strlen(A_LoopField) > tooSmallLen) ; Check length of each word, ignore if N letters.
-				initials := initials . SubStr(A_LoopField, ("1") < 1 ? ("1") - 1 : ("1"), "1")
+			Loop Parse, HotStrSug, A_Space, A_Tab
+			{ 	If (Strlen(A_LoopField) > tooSmallLen) ; Check length of each word, ignore if N letters.
+					initials .= SubStr(A_LoopField, "1", "1") 
 				If (StrLen(initials) = addFirstLetters) ; stop looping if hotstring is N chars long.
 					break
 			}
 			initials := StrLower(initials)
-			DefaultHotStr := myPrefix . initials . mySuffix ; Append preferred prefix or suffix, as defined above, to initials.
+			; Append preferred prefix or suffix, as defined above, to initials.
+			DefaultHotStr := myPrefix . initials . mySuffix
 		}
 		else 
-		{	LBLhotstring := "Add a trigger string"
+		{	;LBLhotstring := "Add a trigger string"
 			DefaultHotStr := myPrefix . mySuffix ; Use prefix and/or suffix as needed, but no initials.
 		}
 	}
 	Else If (A_Clipboard = "")
-		LBLhotstring := "Add a trigger string"
-	else
-	{ LBLhotstring := "Add misspelled word"
-		DefaultHotStr := A_Clipboard ; No spaces found so assume it's a mispelling autocorrect entry: no pre/suffix.
-		;===============Change=options=AUTOCORRECT=words=as=desired======================================
-		myDefaultOpts := ""    ; PreEnter these (single-word) autocorrect options; "T" = raw text mode, etc.
-		;================================================================================================
+	{	;LBLhotstring := "Add a trigger string"
+		MyDefaultOpts.Text := "" ; <-- Is this needed?  Might be redundant by Filter() ? 
+		TriggerString.Text := "", ReplaceString.Text := "", ComStr.Text := "" ; Clear boxes. 
+		RadBeg.Value := 0, RadMid.Value := 0, RadEnd.Value := 0 
+		GoFilter()
+		hh.Show('Autosize yCenter') 
+		Return
 	}
-	hh['MyDefaultOpts'].value := MyDefaultOpts
-	hh['TrigStrLbl'].value := LBLhotstring
-	hh['DefHotStr'].value := DefaultHotStr
-	hh['RepStr'].value := A_Clipboard
-	hh['RepStr'].Opt("-Readonly")
+	else
+	{ ;LBLhotstring := "Add misspelled word"
+		; NOTE:  Do we want the copied word to be lower-cased and trimmed of white space?  Methinks, yes. 
+		DefaultHotStr := Trim(StrLower(A_Clipboard)) ; No `n found so assume it's a mispelling autocorrect entry: no pre/suffix.
+		ReplaceString.value := Trim(StrLower(A_Clipboard)) 
+		DefaultOpts := DefaultAutoCorrectOpts  
+	}
+	
+	MyDefaultOpts.text := DefaultOpts
+	;TrigLbl.value := LBLhotstring
+	TriggerString.value := DefaultHotStr
+	ReplaceString.Opt("-Readonly")
 	ButApp.Enabled := true
-	hh.Show('Autosize')
-} ; bottom of hotkey function
+	If ExamPaneOpen = 1
+		goFilter()
+	hh.Show('Autosize yCenter') 
+} 
 
+; The "Exam" button triggers this function.  Most of this function is dedicated
+; to comparing/parsing the trigger and replacement to populate the blue Delta String
+ExamineWords(strT, strR) 
+{	SubTogSize(0, 0) ; Incase size is 'Bigger,' make Smaller.
+	hh.Show('Autosize yCenter') 
+
+	ostrT := strT ; original value (not an array)
+	ostrR := strR
+	LenT := strLen(strT)
+	LenR := strLen(strR)
+
+	LoopNum := min(LenT, LenR)
+	strT := StrSplit(strT)
+	strR := StrSplit(strR)
+	Global beginning := ""
+	Global typo := ""
+	Global fix := ""
+	Global ending := ""
+
+	If ostrT = ostrR ; trig/replacement the same
+	{	deltaString := "[ " ostrT " | " ostrR " ]"
+		found := false ; for duplicate item message, below
+	}
+	else ; trig/replacement not the same, so find the difference
+	{	Loop LoopNum
+		{ ; find matching left substring.
+			bsubT := (strT[A_Index])
+			bsubR := (strR[A_Index])
+			If (bsubT = bsubR)
+				beginning .= bsubT
+			else
+				break
+		}
+
+		Loop LoopNum
+		{ ; Reverse Loop, find matching right substring.
+			RevIndex := (LenT - A_Index) + 1
+			esubT := (strT[RevIndex])
+			RevIndex := (LenR - A_Index) + 1
+			esubR := (strR[RevIndex])
+			If (esubT = esubR)
+				ending := esubT . ending
+			else
+				break
+		}
+
+		If (strLen(beginning) + strLen(ending)) > LoopNum { ; Overlap means repeated chars in trig or replacement.
+			If (LenT > LenR) { ; Trig is longer, so use T-R for str len.
+				delta := subStr(ending, 1, (LenT - LenR)) ; Left part of ending.  Right part of beginning would also work.
+				delta := " [ " . delta . " ||  ] "
+			}
+			If (LenR > LenT) { ; Replacement is longer, so use R-T for str len.
+				delta := subStr(ending, 1, (LenR - LenT))
+				delta := " [  ||  " . delta . " ] "
+			}
+		}
+		Else {
+			If strLen(beginning) > strLen(ending) { ; replace shorter string last
+				typo := StrReplace(ostrT, beginning, "")
+				typo := StrReplace(typo, ending, "")
+				fix := StrReplace(ostrR, beginning, "")
+				fix := StrReplace(fix, ending, "")
+			}
+			Else {
+				typo := StrReplace(ostrT, ending, "")
+				typo := StrReplace(typo, beginning, "")
+				fix := StrReplace(ostrR, ending, "")
+				fix := StrReplace(fix, beginning, "")
+			}
+			delta := " [ " . typo . " || " . fix . " ] "
+		}
+		deltaString := beginning . delta . ending
+
+	}		
+	; -------------
+	TxtTypo.text := deltaString ; set label at top of form.
+
+	ViaExamButt := "Yes"
+	GoFilter(ViaExamButt) ; Call filter function then come back here.
+	
+	If (ButExam.text = "Exam") { 
+		ButExam.text := "Done"
+		If(hFactor != 0) {
+			hh['SizeTog'].text := "Make Bigger"
+			SoundBeep
+			SubTogSize(0, 0) ; Make replacement edit box small again.
+		}
+	SubButtonExam(True)	
+	}	
+	hh.Show('Autosize yCenter') 
+}
+
+; This function toggles the size of the HH form, using the above variables.
+; HeightSizeIncrease and WidthSizeIncrease determine the size when large.
+; The size when small is hardcoded.  Change with caution. 
 TogSize(*)
-{ If (hh['SizeTog'].text = "Make Bigger") {
-	hh['SizeTog'].text := "Make Smaller"
-	; ======Change=size=of=GUI=when="Make Bigger"=is=envoked========
-	hFactor := 200 ; Height of Replacement box, Y pos of things below it.
-	wFactor := 200 ; Width of 3 of the edit boxes.
-	;===============================================================
-	SubTogSize(hFactor, wFactor)
-	hh.Show('Autosize Center')
-	return
+{ 	If (hh['SizeTog'].text = "Make Bigger") { ; Means current state is 'Small'
+		hh['SizeTog'].text := "Make Smaller"
+		If (ButExam.text = "Done") {
+			SubButtonExam(Visibility := False)
+			ButExam.text := "Exam"
+		}
+		Global hFactor := HeightSizeIncrease
+		SubTogSize(hFactor, WidthSizeIncrease)
+		;hhButtonExam()
+		hh.Show('Autosize yCenter') 
+		return
+	}
+	If (hh['SizeTog'].text = "Make Smaller") { ; Means current state is 'Big'
+		hh['SizeTog'].text := "Make Bigger"
+		Global hFactor := 0
+		SubTogSize(0, 0)
+		hh.Show('Autosize yCenter') 
+		return
+	}
 }
-If (hh['SizeTog'].text = "Make Smaller") {
-	hh['SizeTog'].text := "Make Bigger"
-	SubTogSize(0, 0)
-	hh.Show('Autosize')
-	return
-}
-SubTogSize(hFactor, wFactor)
-{
-	DefHotStr.Move(, , wFactor + 250,)
-	RepStr.Move(, , wFactor + 320, hFactor + 100)
+
+; Called by TogSize function. 
+SubTogSize(hFactor, wFactor) ; Actually re-draws the form. 
+{	;MsgBox("TogSizeFunc`nhFactor is:`n`n" . hFactor)
+	TriggerString.Move(, , wFactor + 280,)
+	ReplaceString.Move(, , wFactor + 372, hFactor + 100)
 	ComLbl.Move(, hFactor + 182, ,)
-
-	; AsFunc := (hh.AddCheckbox('vAsFunc x+' wFactor + 79, "function"))
-
-	AsFunc.Move(, hFactor + 182, ,)
-	ComStr.move(, hFactor + 200, wFactor + 315,)
+	ComStr.move(, hFactor + 200, wFactor + 367,)
+	ChkFunc.Move(, hFactor + 182, ,)
 	ButApp.Move(, hFactor + 234, ,)
-	ButVal.Move(, hFactor + 234, ,)
+	ButCheck.Move(, hFactor + 234, ,)
+	ButExam.Move(, hFactor + 234, ,)
 	ButSpell.Move(, hFactor + 234, ,)
 	ButOpen.Move(, hFactor + 234, ,)
 	ButCancel.Move(, hFactor + 234, ,)
 }
+
+hhButtonExam(*)
+{	;MsgBox("Examfunc`nhFactor is:`n`n" . hFactor)
+	If (ButExam.text = "Exam") { ; or if this gui cmd = Make Bigger ??
+		ButExam.text := "Done"
+		If(hFactor != 0) {
+			hh['SizeTog'].text := "Make Bigger"
+			TogSize() ; Make replacement edit box small again.
+		}
+		Global OrigTrigger := TriggerString.text
+		Global OrigReplacement := ReplaceString.text
+		SubButtonExam(True)
+		Global ExamPaneOpen := 1
+		ExamineWords(TriggerString.text, ReplaceString.text)
+		GoFilter()
+	}
+	Else {
+		ButExam.text := "Exam"
+		Global ExamPaneOpen := 0
+		SubButtonExam(False)	
+	}	
+	hh.Show('Autosize yCenter') 	
+}
+SubButtonExam(Visibility := False) ; Shows/Hides bottom, Exam Pane, part of GUI.
+{	examCmds := [ButLTrim, TxtTypo, ButRTrim, RadBeg, RadMid, RadEnd, ButUndo, TxtTLable, TxtRLable, EdtTMatches, EdtRMatches, TxtWordList]
+	for ctrl in examCmds {
+		ctrl.Visible := Visibility
+	}
 }
 
+; This functions toggles on/off whether the Pilcrow and other symbols are shown.
+; When shown, the replacment box is set "read only" and Append is disabled. 
 TogSym(*)
-{ ;====assign=symbolss=for="show symb"=button=================================
-	myPilcrow := "¶"    ; Okay to change symb here if desired.
-	myDot := "• "       ; adding a space allows more natural wrapping.
-	myTab := " -> "
-	;===========================================================================
-	If (hh['SymTog'].text = "+ Symbols") {
+{ 	If (hh['SymTog'].text = "+ Symbols") {
 		hh['SymTog'].text := "- Symbols"
-		RepStr := hh['RepStr'].text
-		RepStr := StrReplace(StrReplace(RepStr, "`r`n", "`n"), "`n", myPilcrow . "`n") ; Pilcrow for Enter
-		RepStr := StrReplace(RepStr, A_Space, myDot) ; middle dot for Space
-		RepStr := StrReplace(RepStr, A_Tab, myTab) ; space arrow space for Tab
-		hh['RepStr'].value := RepStr
-		hh['RepStr'].Opt("+Readonly")
+		togReplaceString := ReplaceString.text
+		togReplaceString := StrReplace(StrReplace(togReplaceString, "`r`n", "`n"), "`n", myPilcrow . "`n") ; Pilcrow for Enter
+		togReplaceString := StrReplace(togReplaceString, A_Space, myDot) ; middle dot for Space
+		togReplaceString := StrReplace(togReplaceString, A_Tab, myTab) ; space arrow space for Tab
+		ReplaceString.value := togReplaceString
+		ReplaceString.Opt("+Readonly")
 		ButApp.Enabled := false
-		hh.Show('Autosize')
+		hh.Show('Autosize yCenter') 
 		return
 	}
 	If (hh['SymTog'].text = "- Symbols") {
 		hh['SymTog'].text := "+ Symbols"
-		RepStr := hh['RepStr'].text
-		RepStr := StrReplace(RepStr, myPilcrow . "`r", "`r") ; Have to use `r ... weird.
-		RepStr := StrReplace(RepStr, myDot, A_Space)
-		RepStr := StrReplace(RepStr, myTab, A_Tab)
-		hh['RepStr'].value := RepStr
-		hh['RepStr'].Opt("-Readonly")
+		togReplaceString := ReplaceString.text
+		togReplaceString := StrReplace(togReplaceString, myPilcrow . "`r", "`r") ; Have to use `r ... weird.
+		togReplaceString := StrReplace(togReplaceString, myDot, A_Space)
+		togReplaceString := StrReplace(togReplaceString, myTab, A_Tab)
+		ReplaceString.value := togReplaceString
+		ReplaceString.Opt("-Readonly")
 		ButApp.Enabled := true
-		hh.Show('Autosize')
+		hh.Show('Autosize yCenter') 
 		return
 	}
 }
 
-#HotIf WinActive("Hotstring Helper -- Multi-Line") ; Allows window-specific hotkeys.
-{
-	$Enter:: ; When Enter is pressed, but only in this GUI. "$" prevents accidental Enter key loop.
-	{ If (hh['SymTog'].text = "Hide Symb")
-		return
-		Else if RepStr.Focused {
-			Send("{Enter}") ; Just normal typing; Enter yields Enter key press.
-			Return
+; The function is called whenever the trigger(hotstring) edit box is changed.  
+; It assesses whether a letter has beem manually added to the beginning/ending
+; of the trigger, and adds the same letter to the replacement edit box.  
+TriggerChanged(*)
+{	TrigNeedle_New := TriggerString.text 
+	If TrigNeedle_New != TrigNeedle_Orig && ExamPaneOpen = 1 { ; If trigger has changed and pane open.
+		If TrigNeedle_Orig = SubStr(TrigNeedle_New, 2, ) { ; one char added on the left left box
+			tArrStep.push(TriggerString.text) ; <---- save history for Undo feature
+			rArrStep.push(ReplaceString.text) ; <---- save history
+			ReplaceString.Value := SubStr(TrigNeedle_New, 1, 1) . ReplaceString.text ; add same char to left of other box
 		}
-		Else {
-			hhButtonAppend() ; Replacement box not focused, so press Append button.
-			return
+		If TrigNeedle_Orig = SubStr(TrigNeedle_New, 1, StrLen(TrigNeedle_New)-1) { ; one char added on the right or left box
+			tArrStep.push(TriggerString.text) ; <---- save history for Undo feature
+			rArrStep.push(ReplaceString.text) ; <---- save history
+			ReplaceString.text :=  ReplaceString.text . SubStr(TrigNeedle_New, -1, ) ; add same char on other side.
 		}
+		Global TrigNeedle_Orig := TrigNeedle_New ; Update the "original" string so it can detect the next change.
 	}
-	Esc::
-	{ hh.Hide()
-		A_Clipboard := ClipboardOld
+	ButUndo.Enabled := true
+	goFilter()
+}
+
+; This function detects that the "[] Make Function" box was ticked. 
+; It puts/removes the needed hotstring options, then beeps. 
+FormAsFunc(*)
+{	If (ChkFunc.Value = 1) {
+		MyDefaultOpts.text := "B0X" StrReplace(StrReplace(MyDefaultOpts.text, "B0", ""), "X", "")
+		SoundBeep 700, 200
+	}
+	else {
+		MyDefaultOpts.text := StrReplace(StrReplace(MyDefaultOpts.text, "B0", ""), "X", "")
+		SoundBeep 900, 200
 	}
 }
-#HotIf ; Turn off window-specific behavior.
 
+; Runs a validity check.  If validiy problems are found, user is given option to append anyway.  
 hhButtonAppend(*)
-{ tMyDefaultOpts := hh['MyDefaultOpts'].text
-	tDefHotStr := hh['DefHotStr'].text
-	tRepStr := hh['RepStr'].text
-	ValidationFunction(tMyDefaultOpts, tDefHotStr, tRepStr)
-	If Not InStr(CombinedValidMsg, "-Okay.", , , 3)
-	{    ; Msg doesn't have three occurrences of "-Okay."
-		msgResult := MsgBox(CombinedValidMsg "`n`n####################`nContinue Anyway?", "VALIDATION", "OC 4096")
-		if (msgResult = "OK") {
-			Appendit(tMyDefaultOpts, tDefHotStr, tRepStr) ; not valid, but user chose to continue anyway
-			return
-		}
-		else
-			return ; not valid, and user cancelled
-	}
+{ 	Global tMyDefaultOpts := MyDefaultOpts.text
+	Global tTriggerString := TriggerString.text
+	Global tReplaceString := ReplaceString.text
+	ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
+	If Not InStr(CombinedValidMsg, "-Okay.", , , 3) ; Msg doesn't have three occurrences of "-Okay." 
+		biggerMsgBox(CombinedValidMsg, 1)
 	else { ; no validation problems found
-		Appendit(tMyDefaultOpts, tDefHotStr, tRepStr)
+		Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
 		return
 	}
 }
 
-hhButtonValidate(*)
-{ tMyDefaultOpts := hh['MyDefaultOpts'].text
-	tDefHotStr := hh['DefHotStr'].text
-	tRepStr := hh['RepStr'].text
-	ValidationFunction(tMyDefaultOpts, tDefHotStr, tRepStr)
-	MsgBox("Validation Results`n#################`n" . CombinedValidMsg, , 4096)
+; Calls the validity check, but doesn't append the hotstring. 
+hhButtonCheck(*)
+{ 	Global tMyDefaultOpts := MyDefaultOpts.text
+	Global tTriggerString := TriggerString.text
+	Global tReplaceString := ReplaceString.text
+	ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
+	biggerMsgBox(CombinedValidMsg, 0)
 	Return
 }
 
-ValidationFunction(tMyDefaultOpts, tDefHotStr, tRepStr)
-{ Global CombinedValidMsg
+; An easy-to-see large dialog to show Validity report/warning. 
+biggerMsgBox(thisMess, secondButt)
+{	bb := Gui(,'Validity Report')
+	bb.SetFont('s11 ' FontColor)
+	bb.BackColor := GuiColor
+	bb.Add('Text',, 'For proposed new item:')
+	bb.SetFont(myBigFont )
+	proposedHS := ':' tMyDefaultOpts ':' tTriggerString '::' tReplaceString
+	bb.Add('Text', (strLen(proposedHS)>90? 'w600 ':'') 'xs yp+22', proposedHS)
+	bb.SetFont('s11 ')
+	secondButt=0? bb.Add('Text', ,"===Validation Check Results==="):''
+	
+	bb.SetFont(myBigFont )
+	bbItem := StrSplit(thisMess, "*|*") 
+	bb.Add('Text', 										   (inStr(bbItem[1],'-Okay.')? myGreen : myRed) , bbItem[1]) 
+	bb.Add('Text', (strLen(bbItem[2])>104? ' w600 ' : ' ') (inStr(bbItem[2],'-Okay.')? myGreen : myRed) , bbItem[2]) 
+	bb.Add('Text', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3],'-Okay.')? myGreen : myRed) , bbItem[3]) 
+
+	bb.SetFont('s11 ' FontColor)
+	secondButt=1? bb.Add('Text',,"==============================`nAppend HotString Anyway?"):''
+	bbAppend := bb.Add('Button', , 'Append Anyway')
+	bbAppend.OnEvent 'Click', (*) => Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
+	bbAppend.OnEvent 'Click', (*) => bb.Destroy()
+	if secondButt != 1
+		bbAppend.Visible := False
+	bbClose := bb.Add('Button', 'x+5 ', 'Close')
+	bbClose.OnEvent 'Click', (*) => bb.Destroy()
+	bb.Show('yCenter x' (A_ScreenWidth/2))
+	WinSetAlwaysontop(1, "A")
+	bb.OnEvent 'Escape', (*) => bb.Destroy()
+}
+
+; This function runs several validity checks. 
+ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
+{ 	GoFilter() ; This ensures that "rMatches" has been populated. <--- had it commented out for a while, then put back. 
+	Global CombinedValidMsg := "", validHotDupes := "", validHotMisspells := ""
 	ThisFile := Fileread(A_ScriptName) ; Save these contents to variable 'ThisFile'.
-	; ThisFile := Fileread("S:\AutoHotkey\MasterScript\MasterScript.ahk") ; <---- CHANGE later
 	If (tMyDefaultOpts = "") ; If options box is empty, skip regxex check.
 		validOpts := "Okay."
 	else { ;===== Make sure hotstring options are valid ========
 		NeedleRegEx := "(\*|B0|\?|SI|C|K[0-9]{1,3}|SE|X|SP|O|R|T)" ; These are in the AHK docs I swear!!!
 		WithNeedlesRemoved := RegExReplace(tMyDefaultOpts, NeedleRegEx, "") ; Remove all valid options from var.
-
 		If (WithNeedlesRemoved = "") ; If they were all removed...
 			validOpts := "Okay."
 		else { ; Some characters from the Options box were not recognized.
-			OptTips := " ; Just a block text assignement to var
-		(
-	Don't include the colons.
-	..from AHK v1 docs...
-	* - ending char not needed
-	? - trigger inside other words
-	B0 - no backspacing
-	SI - send input mode
-	C - case-sensitive
-	K(n) - set key delay
-	SE - send event mode
-	X - execute command
-	SP - send play mode
-	O - omit end char
-	R - send raw
-	T - super raw
-		)"
-	validOpts := "Invalid Hotsring Options found.`n---> " . WithNeedlesRemoved . "`n`n`tTips:`n" . OptTips
+			OptTips := inStr(WithNeedlesRemoved, ":")? "Don't include the colons.`n":""
+			OptTips .= " ;  a block text assignement to var
+			(
+			...Tips from AHK v1 docs...
+			* - ending char not needed
+			? - trigger inside other words
+			B0 - no backspacing
+			SI - send input mode
+			C - case-sensitive
+			K(n) - set key delay
+			SE - send event mode
+			X - execute command
+			SP - send play mode
+			O - omit end char
+			R - send raw
+			T - super raw
+			)"
+			validOpts .= "Invalid Hotsring Options found.`n---> " WithNeedlesRemoved "`n" OptTips
 		}
 	}
 	;==== Make sure hotstring box content is valid ========
 	validHot := "" ; Reset to empty each time.
-	If (tDefHotStr = "") || (tDefHotStr = myPrefix) || (tDefHotStr = mySuffix) || InStr(tDefHotStr, ":")
-		validHot := "HotString box should not be empty.`n-Don't include colons."
+	If (tTriggerString = "") || (tTriggerString = myPrefix) || (tTriggerString = mySuffix) 
+		validHot := "HotString box should not be empty."
+	Else If InStr(tTriggerString, ":")
+		validHot := "Don't include colons."
 	else ; No colons, and not empty. Good. Now check for duplicates.
-		Loop Parse, ThisFile, "`n", "`r" ; Check line-by-line.
-			If instr(A_LoopField, ":" . tDefHotStr . "::") { ; If line contains tDefHotStr...
-				validHot := "DUPLICATE FOUND`nAt Line " . A_Index . ":`n " . A_LoopField
-				break
+	{	getStartLineNumber() ; No need to check hh2 code for duplicates... 
+		Loop Parse, ThisFile, "`n", "`r" { ; Check line-by-line.
+			If (A_Index < ACitemsStartAt) or (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") 
+				continue ; Will skip non-hotstring lines, so the regex isn't used as much.
+			If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &loo) { ; loo is "current loopfield"
+				If (tTriggerString = loo.Trig) and (tMyDefaultOpts = loo.Opts) { ; full duplicate triggers
+					validHotDupes := "Duplicate trigger string found at line " A_Index ".`n---> " A_LoopField
+					break
+				} ; No duplicates.  Look for conflicts... 
+				Else If (InStr(loo.Trig, tTriggerString) and inStr(tMyDefaultOpts, "*") and inStr(tMyDefaultOpts, "?"))
+				|| (InStr(tTriggerString, loo.Trig) and inStr(loo.Opts, "*") and  inStr(loo.Opts, "?")) { ; Word-Middle Matches
+					validHotDupes := "Word-Middle conflict found at line " A_Index ", where one of the strings will be nullified by the other.`n---> " A_LoopField 
+					break
+				}
+				Else If ((loo.Trig = tTriggerString) and inStr(loo.Opts, "*") and inStr(tMyDefaultOpts, "?"))
+				|| ((tTriggerString = loo.Trig) and inStr(loo.Opts, "?") and inStr(tMyDefaultOpts, "*")) { ; Rule out: Same word, but beginning and end opts
+					validHotDupes := "Duplicate trigger found at line " A_Index ", but maybe okay, because one is word-beginning and other is word-ending.`n---> " A_LoopField 
+					Break
+				}
+				If (inStr(loo.Opts, "*") and loo.Trig = subStr(tTriggerString, 1, strLen(loo.Trig)))
+				|| (inStr(tMyDefaultOpts, "*") and tTriggerString = subStr(loo.Trig, 1, strLen(tTriggerString))) { ; Word-Beginning Matches
+					validHotDupes := "Word Beginning conflict found at line " A_Index ", where one of the strings is a subset of the other.  Whichever appears last will never be expanded.`n---> " A_LoopField
+					break
+				}
+				Else If (inStr(loo.Opts, "?") and loo.Trig = subStr(tTriggerString, -strLen(loo.Trig)))
+				|| (inStr(tMyDefaultOpts, "?") and tTriggerString = subStr(loo.Trig, -strLen(tTriggerString))) { ; Word-Ending Matches
+					validHotDupes := "Word Ending conflict found at line " A_Index ", where one of the strings is a superset of the other.  The longer of the strings should appear before the other, in your code.`n---> " A_LoopField
+					break
+				}
 			}
-	If (validHot = "") ; If variable didn't get set in loop, then no duplicates found
-		validHot := "Okay."
+			Else ; not a regex match, so go to next loop.
+				continue 
+		}	
+		If (tMatches > 0){ ; This error message is collected separately from the loop, so both can potentially be reported. 
+			validHotMisspells := "This trigger string will misspell [" tMatches "] words."
+		}
+		if validHotDupes and validHotMisspells
+			validHot := validHotDupes "`n-" validHotMisspells ; neither is blank, so new line
+		else If !validHotDupes  and !validHotMisspells ; both are blank, so no validity concerns. 
+			validHot := "Okay."
+		else 
+		validHot := validHotDupes  validHotMisspells ; one (and only one) is blank so concantinate
+	}
+
 	;==== Make sure replacement string box content is valid ===========
-	If (tRepStr = "") || (SubStr(tRepStr, ("1") < 1 ? ("1") - 1 : ("1"), "1") == ":") ; If Replacement box empty, or first char is ":"
-		validRep := "Replacement string box should not be empty.`n-Don't include the colons."
+	If (tReplaceString = "")
+		validRep := "Replacement string box should not be empty."
+	else if (SubStr(tReplaceString, 1, 1) == ":") ; If Replacement box empty, or first char is ":"
+		validRep := "Don't include the colons."
+	else if  (tReplaceString = tTriggerString)
+		validRep := "Replacement string SAME AS Trigger string."
 	else
 		validRep := "Okay."
 	; Concatenate the three above validity checks.
-	CombinedValidMsg := "OPTIONS BOX `n-" . validOpts . "`n`nHOTSTRING BOX `n-" . validHot . "`n`nREPLACEMENT BOX `n-" . validRep
+	CombinedValidMsg := "OPTIONS BOX `n-" . validOpts . "*|*HOTSTRING BOX `n-" . validHot . "*|*REPLACEMENT BOX `n-" . validRep
 	Return CombinedValidMsg ; return result for use is Append or Validation functions.
 } ; end of validation func
 
-hhBoxAsFunction(*)
-{	If (hh['AsFunc'].value = 1) 
-		hh['MyDefaultOpts'].value := "XB0" hh['MyDefaultOpts'].value
+; The "Append It" function actually combines the hotsring components and 
+; appends them to the script, then reloads it. 
+Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
+{ 	WholeStr := ""
+	tMyDefaultOpts := MyDefaultOpts.text
+	tTriggerString := TriggerString.text
+	tReplaceString := ReplaceString.text
+	; tComStr := hh['ComStr'].text ; tComStr is "text of comment string." <--- not used?
+	tComStr := '' ; tComStr is "text of comment string."
+	aComStr := '' ; aComStr is "auto comment string." Default to blank each time. 
+	
+	If (rMatches > 0) and (AutoCommentFixesAndMisspells = 1) ; AutoCom var set near top of code. 
+	{ 	Misspells := ""
+		Misspells := EdtTMatches.Value
+		If (tMatches > 3) ; and (Misspells != "") ; More than 3 misspellings?
+			Misspells := ", but misspells " . tMatches . " words !!! "
+		Else If (Misspells != "") { ; any misspellings? List them, if <= 3.
+		; Misspells := StrReplace(Misspells, "`n", " (), ")
+			Misspells := SubStr(StrReplace(Misspells, "`n", " (), "), 1, -2) . ". "
+			Misspells := ", but misspells " . Misspells
+			;MsgBox("tMatches " . tMatches . "`nMisspells is:`n`n" . Misspells)
+		}
+		aComStr := "Fixes " . rMatches . " words " . Misspells
+		aComStr := StrReplace(aComStr, "Fixes 1 words ", "Fixes 1 word ")
+	}
+
+	fopen := '' , fclose := ''
+	If (chkFunc.Value = 1) ; add function part if needed
+		{
+			tMyDefaultOpts := "B0X" . StrReplace(tMyDefaultOpts, "B0X", "")
+			fopen := 'f("'
+			fclose := '")'
+		}
+	
+	If (ComStr.text != "") || (aComStr != "")
+		tComStr := " `; " . aComStr . ComStr.text
+
+	If InStr(tReplaceString, "`n") { ; Combine the parts into a muli-line hotstring.
+		openParenth := subStr(tReplaceString, -1) = "`t"? "(RTrim0`n" : "(`n" ; If last char is Tab, use LTrim0.
+		WholeStr := ":" . tMyDefaultOpts . ":" . tTriggerString . "::" . tComStr . "`n" . fopen . openParenth . tReplaceString . "`n)" . fclose
+	}
+	Else ; Combine the parts into a single-line hotstring.
+		WholeStr := ":" . tMyDefaultOpts . ":" . tTriggerString . "::" . fopen . tReplaceString . fclose . tComStr
+			
+	If GetKeyState("Shift") { ; User held Shift when clicking Append Button. 
+		A_Clipboard := WholeStr
+		SoundBeep 800, 200
+		SoundBeep 700, 300
+		; MsgBox "in appendit(), clipbrd is`n" A_Clipboard
+	}
 	else
-		hh['MyDefaultOpts'].value := StrReplace(hh['MyDefaultOpts'].value, "XB0", "")
-}
-
-Appendit(tMyDefaultOpts, tDefHotStr, tRepStr)
-{ WholeStr := ""
-	tMyDefaultOpts := hh['MyDefaultOpts'].text
-	tDefHotStr := hh['DefHotStr'].text
-	tRepStr := hh['RepStr'].text
-	tComStr := hh['ComStr'].text
-	If (tComStr != "")
-		tComStr := " `; " . tComStr
-
-	If (hh['AsFunc'].value = 0) {  ; Make into f(unction) box unchecked, so make normal hotstring.
-		If InStr(tRepStr, "`n")
-			WholeStr := ":" . tMyDefaultOpts . ":" . tDefHotStr . "::" . tComStr . "`n(`n" . tRepStr . "`n)"
-		Else
-			WholeStr := ":" . tMyDefaultOpts . ":" . tDefHotStr . "::" . tRepStr . tComStr
+	{ 	FileAppend("`n" WholeStr, A_ScriptFullPath) ; 'n makes sure it goes on a new line.
+		Reload() ; relaod the script so the new hotstring will be ready for use.
 	}
-	Else { ; Make into f(unction) box checked, so format like function.
-		If InStr(tRepStr, "`n")
-			WholeStr := ':' tMyDefaultOpts . ':' . tDefHotStr . '::f(" ' . tComStr . '`n(`n' . tRepStr . '`n)", A_ThisHotkey, A_EndChar)'
-		Else
-			WholeStr := ':' tMyDefaultOpts ':' tDefHotStr '::f("' tRepStr '", A_ThisHotkey, A_EndChar)' tComStr
-	}
+}  ; Newly added hotstrings will be way at the bottom of the ahk file.
 
-	FileAppend("`n" WholeStr, A_ScriptFullPath) ; 'n makes sure it goes on a new line.
-	Reload() ; relaod the script so the new hotstring will be ready for use.
-}  ; Newly added hotstrings will be way at the bottom.
-
-hhButtonSpell(*) ; Called is "Spell" because "Spell Check" is too long.
-{ tRepStr := hh['RepStr'].text
-	If (tRepStr = "")
+; Calls the Google "Did you mean..." function below. 
+hhButtonSpell(*) ; Called it "Spell" because "Spell Check" is too long.
+{ tReplaceString := ReplaceString.text
+	If (tReplaceString = "")
 		MsgBox("Replacement Text not found.", , 4096)
 	else {
-		googleSugg := GoogleAutoCorrect(tRepStr) ; Calls below function
+		googleSugg := GoogleAutoCorrect(tReplaceString) ; Calls below function
 		If (googleSugg = "")
 			MsgBox("No suggestions found.", , 4096)
 		Else {
 			msgResult := MsgBox(googleSugg "`n`n######################`nChange Replacement Text?", "Google Suggestion", "OC 4096")
-			if (msgResult = "OK")
-				hh['RepStr'].value := googleSugg
+			if (msgResult = "OK") {
+				ReplaceString.value := googleSugg
+				goFilter()
+			}
 			else
 				return
 		}
@@ -365,9 +777,9 @@ GoogleAutoCorrect(word)
 			Return B[1] || A[1]
 }
 
+; Opens this file and go to the bottom so you can see your Hotstrings.
 hhButtonOpen(*)
-{  	; Open this file and go to the bottom so you can see your Hotstrings.
-	hh.Hide()
+{  	hh.Hide()
 	A_Clipboard := ClipboardOld  ; Restore previous contents of clipboard.
 	Edit()
 	WinWaitActive(A_ScriptName) ; Wait for the script to be open in text editor.
@@ -375,15 +787,473 @@ hhButtonOpen(*)
 	Send("{Ctrl Down}{End}{Ctrl Up}{Home}") ; Navigate to the bottom.
 }
 
+; Double-clicking name of Word List file (bottom of Exam Pane) calls this function.
+; Close/hide from and resport clipboard contents. 
+; Open this file and browse to locaton of Word List assignment, then open folder. 
+ChangeWordList(*)
+{	hh.Hide()
+	A_Clipboard := ClipboardOld  ; Restore previous contents of clipboard.
+	Edit()
+	WinWaitActive(A_ScriptName) ; Wait for the script to be open in text editor.
+	Sleep(250)
+	SendInput "^f"
+	Sleep(100)
+	SendInput WordListFile ; Enters file name into search box.
+	Sleep(250)
+	Run strReplace(WordListPath, "\" . WordListFile, "") ; Opens word list folder in file browser. 
+}
+
+; Close/hide form, clear everything, and restore clipboard contents. 
 hhButtonCancel(*)
-{ hh.Hide()
+{ 	hh.Hide()
+	MyDefaultOpts.value := ""
+	TriggerString.value := ""
+	ReplaceString.value := ""
+	tArrStep := [] ; array for trigger undos
+	rArrStep := [] ; array for replacement undos
 	A_Clipboard := ClipboardOld  ; Restore previous contents of clipboard.
 }
 
+GoLTrim(*) ; Trim one char from left of trigger and replacement.
+{		;---- trig -----
+	tText := TriggerString.value
+	tArrStep.push(tText) ; <---- save history for Undo feature
+	tText := subStr(tText, 2)
+	TriggerString.value := tText
+		; ----- repl -----
+	rText := ReplaceString.value
+	rArrStep.push(rText) ; <---- save history
+	rText := subStr(rText, 2)
+	ReplaceString.value := rText
+	; -----------
+	ButUndo.Enabled := true
+	TriggerChanged() 
+}
 
-;==============================
+GoRTrim(*) ; Trim one char from right of trigger and replacement.
+{		; ----- trig -----
+	tText := TriggerString.value
+	tArrStep.push(tText) ; <---- save history
+	tText := subStr(tText, 1, strLen(tText) - 1)
+	TriggerString.value := tText
+		; ----- repl -----
+	rText := ReplaceString.value
+	rArrStep.push(rText) ; <---- save history
+	rText := subStr(rText, 1, strLen(rText) - 1)
+	ReplaceString.value := rText
+	; -----------
+	ButUndo.Enabled := true
+	TriggerChanged() 
+}
+
+; Left and Right Trims are saved in Arrays.  This function removes the last one. 
+GoUndo(*)
+{ 	If GetKeyState("Shift") 
+		GoReStart() 
+	else If (tArrStep.Length > 0) and (rArrStep.Length > 0) {
+		TriggerString.value := tArrStep.Pop()
+		ReplaceString.value := rArrStep.Pop()
+		GoFilter()
+	}
+	else {
+		ButUndo.Enabled := false
+	}
+}
+; ReEnters the trigger and replacement that were gotten from RegEx upon first capture.
+; Clears arrays.  Has effect of "undoing" all of the changes. 
+GoReStart(*)
+{ 	If !OrigTrigger and !OrigReplacment
+		MsgBox("Can't restart -- Nothing in memory...")
+	Else {
+		TriggerString.Value := OrigTrigger ; Restore original values. 
+		ReplaceString.Value := OrigReplacement
+		ButUndo.Enabled := false
+		tArrStep := [] ; Reset arrays to nothing.
+		rArrStep := []
+		GoFilter()
+	}
+}
+
+; Single-click of middle radio button just calls GoFilter function but 
+; double-click sets button to false.  
+clickLast := 0
+GoMidRadio(*)
+{	global clickCurrent := A_TickCount
+	if (clickCurrent - clickLast < 500) { ; Simulates watching for double-click.
+		RadMid.Value := 0 ; Set middle radio to blank, and removed hotstring options. 
+		MyDefaultOpts.text := strReplace(strReplace(MyDefaultOpts.text, "?", ""), "*", "")
+	}
+	global clickLast := A_TickCount
+	GoFilter()
+}
+
+; Filters the two lists of words at bottom of Exam Pane. 
+; Mostly this is called via L/R trims, or by changing radio buttons.  
+; If it is called via Exam button, then reads Options box and updates radios.
+GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
+{	; ====== Hotstring/Trigger ===========
+	tFind := Trim(TriggerString.Value)
+	If !tFind
+		tFind := " " ; prevents error if tFind is blank.
+	tFilt := ''
+	Global tMatches := 0 ; Global so I can read it in the Validation() function.
+	MyOpts := MyDefaultOpts.text 
+
+	If (ViaExamButt = "Yes") { ; Read opts box, change radios as needed.
+		If  inStr(MyOpts, "*") and  inStr(MyOpts, "?")
+			RadMid.value := 1
+		Else if  inStr(MyOpts, "*")
+			RadBeg.value := 1
+		Else if  inStr(MyOpts, "?")
+			RadEnd.value := 1
+		Else {
+			RadMid.value := 0
+			RadBeg.value := 0
+			RadEnd.value := 0
+		}
+	}
+
+	Loop Read, WordListPath ; Compare with the big list of words and find matches.
+	{
+		If InStr(A_LoopReadLine, tFind) {
+			IF (RadMid.value = 1) {
+				tFilt .= A_LoopReadLine '`n'
+				tMatches++
+			}
+			Else If (RadEnd.value = 1) {
+				If InStr(SubStr(A_LoopReadLine, -StrLen(tFind)), tFind) {
+					tFilt .= A_LoopReadLine '`n'
+					tMatches++
+				}
+			}
+			else If (RadBeg.value = 1) {
+				If InStr(SubStr(A_LoopReadLine, 1, StrLen(tFind)), tFind) {
+					tFilt .= A_LoopReadLine '`n'
+					tMatches++
+				}
+			}
+			Else {
+				If (A_LoopReadLine = tFind) {
+					tFilt := tFind
+					tMatches++
+				}
+			}
+		}
+	}
+
+	IF (RadMid.value = 1) {
+		If not inStr(MyOpts, "*")
+			MyOpts := MyOpts . "*"
+		If not inStr(MyOpts, "?")
+			MyOpts := MyOpts . "?"
+	}
+	Else If (RadEnd.value = 1) {
+		If not inStr(MyOpts, "?")
+			MyOpts := MyOpts . "?"
+			MyOpts := StrReplace(MyOpts, "*")
+	}
+	else If (RadBeg.value = 1) {
+		If not inStr(MyOpts, "*")
+			MyOpts := MyOpts . "*"
+			MyOpts := StrReplace(MyOpts, "?")
+	}
+	MyDefaultOpts.text := MyOpts
+
+	EdtTMatches.Value := tFilt
+	TxtTLable.Text := "Misspells [" . tMatches . "]"
+	
+	If (tMatches > 0) { 
+		TrigLbl.Text := "Misspells [" . tMatches . "] words" ; Change Trig Str Label to show warning. 
+		TrigLbl.SetFont("cRed")
+	}
+	If (tMatches = 0) {
+		TrigLbl.Text := "No Misspellings found." ; Change Trig Str Label to NO LONGER show warning. 
+		TrigLbl.SetFont(FontColor) ; reset color of Label, incase it's red. 
+	}
+
+	; ====== Replacement/Expansion text ==========
+	rFind := Trim(ReplaceString.Value, "`n`t ")
+		If !rFind
+		rFind := " " ; prevents error if rFind is blank.
+	rFilt := ''
+	Global rMatches := 0
+	
+	Loop Read WordListPath  ; Compare with the big list of words and find matches.
+	{
+		If InStr(A_LoopReadLine, rFind) {
+			IF (RadMid.value = 1) { 
+				rFilt .= A_LoopReadLine '`n'
+
+				rMatches++
+			}
+			Else If (RadEnd.value = 1) {
+				If InStr(SubStr(A_LoopReadLine, -StrLen(rFind)), rFind) {
+					rFilt .= A_LoopReadLine '`n'
+					rMatches++
+				}
+			}
+			else If (RadBeg.value = 1) { ; 'Beg' radio.
+				If InStr(SubStr(A_LoopReadLine, 1, StrLen(rFind)), rFind) {
+					rFilt .= A_LoopReadLine '`n'
+					rMatches++
+				}
+			}
+			Else {
+				If (A_LoopReadLine = rFind) {
+					rFilt := rFind
+					rMatches++
+				}
+			}
+		}
+	}
+	EdtRMatches.Value := rFilt
+	TxtRLable.Text := "Fixes [" . rMatches . "]"
+}
 
 
+; ################ END of HH2 ###########################################################
+; ...............................QQQ.....................QQQQQQ.....QQQ.........QQQ......
+; ...............................QQQ.....................QQQQQ......QQQ.........QQQ......
+; ...............................QQQ....................QQQQ........QQQ.........QQQ......
+; ...............................QQQ....................QQQQ........QQQ.........QQQ......
+; ...............................QQQ....................QQQQ........QQQ.........QQQ......
+; ..QQQQQQ....QQQQQQQQQ....QQQQQQQQQ..........QQQQQQ..QQQQQQQQ......QQQQQQQQQ...QQQQQQQQQ
+; .QQQQQQQQ...QQQQQQQQQQ..QQQQQQQQQQ.........QQQQQQQQ.QQQQQQQQ......QQQQQQQQQQ..QQQQQQQQQ
+; QQQQ.QQQQQ..QQQQQ.QQQQ..QQQQ.QQQQQ........QQQQ.QQQQQ..QQQQ........QQQQQ.QQQQ..QQQQQ.QQQ
+; QQQ....QQQ..QQQQ...QQQ.QQQQ...QQQQ.......QQQQ....QQQ..QQQQ........QQQQ...QQQ..QQQQ...QQ
+; QQQ....QQQ..QQQ....QQQ.QQQQ...QQQQ.......QQQQ....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
+; QQQ....QQQQ.QQQ....QQQ.QQQ.....QQQ.......QQQ.....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
+; QQQQQQQQQQQ.QQQ....QQQ.QQQ.....QQQ.......QQQ.....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
+; QQQQQQQQQQQ.QQQ....QQQ.QQQ.....QQQ.......QQQ.....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
+; QQ..........QQQ....QQQ.QQQ.....QQQ.......QQQ.....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
+; QQQ.........QQQ....QQQ.QQQQ...QQQQ.......QQQQ....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
+; QQQ....QQQ..QQQ....QQQ.QQQQ...QQQQ.......QQQQ....QQQ..QQQQ........QQQ....QQQ..QQQ....QQ
+; QQQQ..QQQQ..QQQ....QQQ..QQQQ.QQQQQ........QQQQ.QQQQQ..QQQQ........QQQ....QQQ..QQQ....QQ
+; .QQQQQQQQ...QQQ....QQQ...QQQQQQQQQ.........QQQQQQQQ...QQQQ........QQQ....QQQ..QQQ....QQ
+; ..QQQQQQ....QQQ....QQQ....QQQQQQQQ..........QQQQQQ....QQQQ........QQQ....QQQ..QQQ....QQ
+; #######################################################################################
+
+;#################### PIN WINDOW TO TOP #########################
+
+!^SPACE:: ; Alt+Ctrl+Space to toggle pin.
+{	Title := StrReplace(WinGetTitle("A"), " [Pinned]") ; Remove flag, if present.
+	ExStyle := WinGetExStyle("ahk_id " WinExist("A"))
+	If (ExStyle & 0x8)  ; ExStyle = AlwaysOnTop
+	{	WinSetAlwaysontop(0, "A")
+		WinSetTitle(Title)
+	}
+	Else 
+	{	WinSetAlwaysontop(1, "A")
+		WinSetTitle(Title . " [Pinned]") ; Add this flag to the title bar caption.
+	}
+} 
+
+#HotIf WinActive(NameOfThisFile,) ; Can't use A_Var here.
+^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.
+{
+	Send("^s") ; Save me.
+	MsgBox("Reloading...", "", "T0.3")
+	Sleep(250)
+	Reload() ; Reload me too.
+	MsgBox("I'm reloaded.") ; Pops up then disappears super-quickly because of the reload.
+}
+#HotIf
+
+;################ UPTIME #####################################
+!+u::
+{ MsgBox("UpTime is:`n" . Uptime(A_TickCount))
+	Uptime(ms) {
+		VarSetStrCapacity(&b, 256) ; V1toV2: if 'b' is NOT a UTF-16 string, use 'b := Buffer(256)'
+		;    DllCall("GetDurationFormat","uint",2048,"uint",0,"ptr",0,"int64",ms*10000,"wstr"," d 'days, 'h' hours, 'm' minutes, 's' seconds'", "wstr",b,"int",256)
+		DllCall("GetDurationFormat", "uint", 2048, "uint", 0, "ptr", 0, "int64", ms * 10000, "wstr", " d 'days, 'h' hrs, 'm' mins'", "wstr", b, "int", 256)
+		b := StrReplace(b, " 0 days,")
+		b := StrReplace(b, " 0 hrs,")
+		b := StrReplace(b, " 0 mins,")
+		b := StrReplace(b, " 1 days,", "1 day,")
+		b := StrReplace(b, " 1 hrs,", " 1 hr,")
+		b := StrReplace(b, " 1 mins,", " 1 min,")
+		; b := StrReplace(b," 1 seconds"," 1 second")
+		return b
+	}
+}
+
+;############################################################################
+; Up Down Left Right Drag Actions Tool
+; Author: Kunkel321, Version: 9-1-2023
+; Inspired by the excellent MouseGesureL.ahk
+; https://hp.vector.co.jp/authors/VA018351/en/mglahk.html
+
+IgnoreDuration := 100  ; Ignore if right mouse button down shorter than this many milliseconds.
+IgnoreLength := 100  ; Ignore drags less than this many pixels long.
+
+RButton::
+{ 	Global VarXb, VarYb ; i.e. variable Xpos, Ypos "beginning"
+	MouseGetPos &VarXb, &VarYb
+}
+
+$RButton Up::
+{	IF (A_TimeSincePriorHotkey > IgnoreDuration) {
+		Global VarXe, VarYe ; i.e. variable Xpos, Ypos "ending"
+		MouseGetPos &VarXe, &VarYe
+		DoMath()
+	}
+	else
+		Send "{RButton}" ; just do default mouse r-click.
+}
+
+DoMath()
+{ abX := Abs(VarXb - VarXe) ; get begin-end differences
+	abY := Abs(VarYb - VarYe)
+	If abX > (abY * 3) and (abX > IgnoreLength) { ; is horizontal -and- drag was long enough?
+		If VarXb > VarXe
+			DragDirection("Left")
+		Else
+			DragDirection("Right")
+	}
+	Else If abY > (abX * 3) and (abY > IgnoreLength) {  ; is vertical -and- drag was long enough?
+		If VarYb > VarYe
+			DragDirection("Up")
+		Else
+			DragDirection("Down")
+	}
+	Else
+		Send "{RButton}" ; just do default mouse r-click.
+}
+
+DragDirection(dragWay)
+{  If InStr(WinGetTitle("ahk_id " WinActive("A")), "PDF-XChange")
+	{ switch dragWay
+		{
+		case "Left": Send "{Home}" ; Back
+		case "Right": Send "{End}" ; Forward
+		case "Up": Send "{PgUp}" ; Top
+		case "Down": Send "{PgDn}" ; Bottom
+	}
+	}
+	else
+	{ switch dragWay
+		{
+		case "Left": Send "!{Left}" ; Back
+		case "Right": Send "!{Right}" ; Forward
+		case "Up": Send "^{Home}" ; Top
+		case "Down": Send "^{End}" ; Bottom
+	}
+	}
+}
+
+;##############################################################
+;------------------------------------------------------------------------------
+;   AutoHotkey Documentation Lookup Tool
+; Idea based on: Jack Dunning's @ ComputerEdge.com
+; Help from hisrRB57 and Just Me.
+; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=119887&p=532430#p532430
+; Looks up selected word in AHK Documentation.
+; If no word is selected, double-clicks to select word under cursor.
+; If still nothihg selected, open documentation main page.
+; But... If clipboard has a URL, just open that.
+; Feel free to delete these comments.  :- )	; Is v2 code.
+;------------------------------------------------------------------------------
+
+!+1:: ; Alt+Shift+1 ---> look up in v1 ahk docs.
+!+2:: ; Alt+Shift+2 ---> look up in v2 ahk docs.
+{
+	ver := SubStr(A_ThisHotkey, -1)
+	A_Clipboard := "" ; WARNING: Previous clipboard contents are lost.
+	Send("^c") ; copies selected text
+	If !ClipWait(1)
+	{
+		MouseClick() ; If nothing was selected, double-click to select word.
+		Sleep(200)
+		MouseClick()
+		Sleep(200)
+		Send("^c") ;copies selected text
+		If !ClipWait(1) { ; If still nothing on clipbrd, just launch main page.
+			Run("https://www.autohotkey.com/docs/v" ver)
+			return
+		}
+	}
+	If RegExMatch(A_Clipboard, "^(https?://|www\.)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(/\S*)?$")
+		Run(A_Clipboard) ; If clipbrd content = URL, just launch the URL.
+	Else {
+		A_Clipboard := StrReplace(A_Clipboard, "#")
+		Run("https://autohotkey.com/docs/v" ver "/" A_Clipboard)
+	}
+	Return
+}
+
+;##################### WINDOW MOVERS ##########################
+
+^!Lbutton:: ; Ctrl+Alt+Left Mouse Click
+{
+	SetWinDelay(-1) ; Sets time between moves. -1 = no time
+	CoordMode("Mouse", "Screen")
+	WinGetPos(&BwX, &BwY, , , "A") ; Begin window X Y coord.
+	WinRestore("A") ; Unmaximizes window.
+	MouseGetPos(&BmX, &BmY) ; Begin mouse X Y coord
+	while GetKeyState("Lbutton", "P") ; While left mouse button is held down.
+	{	MouseGetPos(&CmX, &CmY) ; Keep getting current mouse X Y
+		WinMove((BwX+CmX-BmX), (BwY+CmY-BmY), , , "A")
+	} 
+	SetWinDelay 100
+	CoordMode("Mouse", "Window") ; Put back, because window is mostly the default.
+Return
+}
+
+!+m:: ; Move active window to position of cursor.
+; From Joe G and Isaias B at https://www.the-automator.com/
+{	CoordMode("Mouse", "Screen")
+	MouseGetPos(&mox, &moy)
+	WinMove(mox, moy, , , "A")
+	CoordMode("Mouse", "Window")
+Return
+}
+
+^!+v::MsgBox("My ahk version: " A_AhkVersion)
+
+; ==============================================================================
+;       AUto-COrrect TWo COnsecutive CApitals
+; This version by forum user Ntepa. Updated 8-7-2023.
+; https://www.autohotkey.com/boards/viewtopic.php?p=533067#p533067
+; Logging and a couple things added by kunkel321 2-7-2024
+; ==============================================================================
+
+fix_consecutive_caps()
+fix_consecutive_caps() {
+; Hotstring only works if CapsLock is off.
+	HotIf (*) => !GetKeyState("CapsLock", "T")
+	loop 26 {
+		char1 := Chr(A_Index + 64)
+		loop 26 {
+			char2 := Chr(A_Index + 64)
+			; Create hotstring for every possible combination of two letter capital letters.
+			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2)) 
+		}
+	}
+	HotIf
+	; Third letter is checked using InputHook.
+	fix(char1, char2, *) {
+		ih := InputHook("V I101 L1 T.3")
+		ih.OnEnd := OnEnd
+		ih.Start()
+		OnEnd(ih) {
+			char3 := ih.Input
+			if (char3 ~= "[A-Z]")  ; If char is UPPERcase alpha.
+				Hotstring "Reset"
+			else if (char3 ~= "[a-z]")  ; If char is lowercase alpha.
+			|| (char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") ; <--- Remove this line to prevent correction of those 2-letter words.
+			{	SendInput("{BS 2}" StrLower(char2) char3)
+				SoundBeep(800, 80) ; Case fix announcent. 
+				ThisWinTitle := WinGetTitle("ahk_id " WinActive("A"))
+				If InStr(ThisWinTitle, " - ")
+					ThisWinTitle := StrSplit(WinGetTitle("ahk_id " WinActive("A"))," - ")[2] ; Get name of app.
+				addToLog := "Cap fix: " char1 char2 char3 " [in: " ThisWinTitle "]`n"
+				GoLogger(addToLog) ; Uses same log function as AutoCorrect's f() function, below.
+			}
+		}
+	}
+}
+
+;QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
 ; ...................QQQQQ........................QQQQ.........................................
 ; ...................QQQQQQ.......................QQQQ.........................................
 ; ..................QQQQQQQ.......................QQQQ.........................................
@@ -418,125 +1288,217 @@ hhButtonCancel(*)
 ; QQQQQQQ..QQQQQQ...QQQQQ...QQQQQ..QQQQQ......QQQQQ......QQQQQ....QQQQ..QQQQQ....QQQQ...QQQQ...
 ; .QQQQQQQQQQQQQQ...QQQQQQ.QQQQQQ..QQQQQ......QQQQQ......QQQQQQ..QQQQQ..QQQQQQ.QQQQQQ...QQQQQQQ
 ; ..QQQQQQQQQQQQ.....QQQQQQQQQQQ...QQQQQ......QQQQQ.......QQQQQQQQQQQ....QQQQQQQQQQQ....QQQQQQQ
-;~ AutoCorrects -- Table of ContentsQQQ.......QQQQ..........QQQQQQQQ.......QQQQQQQQ......QQQQQQ
-;~ f(unction) definition with constant logger
-;~ On-Backspace Logger
-;~ Fix-counter
-;~ Replacement nullifiers
-;~ ==Word Parts===
-; :*: - Word Beginnings
-; :*?C: - Word Middles w/Case Sensitive
-; :*C: - Word Beginnings w/Case Sensitive
-; :: - Single-match
-; :*?: - Word Middles 
-; :?: - Word Endings
-; :?C: - Word Endings w/Case Sensitive
-; :C: - Single-match w/Case Sensitive
-;~ -Multi-fix items are commented with " ; Fixes N misspellings"
-;~ -warning: several items break obscure words.  These are commented with " ; Misspells xxx" with an explanation.
-;~ -as of 10-6-2023, ~5097 items, >300k potential fixes. 
-;~ ================
-;~ Accented non English Items (with definitions)
-;~ Capatalize Dates
-;~ School Psych Items
-;~ Recently Added Items
-;########################################################################################
+;  HotString Helper 2.0 QQQQQQQ....QQQQQ......QQQQQ..........QQQQQQQ.......QQQQQQQ......QQQQQQQ
+;  AUto-COrrect TWo COnsecutive CApitals
+;  Table of Contents (this)
+;  f() AutoCorrect hotstring function
+;  Logger function
+;  InputBuffer Class by Descolada
+;  Mini report generator function
+;  Marker function to get top of AutoCorrect List
+;  Replacement nullifiers
+;  AutoCorrect entries
+;  Accented non English Items (with definitions)
+;  Capatalize Dates
+;  A few miscaleneous boilerplate things
+;  Items appennded via Hotstring Helper at the very bottom.
+;------------------------------------------------------------------------------
+;  Multi-fix items are commented with " ; Fixes N misspellings"
+;  Warning: several items break obscure words.  These are commented with "Misspells xxx" with an explanation. 
+;  The Replacment nullifiers attempt to nullify the potential misspellings. 
+;  As of Feb 2024, ~5k items, >328k potential fixes.  Ctrl+F3 for Fix counter
+;  Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
+;------------------------------------------------------------------------------
 
-lastTrigger := "none yet" ; incase no autocorrects have been made
-!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Peek at last trigger. 
-!+l:: Run("LogOfErrors.ahk") ; View log of corrections that prompted backspacing. 
-!^l:: Run("allTriggersLogged.ahk") ; View log of all autocorrections. 
+!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger. 
+!+l::Run("AutoCorrectsLog.ahk") ; Shift+Alt+L: View/Run log of all autocorrections.  
 
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
-f(replace := "", trigger := "", endchar := "") ; All the one-line autocorrects call this f(unction).
-{	A_Clipboard := ""
-	Global lastTrigger := StrReplace(trigger, "XB0", "") "::" replace ; set 'lastTrigger' before removing options and colons.
+lastTrigger := "none yet" ; in case no autocorrects have been made
+f(replace := "") ; All the one-line autocorrects call this f(unction).
+{	static HSInputBuffer := InputBuffer()
+	HSInputBuffer.Start()
+	trigger := A_ThisHotkey, endchar := A_EndChar
+	Global lastTrigger := StrReplace(trigger, "B0X", "") "::" replace ; set 'lastTrigger' before removing options and colons.
 	trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1) ; use everything to right of 2nd colon. 
 	TrigLen := StrLen(trigger) + StrLen(endchar) ; determine number of backspaces needed.
- 	
-	; Only select and replace rightmost necessary chars.  
+
+	; Rarify: Only remove and replace rightmost necessary chars.  
 	trigL := StrSplit(trigger)
 	replL := StrSplit(replace)
 	Global ignorLen := 0
 	Loop Min(trigL.Length, replL.Length) ; find matching left substring.
 	{	If (trigL[A_Index] = replL[A_Index])
 			ignorLen++
-		else
-			break
+		else break
 	}
-
-	; select trigger that was just typed and get trigger text
-	SendInput("{Shift down}{Left " (TrigLen - ignorLen) "}{Shift up}{Ctrl down}x{Ctrl up}") 
-
-	ClipWait(1)
 	replace := SubStr(replace, (ignorLen+1))
-	If IsUpper(SubStr(A_Clipboard,1,1)) ; assess leftmost char
-		replace := StrUpper(SubStr(replace,1,1)) SubStr(replace,2) ; make sentence case
-	SendInput(replace endchar) ; Type replacemement and endchar. 
-		
-	FileAppend(A_MM A_DD " -- " lastTrigger . "`n", "allTriggersLogged.ahk") ; Logs all autocorrects. 
-	Global IsRecent := 1 ; Set IsRecent, then change back in x second(s).
-	setTimer TriggerRecency, -2000 ; run only once, in x second(s). 
+	SendInput("{BS " . (TrigLen - ignorLen) . "}" replace endchar) ; Type replacemement and endchar. 
 	replace := "" ; Reset to blank string.
+	HSInputBuffer.Stop()
 	SoundBeep(900, 60) ; Notification of replacement.
-	;SoundBeep(1000, 40)
+	addToLog := LastTrigger  "`n"
+	GoLogger(addToLog) ; Uses same logger function as above CAse COrrector. 
 }
 
-TriggerRecency() ; Gets called by above x-second timer. 
-{	Global IsRecent := 0 ; no longer recent
+#MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
+GoLogger(addToLog) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
+{ 	EndKeys := "{Backspace}"
+	lih := InputHook("B V I1 E T1", EndKeys) ; "logger input hook." T is time-out. T1 = 1 second.
+	lih.Start(), lih.Wait()
+	hyphen := (lih.EndKey = "Backspace")?  " << " : " -- "
+	FileAppend(A_YYYY "-" A_MM "-" A_DD hyphen addToLog , "AutoCorrectsLog.ahk")
 }
+#MaxThreadsPerHotkey 1
 
-Global IsRecent := 0 ; Start blank
-OnBSLogger() ; Run at script startup.
-OnBSLogger() ; Automatically logs if an autocorrect happens, then I press Backspace within one second. 
-{ 	WordArr := []
-	EndKeys := "{Space}{Backspace}{Tab}{Enter}"
-	lih := InputHook("B V I1 E", EndKeys) ; "logger input hook"
-	Loop
-	{	lih.Start(), lih.Wait()
-		If !RegExMatch(lih.Input, "\d") ; Don't record strings with numbers.
-		{ ; Exclude digits to avoid logging passwords and bank numbers. LOL.
-			WordArr.Push(lih.Input "{" lih.EndKey "}")
-			; ToolTip(lih.Input " & " lih.EndKey)
-			If (WordArr.Length > 7) ; Use bigger number to capture more context.
-				WordArr.RemoveAt(1)
-			If (lih.EndKey = "Backspace" && IsRecent = 1) {
-				For Idx, wArr in WordArr {
-					LogEntry .= WordArr[Idx]
-				}
-				LogEntry := StrReplace(LogEntry, "{Space}", "{-}")
-				LogEntry := StrReplace(LogEntry, "{Backspace}", "{<-}")
-				LogEntry := StrReplace(LogEntry, "{Enter}", "{e}")
-				SoundBeep(900, 333)
-				WinStamp := StrSplit(WinGetTitle("A"), " - ") ; Only use text on right of hyphen.  Too long otherwise...
-				Stamp := "On: " A_MM "-" A_DD "-" A_YYYY "; In: "  WinStamp[2] ; Change date order according to locale.
-				FileAppend("`n`n" Stamp "`n-last typing----> " LogEntry "`n-last replace---> " lastTrigger, "LogOfErrors.ahk")
-				Sleep(100)
-			}
+/* InputBuffer Class by Descolada https://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865
+ * Note:  The mouse-relevant parts were removed via ChatGPT4.
+ * InputBuffer can be used to buffer user input for keyboard, mouse, or both at once. 
+ * The default InputBuffer (via the main class name) is keyboard only, but new instances
+ * can be created via InputBuffer().
+ * 
+ * InputBuffer(keybd := true, mouse := false, timeout := 0)
+ *      Creates a new InputBuffer instance. If keybd/mouse arguments are numeric then the default 
+ *      InputHook settings are used, and if they are a string then they are used as the Option 
+ *      arguments for InputHook and HotKey functions. Timeout can optionally be provided to call
+ *      InputBuffer.Stop() automatically after the specified amount of milliseconds (as a failsafe).
+ * 
+ * InputBuffer.Start()               => initiates capturing input
+ * InputBuffer.Release()             => releases buffered input and continues capturing input
+ * InputBuffer.Stop(release := true) => releases buffered input and then stops capturing input
+ * InputBuffer.ActiveCount           => current number of Start() calls
+ *                                      Capturing will stop only when this falls to 0 (Stop() decrements it by 1)
+ * InputBuffer.SendLevel             => SendLevel of the InputHook
+ *                                      InputBuffers default capturing SendLevel is A_SendLevel+2, 
+ *                                      and key release SendLevel is A_SendLevel+1.
+ * InputBuffer.IsReleasing           => whether Release() is currently in action
+ * InputBuffer.Buffer                => current buffered input in an array
+ */
+
+class InputBuffer {
+    Buffer := [], SendLevel := A_SendLevel + 2, ActiveCount := 0, IsReleasing := 0
+    static __New() => this.DefineProp("Default", {value:InputBuffer()})
+    static __Get(Name, Params) => this.Default.%Name%
+    static __Set(Name, Params, Value) => this.Default.%Name% := Value
+    static __Call(Name, Params) => this.Default.%Name%(Params*)
+
+    __New(keybd := true, timeout := 0) {
+        if !keybd
+            throw Error("Keyboard input type must be specified")
+        this.Timeout := timeout
+        this.Keybd := keybd
+
+        if keybd {
+            if keybd is String {
+                if RegExMatch(keybd, "i)I *(\d+)", &lvl)
+                    this.SendLevel := Integer(lvl[1])
+            }
+            this.InputHook := InputHook(keybd is String ? keybd : "I" (this.SendLevel) " L0 *")
+            this.InputHook.NotifyNonText  := true
+            this.InputHook.VisibleNonText := false
+            this.InputHook.OnKeyDown      := this.BufferKey.Bind(this,,,, "Down")
+            this.InputHook.OnKeyUp        := this.BufferKey.Bind(this,,,, "Up")
+            this.InputHook.KeyOpt("{All}", "N S")
+        }
+        this.HotIfIsActive := this.GetActiveCount.Bind(this)
+    }
+
+    BufferKey(ih, VK, SC, UD) => (this.Buffer.Push(Format("{{1} {2}}", GetKeyName(Format("vk{:x}sc{:x}", VK, SC)), UD)))
+
+    Start() {
+        this.ActiveCount += 1
+        SetTimer(this.Stop.Bind(this), -this.Timeout)
+        if this.ActiveCount > 1
+            return
+        this.Buffer := []
+        if this.Keybd
+            this.InputHook.Start()
+    }
+
+    Release() {
+        if this.IsReleasing
+            return []
+        sent := [], this.IsReleasing := 1
+		; Theoretically the user can still input keystrokes between ih.Stop() and Send, in which case
+        ; they would get interspersed with Send. So try to send all keystrokes, then check if any more 
+        ; were added to the buffer and send those as well until the buffer is emptied. 
+        PrevSendLevel := A_SendLevel
+        SendLevel this.SendLevel - 1
+        while this.Buffer.Length {
+            key := this.Buffer.RemoveAt(1)
+            sent.Push(key)
+            Send(key)
+        }
+        SendLevel PrevSendLevel
+        this.IsReleasing := 0
+        return sent
+    }
+
+    Stop(release := true) {
+        if !this.ActiveCount
+            return
+        sent := release ? this.Release() : []
+        if --this.ActiveCount
+            return
+        if this.Keybd
+            this.InputHook.Stop()
+        return sent
+    }
+
+    GetActiveCount(HotkeyName) => this.ActiveCount
+} ; *End of InputBuffer Class
+
+;###############################################
+; Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
+^F3:: ; Ctrl+F3: Report information about the autocorrect items.
+{	ThisFile := FileRead(A_ScriptFullPath)
+	thisOptions := '', regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0
+	Loop Parse ThisFile, '`n'
+	{	If SubStr(Trim(A_LoopField),1,1) != ':'
+			continue
+		entries++
+		thisOptions := SubStr(Trim(A_LoopField), 1, InStr(A_LoopField, ':',,,2)) ; get options part of hotstring
+		If InStr(thisOptions, '*') and InStr(A_LoopField, '?')
+			middles++
+		Else If InStr(thisOptions, '*')
+			begins++
+		Else If InStr(thisOptions, '?')
+			ends++
+		Else
+			regulars++
+		If RegExMatch(A_LoopField, 'Fixes\h*\K\d+', &fn) ; Need a regex for this... 
+			fixes += fn[]
+	}
+	MsgBox( '   Totals`n===========================`n    Regular Autocorrects:`t   ' numberFormat(regulars)
+	'`n    Word Beginnings:`t`t' numberFormat(begins)
+	'`n    Word Middles:`t`t' numberFormat(middles)
+	'`n    Word Ends:`t`t   ' numberFormat(ends) ; this is a smaller number, so push over with '  ', simulates right justification.
+	'`n===========================`n   Total Entries:`t`t' numberFormat(entries)
+	'`n   Potential Fixes:`t`t' numberFormat(fixes) 
+	, 'Report for ' A_ScriptName, 64
+	)
+	numberFormat(num) ; Function to format a number with commas (by ChatGPT4)
+	{	global
+		Loop 
+		{	oldnum := num
+			num := RegExReplace(num, "(\d)(\d{3}(\,|$))", "$1,$2") ; search for number patterns and insert commas
+			if (num == oldnum) ; If the number doesn't change, exit the loop
+				break
 		}
+		return num
 	}
 }
+;###############################################
+; Up here would be a good place for #HotIf context-sensitive hotstring items. 
 
 ;###############################################
-^F3:: ; How many potential word fixes are there in the autocorrect items?
-{	list := FileRead(A_ScriptFullPath)
-	sum := 0
-	Loop Parse list, '`n' ; mikeyww wrote this too.  
-		If RegExMatch(A_LoopField, 'Fixes\h*\K\d+', &n)
-			sum += n[]
-	MsgBox sum, 'Sum', 64
-}
-;###############################################
+; ; Two hotstrings for testing keyboard input buffering (or lack thereof).
+; :B0X?*:zx::f("lllllllllllllllllllllllllllllllllllllllllllllllll")
+; :B0X?*:cv::f("ooooooooooooooooooooooooooooooooooooooooooooooooo")
 
-
-; Example improvements
-;	:*:hwi::whi ; Fix 310 words
-;	:?C:hc::ch ; Fix 446 words ; :C: so not to break THC or LHC
-; vs ::hwihc::which
-
-
-; Trigger strings to nullify the potential misspellings that are indicated. 
+; ===== Trigger strings to nullify the potential misspellings that are indicated. ======
+; Use the word "corrects" in place of fix to avoid double-counting these as potential fixes. 
 :B0:Savitr:: ; (Important Hindu god) Here for :?:itr::it, which corrects 366 words.
 :B0:Vaisyas:: ; (A member of the mercantile and professional Hindu caste.) Here for :?:syas::says, which corrects 12 words.
 :B0:Wheatley:: ; (a fictional artificial intelligence from the Portal franchise) Here for :?:atley::ately, which corrects 162 words.
@@ -573,8 +1535,9 @@ OnBSLogger() ; Automatically logs if an autocorrect happens, then I press Backsp
 :B0?:foreign:: ; Here for :?:ign::ing, which corrects 11384 words.
 :B0?:resign:: ; Here for :?:ign::ing, which corrects 11384 words.
 :B0?:sovereign:: ; Here for :?:ign::ing, which corrects 11384 words.
+
 /*
-Unfortunately, it doesn't work if other the multi-fix item has :*: in the options.  So these can't be nullified.  
+Unfortunately, it doesn't work if the multi-fix item has :*: in the options.  So these can't be nullified.  
 If you hope to ever type any of these words, locate the corresponding autocorrect item and delete it. 
 :B0:Ahvenanmaa:: ; also :Jahvey:, :Wahvey:, :Yahve:, :Yahveh: (Hebrew names for God.) Here for :?*:ahve::have, which corrects 47 words.
 :B0:Basra:: ; (An oil city in Iraq) Here for :?*:asr::ase, which corrects 698 words.
@@ -606,5129 +1569,5072 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 :B0:lisente:: ; (100 lisente equal 1 loti in Lesotho, S. Afterica) Here for :?*:lisen::licen, which corrects 34 words.
 :B0:pemphigous:: ; (a skin disease) Here for :?*:igous::igious, which corrects 23 words.
 :B0:seviche:: ; (South American dish of raw fish) Here for :?*:sevic::servic, which corrects 25 words.
-:B0:spritual:: ; (A light spar that crosses a fore-and-aft sail diagonally) Here for :?*:spritual::spiritual, which corrects 31 words.
+:B0:spritual:: ; (A light spar that crosses a fore-and-aft sail diagonally) Here for :?*:spritual::spiritual, which corrects 31 words.Ne
 :B0:spycatcher:: ; (secret spy stuff) Here for :?*:spyc::psyc, which corrects 192 words.
 :B0:unfeasable:: ; (archaic, no longer used) Here for :?*:feasable::feasible, which corrects 11 words.
 :B0:vicomte:: ; (French nobleman) Here for :?*C:comt::cont, which corrects 587 words.
 */
 {	return  ; This makes the above hotstrings do nothing so that they override the indicated rules below.
-}
-:*:pinon::piñon  ; noun any of several low-growing pines of western North America (must be above ":?*:pinon::pion ; Corrects 44 words")
+} ; ===== End of nullifier strings ==================
 
 #Hotstring Z ; The Z causes the end char to be reset after each activation. 
 
-:XB0*:Buddist::f("Buddhist", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:Hatian::f("Haitian", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:Naploeon::f("Napoleon", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:Napolean::f("Napoleon", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:Pennyslvania::f("Pennsylvania", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:Queenland::f("Queensland", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:a ab::f("an ab", A_ThisHotkey, A_EndChar)
-:XB0*:a ac::f("an ac", A_ThisHotkey, A_EndChar)
-:XB0*:a ad::f("an ad", A_ThisHotkey, A_EndChar)
-:XB0*:a af::f("an af", A_ThisHotkey, A_EndChar)
-:XB0*:a ag::f("an ag", A_ThisHotkey, A_EndChar)
-:XB0*:a al::f("an al", A_ThisHotkey, A_EndChar)
-:XB0*:a am::f("an am", A_ThisHotkey, A_EndChar)
-:XB0*:a an::f("an an", A_ThisHotkey, A_EndChar)
-:XB0*:a ap::f("an ap", A_ThisHotkey, A_EndChar)
-:XB0*:a as::f("an as", A_ThisHotkey, A_EndChar)
-:XB0*:a av::f("an av", A_ThisHotkey, A_EndChar)
-:XB0*:a aw::f("an aw", A_ThisHotkey, A_EndChar)
-:XB0*:a ea::f("an ea", A_ThisHotkey, A_EndChar)
-:XB0*:a ef::f("an ef", A_ThisHotkey, A_EndChar)
-:XB0*:a ei::f("an ei", A_ThisHotkey, A_EndChar)
-:XB0*:a el::f("an el", A_ThisHotkey, A_EndChar)
-:XB0*:a em::f("an em", A_ThisHotkey, A_EndChar)
-:XB0*:a en::f("an en", A_ThisHotkey, A_EndChar)
-:XB0*:a ep::f("an ep", A_ThisHotkey, A_EndChar)
-:XB0*:a eq::f("an eq", A_ThisHotkey, A_EndChar)
-:XB0*:a es::f("an es", A_ThisHotkey, A_EndChar)
-:XB0*:a et::f("an et", A_ThisHotkey, A_EndChar)
-:XB0*:a ex::f("an ex", A_ThisHotkey, A_EndChar)
-:XB0*:a ic::f("an ic", A_ThisHotkey, A_EndChar)
-:XB0*:a id::f("an id", A_ThisHotkey, A_EndChar)
-:XB0*:a ig::f("an ig", A_ThisHotkey, A_EndChar)
-:XB0*:a il::f("an il", A_ThisHotkey, A_EndChar)
-:XB0*:a im::f("an im", A_ThisHotkey, A_EndChar)
-:XB0*:a in::f("an in", A_ThisHotkey, A_EndChar)
-:XB0*:a ir::f("an ir", A_ThisHotkey, A_EndChar)
-:XB0*:a is::f("an is", A_ThisHotkey, A_EndChar)
-:XB0*:a oa::f("an oa", A_ThisHotkey, A_EndChar)
-:XB0*:a ob::f("an ob", A_ThisHotkey, A_EndChar)
-:XB0*:a oi::f("an oi", A_ThisHotkey, A_EndChar)
-:XB0*:a ol::f("an ol", A_ThisHotkey, A_EndChar)
-:XB0*:a op::f("an op", A_ThisHotkey, A_EndChar)
-:XB0*:a or::f("an or", A_ThisHotkey, A_EndChar)
-:XB0*:a os::f("an os", A_ThisHotkey, A_EndChar)
-:XB0*:a ot::f("an ot", A_ThisHotkey, A_EndChar)
-:XB0*:a ou::f("an ou", A_ThisHotkey, A_EndChar)
-:XB0*:a ov::f("an ov", A_ThisHotkey, A_EndChar)
-:XB0*:a ow::f("an ow", A_ThisHotkey, A_EndChar)
-:XB0*:a ud::f("an ud", A_ThisHotkey, A_EndChar)
-:XB0*:a ug::f("an ug", A_ThisHotkey, A_EndChar)
-:XB0*:a ul::f("an ul", A_ThisHotkey, A_EndChar)
-:XB0*:a um::f("an um", A_ThisHotkey, A_EndChar)
-:XB0*:a un::f("an un", A_ThisHotkey, A_EndChar)
-:XB0*:a up::f("an up", A_ThisHotkey, A_EndChar)
-:XB0*:abandonned::f("abandoned", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:abcense::f("absence", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:abera::f("aberra", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:abondon::f("abandon", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:abreviat::f("abbreviat", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:absail::f("abseil", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:abscen::f("absen", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0*:absense::f("absence", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:acclimit::f("acclimat", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:accomd::f("accommod", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0*:accordeon::f("accordion", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:accordian::f("accordion", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:achei::f("achie", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:achiv::f("achiev", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:aciden::f("acciden", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:ackward::f("awkward", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:acord::f("accord", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:acquite::f("acquitte", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:acuse::f("accuse", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:adbandon::f("abandon", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:adhear::f("adher", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:adheran::f("adheren", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:adresa::f("addressa", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:adress::f("address", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:adves::f("advers", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:afair::f("affair", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:afficianado::f("aficionado", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:afficionado::f("aficionado", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:agani::f("again", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:aggregious::f("egregious", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:agian::f("again", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:agina::f("again", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:agriev::f("aggriev", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:aiport::f("airport", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:aledg::f("alleg", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0*:alege::f("allege", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:alegien::f("allegian", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:algebraical::f("algebraic", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:alientat::f("alienat", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:alledg::f("alleg", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0*:allivia::f("allevia", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:allopon::f("allophon", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:alse::f("else", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:alterior::f("ulterior", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:alternit::f("alternat", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:alusi::f("allusi", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:amalgom::f("amalgam", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:amature::f("amateur", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:amme::f("ame", A_ThisHotkey, A_EndChar) ; Fixes 341 words, Misspells ammeter (electrician's tool).
-:XB0*:ammuse::f("amuse", A_ThisHotkey, A_EndChar) ; Fixes 6 words.
-:XB0*:amoung::f("among", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:amung::f("among", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:amunition::f("ammunition", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:an large::f("a large", A_ThisHotkey, A_EndChar) 
-:XB0*:analag::f("analog", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0*:anarchim::f("anarchism", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:andd::f("and", A_ThisHotkey, A_EndChar) ; Fixes 73 words
-:XB0*:androgenous::f("androgynous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:anih::f("annih", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:aniv::f("anniv", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:anonim::f("anonym", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0*:anoyance::f("annoyance", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:ansal::f("nasal", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0*:ansest::f("ancest", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:antartic::f("antarctic", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:anthrom::f("anthropom", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0*:anual::f("annual", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:anul::f("annul", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:aproxim::f("approxim", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:aquaduct::f("aqueduct", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:aquir::f("acquir", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:arbouret::f("arboret", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:archiac::f("archaic", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:archtyp::f("archetyp", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:areod::f("aerod", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:ariv::f("arriv", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:armistace::f("armistice", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:arogan::f("arrogan", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:arren::f("arran", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:arrou::f("arou", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:artc::f("artic", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0*:artical::f("article", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:artifical::f("artificial", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:artillar::f("artiller", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:asetic::f("ascetic", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:asphyxa::f("asphyxia", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:assasin::f("assassin", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:assesment::f("assessment", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:asside::f("aside", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:assisnat::f("assassinat", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:assistent::f("assistant", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:assit::f("assist", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:assualt::f("assault", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:asum::f("assum", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0*:athenean::f("Athenian", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:atn::f("ant", A_ThisHotkey, A_EndChar) ; Fixes 704 words
-:XB0*:atorne::f("attorne", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:attourne::f("attorne", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:attroci::f("atroci", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:auromat::f("automat", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0*:austrailia::f("Australia", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:authorative::f("authoritative", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:authoritive::f("authoritative", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:autochtonous::f("autochthonous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:autocton::f("autochthon", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:autorit::f("authorit", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:autsim::f("autism", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:auxilar::f("auxiliar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:auxillar::f("auxiliar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:auxilliar::f("auxiliar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:avalance::f("avalanche", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:avati::f("aviati", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:averagee::f("average", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:aywa::f("away", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:bananna::f("banana", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:bandonn::f("abandon", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:bandwith::f("bandwidth", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:bankrupc::f("bankruptc", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:banrupt::f("bankrupt", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:barb wire::f("barbed wire", A_ThisHotkey, A_EndChar)  ; Fixes 2 words
-:XB0*:beachead::f("beachhead", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:beastia::f("bestia", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:begginer::f("beginner", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:beggining::f("beginning", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:begining::f("beginning", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:bellweather::f("bellwether", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:bergamont::f("bergamot", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:beseig::f("besieg", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:beteen::f("between", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:betwen::f("between", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:beut::f("beaut", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0*:beween::f("between", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:bewteen::f("between", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:bigining::f("beginning", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:biginning::f("beginning", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:billingual::f("bilingual", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:bizzare::f("bizarre", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:blaim::f("blame", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:blitzkreig::f("Blitzkrieg", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:bodydbuilder::f("bodybuilder", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:boyan::f("buoyan", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:brasillian::f("Brazilian", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:breakthough::f("breakthrough", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:brillan::f("brillian", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:brocolli::f("broccoli", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:buddah::f("Buddha", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:buoan::f("buoyan", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:bve::f("be", A_ThisHotkey, A_EndChar) ; Fixes 1565 words
-:XB0*:cacus::f("caucus", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:calaber::f("caliber", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:calander::f("calendar", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:calender::f("calendar", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:califronia::f("California", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:caligra::f("calligra", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:cambrige::f("Cambridge", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:camoflag::f("camouflag", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:candidiat::f("candidat", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:cannota::f("connota", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:cansel::f("cancel", A_ThisHotkey, A_EndChar) ; Fixes 21 words ; Added be Steve
-:XB0*:cantalop::f("cantaloup", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:carniver::f("carnivor", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:carree::f("caree", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:carrib::f("Carib", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:carthogr::f("cartogr", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:casion::f("caisson", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:cassawor::f("cassowar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:cassowarr::f("cassowar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:casulat::f("casualt", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:catapillar::f("caterpillar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:catapiller::f("caterpillar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:catepillar::f("caterpillar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:caterpilar::f("caterpillar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:caterpiller::f("caterpillar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:catterpilar::f("caterpillar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:catterpillar::f("caterpillar", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:caucasion::f("Caucasian", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:ceasa::f("Caesa", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:cemetar::f("cemeter", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:champang::f("champagn", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:chauffer::f("chauffeur", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:choclat::f("chocolat", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:chuch::f("church", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0*:ciel::f("ceil", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:cilind::f("cylind", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:cirtu::f("citru", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:colate::f("collate", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0*:colea::f("collea", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:collaber::f("collabor", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:collos::f("coloss", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:comande::f("commande", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:comando::f("commando", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:comback::f("comeback", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:comdem::f("condem", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:commadn::f("command", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:commemerat::f("commemorat", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:commerorat::f("commemorat", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:compair::f("compare", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:comparit::f("comparat", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:competion::f("competition", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:compona::f("compone", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:compulsar::f("compulsor", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:compulser::f("compulsor", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:concensu::f("consensu", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:conciet::f("conceit", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:condamn::f("condemn", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:condemm::f("condemn", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:conesencu::f("consensu", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:confidental::f("confidential", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:congradulat::f("congratulat", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:coniv::f("conniv", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:conneticut::f("Connecticut", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:conot::f("connot", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:conquerer::f("conqueror", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:consorci::f("consorti", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:consulan::f("consultan", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:consulten::f("consultan", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:copy or report::f("copy of report", A_ThisHotkey, A_EndChar)
-:XB0*:copy or signed::f("copy of signed", A_ThisHotkey, A_EndChar)
-:XB0*:corosi::f("corrosi", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:correpond::f("correspond", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:corridoor::f("corridor", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:coucil::f("council", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:coudl::f("could", A_ThisHotkey, A_EndChar)
-:XB0*:councellor::f("counselor", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:counr::f("countr", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:creeden::f("creden", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:creme::f("crème", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:critere::f("criteri", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:critiz::f("criticiz", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:crucifiction::f("crucifixion", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:culimi::f("culmi", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:curriculm::f("curriculum", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:cyclind::f("cylind", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:dacquiri::f("daiquiri", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:dael::f("deal", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0*:dakiri::f("daiquiri", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:dalmation::f("dalmatian", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:deafult::f("default", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:decathalon::f("decathlon", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:definan::f("defian", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:delapidat::f("dilapidat", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:deleri::f("deliri", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:derogit::f("derogat", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:descripter::f("descriptor", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:desease::f("disease", A_ThisHotkey, A_EndChar) ; Fixes 5 words.
-:XB0*:desica::f("desicca", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:desinte::f("disinte", A_ThisHotkey, A_EndChar) ; Fixes 24 words.
-:XB0*:desktiop::f("desktop", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:desorder::f("disorder", A_ThisHotkey, A_EndChar) ; Fixes 8 words.
-:XB0*:desorient::f("disorient", A_ThisHotkey, A_EndChar) ; Fixes 10 words.
-:XB0*:desparat::f("desperat", A_ThisHotkey, A_EndChar) ; Fixes 6 words.
-:XB0*:dessicat::f("desiccat", A_ThisHotkey, A_EndChar) ; Fixes 9 words.
-:XB0*:deteoriat::f("deteriorat", A_ThisHotkey, A_EndChar) ; Fixes 6 words.
-:XB0*:deteriat::f("deteriorat", A_ThisHotkey, A_EndChar) ; Fixes 6 words.
-:XB0*:deterioriat::f("deteriorat", A_ThisHotkey, A_EndChar) ; Fixes 6 words.
-:XB0*:detrement::f("detriment", A_ThisHotkey, A_EndChar) ; Fixes 5 words.
-:XB0*:devaste::f("devastate", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:devestat::f("devastat", A_ThisHotkey, A_EndChar) ; Fixes 9 words.
-:XB0*:devistat::f("devastat", A_ThisHotkey, A_EndChar) ; Fixes 9 words.
-:XB0*:diablic::f("diabolic", A_ThisHotkey, A_EndChar) ; Fixes 4 words.
-:XB0*:diast::f("disast", A_ThisHotkey, A_EndChar) ; Fixes 5 words.
-:XB0*:dicht::f("dichot", A_ThisHotkey, A_EndChar) ; Fixes 18 words.  Misspells "Mulloidichthys" a genus of Mullidae (goatfishes or red mullets).
-:XB0*:diconnect::f("disconnect", A_ThisHotkey, A_EndChar) ; Fixes 9 words.
-:XB0*:diffcult::f("difficult", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:dificult::f("difficult", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:diminuit::f("diminut", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:dimunit::f("diminut", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:diphtong::f("diphthong", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:diplomanc::f("diplomac", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:diptheria::f("diphtheria", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:dipthong::f("diphthong", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:disasterous::f("disastrous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:disatisf::f("dissatisf", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:disatrous::f("disastrous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:diseminat::f("disseminat", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:dispair::f("despair", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:dispele::f("dispelle", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:dispicab::f("despicab", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:dispite::f("despite", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:disproportiate::f("disproportionate", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:dissag::f("disag", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0*:dissap::f("disap", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0*:dissar::f("disar", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0*:dissob::f("disob", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:divinition::f("divination", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:double header::f("doubleheader", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:draughtm::f("draughtsm", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:elphant::f("elephant", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:embezell::f("embezzl", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:emblamatic::f("emblematic", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:emial::f("email", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:eminat::f("emanat", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:emite::f("emitte", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:emn::f("enm", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:emphysyma::f("emphysema", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:empirial::f("imperial", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:emporer::f("emperor", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:enb::f("eng", A_ThisHotkey, A_EndChar) ; Fixes 103 words, but misspells Enbrel (Trade name for a genetically engineered anti-TNF compound for treating  rheumatoid arthritis). 
-:XB0*:enchanc::f("enhanc", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:encylop::f("encyclop", A_ThisHotkey, A_EndChar) ; Fixes 16 word
-:XB0*:endevors::f("endeavors", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:endolithe::f("endolith", A_ThisHotkey, A_EndChar) ; Fixes 2 words (which are not in WordWeb)
-:XB0*:ened::f("need", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0*:english::f("English", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:enlargment::f("enlargement", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:enlish::f("English", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:enourmous::f("enormous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:enscons::f("ensconc", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:enteratin::f("entertain", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:entrepeneur::f("entrepreneur", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:enviorment::f("environment", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:enviorn::f("environ", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:envirom::f("environm", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:envrion::f("environ", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:epidsod::f("episod", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:epsiod::f("episod", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:equitor::f("equator", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:eral::f("real", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0*:eratic::f("erratic", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:erest::f("arrest", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:errupt::f("erupt", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:escta::f("ecsta", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:esle::f("else", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:europian::f("European", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:eurpean::f("European", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:eurpoean::f("European", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:evenhtual::f("eventual", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:evental::f("eventual", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:evential::f("eventual", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:excede::f("exceed", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:excelen::f("excellen", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:excellan::f("excellen", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:exection::f("execution", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:exelen::f("excellen", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:exellen::f("excellen", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:exerbat::f("exacerbat", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:exerpt::f("excerpt", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:exerternal::f("external", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:exhalt::f("exalt", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:exhibt::f("exhibit", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0*:exibit::f("exhibit", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0*:exilera::f("exhilara", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:exlud::f("exclud", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:exonorat::f("exonerat", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:expeiment::f("experiment", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:explainat::f("explanat", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:expropiat::f("expropriat", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:exteme::f("extreme", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:extraterrestial::f("extraterrestrial", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:extravagent::f("extravagant", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:extrordinar::f("extraordinar", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:eyar::f("year", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:faciliat::f("facilitat", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:facillitat::f("facilitat", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:facinat::f("fascinat", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:faetur::f("featur", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:fleed::f("freed", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:forhe::f("forehe", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:fortell::f("foretell", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:foundar::f("foundr", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:fouth::f("fourth", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:fransiscan::f("Franciscan", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:froniter::f("frontier", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:fued::f("feud", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0*:fuhrer::f("Führer", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:furner::f("funer", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:futhe::f("furthe", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:fwe::f("few", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:ganst::f("gangst", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:gaol::f("goal", A_ThisHotkey, A_EndChar) ; Fixes 22 words ; Misspells British spelling of "jail"
-:XB0*:gauren::f("guaran", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:geneolog::f("genealog", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:gerat::f("great", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:girat::f("gyrat", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:gloabl::f("global", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:gnaww::f("gnaw", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:gouvener::f("governor", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:governer::f("governor", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:graet::f("great", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:grafitti::f("graffiti", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:gridle::f("griddle", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:guage::f("gauge", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:guerrila::f("guerrilla", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:guidlin::f("guidelin", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:gutteral::f("guttural", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:haemorrage::f("haemorrhage", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:halarious::f("hilarious", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:halp::f("help", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0*:hapen::f("happen", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:harasm::f("harassm", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:harassement::f("harassment", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:hda::f("had", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0*:headquarer::f("headquarter", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:headquater::f("headquarter", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:helment::f("helmet", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:hemmorhage::f("hemorrhage", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:hesista::f("hesita", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0*:hge::f("he", A_ThisHotkey, A_EndChar) ; Fixes 1607 words
-:XB0*:hieght::f("height", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:hlep::f("help", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0*:holliday::f("holiday", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:hosit::f("hoist", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:hsa::f("has", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0*:hte::f("the", A_ThisHotkey, A_EndChar) ; Fixes 402 words
-:XB0*:hti::f("thi", A_ThisHotkey, A_EndChar) ; Fixes 186 words
-:XB0*:hwi::f("whi", A_ThisHotkey, A_EndChar) ; Fixes 310 words
-:XB0*:hwo::f("who", A_ThisHotkey, A_EndChar) ; Fixes 76 words
-:XB0*:hygein::f("hygien", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:hyjack::f("hijack", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:iconclas::f("iconoclas", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:idae::f("idea", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0*:idealogi::f("ideologi", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:illegim::f("illegitim", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:illegitma::f("illegitima", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:illieg::f("illeg", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0*:ilog::f("illog", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:ilu::f("illu", A_ThisHotkey, A_EndChar) ; Fixes 61 words
-:XB0*:iman::f("immin", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:imcom::f("incom", A_ThisHotkey, A_EndChar) ; Fixes 78 words
-:XB0*:imigra::f("immigra", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:immida::f("immedia", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:immidia::f("immedia", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:immunosupress::f("immunosuppress", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:impecab::f("impecca", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:impressa::f("impresa", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:improvision::f("improvisation", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:inagura::f("inaugura", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:inate::f("innate", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:inaugure::f("inaugurate", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:inbalance::f("imbalance", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:incread::f("incred", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:indefineab::f("undefinab", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:independan::f("independen", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:indesp::f("indisp", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0*:indigine::f("indigen", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0*:inevatibl::f("inevitabl", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:inevitib::f("inevitab", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:inevititab::f("inevitab", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:inmigra::f("immigra", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:inocenc::f("innocenc", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:inofficial::f("unofficial", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:inot::f("into", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0*:inpen::f("impen", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:interelat::f("interrelat", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:intertain::f("entertain", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:intial::f("initial", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0*:intrument::f("instrument", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0*:intrust::f("entrust", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:inumer::f("innumer", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:inventer::f("inventor", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:ireleven::f("irrelevan", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:iresistabl::f("irresistibl", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:iresistib::f("irresistib", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:iritab::f("irritab", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:iritat::f("irritat", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:itr::f("it", A_ThisHotkey, A_EndChar) ; Fixes 101 words, but misspells itraconazole (Antifungal drug). 
-:XB0*:jeapard::f("jeopard", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:jouney::f("journey", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:lable::f("label", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:lasoo::f("lasso", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:lazer::f("laser", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:leage::f("league", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:lefr::f("left", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:leran::f("learn", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:leutenan::f("lieutenan", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:levle::f("level", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0*:lias::f("liais", A_ThisHotkey, A_EndChar) ; Fixes 6 words, Case-sensitive to not misspell Lias (One of the Jurrasic periods.)
-:XB0*:libell::f("libel", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:lible::f("libel", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:librer::f("librar", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:liesure::f("leisure", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:liev::f("live", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0*:liquif::f("liquef", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:lsat::f("last", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:lsit::f("list", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0*:lveo::f("love", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0*:lvoe::f("love", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0*:lybia::f("Libya", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:maginc::f("magic", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:magnificien::f("magnificen", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:magol::f("magnol", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:manisf::f("manif", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:marrtyr::f("martyr", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0*:masterbat::f("masturbat", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:mataph::f("metaph", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:mechandi::f("merchandi", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:mercentil::f("mercantil", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:mesag::f("messag", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:meterolog::f("meteorolog", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:micos::f("micros", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0*:milion::f("million", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:milleni::f("millenni", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:minsitr::f("ministr", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:mirrorr::f("mirror", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:miscellanious::f("miscellaneous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:miscellanous::f("miscellaneous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:mischeivous::f("mischievous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:mischevious::f("mischievous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:mischievious::f("mischievous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:misdameanor::f("misdemeanor", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:misdemenor::f("misdemeanor", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:misouri::f("Missouri", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:mispell::f("misspell", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:misteri::f("mysteri", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:monestar::f("monaster", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:monicker::f("moniker", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:monkie::f("monkey", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:montain::f("mountain", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:montyp::f("monotyp", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:movei::f("movie", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:muncipal::f("municipal", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0*:munnicipal::f("municipal", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0*:muscician::f("musician", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:myraid::f("myriad", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:mysogyn::f("misogyn", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:mysterous::f("mysterious", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:naieve::f("naive", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:necessiat::f("necessitat", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:neglib::f("negligib", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:negligab::f("negligib", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:negociab::f("negotiab", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:nkwo::f("know", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0*:norhe::f("northe", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0*:northen::f("northern", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:northereast::f("northeast", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:noteri::f("notori", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:nothern::f("northern", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:notive::f("notice", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:nowe::f("now", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:nto::f("not", A_ThisHotkey, A_EndChar) ; Fixes 116 words
-:XB0*:numbero::f("numero", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:nutur::f("nurtur", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:nver::f("never", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:nwe::f("new", A_ThisHotkey, A_EndChar) ; Fixes 123 words
-:XB0*:nwo::f("now", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:obess::f("obsess", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:obssess::f("obsess", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:ocasion::f("occasion", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:ocass::f("occas", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:occaison::f("occasion", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:occation::f("occasion", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:octohedr::f("octahedr", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:ocuntr::f("countr", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:ocur::f("occur", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:offce::f("office", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:onot::f("not", A_ThisHotkey, A_EndChar) ; Fixes 116 words
-:XB0*:oponen::f("opponen", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:opose::f("oppose", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:oposi::f("opposi", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:oppositit::f("opposit", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:opre::f("oppre", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:optmiz::f("optimiz", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:optomi::f("optimi", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:orthag::f("orthog", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0*:oublish::f("publish", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:oustanding::f("outstanding", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:overwelm::f("overwhelm", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:owudl::f("would", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:owuld::f("would", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:oximoron::f("oxymoron", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:palist::f("Palest", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:pamflet::f("pamphlet", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:pamplet::f("pamphlet", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:pantomine::f("pantomime", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:paranthe::f("parenthe", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:parrakeet::f("parakeet", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:pastural::f("pastoral", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:peageant::f("pageant", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:peculure::f("peculiar", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:pedestrain::f("pedestrian", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:pensle::f("pencil", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:peom::f("poem", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:perade::f("parade", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:peretrat::f("perpetrat", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:peripathetic::f("peripatetic", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:peristen::f("persisten", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:perjer::f("perjur", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:perjorative::f("pejorative", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:perpindicular::f("perpendicular", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:persan::f("person", A_ThisHotkey, A_EndChar) ; Fixes 55 words
-:XB0*:perseveren::f("perseveran", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:persue::f("pursue", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:persui::f("pursui", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:philipi::f("Philippi", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:pilgrimm::f("pilgrim", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:plagar::f("plagiar", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0*:plateu::f("plateau", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:playright::f("playwright", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:playwrite::f("playwright", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:plebicit::f("plebiscit", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:pomot::f("promot", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:posthomous::f("posthumous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:potra::f("portra", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:practioner::f("practitioner", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:prairy::f("prairie", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:prarie::f("prairie", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:preample::f("preamble", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:precurser::f("precursor", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:preferra::f("prefera", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:premei::f("premie", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:premillenial::f("premillennial", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:preminen::f("preeminen", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:premissio::f("permissio", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:prepart::f("preparat", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:prepera::f("prepara", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:presed::f("presid", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:presitg::f("prestig", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:prevers::f("pervers", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:primativ::f("primitiv", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:primordal::f("primordial", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:principial::f("principal", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:prinici::f("princi", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:privt::f("privat", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0*:procede::f("proceed", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:proceding::f("proceeding", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:proceedur::f("procedur", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:profesor::f("professor", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:profilic::f("prolific", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:progid::f("prodig", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:promiscous::f("promiscuous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:pronomial::f("pronominal", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:propoga::f("propaga", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0*:proseletyz::f("proselytiz", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:protruberanc::f("protuberanc", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:pseudonyn::f("pseudonym", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:puch::f("push", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0*:pumkin::f("pumpkin", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:puritannic::f("puritanic", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:purpot::f("purport", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:pysci::f("psychi", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:quantat::f("quantit", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:quess::f("guess", A_ThisHotkey, A_EndChar) ; Fixes 14 words 
-:XB0*:quinessen::f("quintessen", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:quize::f("quizze", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:racaus::f("raucous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:raed::f("read", A_ThisHotkey, A_EndChar) ; Fixes 63 words
-:XB0*:rasberr::f("raspberr", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:reasea::f("resea", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:recie::f("recei", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:reciv::f("receiv", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:recomen::f("recommen", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:recommed::f("recommend", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:reconaissance::f("reconnaissance", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:reconize::f("recognize", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:recuit::f("recruit", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:recurran::f("recurren", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:redicu::f("ridicu", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:refedend::f("referend", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:refridgera::f("refrigera", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:refusla::f("refusal", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:reher::f("rehear", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:reica::f("reinca", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:reknown::f("renown", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:reliz::f("realiz", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:remenant::f("remnant", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:remenic::f("reminisc", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:reminent::f("remnant", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:remines::f("reminis", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:reminsc::f("reminisc", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:reminsic::f("reminisc", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:rendevous::f("rendezvous", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:rendezous::f("rendezvous", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:renewl::f("renewal", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:repid::f("rapid", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:repon::f("respon", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:reprtoire::f("repertoire", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:repubi::f("republi", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:requr::f("requir", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:resaura::f("restaura", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:resembe::f("resemble", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:resevoir::f("reservoir", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:resignement::f("resignation", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:resignment::f("resignation", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:resse::f("rese", A_ThisHotkey, A_EndChar) ; Fixes 98 words
-:XB0*:ressurrect::f("resurrect", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:restara::f("restaura", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:restaurati::f("restorati", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:resteraunt::f("restaurant", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:restraunt::f("restaurant", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:resturant::f("restaurant", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:resturaunt::f("restaurant", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:retalitat::f("retaliat", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:retrun::f("return", A_ThisHotkey, A_EndChar) ; Fixes 10 words 
-:XB0*:reult::f("result", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:reveral::f("reversal", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:rfere::f("refere", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0*:rockerfeller::f("Rockefeller", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:rococco::f("rococo", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:role call::f("roll call", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:roll play::f("role play", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:roomate::f("roommate", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:rucupera::f("recupera", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:rulle::f("rule", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:rumer::f("rumor", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:russina::f("Russian", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:russion::f("Russian", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:rythem::f("rhythm", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:rythm::f("rhythm", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:sacrelig::f("sacrileg", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:sacrifical::f("sacrificial", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:safegard::f("safeguard", A_ThisHotkey, A_EndChar) ; added by steve
-:XB0*:salery::f("salary", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:sandwhich::f("sandwich", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:sargan::f("sergean", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:sargean::f("sergean", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:saterday::f("Saturday", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:saxaphon::f("saxophon", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:say la v::f("c'est la vie", A_ThisHotkey, A_EndChar)
-:XB0*:scandanavia::f("Scandinavia", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:scaricit::f("scarcit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:scavang::f("scaveng", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:scrutinit::f("scrutin", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:scuptur::f("sculptur", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:secceed::f("seced", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:secrata::f("secreta", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:seguoy::f("segue", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:seh::f("she", A_ThisHotkey, A_EndChar) ; Fixes 236 words
-:XB0*:seinor::f("senior", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:senari::f("scenari", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:senc::f("sens", A_ThisHotkey, A_EndChar) ; Fixes 107 words
-:XB0*:sentan::f("senten", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:sepina::f("subpoena", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:sergent::f("sergeant", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:set back::f("setback", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:shamen::f("shaman", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:short coming::f("shortcoming", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:shoudl::f("should", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:shreak::f("shriek", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:side affect::f("side effect", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:side kick::f("sidekick", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:sideral::f("sidereal", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:siez::f("seiz", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:simetr::f("symmetr", A_ThisHotkey, A_EndChar) ; Fixes 18 words 
-:XB0*:site line::f("sight line", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:sneek::f("sneak", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:socit::f("societ", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:sofware::f("software", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:soilder::f("soldier", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:solatar::f("solitar", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:soliders::f("soldiers", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:soliliqu::f("soliloqu", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:somtime::f("sometime", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:sophmore::f("sophomore", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:sorceror::f("sorcerer", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:sorround::f("surround", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:sould::f("should", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:sountrack::f("soundtrack", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:sourth::f("south", A_ThisHotkey, A_EndChar) ; Fixes 59 words
-:XB0*:souvenier::f("souvenir", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:soveit::f("soviet", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0*:sovereignit::f("sovereignt", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:speciman::f("specimen", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:spendour::f("splendour", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:sportscar::f("sports car", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:sppech::f("speech", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*:squared inch::f("square inch", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:squared kilometer::f("square kilometer", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:squared meter::f("square meter", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:squared mile::f("square mile", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:stale mat::f("stalemat", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:staring role::f("starring role", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:starring roll::f("starring role", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:stilus::f("stylus", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:stpo::f("stop", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0*:strenous::f("strenuous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:strike out::f("strikeout", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:strnad::f("strand", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:stroy::f("story", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:struggel::f("struggle", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:strugl::f("struggl", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:stuggl::f("struggl", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:subjudgation::f("subjugation", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:subsidar::f("subsidiar", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:subsiduar::f("subsidiar", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:subsquen::f("subsequen", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:substace::f("substance", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:substatia::f("substantia", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:substitud::f("substitut", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:substract::f("subtract", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0*:subtance::f("substance", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:suburburban::f("suburban", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0*:succedd::f("succeed", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:succede::f("succeede", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:suceed::f("succeed", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:sucide::f("suicide", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:sucidial::f("suicidal", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:sudent::f("student", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:sufferag::f("suffrag", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:sumar::f("summar", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:suop::f("soup", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:superce::f("superse", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:supliment::f("supplement", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:surplant::f("supplant", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:surrepetitious::f("surreptitious", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:surreptious::f("surreptitious", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:surrond::f("surround", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:surroud::f("surround", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:surrunder::f("surrender", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:surveilen::f("surveillan", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:swiming::f("swimming", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:synagouge::f("synagogue", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:synph::f("symph", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0*:syrap::f("syrup", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:tabacco::f("tobacco", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:tatoo::f("tattoo", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:telelev::f("telev", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:televiz::f("televis", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:televsion::f("television", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:temerature::f("temperature", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:temperment::f("temperament", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:temperture::f("temperature", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:tenacle::f("tentacle", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:termoil::f("turmoil", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:testomon::f("testimon", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:thansk::f("thanks", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:thegovernment::f("the government", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:there final::f("their final", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:thge::f("the", A_ThisHotkey, A_EndChar) ; Fixes 402 words
-:XB0*:thier::f("their", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:thisyear::f("this year", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:thna::f("than", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0*:thne::f("then", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:threee::f("three", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:threshhold::f("threshold", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:thrid::f("third", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:thror::f("thor", A_ThisHotkey, A_EndChar) ; Fixes 57 words
-:XB0*:thsi::f("this", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0*:thta::f("that", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:tiem::f("time", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0*:time out::f("timeout", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:timeschedule::f("time schedule", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:timne::f("time", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0*:tiome::f("time", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0*:tobbaco::f("tobacco", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:todya::f("today", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:tolkein::f("Tolkien", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:tommorow::f("tomorrow", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:tommorrow::f("tomorrow", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:tomorow::f("tomorrow", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:tortise::f("tortoise", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:traffice::f("trafficke", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:trafic::f("traffic", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0*:trancend::f("transcend", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:transcendan::f("transcenden", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0*:transend::f("transcend", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:transferin::f("transferrin", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:translater::f("translator", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:transpora::f("transporta", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:tremelo::f("tremolo", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:triathalon::f("triathlon", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:triguer::f("trigger", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:triolog::f("trilog", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:tthe::f("the", A_ThisHotkey, A_EndChar) ; Fixes 402 words
-:XB0*:tust::f("trust", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0*:tution::f("tuition", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:twelth::f("twelfth", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:tyo::f("to", A_ThisHotkey, A_EndChar) ; Fixes 1110 words
-:XB0*:tyrrani::f("tyranni", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0*:ubiquitious::f("ubiquitous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:ubli::f("publi", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0*:uise::f("use", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0*:ukran::f("Ukrain", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:ulser::f("ulcer", A_ThisHotkey, A_EndChar) ; Fixes 12 words 
-:XB0*:unanym::f("unanim", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:under go::f("undergo", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:under rate::f("underrate", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:under take::f("undertake", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:underat::f("underrat", A_ThisHotkey, A_EndChar) ; Fixes 4 words 
-:XB0*:undreground::f("underground", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:uneccesar::f("unnecessar", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:unecessar::f("unnecessar", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:unequalit::f("inequalit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:unihabit::f("uninhabit", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:univeral::f("universal", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0*:univerist::f("universit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:univerit::f("universit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:universti::f("universit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:univesit::f("universit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:unkow::f("unknow", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0*:unliek::f("unlike", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:unotice::f("unnotice", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:unplease::f("displease", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:unuseable::f("unusable", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:vaccum::f("vacuum", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:vacinit::f("vicinit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:vaguar::f("vagar", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:vaiet::f("variet", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:varit::f("variet", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:vasall::f("vassal", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:vehicule::f("vehicle", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:vengance::f("vengeance", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:vengence::f("vengeance", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:verfication::f("verification", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:vermillion::f("vermilion", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:versitilat::f("versatilit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:versitlit::f("versatilit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:vetween::f("between", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:vigour::f("vigor", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:villian::f("villain", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:villifi::f("vilifi", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:villify::f("vilify", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:villin::f("villain", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0*:vincinit::f("vicinit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:virutal::f("virtual", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0*:visabl::f("visibl", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:vistor::f("visitor", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:vitor::f("victor", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:vocal chord::f("vocal cord", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:volcanoe::f("volcano", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:voley::f("volley", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0*:vriet::f("variet", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:vulnerablilit::f("vulnerabilit", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:wardobe::f("wardrobe", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:whn::f("when", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:whould::f("would", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:wich::f("which", A_ThisHotkey, A_EndChar) ; Fixes 3 words, Case-sensitive to not misspell Wichita.
-:XB0*:widesread::f("widespread", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0*:wih::f("whi", A_ThisHotkey, A_EndChar) ; Fixes 310 words
-:XB0*:withdrawl::f("withdrawal", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0*:withold::f("withhold", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0*:worsten::f("worsen", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:woudl::f("would", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0*:wreckless::f("reckless", A_ThisHotkey, A_EndChar) ; Fixes 3 words 
-:XB0*:xoom::f("zoom", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0*:yatch::f("yacht", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0*:yelow::f("yellow", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0*:yera::f("year", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*:yotube::f("youtube", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0*:yrea::f("year", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0*?:alell::f("allel", A_ThisHotkey, A_EndChar) ; Fixes 57 words
-:XB0*?:alsitic::f("alistic", A_ThisHotkey, A_EndChar) ; Fixes 98 words
-:XB0*?:onvertab::f("onvertib", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0*?:sucess::f("success", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0*?C:balen::f("balan", A_ThisHotkey, A_EndChar) ; Fixes 45 words.  Case-sensitive to not misspell Balenciaga (Spanish fashion designer). 
-:XB0*?C:beng::f("being", A_ThisHotkey, A_EndChar) ; Fixes 7 words. Case-sensitive to not misspell, Bengali. 
-:XB0*?C:hiesm::f("theism", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0*C:aquit::f("acquit", A_ThisHotkey, A_EndChar) ; Fixes 10 words.  Case-sensitive to not misspell Aquitaine (A region of southwestern France between Bordeaux and the Pyrenees)
-:XB0*C:carmel::f("caramel", A_ThisHotkey, A_EndChar) ; Fixes 12 words.  Case-sensitive to not misspell Carmelite (Roman Catholic friar)
-:XB0*C:carrer::f("career", A_ThisHotkey, A_EndChar) ; Fixes 8 words.  Case-sensitive to not misspell Carrere (A famous architect) 
-:XB0*C:ehr::f("her", A_ThisHotkey, A_EndChar) ; Fixes 233 words, Made case sensitive so not to misspell Ehrenberg (a Russian novelist) or Ehrlich (a German scientist)
-:XB0*C:herat::f("heart", A_ThisHotkey, A_EndChar) ; Fixes 63 words, Case-sensitive to not misspell Herat (a city in Afganistan).
-:XB0*C:hsi::f("his", A_ThisHotkey, A_EndChar) ; Fixes 95 words, Case-sensitive to not misspell Hsian (a city in China)
-:XB0*C:ime::f("imme", A_ThisHotkey, A_EndChar) ; Fixes 35 words, Case-sensitive to not misspell IMEI (International Mobile Equipment Identity)
-:XB0*C:yoru::f("your", A_ThisHotkey, A_EndChar) ; Fixes 4 words, case sensitive to not misspell Yoruba (A Nigerian langue) 
-:XB0:EDB::f("EBD", A_ThisHotkey, A_EndChar)
-:XB0:Feburary::f("February", A_ThisHotkey, A_EndChar) 
-:XB0:Isaax ::f("Isaac", A_ThisHotkey, A_EndChar)
-:XB0:Israelies::f("Israelis", A_ThisHotkey, A_EndChar) 
-:XB0:Janurary::f("January", A_ThisHotkey, A_EndChar) 
-:XB0:Januray::f("January", A_ThisHotkey, A_EndChar) 
-:XB0:Montnana::f("Montana", A_ThisHotkey, A_EndChar) 
-:XB0:Novermber::f("November", A_ThisHotkey, A_EndChar) 
-:XB0:Parri::f("Patti", A_ThisHotkey, A_EndChar)
-:XB0:Sacremento::f("Sacramento", A_ThisHotkey, A_EndChar)
-:XB0:Straight of::f("Strait of", A_ThisHotkey, A_EndChar) ; geography
-:XB0:ToolTop::f("ToolTip", A_ThisHotkey, A_EndChar)
-:XB0:a English::f("an English", A_ThisHotkey, A_EndChar)
-:XB0:a FM::f("an FM", A_ThisHotkey, A_EndChar)
-:XB0:a Internet::f("an Internet", A_ThisHotkey, A_EndChar)
-:XB0:a MRI::f("an MRI", A_ThisHotkey, A_EndChar)
-:XB0:a businessmen::f("a businessman", A_ThisHotkey, A_EndChar)
-:XB0:a businesswomen::f("a businesswoman", A_ThisHotkey, A_EndChar)
-:XB0:a consortia::f("a consortium", A_ThisHotkey, A_EndChar)
-:XB0:a criteria::f("a criterion", A_ThisHotkey, A_EndChar)
-:XB0:a dominate::f("a dominant", A_ThisHotkey, A_EndChar)
-:XB0:a falling out::f("a falling-out", A_ThisHotkey, A_EndChar)
-:XB0:a firemen::f("a fireman", A_ThisHotkey, A_EndChar)
-:XB0:a flagella::f("a flagellum", A_ThisHotkey, A_EndChar)
-:XB0:a forward by::f("a foreword by", A_ThisHotkey, A_EndChar)
-:XB0:a freshmen::f("a freshman", A_ThisHotkey, A_EndChar)
-:XB0:a fungi::f("a fungus", A_ThisHotkey, A_EndChar)
-:XB0:a gunmen::f("a gunman", A_ThisHotkey, A_EndChar)
-:XB0:a heir::f("an heir", A_ThisHotkey, A_EndChar)
-:XB0:a herb::f("an herb", A_ThisHotkey, A_EndChar)
-:XB0:a honest::f("an honest", A_ThisHotkey, A_EndChar)
-:XB0:a honor::f("an honor", A_ThisHotkey, A_EndChar)
-:XB0:a hour::f("an hour", A_ThisHotkey, A_EndChar)
-:XB0:a larvae::f("a larva", A_ThisHotkey, A_EndChar)
-:XB0:a lock up::f("a lockup", A_ThisHotkey, A_EndChar)
-:XB0:a lose::f("a loss", A_ThisHotkey, A_EndChar)
-:XB0:a manufacture::f("a manufacturer", A_ThisHotkey, A_EndChar)
-:XB0:a nuclei::f("a nucleus", A_ThisHotkey, A_EndChar)
-:XB0:a numbers of::f("a number of", A_ThisHotkey, A_EndChar)
-:XB0:a ocean::f("an ocean", A_ThisHotkey, A_EndChar)
-:XB0:a offensive::f("an offensive", A_ThisHotkey, A_EndChar)
-:XB0:a official::f("an official", A_ThisHotkey, A_EndChar)
-:XB0:a one of the::f("one of the", A_ThisHotkey, A_EndChar)
-:XB0:a only a::f("only a", A_ThisHotkey, A_EndChar)
-:XB0:a parentheses::f("a parenthesis", A_ThisHotkey, A_EndChar)
-:XB0:a phenomena::f("a phenomenon", A_ThisHotkey, A_EndChar)
-:XB0:a protozoa::f("a protozoon", A_ThisHotkey, A_EndChar)
-:XB0:a pupae::f("a pupa", A_ThisHotkey, A_EndChar)
-:XB0:a radii::f("a radius", A_ThisHotkey, A_EndChar)
-:XB0:a renown::f("a renowned", A_ThisHotkey, A_EndChar)
-:XB0:a resent::f("a recent", A_ThisHotkey, A_EndChar)
-:XB0:a run in::f("a run-in", A_ThisHotkey, A_EndChar)
-:XB0:a set back::f("a set-back", A_ThisHotkey, A_EndChar)
-:XB0:a set up::f("a setup", A_ThisHotkey, A_EndChar)
-:XB0:a several::f("several", A_ThisHotkey, A_EndChar)
-:XB0:a simple as::f("as simple as", A_ThisHotkey, A_EndChar)
-:XB0:a spermatozoa::f("a spermatozoon", A_ThisHotkey, A_EndChar)
-:XB0:a statesmen::f("a statesman", A_ThisHotkey, A_EndChar)
-:XB0:a strata::f("a stratum", A_ThisHotkey, A_EndChar)
-:XB0:a taxa::f("a taxon", A_ThisHotkey, A_EndChar)
-:XB0:a two months::f("a two-month", A_ThisHotkey, A_EndChar)
-:XB0:a urban::f("an urban", A_ThisHotkey, A_EndChar)
-:XB0:a vertebrae::f("a vertebra", A_ThisHotkey, A_EndChar)
-:XB0:a women::f("a woman", A_ThisHotkey, A_EndChar)
-:XB0:a work out::f("a workout", A_ThisHotkey, A_EndChar)
-:XB0:about it's::f("about its", A_ThisHotkey, A_EndChar)
-:XB0:about they're::f("about their", A_ThisHotkey, A_EndChar)
-:XB0:about who to::f("about whom to", A_ThisHotkey, A_EndChar)
-:XB0:about who's::f("about whose", A_ThisHotkey, A_EndChar)
-:XB0:abouta::f("about a", A_ThisHotkey, A_EndChar) 
-:XB0:aboutit::f("about it", A_ThisHotkey, A_EndChar) 
-:XB0:above it's::f("above its", A_ThisHotkey, A_EndChar)
-:XB0:abutts::f("abuts", A_ThisHotkey, A_EndChar)
-:XB0:accidently::f("accidentally", A_ThisHotkey, A_EndChar)
-:XB0:according a::f("according to a", A_ThisHotkey, A_EndChar)
-:XB0:accordingto::f("according to", A_ThisHotkey, A_EndChar) 
-:XB0:across it's::f("across its", A_ThisHotkey, A_EndChar)
-:XB0:adres::f("address", A_ThisHotkey, A_EndChar) 
-:XB0:affect on::f("effect on", A_ThisHotkey, A_EndChar)
-:XB0:affect upon::f("effect upon", A_ThisHotkey, A_EndChar)
-:XB0:affects of::f("effects of", A_ThisHotkey, A_EndChar)
-:XB0:after along time::f("after a long time", A_ThisHotkey, A_EndChar)
-:XB0:after awhile::f("after a while", A_ThisHotkey, A_EndChar)
-:XB0:after been::f("after being", A_ThisHotkey, A_EndChar)
-:XB0:after it's::f("after its", A_ThisHotkey, A_EndChar)
-:XB0:after quite awhile::f("after quite a while", A_ThisHotkey, A_EndChar)
-:XB0:agains::f("against", A_ThisHotkey, A_EndChar)
-:XB0:against it's::f("against its", A_ThisHotkey, A_EndChar)
-:XB0:against who::f("against whom", A_ThisHotkey, A_EndChar)
-:XB0:againstt he::f("against the", A_ThisHotkey, A_EndChar) 
-:XB0:aginst::f("against", A_ThisHotkey, A_EndChar)
-:XB0:agre::f("agree", A_ThisHotkey, A_EndChar)
-:XB0:agree in principal::f("agree in principle", A_ThisHotkey, A_EndChar)
-:XB0:agreement in principal::f("agreement in principle", A_ThisHotkey, A_EndChar)
-:XB0:ahjk::f("ahk", A_ThisHotkey, A_EndChar)
-:XB0:airbourne::f("airborne", A_ThisHotkey, A_EndChar) 
-:XB0:aircrafts'::f("aircraft's", A_ThisHotkey, A_EndChar) 
-:XB0:aircrafts::f("aircraft", A_ThisHotkey, A_EndChar) 
-:XB0:airplane hanger::f("airplane hangar", A_ThisHotkey, A_EndChar)
-:XB0:airporta::f("airports", A_ThisHotkey, A_EndChar) 
-:XB0:airrcraft::f("aircraft", A_ThisHotkey, A_EndChar) 
-:XB0:albiet::f("albeit", A_ThisHotkey, A_EndChar)
-:XB0:all for not::f("all for naught", A_ThisHotkey, A_EndChar) 
-:XB0:all it's::f("all its", A_ThisHotkey, A_EndChar) 
-:XB0:all though::f("although", A_ThisHotkey, A_EndChar) 
-:XB0:all tolled::f("all told", A_ThisHotkey, A_EndChar) 
-:XB0:allegedy::f("allegedly", A_ThisHotkey, A_EndChar)
-:XB0:allegely::f("allegedly", A_ThisHotkey, A_EndChar)
-:XB0:allot of::f("a lot of", A_ThisHotkey, A_EndChar) 
-:XB0:allready::f("already", A_ThisHotkey, A_EndChar)
-:XB0:alltime::f("all-time", A_ThisHotkey, A_EndChar) 
-:XB0:alma matter::f("alma mater", A_ThisHotkey, A_EndChar) 
-:XB0:almots::f("almost", A_ThisHotkey, A_EndChar)
-:XB0:along it's::f("along its", A_ThisHotkey, A_EndChar) 
-:XB0:along side::f("alongside", A_ThisHotkey, A_EndChar) 
-:XB0:along time::f("a long time", A_ThisHotkey, A_EndChar) 
-:XB0:alongside it's::f("alongside its", A_ThisHotkey, A_EndChar) 
-:XB0:alot::f("a lot", A_ThisHotkey, A_EndChar) 
-:XB0:also know as::f("also known as", A_ThisHotkey, A_EndChar) 
-:XB0:also know by::f("also known by", A_ThisHotkey, A_EndChar) 
-:XB0:also know for::f("also known for", A_ThisHotkey, A_EndChar) 
-:XB0:alter boy::f("altar boy", A_ThisHotkey, A_EndChar) 
-:XB0:alter server::f("altar server", A_ThisHotkey, A_EndChar) 
-:XB0:althought::f("although", A_ThisHotkey, A_EndChar) 
-:XB0:altoug::f("althoug", A_ThisHotkey, A_EndChar)
-:XB0:alway::f("always", A_ThisHotkey, A_EndChar) 
-:XB0:am loathe to::f("am loath to", A_ThisHotkey, A_EndChar) 
-:XB0:amid it's::f("amid its", A_ThisHotkey, A_EndChar) 
-:XB0:amidst it's::f("amidst its", A_ThisHotkey, A_EndChar) 
-:XB0:amin::f("main", A_ThisHotkey, A_EndChar)
-:XB0:among it's::f("among it", A_ThisHotkey, A_EndChar) 
-:XB0:among others things::f("among other things", A_ThisHotkey, A_EndChar) 
-:XB0:amongst it's::f("amongst its", A_ThisHotkey, A_EndChar) 
-:XB0:amongst one of the::f("amongst the", A_ThisHotkey, A_EndChar) 
-:XB0:amongst others things::f("amongst other things", A_ThisHotkey, A_EndChar) 
-:XB0:an British::f("a British", A_ThisHotkey, A_EndChar) 
-:XB0:an Canadian::f("a Canadian", A_ThisHotkey, A_EndChar) 
-:XB0:an European::f("a European", A_ThisHotkey, A_EndChar) 
-:XB0:an Hawaiian::f("a Hawaiian", A_ThisHotkey, A_EndChar) 
-:XB0:an Malaysian::f("a Malaysian", A_ThisHotkey, A_EndChar) 
-:XB0:an Scottish::f("a Scottish", A_ThisHotkey, A_EndChar) 
-:XB0:an USB::f("a USB", A_ThisHotkey, A_EndChar) 
-:XB0:an Unix::f("a Unix", A_ThisHotkey, A_EndChar) 
-:XB0:an affect::f("an effect", A_ThisHotkey, A_EndChar) 
-:XB0:an alumnae of::f("an alumna of", A_ThisHotkey, A_EndChar) 
-:XB0:an alumni of::f("an alumnus of", A_ThisHotkey, A_EndChar) 
-:XB0:an another::f("another", A_ThisHotkey, A_EndChar) 
-:XB0:an antennae::f("an antenna", A_ThisHotkey, A_EndChar) 
-:XB0:an film::f("a film", A_ThisHotkey, A_EndChar) 
-:XB0:an half::f("a half", A_ThisHotkey, A_EndChar) 
-:XB0:an halt::f("a halt", A_ThisHotkey, A_EndChar) 
-:XB0:an hand::f("a hand", A_ThisHotkey, A_EndChar) 
-:XB0:an head::f("a head", A_ThisHotkey, A_EndChar) 
-:XB0:an heart::f("a heart", A_ThisHotkey, A_EndChar) 
-:XB0:an helicopter::f("a helicopter", A_ThisHotkey, A_EndChar) 
-:XB0:an hero::f("a hero", A_ThisHotkey, A_EndChar) 
-:XB0:an high::f("a high", A_ThisHotkey, A_EndChar) 
-:XB0:an historian::f("a historian", A_ThisHotkey, A_EndChar) 
-:XB0:an historic::f("a historic", A_ThisHotkey, A_EndChar) 
-:XB0:an historical::f("a historical", A_ThisHotkey, A_EndChar) 
-:XB0:an history::f("a history", A_ThisHotkey, A_EndChar) 
-:XB0:an hospital::f("a hospital", A_ThisHotkey, A_EndChar) 
-:XB0:an hotel::f("a hotel", A_ThisHotkey, A_EndChar) 
-:XB0:an humanitarian::f("a humanitarian", A_ThisHotkey, A_EndChar) 
-:XB0:an law::f("a law", A_ThisHotkey, A_EndChar) 
-:XB0:an lawyer::f("a lawyer", A_ThisHotkey, A_EndChar) 
-:XB0:an local::f("a local", A_ThisHotkey, A_EndChar) 
-:XB0:an new::f("a new", A_ThisHotkey, A_EndChar) 
-:XB0:an nine::f("a nine", A_ThisHotkey, A_EndChar) 
-:XB0:an ninth::f("a ninth", A_ThisHotkey, A_EndChar) 
-:XB0:an non::f("a non", A_ThisHotkey, A_EndChar) 
-:XB0:an number::f("a number", A_ThisHotkey, A_EndChar) 
-:XB0:an other::f("another", A_ThisHotkey, A_EndChar) 
-:XB0:an pair::f("a pair", A_ThisHotkey, A_EndChar) 
-:XB0:an player::f("a player", A_ThisHotkey, A_EndChar) 
-:XB0:an popular::f("a popular", A_ThisHotkey, A_EndChar) 
-:XB0:an pre-::f("a pre-", A_ThisHotkey, A_EndChar) 
-:XB0:an second::f("a second", A_ThisHotkey, A_EndChar) 
-:XB0:an series::f("a series", A_ThisHotkey, A_EndChar) 
-:XB0:an seven::f("a seven", A_ThisHotkey, A_EndChar) 
-:XB0:an seventh::f("a seventh", A_ThisHotkey, A_EndChar) 
-:XB0:an six::f("a six", A_ThisHotkey, A_EndChar) 
-:XB0:an sixteen::f("a sixteen", A_ThisHotkey, A_EndChar) 
-:XB0:an sixth::f("a sixth", A_ThisHotkey, A_EndChar) 
-:XB0:an song::f("a song", A_ThisHotkey, A_EndChar) 
-:XB0:an special::f("a special", A_ThisHotkey, A_EndChar) 
-:XB0:an species::f("a species", A_ThisHotkey, A_EndChar) 
-:XB0:an specific::f("a specific", A_ThisHotkey, A_EndChar) 
-:XB0:an statement::f("a statement", A_ThisHotkey, A_EndChar) 
-:XB0:an ten::f("a ten", A_ThisHotkey, A_EndChar) 
-:XB0:an union::f("a union", A_ThisHotkey, A_EndChar) 
-:XB0:an unit::f("a unit", A_ThisHotkey, A_EndChar) 
-:XB0:anarchistm::f("anarchism", A_ThisHotkey, A_EndChar)
-:XB0:and so fourth::f("and so forth", A_ThisHotkey, A_EndChar) 
-:XB0:andone::f("and one", A_ThisHotkey, A_EndChar) 
-:XB0:androgeny::f("androgyny", A_ThisHotkey, A_EndChar)
-:XB0:andt he::f("and the", A_ThisHotkey, A_EndChar) 
-:XB0:andteh::f("and the", A_ThisHotkey, A_EndChar) 
-:XB0:anothe::f("another", A_ThisHotkey, A_EndChar)
-:XB0:another criteria::f("another criterion", A_ThisHotkey, A_EndChar) 
-:XB0:another words::f("in other words", A_ThisHotkey, A_EndChar) 
-:XB0:anti-semetic::f("anti-Semitic", A_ThisHotkey, A_EndChar) 
-:XB0:antiapartheid::f("anti-apartheid", A_ThisHotkey, A_EndChar) 
-:XB0:any another::f("another", A_ThisHotkey, A_EndChar) 
-:XB0:any resent::f("any recent", A_ThisHotkey, A_EndChar) 
-:XB0:any where::f("anywhere", A_ThisHotkey, A_EndChar) 
-:XB0:anyother::f("any other", A_ThisHotkey, A_EndChar) 
-:XB0:anytying::f("anything", A_ThisHotkey, A_EndChar)
-:XB0:apart form::f("apart from", A_ThisHotkey, A_EndChar) 
-:XB0:apon::f("upon", A_ThisHotkey, A_EndChar)
-:XB0:archimedian::f("Archimedean", A_ThisHotkey, A_EndChar)
-:XB0:are aloud to::f("are allowed to", A_ThisHotkey, A_EndChar) 
-:XB0:are build::f("are built", A_ThisHotkey, A_EndChar) 
-:XB0:are dominate::f("are dominant", A_ThisHotkey, A_EndChar) 
-:XB0:are drew::f("are drawn", A_ThisHotkey, A_EndChar) 
-:XB0:are it's::f("are its", A_ThisHotkey, A_EndChar) 
-:XB0:are know::f("are known", A_ThisHotkey, A_EndChar) 
-:XB0:are lain::f("are laid", A_ThisHotkey, A_EndChar) 
-:XB0:are lead by::f("are led by", A_ThisHotkey, A_EndChar) 
-:XB0:are loathe to::f("are loath to", A_ThisHotkey, A_EndChar) 
-:XB0:are meet::f("are met", A_ThisHotkey, A_EndChar) 
-:XB0:are ran by::f("are run by", A_ThisHotkey, A_EndChar) 
-:XB0:are renown::f("are renowned", A_ThisHotkey, A_EndChar) 
-:XB0:are set-up::f("are set up", A_ThisHotkey, A_EndChar) 
-:XB0:are setup::f("are set up", A_ThisHotkey, A_EndChar) 
-:XB0:are shutdown::f("are shut down", A_ThisHotkey, A_EndChar) 
-:XB0:are shutout::f("are shut out", A_ThisHotkey, A_EndChar) 
-:XB0:are suppose to::f("are supposed to", A_ThisHotkey, A_EndChar) 
-:XB0:are the dominate::f("are the dominant", A_ThisHotkey, A_EndChar) 
-:XB0:are use to::f("are used to", A_ThisHotkey, A_EndChar) 
-:XB0:aready::f("already", A_ThisHotkey, A_EndChar) 
-:XB0:arised::f("arose", A_ThisHotkey, A_EndChar) 
-:XB0:arn't::f("aren't", A_ThisHotkey, A_EndChar) 
-:XB0:arond::f("around", A_ThisHotkey, A_EndChar)
-:XB0:aroud::f("around", A_ThisHotkey, A_EndChar) 
-:XB0:around it's::f("around its", A_ThisHotkey, A_EndChar) 
-:XB0:arund::f("around", A_ThisHotkey, A_EndChar)
-:XB0:as a resulted::f("as a result", A_ThisHotkey, A_EndChar) 
-:XB0:as apposed to::f("as opposed to", A_ThisHotkey, A_EndChar) 
-:XB0:as back up::f("as backup", A_ThisHotkey, A_EndChar) 
-:XB0:as oppose to::f("as opposed to", A_ThisHotkey, A_EndChar) 
-:XB0:asfar::f("as far", A_ThisHotkey, A_EndChar) 
-:XB0:aside form::f("aside from", A_ThisHotkey, A_EndChar) 
-:XB0:aside it's::f("aside its", A_ThisHotkey, A_EndChar) 
-:XB0:aslo::f("also", A_ThisHotkey, A_EndChar)
-:XB0:assume the reigns::f("assume the reins", A_ThisHotkey, A_EndChar) 
-:XB0:assume the roll::f("assume the role", A_ThisHotkey, A_EndChar) 
-:XB0:aswell::f("as well", A_ThisHotkey, A_EndChar) 
-:XB0:at it's::f("at its", A_ThisHotkey, A_EndChar) 
-:XB0:at of::f("at or", A_ThisHotkey, A_EndChar) 
-:XB0:at the alter::f("at the altar", A_ThisHotkey, A_EndChar) 
-:XB0:at the reigns::f("at the reins", A_ThisHotkey, A_EndChar) 
-:XB0:at then end::f("at the end", A_ThisHotkey, A_EndChar) 
-:XB0:atheistical::f("atheistic", A_ThisHotkey, A_EndChar)
-:XB0:atleast::f("at least", A_ThisHotkey, A_EndChar) 
-:XB0:atmospher::f("atmosphere", A_ThisHotkey, A_EndChar)
-:XB0:attened::f("attended", A_ThisHotkey, A_EndChar)
-:XB0:authorites::f("authorities", A_ThisHotkey, A_EndChar) 
-:XB0:avengence::f("a vengeance", A_ThisHotkey, A_EndChar)
-:XB0:averag::f("average", A_ThisHotkey, A_EndChar)
-:XB0:away form::f("away from", A_ThisHotkey, A_EndChar) 
-:XB0:baceause::f("because", A_ThisHotkey, A_EndChar) 
-:XB0:back and fourth::f("back and forth", A_ThisHotkey, A_EndChar) 
-:XB0:back drop::f("backdrop", A_ThisHotkey, A_EndChar) 
-:XB0:back fire::f("backfire", A_ThisHotkey, A_EndChar) 
-:XB0:back in forth::f("back and forth", A_ThisHotkey, A_EndChar) 
-:XB0:back peddle::f("backpedal", A_ThisHotkey, A_EndChar) 
-:XB0:back round::f("background", A_ThisHotkey, A_EndChar) 
-:XB0:badly effected::f("badly affected", A_ThisHotkey, A_EndChar) 
-:XB0:baited breath::f("bated breath", A_ThisHotkey, A_EndChar) 
-:XB0:baled out::f("bailed out", A_ThisHotkey, A_EndChar) 
-:XB0:baling out::f("bailing out", A_ThisHotkey, A_EndChar) 
-:XB0:bare in mind::f("bear in mind", A_ThisHotkey, A_EndChar) 
-:XB0:barily::f("barely", A_ThisHotkey, A_EndChar)
-:XB0:basic principal::f("basic principle", A_ThisHotkey, A_EndChar) 
-:XB0:be apart of::f("be a part of", A_ThisHotkey, A_EndChar) 
-:XB0:be build::f("be built", A_ThisHotkey, A_EndChar) 
-:XB0:be cause::f("because", A_ThisHotkey, A_EndChar) 
-:XB0:be drew::f("be drawn", A_ThisHotkey, A_EndChar) 
-:XB0:be it's::f("be its", A_ThisHotkey, A_EndChar) 
-:XB0:be know as::f("be known as", A_ThisHotkey, A_EndChar) 
-:XB0:be lain::f("be laid", A_ThisHotkey, A_EndChar) 
-:XB0:be lead by::f("be led by", A_ThisHotkey, A_EndChar) 
-:XB0:be loathe to::f("be loath to", A_ThisHotkey, A_EndChar) 
-:XB0:be make::f("be made", A_ThisHotkey, A_EndChar)
-:XB0:be ran::f("be run", A_ThisHotkey, A_EndChar) 
-:XB0:be rebuild::f("be rebuilt", A_ThisHotkey, A_EndChar) 
-:XB0:be rode::f("be ridden", A_ThisHotkey, A_EndChar) 
-:XB0:be send::f("be sent", A_ThisHotkey, A_EndChar) 
-:XB0:be set-up::f("be set up", A_ThisHotkey, A_EndChar) 
-:XB0:be setup::f("be set up", A_ThisHotkey, A_EndChar) 
-:XB0:be shutdown::f("be shut down", A_ThisHotkey, A_EndChar) 
-:XB0:be use to::f("be used to", A_ThisHotkey, A_EndChar) 
-:XB0:be ware::f("beware", A_ThisHotkey, A_EndChar) 
-:XB0:beacuse::f("because", A_ThisHotkey, A_EndChar)
-:XB0:became it's::f("became its", A_ThisHotkey, A_EndChar) 
-:XB0:became know::f("became known", A_ThisHotkey, A_EndChar) 
-:XB0:becames::f("became", A_ThisHotkey, A_EndChar)
-:XB0:becaus::f("because", A_ThisHotkey, A_EndChar)
-:XB0:because of it's::f("because of its", A_ThisHotkey, A_EndChar) 
-:XB0:becausea::f("because a", A_ThisHotkey, A_EndChar) 
-:XB0:becauseof::f("because of", A_ThisHotkey, A_EndChar) 
-:XB0:becausethe::f("because the", A_ThisHotkey, A_EndChar) 
-:XB0:becauseyou::f("because you", A_ThisHotkey, A_EndChar) 
-:XB0:beccause::f("because", A_ThisHotkey, A_EndChar) 
-:XB0:becouse::f("because", A_ThisHotkey, A_EndChar) 
-:XB0:becuse::f("because", A_ThisHotkey, A_EndChar)
-:XB0:been accustom to::f("been accustomed to", A_ThisHotkey, A_EndChar) 
-:XB0:been build::f("been built", A_ThisHotkey, A_EndChar) 
-:XB0:been it's::f("been its", A_ThisHotkey, A_EndChar) 
-:XB0:been know::f("been known", A_ThisHotkey, A_EndChar) 
-:XB0:been lain::f("been laid", A_ThisHotkey, A_EndChar) 
-:XB0:been lead by::f("been led by", A_ThisHotkey, A_EndChar) 
-:XB0:been loathe to::f("been loath to", A_ThisHotkey, A_EndChar) 
-:XB0:been mislead::f("been misled", A_ThisHotkey, A_EndChar) 
-:XB0:been ran::f("been run", A_ThisHotkey, A_EndChar) 
-:XB0:been rebuild::f("been rebuilt", A_ThisHotkey, A_EndChar) 
-:XB0:been rode::f("been ridden", A_ThisHotkey, A_EndChar) 
-:XB0:been send::f("been sent", A_ThisHotkey, A_EndChar) 
-:XB0:been set-up::f("been set up", A_ThisHotkey, A_EndChar) 
-:XB0:been setup::f("been set up", A_ThisHotkey, A_EndChar) 
-:XB0:been show on::f("been shown on", A_ThisHotkey, A_EndChar) 
-:XB0:been shutdown::f("been shut down", A_ThisHotkey, A_EndChar) 
-:XB0:been use to::f("been used to", A_ThisHotkey, A_EndChar) 
-:XB0:before hand::f("beforehand", A_ThisHotkey, A_EndChar) 
-:XB0:began it's::f("began its", A_ThisHotkey, A_EndChar) 
-:XB0:beggin::f("begin", A_ThisHotkey, A_EndChar)
-:XB0:beggins::f("begins", A_ThisHotkey, A_EndChar) 
-:XB0:behind it's::f("behind its", A_ThisHotkey, A_EndChar) 
-:XB0:being build::f("being built", A_ThisHotkey, A_EndChar) 
-:XB0:being it's::f("being its", A_ThisHotkey, A_EndChar) 
-:XB0:being lain::f("being laid", A_ThisHotkey, A_EndChar) 
-:XB0:being lead by::f("being led by", A_ThisHotkey, A_EndChar) 
-:XB0:being loathe to::f("being loath to", A_ThisHotkey, A_EndChar) 
-:XB0:being ran::f("being run", A_ThisHotkey, A_EndChar) 
-:XB0:being rode::f("being ridden", A_ThisHotkey, A_EndChar) 
-:XB0:being set-up::f("being set up", A_ThisHotkey, A_EndChar) 
-:XB0:being setup::f("being set up", A_ThisHotkey, A_EndChar) 
-:XB0:being show on::f("being shown on", A_ThisHotkey, A_EndChar) 
-:XB0:being shutdown::f("being shut down", A_ThisHotkey, A_EndChar) 
-:XB0:being use to::f("being used to", A_ThisHotkey, A_EndChar) 
-:XB0:beligum::f("belgium", A_ThisHotkey, A_EndChar) 
-:XB0:belived::f("believed", A_ThisHotkey, A_EndChar) 
-:XB0:belives::f("believes", A_ThisHotkey, A_EndChar) 
-:XB0:below it's::f("below its", A_ThisHotkey, A_EndChar) 
-:XB0:beneath it's::f("beneath its", A_ThisHotkey, A_EndChar) 
-:XB0:beside it's::f("beside its", A_ThisHotkey, A_EndChar) 
-:XB0:besides it's::f("besides its", A_ThisHotkey, A_EndChar) 
-:XB0:better know as::f("better known as", A_ThisHotkey, A_EndChar) 
-:XB0:better know for::f("better known for", A_ThisHotkey, A_EndChar) 
-:XB0:better then::f("better than", A_ThisHotkey, A_EndChar) 
-:XB0:between I and::f("between me and", A_ThisHotkey, A_EndChar) 
-:XB0:between he and::f("between him and", A_ThisHotkey, A_EndChar) 
-:XB0:between it's::f("between its", A_ThisHotkey, A_EndChar) 
-:XB0:between they and::f("between them and", A_ThisHotkey, A_EndChar) 
-:XB0:beyond it's::f("beyond its", A_ThisHotkey, A_EndChar) 
-:XB0:bicep::f("biceps", A_ThisHotkey, A_EndChar) 
-:XB0:both it's::f("both its", A_ThisHotkey, A_EndChar) 
-:XB0:both of it's::f("both of its", A_ThisHotkey, A_EndChar) 
-:XB0:both of them is::f("both of them are", A_ThisHotkey, A_EndChar) 
-:XB0:both of who::f("both of whom", A_ThisHotkey, A_EndChar) 
-:XB0:brake away::f("break away", A_ThisHotkey, A_EndChar) 
-:XB0:breakthroughts::f("breakthroughs", A_ThisHotkey, A_EndChar)
-:XB0:breath fire::f("breathe fire", A_ThisHotkey, A_EndChar) 
-:XB0:brethen::f("brethren", A_ThisHotkey, A_EndChar) 
-:XB0:bretheren::f("brethren", A_ThisHotkey, A_EndChar) 
-:XB0:brew haha::f("brouhaha", A_ThisHotkey, A_EndChar) 
-:XB0:brimestone::f("brimstone", A_ThisHotkey, A_EndChar) 
-:XB0:britian::f("Britain", A_ThisHotkey, A_EndChar) 
-:XB0:brittish::f("British", A_ThisHotkey, A_EndChar) 
-:XB0:broacasted::f("broadcast", A_ThisHotkey, A_EndChar) 
-:XB0:broady::f("broadly", A_ThisHotkey, A_EndChar) 
-:XB0:by it's::f("by its", A_ThisHotkey, A_EndChar) 
-:XB0:by who's::f("by whose", A_ThisHotkey, A_EndChar) 
-:XB0:byt he::f("by the", A_ThisHotkey, A_EndChar) 
-:XB0:cafe::f("café", A_ThisHotkey, A_EndChar) 
-:XB0:callipigian::f("callipygian", A_ThisHotkey, A_EndChar)
-:XB0:can backup::f("can back up", A_ThisHotkey, A_EndChar) 
-:XB0:can been::f("can be", A_ThisHotkey, A_EndChar) 
-:XB0:can blackout::f("can black out", A_ThisHotkey, A_EndChar) 
-:XB0:can breath::f("can breathe", A_ThisHotkey, A_EndChar) 
-:XB0:can checkout::f("can check out", A_ThisHotkey, A_EndChar) 
-:XB0:can playback::f("can play back", A_ThisHotkey, A_EndChar) 
-:XB0:can setup::f("can set up", A_ThisHotkey, A_EndChar) 
-:XB0:can tryout::f("can try out", A_ThisHotkey, A_EndChar) 
-:XB0:can workout::f("can work out", A_ThisHotkey, A_EndChar) 
-:XB0:can't breath::f("can't breathe", A_ThisHotkey, A_EndChar) 
-:XB0:can't of::f("can't have", A_ThisHotkey, A_EndChar) 
-:XB0:cant::f("can't", A_ThisHotkey, A_EndChar) 
-:XB0:capetown::f("Cape Town", A_ThisHotkey, A_EndChar) 
-:XB0:carcas::f("carcass", A_ThisHotkey, A_EndChar) 
-:XB0:carnege::f("Carnegie", A_ThisHotkey, A_EndChar) 
-:XB0:carnige::f("Carnegie", A_ThisHotkey, A_EndChar) 
-:XB0:celcius::f("Celsius", A_ThisHotkey, A_EndChar)
-:XB0:cementary::f("cemetery", A_ThisHotkey, A_EndChar) 
-:XB0:centruy::f("century", A_ThisHotkey, A_EndChar) 
-:XB0:centuties::f("centuries", A_ThisHotkey, A_EndChar) 
-:XB0:centuty::f("century", A_ThisHotkey, A_EndChar) 
-:XB0:certain extend::f("certain extent", A_ThisHotkey, A_EndChar) 
-:XB0:cervial::f("cervical", A_ThisHotkey, A_EndChar) 
-:XB0:chalk full::f("chock-full", A_ThisHotkey, A_EndChar) 
-:XB0:changed it's::f("changed its", A_ThisHotkey, A_EndChar) 
-:XB0:charistics::f("characteristics", A_ThisHotkey, A_EndChar) 
-:XB0:childrens::f("children's", A_ThisHotkey, A_EndChar) 
-:XB0:chock it up::f("chalk it up", A_ThisHotkey, A_EndChar) 
-:XB0:chocked full::f("chock-full", A_ThisHotkey, A_EndChar) 
-:XB0:chomping at the bit::f("champing at the bit", A_ThisHotkey, A_EndChar) 
-:XB0:choosen::f("chosen", A_ThisHotkey, A_EndChar) 
-:XB0:cincinatti::f("Cincinnati", A_ThisHotkey, A_EndChar) 
-:XB0:cincinnatti::f("Cincinnati", A_ThisHotkey, A_EndChar) 
-:XB0:clera::f("clear", A_ThisHotkey, A_EndChar) 
-:XB0:cliant::f("client", A_ThisHotkey, A_EndChar) 
-:XB0:closed it's::f("closed its", A_ThisHotkey, A_EndChar) 
-:XB0:closer then::f("closer than", A_ThisHotkey, A_EndChar) 
-:XB0:co-incided::f("coincided", A_ThisHotkey, A_EndChar) 
-:XB0:colum::f("column", A_ThisHotkey, A_EndChar) 
-:XB0:commandoes::f("commandos", A_ThisHotkey, A_EndChar) 
-:XB0:commonly know as::f("commonly known as", A_ThisHotkey, A_EndChar) 
-:XB0:commonly know for::f("commonly known for", A_ThisHotkey, A_EndChar) 
-:XB0:confids::f("confides", A_ThisHotkey, A_EndChar)
-:XB0:construction sight::f("construction site", A_ThisHotkey, A_EndChar) 
-:XB0:controvercy::f("controversy", A_ThisHotkey, A_EndChar)
-:XB0:controvery::f("controversy", A_ThisHotkey, A_EndChar)
-:XB0:coudn't::f("couldn't", A_ThisHotkey, A_EndChar) 
-:XB0:could backup::f("could back up", A_ThisHotkey, A_EndChar) 
-:XB0:could breath::f("could breathe", A_ThisHotkey, A_EndChar) 
-:XB0:could setup::f("could set up", A_ThisHotkey, A_EndChar) 
-:XB0:could workout::f("could work out", A_ThisHotkey, A_EndChar) 
-:XB0:couldn't breath::f("couldn't breathe", A_ThisHotkey, A_EndChar) 
-:XB0:countires::f("countries", A_ThisHotkey, A_EndChar)
-:XB0:criteria is::f("criteria are", A_ThisHotkey, A_EndChar) 
-:XB0:criteria was::f("criteria were", A_ThisHotkey, A_EndChar) 
-:XB0:criterias::f("criteria", A_ThisHotkey, A_EndChar) 
-:XB0:daed::f("dead", A_ThisHotkey, A_EndChar)
-:XB0:daily regiment::f("daily regimen", A_ThisHotkey, A_EndChar) 
-:XB0:dardenelles::f("Dardanelles", A_ThisHotkey, A_EndChar)
-:XB0:darker then::f("darker than", A_ThisHotkey, A_EndChar) 
-:XB0:deciding on how::f("deciding how", A_ThisHotkey, A_EndChar) 
-:XB0:decomposit::f("decompose", A_ThisHotkey, A_EndChar) 
-:XB0:decomposited::f("decomposed", A_ThisHotkey, A_EndChar) 
-:XB0:decompositing::f("decomposing", A_ThisHotkey, A_EndChar) 
-:XB0:decomposits::f("decomposes", A_ThisHotkey, A_EndChar) 
-:XB0:decress::f("decrees", A_ThisHotkey, A_EndChar) 
-:XB0:deep-seeded::f("deep-seated", A_ThisHotkey, A_EndChar) 
-:XB0:delusionally::f("delusionary", A_ThisHotkey, A_EndChar) 
-:XB0:demographical::f("demographic", A_ThisHotkey, A_EndChar) 
-:XB0:depending of::f("depending on", A_ThisHotkey, A_EndChar) 
-:XB0:depends of::f("depends on", A_ThisHotkey, A_EndChar) 
-:XB0:deside::f("decide", A_ThisHotkey, A_EndChar) 
-:XB0:despite of::f("despite", A_ThisHotkey, A_EndChar) 
-:XB0:devels::f("delves", A_ThisHotkey, A_EndChar) 
-:XB0:diamons::f("diamonds", A_ThisHotkey, A_EndChar)
-:XB0:didint::f("didn't", A_ThisHotkey, A_EndChar) 
-:XB0:didn't fair::f("didn't fare", A_ThisHotkey, A_EndChar) 
-:XB0:didnot::f("did not", A_ThisHotkey, A_EndChar) 
-:XB0:didnt::f("didn't", A_ThisHotkey, A_EndChar) 
-:XB0:dieties::f("deities", A_ThisHotkey, A_EndChar)
-:XB0:diety::f("deity", A_ThisHotkey, A_EndChar) 
-:XB0:different tact::f("different tack", A_ThisHotkey, A_EndChar) 
-:XB0:different to::f("different from", A_ThisHotkey, A_EndChar) 
-:XB0:difficulity::f("difficulty", A_ThisHotkey, A_EndChar) 
-:XB0:diffuse the::f("defuse the", A_ThisHotkey, A_EndChar) 
-:XB0:direct affect::f("direct effect", A_ThisHotkey, A_EndChar) 
-:XB0:discontentment::f("discontent", A_ThisHotkey, A_EndChar) 
-:XB0:discus a::f("discuss a ", A_ThisHotkey, A_EndChar) 
-:XB0:discus all::f("discuss all ", A_ThisHotkey, A_EndChar) 
-:XB0:discus any::f("discuss any ", A_ThisHotkey, A_EndChar) 
-:XB0:discus the::f("discuss the ", A_ThisHotkey, A_EndChar) 
-:XB0:discus this::f("discuss this ", A_ThisHotkey, A_EndChar) 
-:XB0:disparingly::f("disparagingly", A_ThisHotkey, A_EndChar)
-:XB0:dispell::f("dispel", A_ThisHotkey, A_EndChar)
-:XB0:dispells::f("dispels", A_ThisHotkey, A_EndChar) 
-:XB0:do to::f("due to", A_ThisHotkey, A_EndChar) 
-:XB0:docrines::f("doctrines", A_ThisHotkey, A_EndChar)
-:XB0:doe snot::f("does not", A_ThisHotkey, A_EndChar) ; *could* be legitimate... but very unlikely!
-:XB0:doen't::f("doesn't", A_ThisHotkey, A_EndChar) 
-:XB0:dolling out::f("doling out", A_ThisHotkey, A_EndChar) 
-:XB0:dominate player::f("dominant player", A_ThisHotkey, A_EndChar) 
-:XB0:dominate role::f("dominant role", A_ThisHotkey, A_EndChar) 
-:XB0:don't no::f("don't know", A_ThisHotkey, A_EndChar) 
-:XB0:dont::f("don't", A_ThisHotkey, A_EndChar) 
-:XB0:door jam::f("doorjamb", A_ThisHotkey, A_EndChar) 
-:XB0:dosen't::f("doesn't", A_ThisHotkey, A_EndChar) 
-:XB0:dosn't::f("doesn't", A_ThisHotkey, A_EndChar) 
-:XB0:doub::f("doubt", A_ThisHotkey, A_EndChar) 
-:XB0:down it's::f("down its", A_ThisHotkey, A_EndChar) 
-:XB0:down side::f("downside", A_ThisHotkey, A_EndChar) 
-:XB0:drunkeness::f("drunkenness", A_ThisHotkey, A_EndChar) 
-:XB0:due to it's::f("due to its", A_ThisHotkey, A_EndChar) 
-:XB0:dukeship::f("dukedom", A_ThisHotkey, A_EndChar) 
-:XB0:dum::f("dumb", A_ThisHotkey, A_EndChar) 
-:XB0:dumbell::f("dumbbell", A_ThisHotkey, A_EndChar) 
-:XB0:during it's::f("during its", A_ThisHotkey, A_EndChar) 
-:XB0:during they're::f("during their", A_ThisHotkey, A_EndChar) 
-:XB0:each phenomena::f("each phenomenon", A_ThisHotkey, A_EndChar) 
-:XB0:ealier::f("earlier", A_ThisHotkey, A_EndChar) 
-:XB0:earlies::f("earliest", A_ThisHotkey, A_EndChar) 
-:XB0:earnt::f("earned", A_ThisHotkey, A_EndChar) 
-:XB0:ect::f("etc", A_ThisHotkey, A_EndChar) 
-:XB0:eiter::f("either", A_ThisHotkey, A_EndChar) 
-:XB0:elast::f("least", A_ThisHotkey, A_EndChar) 
-:XB0:eles::f("eels", A_ThisHotkey, A_EndChar) 
-:XB0:eluded to::f("alluded to", A_ThisHotkey, A_EndChar) 
-:XB0:embargos::f("embargoes", A_ThisHotkey, A_EndChar) 
-:XB0:embarras::f("embarrass", A_ThisHotkey, A_EndChar)
-:XB0:en mass::f("en masse", A_ThisHotkey, A_EndChar) 
-:XB0:enameld::f("enamelled", A_ThisHotkey, A_EndChar) 
-:XB0:enought::f("enough", A_ThisHotkey, A_EndChar) 
-:XB0:eventhough::f("even though", A_ThisHotkey, A_EndChar) 
-:XB0:everthing::f("everything", A_ThisHotkey, A_EndChar) 
-:XB0:everytime::f("every time", A_ThisHotkey, A_EndChar) 
-:XB0:everyting::f("everything", A_ThisHotkey, A_EndChar) 
-:XB0:excell::f("excel", A_ThisHotkey, A_EndChar)
-:XB0:excells::f("excels", A_ThisHotkey, A_EndChar)
-:XB0:exectued::f("executed", A_ThisHotkey, A_EndChar)
-:XB0:exemple::f("example", A_ThisHotkey, A_EndChar)
-:XB0:exerciese::f("exercises", A_ThisHotkey, A_EndChar)
-:XB0:existince::f("existence", A_ThisHotkey, A_EndChar)
-:XB0:expatriot::f("expatriate", A_ThisHotkey, A_EndChar)
-:XB0:expeditonary::f("expeditionary", A_ThisHotkey, A_EndChar)
-:XB0:expell::f("expel", A_ThisHotkey, A_EndChar)
-:XB0:expells::f("expels", A_ThisHotkey, A_EndChar)
-:XB0:experienc::f("experience", A_ThisHotkey, A_EndChar)
-:XB0:explaning::f("explaining", A_ThisHotkey, A_EndChar)
-:XB0:extered::f("exerted", A_ThisHotkey, A_EndChar)
-:XB0:extermist::f("extremist", A_ThisHotkey, A_EndChar)
-:XB0:extract punishment::f("exact punishment", A_ThisHotkey, A_EndChar)
-:XB0:extract revenge::f("exact revenge", A_ThisHotkey, A_EndChar)
-:XB0:extradiction::f("extradition", A_ThisHotkey, A_EndChar)
-:XB0:extrememly::f("extremely", A_ThisHotkey, A_EndChar)
-:XB0:extremeophile::f("extremophile", A_ThisHotkey, A_EndChar)
-:XB0:extremly::f("extremely", A_ThisHotkey, A_EndChar)
-:XB0:eyasr::f("years", A_ThisHotkey, A_EndChar)
-:XB0:eye brow::f("eyebrow", A_ThisHotkey, A_EndChar)
-:XB0:eye lash::f("eyelash", A_ThisHotkey, A_EndChar)
-:XB0:eye lid::f("eyelid", A_ThisHotkey, A_EndChar)
-:XB0:eye sight::f("eyesight", A_ThisHotkey, A_EndChar)
-:XB0:eye sore::f("eyesore", A_ThisHotkey, A_EndChar)
-:XB0:eyt::f("yet", A_ThisHotkey, A_EndChar)
-:XB0:facia::f("fascia", A_ThisHotkey, A_EndChar)
-:XB0:facilites::f("facilities", A_ThisHotkey, A_EndChar)
-:XB0:faired as well::f("fared as well", A_ThisHotkey, A_EndChar)
-:XB0:faired badly::f("fared badly", A_ThisHotkey, A_EndChar)
-:XB0:faired better::f("fared better", A_ThisHotkey, A_EndChar)
-:XB0:faired far::f("fared far", A_ThisHotkey, A_EndChar)
-:XB0:faired less::f("fared less", A_ThisHotkey, A_EndChar)
-:XB0:faired little::f("fared little", A_ThisHotkey, A_EndChar)
-:XB0:faired much::f("fared much", A_ThisHotkey, A_EndChar)
-:XB0:faired no better::f("fared no better", A_ThisHotkey, A_EndChar)
-:XB0:faired poorly::f("fared poorly", A_ThisHotkey, A_EndChar)
-:XB0:faired quite::f("fared quite", A_ThisHotkey, A_EndChar)
-:XB0:faired rather::f("fared rather", A_ThisHotkey, A_EndChar)
-:XB0:faired slightly::f("fared slightly", A_ThisHotkey, A_EndChar)
-:XB0:faired somewhat::f("fared somewhat", A_ThisHotkey, A_EndChar)
-:XB0:faired well::f("fared well", A_ThisHotkey, A_EndChar)
-:XB0:faired worse::f("fared worse", A_ThisHotkey, A_EndChar)
-:XB0:familes::f("families", A_ThisHotkey, A_EndChar)
-:XB0:fanatism::f("fanaticism", A_ThisHotkey, A_EndChar)
-:XB0:farenheit::f("Fahrenheit", A_ThisHotkey, A_EndChar)
-:XB0:farther then::f("farther than", A_ThisHotkey, A_EndChar)
-:XB0:faster then::f("faster than", A_ThisHotkey, A_EndChar)
-:XB0:febuary::f("February", A_ThisHotkey, A_EndChar)
-:XB0:femail::f("female", A_ThisHotkey, A_EndChar)
-:XB0:feromone::f("pheromone", A_ThisHotkey, A_EndChar)
-:XB0:fianlly::f("finally", A_ThisHotkey, A_EndChar)
-:XB0:ficed::f("fixed", A_ThisHotkey, A_EndChar)
-:XB0:fiercly::f("fiercely", A_ThisHotkey, A_EndChar)
-:XB0:fightings::f("fighting", A_ThisHotkey, A_EndChar)
-:XB0:figure head::f("figurehead", A_ThisHotkey, A_EndChar)
-:XB0:filled a lawsuit::f("filed a lawsuit", A_ThisHotkey, A_EndChar)
-:XB0:finaly::f("finally", A_ThisHotkey, A_EndChar)
-:XB0:firey::f("fiery", A_ThisHotkey, A_EndChar)
-:XB0:flag ship::f("flagship", A_ThisHotkey, A_EndChar)
-:XB0:flemmish::f("Flemish", A_ThisHotkey, A_EndChar)
-:XB0:florescent::f("fluorescent", A_ThisHotkey, A_EndChar)
-:XB0:flourescent::f("fluorescent", A_ThisHotkey, A_EndChar)
-:XB0:fo::f("of", A_ThisHotkey, A_EndChar)
-:XB0:follow suite::f("follow suit", A_ThisHotkey, A_EndChar)
-:XB0:following it's::f("following its", A_ThisHotkey, A_EndChar)
-:XB0:for all intensive purposes::f("for all intents and purposes", A_ThisHotkey, A_EndChar)
-:XB0:for along time::f("for a long time", A_ThisHotkey, A_EndChar)
-:XB0:for awhile::f("for a while", A_ThisHotkey, A_EndChar)
-:XB0:for he and::f("for him and", A_ThisHotkey, A_EndChar)
-:XB0:for quite awhile::f("for quite a while", A_ThisHotkey, A_EndChar)
-:XB0:for way it's::f("for what it's", A_ThisHotkey, A_EndChar)
-:XB0:fora::f("for a", A_ThisHotkey, A_EndChar)
-:XB0:forbad::f("forbade", A_ThisHotkey, A_EndChar)
-:XB0:fore ground::f("foreground", A_ThisHotkey, A_EndChar)
-:XB0:forego her::f("forgo her", A_ThisHotkey, A_EndChar)
-:XB0:forego his::f("forgo his", A_ThisHotkey, A_EndChar)
-:XB0:forego their::f("forgo their", A_ThisHotkey, A_EndChar)
-:XB0:foreward::f("foreword", A_ThisHotkey, A_EndChar)
-:XB0:forgone conclusion::f("foregone conclusion", A_ThisHotkey, A_EndChar)
-:XB0:formalhaut::f("Fomalhaut", A_ThisHotkey, A_EndChar)
-:XB0:formelly::f("formerly", A_ThisHotkey, A_EndChar)
-:XB0:forsaw::f("foresaw", A_ThisHotkey, A_EndChar)
-:XB0:forunner::f("forerunner", A_ThisHotkey, A_EndChar)
-:XB0:free reign::f("free rein", A_ThisHotkey, A_EndChar)
-:XB0:fro::f("for", A_ThisHotkey, A_EndChar)
-:XB0:frome::f("from", A_ThisHotkey, A_EndChar)
-:XB0:fromt he::f("from the", A_ThisHotkey, A_EndChar)
-:XB0:fulfil::f("fulfill", A_ThisHotkey, A_EndChar)
-:XB0:fulfiled::f("fulfilled", A_ThisHotkey, A_EndChar)
-:XB0:full compliment of::f("full complement of", A_ThisHotkey, A_EndChar)
-:XB0:funguses::f("fungi", A_ThisHotkey, A_EndChar)
-:XB0:gae::f("game", A_ThisHotkey, A_EndChar)
-:XB0:galatic::f("galactic", A_ThisHotkey, A_EndChar)
-:XB0:galations::f("Galatians", A_ThisHotkey, A_EndChar)
-:XB0:gameboy::f("Game Boy", A_ThisHotkey, A_EndChar)
-:XB0:ganes::f("games", A_ThisHotkey, A_EndChar)
-:XB0:gauarana::f("guarana", A_ThisHotkey, A_EndChar)
-:XB0:gave advise::f("gave advice", A_ThisHotkey, A_EndChar)
-:XB0:genialia::f("genitalia", A_ThisHotkey, A_EndChar)
-:XB0:gentlemens::f("gentlemen's", A_ThisHotkey, A_EndChar)
-:XB0:get setup::f("get set up", A_ThisHotkey, A_EndChar)
-:XB0:get use to::f("get used to", A_ThisHotkey, A_EndChar)
-:XB0:geting::f("getting", A_ThisHotkey, A_EndChar)
-:XB0:gets it's::f("gets its", A_ThisHotkey, A_EndChar)
-:XB0:getting use to::f("getting used to", A_ThisHotkey, A_EndChar)
-:XB0:ghandi::f("Gandhi", A_ThisHotkey, A_EndChar)
-:XB0:give advise::f("give advice", A_ThisHotkey, A_EndChar)
-:XB0:gives advise::f("gives advice", A_ThisHotkey, A_EndChar)
-:XB0:glamourous::f("glamorous", A_ThisHotkey, A_EndChar)
-:XB0:godd::f("good", A_ThisHotkey, A_EndChar)
-:XB0:going threw::f("going through", A_ThisHotkey, A_EndChar)
-:XB0:got ran::f("got run", A_ThisHotkey, A_EndChar)
-:XB0:got setup::f("got set up", A_ThisHotkey, A_EndChar)
-:XB0:got shutdown::f("got shut down", A_ThisHotkey, A_EndChar)
-:XB0:got shutout::f("got shut out", A_ThisHotkey, A_EndChar)
-:XB0:grammer::f("grammar", A_ThisHotkey, A_EndChar)
-:XB0:grat::f("great", A_ThisHotkey, A_EndChar)
-:XB0:greater then::f("greater than", A_ThisHotkey, A_EndChar)
-:XB0:greif::f("grief", A_ThisHotkey, A_EndChar)
-:XB0:ground work::f("groundwork", A_ThisHotkey, A_EndChar)
-:XB0:guadulupe::f("Guadalupe", A_ThisHotkey, A_EndChar)
-:XB0:guatamala::f("Guatemala", A_ThisHotkey, A_EndChar)
-:XB0:guatamalan::f("Guatemalan", A_ThisHotkey, A_EndChar)
-:XB0:guest stared::f("guest-starred", A_ThisHotkey, A_EndChar)
-:XB0:guilia::f("Giulia", A_ThisHotkey, A_EndChar)
-:XB0:guiliani::f("Giuliani", A_ThisHotkey, A_EndChar)
-:XB0:guilio::f("Giulio", A_ThisHotkey, A_EndChar)
-:XB0:guiness::f("Guinness", A_ThisHotkey, A_EndChar)
-:XB0:guiseppe::f("Giuseppe", A_ThisHotkey, A_EndChar)
-:XB0:gunanine::f("guanine", A_ThisHotkey, A_EndChar) ; It's in bat poop.  LOL
-:XB0:gusy::f("guys", A_ThisHotkey, A_EndChar)
-:XB0:habaeus::f("habeas", A_ThisHotkey, A_EndChar)
-:XB0:habeus::f("habeas", A_ThisHotkey, A_EndChar)
-:XB0:habsbourg::f("Habsburg", A_ThisHotkey, A_EndChar)
-:XB0:had arose::f("had arisen", A_ThisHotkey, A_EndChar)
-:XB0:had awoke::f("had awoken", A_ThisHotkey, A_EndChar)
-:XB0:had became::f("had become", A_ThisHotkey, A_EndChar)
-:XB0:had began::f("had begun", A_ThisHotkey, A_EndChar)
-:XB0:had being::f("had been", A_ThisHotkey, A_EndChar)
-:XB0:had broke::f("had broken", A_ThisHotkey, A_EndChar)
-:XB0:had brung::f("had brought", A_ThisHotkey, A_EndChar)
-:XB0:had came::f("had come", A_ThisHotkey, A_EndChar)
-:XB0:had chose::f("had chosen", A_ThisHotkey, A_EndChar)
-:XB0:had comeback::f("had come back", A_ThisHotkey, A_EndChar)
-:XB0:had cut-off::f("had cut off", A_ThisHotkey, A_EndChar)
-:XB0:had did::f("had done", A_ThisHotkey, A_EndChar)
-:XB0:had drank::f("had drunk", A_ThisHotkey, A_EndChar)
-:XB0:had drew::f("had drawn", A_ThisHotkey, A_EndChar)
-:XB0:had drove::f("had driven", A_ThisHotkey, A_EndChar)
-:XB0:had fell::f("had fallen", A_ThisHotkey, A_EndChar)
-:XB0:had flew::f("had flown", A_ThisHotkey, A_EndChar)
-:XB0:had forbad::f("had forbidden", A_ThisHotkey, A_EndChar)
-:XB0:had forbade::f("had forbidden", A_ThisHotkey, A_EndChar)
-:XB0:had gave::f("had given", A_ThisHotkey, A_EndChar)
-:XB0:had grew::f("had grown", A_ThisHotkey, A_EndChar)
-:XB0:had it's::f("had its", A_ThisHotkey, A_EndChar)
-:XB0:had knew::f("had known", A_ThisHotkey, A_EndChar)
-:XB0:had know::f("had known", A_ThisHotkey, A_EndChar)
-:XB0:had lead for::f("had led for", A_ThisHotkey, A_EndChar)
-:XB0:had lead the::f("had led the", A_ThisHotkey, A_EndChar)
-:XB0:had lead to::f("had led to", A_ThisHotkey, A_EndChar)
-:XB0:had meet::f("had met", A_ThisHotkey, A_EndChar)
-:XB0:had mislead::f("had misled", A_ThisHotkey, A_EndChar)
-:XB0:had overcame::f("had overcome", A_ThisHotkey, A_EndChar)
-:XB0:had overran::f("had overrun", A_ThisHotkey, A_EndChar)
-:XB0:had overtook::f("had overtaken", A_ThisHotkey, A_EndChar)
-:XB0:had plead::f("had pleaded", A_ThisHotkey, A_EndChar)
-:XB0:had ran::f("had run", A_ThisHotkey, A_EndChar)
-:XB0:had rang::f("had rung", A_ThisHotkey, A_EndChar)
-:XB0:had rode::f("had ridden", A_ThisHotkey, A_EndChar)
-:XB0:had runaway::f("had run away", A_ThisHotkey, A_EndChar)
-:XB0:had sang::f("had sung", A_ThisHotkey, A_EndChar)
-:XB0:had send::f("had sent", A_ThisHotkey, A_EndChar)
-:XB0:had set-up::f("had set up", A_ThisHotkey, A_EndChar)
-:XB0:had setup::f("had set up", A_ThisHotkey, A_EndChar)
-:XB0:had shook::f("had shaken", A_ThisHotkey, A_EndChar)
-:XB0:had shut-down::f("had shut down", A_ThisHotkey, A_EndChar)
-:XB0:had shutdown::f("had shut down", A_ThisHotkey, A_EndChar)
-:XB0:had shutout::f("had shut out", A_ThisHotkey, A_EndChar)
-:XB0:had sowed::f("had sown", A_ThisHotkey, A_EndChar)
-:XB0:had spend::f("had spent", A_ThisHotkey, A_EndChar)
-:XB0:had spoke::f("had spoken", A_ThisHotkey, A_EndChar)
-:XB0:had sprang::f("had sprung", A_ThisHotkey, A_EndChar)
-:XB0:had swam::f("had swum", A_ThisHotkey, A_EndChar)
-:XB0:had threw::f("had thrown", A_ThisHotkey, A_EndChar)
-:XB0:had throve::f("had thriven", A_ThisHotkey, A_EndChar)
-:XB0:had thunk::f("had thought", A_ThisHotkey, A_EndChar)
-:XB0:had to much::f("had too much", A_ThisHotkey, A_EndChar)
-:XB0:had to used::f("had to use", A_ThisHotkey, A_EndChar)
-:XB0:had took::f("had taken", A_ThisHotkey, A_EndChar)
-:XB0:had tore::f("had torn", A_ThisHotkey, A_EndChar)
-:XB0:had undertook::f("had undertaken", A_ThisHotkey, A_EndChar)
-:XB0:had underwent::f("had undergone", A_ThisHotkey, A_EndChar)
-:XB0:had went::f("had gone", A_ThisHotkey, A_EndChar)
-:XB0:had woke::f("had woken", A_ThisHotkey, A_EndChar)
-:XB0:had wore::f("had worn", A_ThisHotkey, A_EndChar)
-:XB0:had wrote::f("had written", A_ThisHotkey, A_EndChar)
-:XB0:hadbeen::f("had been", A_ThisHotkey, A_EndChar)
-:XB0:hadn't went::f("hadn't gone", A_ThisHotkey, A_EndChar)
-:XB0:haev::f("have", A_ThisHotkey, A_EndChar)
-:XB0:half and hour::f("half an hour", A_ThisHotkey, A_EndChar)
-:XB0:hallowean::f("Halloween", A_ThisHotkey, A_EndChar)
-:XB0:hand the reigns::f("hand the reins", A_ThisHotkey, A_EndChar)
-:XB0:happend::f("happened", A_ThisHotkey, A_EndChar)
-:XB0:happended::f("happened", A_ThisHotkey, A_EndChar)
-:XB0:happenned::f("happened", A_ThisHotkey, A_EndChar)
-:XB0:harases::f("harasses", A_ThisHotkey, A_EndChar)
-:XB0:has arose::f("has arisen", A_ThisHotkey, A_EndChar)
-:XB0:has awoke::f("has awoken", A_ThisHotkey, A_EndChar)
-:XB0:has bore::f("has borne", A_ThisHotkey, A_EndChar)
-:XB0:has broke::f("has broken", A_ThisHotkey, A_EndChar)
-:XB0:has brung::f("has brought", A_ThisHotkey, A_EndChar)
-:XB0:has build::f("has built", A_ThisHotkey, A_EndChar)
-:XB0:has came::f("has come", A_ThisHotkey, A_EndChar)
-:XB0:has chose::f("has chosen", A_ThisHotkey, A_EndChar)
-:XB0:has cut-off::f("has cut off", A_ThisHotkey, A_EndChar)
-:XB0:has did::f("has done", A_ThisHotkey, A_EndChar)
-:XB0:has drank::f("has drunk", A_ThisHotkey, A_EndChar)
-:XB0:has drew::f("has drawn", A_ThisHotkey, A_EndChar)
-:XB0:has drove::f("has driven", A_ThisHotkey, A_EndChar)
-:XB0:has fell::f("has fallen", A_ThisHotkey, A_EndChar)
-:XB0:has flew::f("has flown", A_ThisHotkey, A_EndChar)
-:XB0:has forbad::f("has forbidden", A_ThisHotkey, A_EndChar)
-:XB0:has forbade::f("has forbidden", A_ThisHotkey, A_EndChar)
-:XB0:has gave::f("has given", A_ThisHotkey, A_EndChar)
-:XB0:has having::f("as having", A_ThisHotkey, A_EndChar)
-:XB0:has it's::f("has its", A_ThisHotkey, A_EndChar)
-:XB0:has lead the::f("has led the", A_ThisHotkey, A_EndChar)
-:XB0:has lead to::f("has led to", A_ThisHotkey, A_EndChar)
-:XB0:has meet::f("has met", A_ThisHotkey, A_EndChar)
-:XB0:has mislead::f("has misled", A_ThisHotkey, A_EndChar)
-:XB0:has overcame::f("has overcome", A_ThisHotkey, A_EndChar)
-:XB0:has plead::f("has pleaded", A_ThisHotkey, A_EndChar)
-:XB0:has ran::f("has run", A_ThisHotkey, A_EndChar)
-:XB0:has rang::f("has rung", A_ThisHotkey, A_EndChar)
-:XB0:has sang::f("has sung", A_ThisHotkey, A_EndChar)
-:XB0:has set-up::f("has set up", A_ThisHotkey, A_EndChar)
-:XB0:has setup::f("has set up", A_ThisHotkey, A_EndChar)
-:XB0:has shook::f("has shaken", A_ThisHotkey, A_EndChar)
-:XB0:has spoke::f("has spoken", A_ThisHotkey, A_EndChar)
-:XB0:has sprang::f("has sprung", A_ThisHotkey, A_EndChar)
-:XB0:has swam::f("has swum", A_ThisHotkey, A_EndChar)
-:XB0:has threw::f("has thrown", A_ThisHotkey, A_EndChar)
-:XB0:has throve::f("has thrived", A_ThisHotkey, A_EndChar)
-:XB0:has thunk::f("has thought", A_ThisHotkey, A_EndChar)
-:XB0:has took::f("has taken", A_ThisHotkey, A_EndChar)
-:XB0:has trod::f("has trodden", A_ThisHotkey, A_EndChar)
-:XB0:has undertook::f("has undertaken", A_ThisHotkey, A_EndChar)
-:XB0:has underwent::f("has undergone", A_ThisHotkey, A_EndChar)
-:XB0:has went::f("has gone", A_ThisHotkey, A_EndChar)
-:XB0:has woke::f("has woken", A_ThisHotkey, A_EndChar)
-:XB0:has wrote::f("has written", A_ThisHotkey, A_EndChar)
-:XB0:hasbeen::f("has been", A_ThisHotkey, A_EndChar)
-:XB0:hasnt::f("hasn't", A_ThisHotkey, A_EndChar)
-:XB0:have drank::f("have drunk", A_ThisHotkey, A_EndChar)
-:XB0:have it's::f("have its", A_ThisHotkey, A_EndChar)
-:XB0:have lead to::f("have led to", A_ThisHotkey, A_EndChar)
-:XB0:have mislead::f("have misled", A_ThisHotkey, A_EndChar)
-:XB0:have ran::f("have run", A_ThisHotkey, A_EndChar)
-:XB0:have rang::f("have rung", A_ThisHotkey, A_EndChar)
-:XB0:have sang::f("have sung", A_ThisHotkey, A_EndChar)
-:XB0:have setup::f("have set up", A_ThisHotkey, A_EndChar)
-:XB0:have sprang::f("have sprung", A_ThisHotkey, A_EndChar)
-:XB0:have swam::f("have swum", A_ThisHotkey, A_EndChar)
-:XB0:have took::f("have taken", A_ThisHotkey, A_EndChar)
-:XB0:have underwent::f("have undergone", A_ThisHotkey, A_EndChar)
-:XB0:have went::f("have gone", A_ThisHotkey, A_EndChar)
-:XB0:havebeen::f("have been", A_ThisHotkey, A_EndChar)
-:XB0:haviest::f("heaviest", A_ThisHotkey, A_EndChar)
-:XB0:having became::f("having become", A_ThisHotkey, A_EndChar)
-:XB0:having began::f("having begun", A_ThisHotkey, A_EndChar)
-:XB0:having being::f("having been", A_ThisHotkey, A_EndChar)
-:XB0:having it's::f("having its", A_ThisHotkey, A_EndChar)
-:XB0:having ran::f("having run", A_ThisHotkey, A_EndChar)
-:XB0:having sang::f("having sung", A_ThisHotkey, A_EndChar)
-:XB0:having setup::f("having set up", A_ThisHotkey, A_EndChar)
-:XB0:having swam::f("having swum", A_ThisHotkey, A_EndChar)
-:XB0:having took::f("having taken", A_ThisHotkey, A_EndChar)
-:XB0:having underwent::f("having undergone", A_ThisHotkey, A_EndChar)
-:XB0:having went::f("having gone", A_ThisHotkey, A_EndChar)
-:XB0:hay day::f("heyday", A_ThisHotkey, A_EndChar)
-:XB0:he begun::f("he began", A_ThisHotkey, A_EndChar)
-:XB0:he let's::f("he lets", A_ThisHotkey, A_EndChar)
-:XB0:he plead::f("he pleaded", A_ThisHotkey, A_EndChar)
-:XB0:he seen::f("he saw", A_ThisHotkey, A_EndChar)
-:XB0:he use to::f("he used to", A_ThisHotkey, A_EndChar)
-:XB0:he's drank::f("he drank", A_ThisHotkey, A_EndChar)
-:XB0:head gear::f("headgear", A_ThisHotkey, A_EndChar)
-:XB0:head quarters::f("headquarters", A_ThisHotkey, A_EndChar)
-:XB0:head stone::f("headstone", A_ThisHotkey, A_EndChar)
-:XB0:head wear::f("headwear", A_ThisHotkey, A_EndChar)
-:XB0:healthercare::f("healthcare", A_ThisHotkey, A_EndChar)
-:XB0:heared::f("heard", A_ThisHotkey, A_EndChar)
-:XB0:heathy::f("healthy", A_ThisHotkey, A_EndChar)
-:XB0:heidelburg::f("Heidelberg", A_ThisHotkey, A_EndChar)
-:XB0:heigher::f("higher", A_ThisHotkey, A_EndChar)
-:XB0:held the reigns::f("held the reins", A_ThisHotkey, A_EndChar)
-:XB0:helf::f("held", A_ThisHotkey, A_EndChar)
-:XB0:hellow::f("hello", A_ThisHotkey, A_EndChar)
-:XB0:help and make::f("help to make", A_ThisHotkey, A_EndChar)
-:XB0:helpfull::f("helpful", A_ThisHotkey, A_EndChar)
-:XB0:herf::f("href", A_ThisHotkey, A_EndChar) 
-:XB0:heroe::f("hero", A_ThisHotkey, A_EndChar)
-:XB0:heros::f("heroes", A_ThisHotkey, A_EndChar)
-:XB0:hersuit::f("hirsute", A_ThisHotkey, A_EndChar)
-:XB0:hesaid::f("he said", A_ThisHotkey, A_EndChar)
-:XB0:heterogenous::f("heterogeneous", A_ThisHotkey, A_EndChar)
-:XB0:hewas::f("he was", A_ThisHotkey, A_EndChar)
-:XB0:hier::f("heir", A_ThisHotkey, A_EndChar)
-:XB0:higer::f("higher", A_ThisHotkey, A_EndChar)
-:XB0:higest::f("highest", A_ThisHotkey, A_EndChar)
-:XB0:higher then::f("higher than", A_ThisHotkey, A_EndChar)
-:XB0:himselv::f("himself", A_ThisHotkey, A_EndChar)
-:XB0:hinderance::f("hindrance", A_ThisHotkey, A_EndChar)
-:XB0:hinderence::f("hindrance", A_ThisHotkey, A_EndChar)
-:XB0:hindrence::f("hindrance", A_ThisHotkey, A_EndChar)
-:XB0:hipopotamus::f("hippopotamus", A_ThisHotkey, A_EndChar)
-:XB0:his resent::f("his recent", A_ThisHotkey, A_EndChar) ; not good for 'her' 
-:XB0:hismelf::f("himself", A_ThisHotkey, A_EndChar)
-:XB0:hit the breaks::f("hit the brakes", A_ThisHotkey, A_EndChar)
-:XB0:hitsingles::f("hit singles", A_ThisHotkey, A_EndChar)
-:XB0:hold onto::f("hold on to", A_ThisHotkey, A_EndChar)
-:XB0:hold the reigns::f("hold the reins", A_ThisHotkey, A_EndChar)
-:XB0:holding the reigns::f("holding the reins", A_ThisHotkey, A_EndChar)
-:XB0:holds the reigns::f("holds the reins", A_ThisHotkey, A_EndChar)
-:XB0:homestate::f("home state", A_ThisHotkey, A_EndChar)
-:XB0:hone in on::f("home in on", A_ThisHotkey, A_EndChar)
-:XB0:honed in::f("homed in", A_ThisHotkey, A_EndChar)
-:XB0:honory::f("honorary", A_ThisHotkey, A_EndChar)
-:XB0:honourarium::f("honorarium", A_ThisHotkey, A_EndChar)
-:XB0:honourific::f("honorific", A_ThisHotkey, A_EndChar)
-:XB0:hotter then::f("hotter than", A_ThisHotkey, A_EndChar)
-:XB0:house hold::f("household", A_ThisHotkey, A_EndChar)
-:XB0:housr::f("hours", A_ThisHotkey, A_EndChar)
-:XB0:how ever::f("however", A_ThisHotkey, A_EndChar)
-:XB0:howver::f("however", A_ThisHotkey, A_EndChar)
-:XB0:http:\\::f("http://", A_ThisHotkey, A_EndChar) 
-:XB0:httpL::f("http:", A_ThisHotkey, A_EndChar) 
-:XB0:humer::f("humor", A_ThisHotkey, A_EndChar)
-:XB0:huminoid::f("humanoid", A_ThisHotkey, A_EndChar)
-:XB0:humoural::f("humoral", A_ThisHotkey, A_EndChar)
-:XB0:husban::f("husband", A_ThisHotkey, A_EndChar)
-:XB0:hydropile::f("hydrophile", A_ThisHotkey, A_EndChar)
-:XB0:hydropilic::f("hydrophilic", A_ThisHotkey, A_EndChar)
-:XB0:hydropobe::f("hydrophobe", A_ThisHotkey, A_EndChar)
-:XB0:hydropobic::f("hydrophobic", A_ThisHotkey, A_EndChar)
-:XB0:hypocracy::f("hypocrisy", A_ThisHotkey, A_EndChar)
-:XB0:hypocrasy::f("hypocrisy", A_ThisHotkey, A_EndChar)
-:XB0:hypocricy::f("hypocrisy", A_ThisHotkey, A_EndChar)
-:XB0:hypocrit::f("hypocrite", A_ThisHotkey, A_EndChar)
-:XB0:hypocrits::f("hypocrites", A_ThisHotkey, A_EndChar)
-:XB0:i snot::f("is not", A_ThisHotkey, A_EndChar)
-:XB0:i"m::f("I'm", A_ThisHotkey, A_EndChar)
-:XB0:i;d::f("I'd", A_ThisHotkey, A_EndChar)
-:XB0:idealogy::f("ideology", A_ThisHotkey, A_EndChar)
-:XB0:identifers::f("identifiers", A_ThisHotkey, A_EndChar)
-:XB0:ideosyncratic::f("idiosyncratic", A_ThisHotkey, A_EndChar)
-:XB0:idesa::f("ideas", A_ThisHotkey, A_EndChar)
-:XB0:idiosyncracy::f("idiosyncrasy", A_ThisHotkey, A_EndChar)
-:XB0:if is::f("it is", A_ThisHotkey, A_EndChar)
-:XB0:if was::f("it was", A_ThisHotkey, A_EndChar)
-:XB0:ifb y::f("if by", A_ThisHotkey, A_EndChar)
-:XB0:ifi t::f("if it", A_ThisHotkey, A_EndChar)
-:XB0:ift he::f("if the", A_ThisHotkey, A_EndChar)
-:XB0:ift hey::f("if they", A_ThisHotkey, A_EndChar)
-:XB0:ignorence::f("ignorance", A_ThisHotkey, A_EndChar)
-:XB0:ihaca::f("Ithaca", A_ThisHotkey, A_EndChar)
-:XB0:iits the::f("it's the", A_ThisHotkey, A_EndChar)
-:XB0:illess::f("illness", A_ThisHotkey, A_EndChar)
-:XB0:illicited::f("elicited", A_ThisHotkey, A_EndChar)
-:XB0:ilness::f("illness", A_ThisHotkey, A_EndChar)
-:XB0:imagin::f("imagine", A_ThisHotkey, A_EndChar)
-:XB0:imaginery::f("imaginary", A_ThisHotkey, A_EndChar)
-:XB0:imminent domain::f("eminent domain", A_ThisHotkey, A_EndChar)
-:XB0:impedence::f("impedance", A_ThisHotkey, A_EndChar)
-:XB0:in affect::f("in effect", A_ThisHotkey, A_EndChar)
-:XB0:in along time::f("in a long time", A_ThisHotkey, A_EndChar)
-:XB0:in anyway::f("in any way", A_ThisHotkey, A_EndChar)
-:XB0:in awhile::f("in a while", A_ThisHotkey, A_EndChar)
-:XB0:in edition to::f("in addition to", A_ThisHotkey, A_EndChar)
-:XB0:in lu of::f("in lieu of", A_ThisHotkey, A_EndChar)
-:XB0:in masse::f("en masse", A_ThisHotkey, A_EndChar)
-:XB0:in parenthesis::f("in parentheses", A_ThisHotkey, A_EndChar)
-:XB0:in placed::f("in place", A_ThisHotkey, A_EndChar)
-:XB0:in principal::f("in principle", A_ThisHotkey, A_EndChar)
-:XB0:in quite awhile::f("in quite a while", A_ThisHotkey, A_EndChar)
-:XB0:in regards to::f("in regard to", A_ThisHotkey, A_EndChar)
-:XB0:in stead of::f("instead of", A_ThisHotkey, A_EndChar)
-:XB0:in tact::f("intact", A_ThisHotkey, A_EndChar)
-:XB0:in the long-term::f("in the long term", A_ThisHotkey, A_EndChar)
-:XB0:in the short-term::f("in the short term", A_ThisHotkey, A_EndChar)
-:XB0:in titled::f("entitled", A_ThisHotkey, A_EndChar)
-:XB0:in vein::f("in vain", A_ThisHotkey, A_EndChar)
-:XB0:inbetween::f("between", A_ThisHotkey, A_EndChar)
-:XB0:incase of::f("in case of", A_ThisHotkey, A_EndChar)
-:XB0:incidently::f("incidentally", A_ThisHotkey, A_EndChar)
-:XB0:incuding::f("including", A_ThisHotkey, A_EndChar)
-:XB0:indentical::f("identical", A_ThisHotkey, A_EndChar)
-:XB0:indictement::f("indictment", A_ThisHotkey, A_EndChar)
-:XB0:infact::f("in fact", A_ThisHotkey, A_EndChar)
-:XB0:infered::f("inferred", A_ThisHotkey, A_EndChar)
-:XB0:infinit::f("infinite", A_ThisHotkey, A_EndChar)
-:XB0:influented::f("influenced", A_ThisHotkey, A_EndChar)
-:XB0:ingreediants::f("ingredients", A_ThisHotkey, A_EndChar)
-:XB0:inperson::f("in-person", A_ThisHotkey, A_EndChar)
-:XB0:insectiverous::f("insectivorous", A_ThisHotkey, A_EndChar)
-:XB0:inspite::f("in spite", A_ThisHotkey, A_EndChar)
-:XB0:int he::f("in the", A_ThisHotkey, A_EndChar)
-:XB0:inteh::f("in the", A_ThisHotkey, A_EndChar)
-:XB0:interbread::f("interbred", A_ThisHotkey, A_EndChar)
-:XB0:intered::f("interred", A_ThisHotkey, A_EndChar)
-:XB0:interm::f("interim", A_ThisHotkey, A_EndChar)
-:XB0:internation::f("international", A_ThisHotkey, A_EndChar)
-:XB0:interrim::f("interim", A_ThisHotkey, A_EndChar)
-:XB0:interrugum::f("interregnum", A_ThisHotkey, A_EndChar)
-:XB0:interum::f("interim", A_ThisHotkey, A_EndChar)
-:XB0:intervines::f("intervenes", A_ThisHotkey, A_EndChar)
-:XB0:into affect::f("into effect", A_ThisHotkey, A_EndChar)
-:XB0:into it's::f("into its", A_ThisHotkey, A_EndChar)
-:XB0:introdued::f("introduced", A_ThisHotkey, A_EndChar)
-:XB0:inwhich::f("in which", A_ThisHotkey, A_EndChar)
-:XB0:irregardless::f("regardless", A_ThisHotkey, A_EndChar)
-:XB0:is also know::f("is also known", A_ThisHotkey, A_EndChar)
-:XB0:is consider::f("is considered", A_ThisHotkey, A_EndChar)
-:XB0:is front of::f("in front of", A_ThisHotkey, A_EndChar)
-:XB0:is it's::f("is its", A_ThisHotkey, A_EndChar)
-:XB0:is know::f("is known", A_ThisHotkey, A_EndChar)
-:XB0:is lead by::f("is led by", A_ThisHotkey, A_EndChar)
-:XB0:is loathe to::f("is loath to", A_ThisHotkey, A_EndChar)
-:XB0:is ran by::f("is run by", A_ThisHotkey, A_EndChar)
-:XB0:is renown for::f("is renowned for", A_ThisHotkey, A_EndChar)
-:XB0:is schedule to::f("is scheduled to", A_ThisHotkey, A_EndChar)
-:XB0:is set-up::f("is set up", A_ThisHotkey, A_EndChar)
-:XB0:is setup::f("is set up", A_ThisHotkey, A_EndChar)
-:XB0:is use to::f("is used to", A_ThisHotkey, A_EndChar)
-:XB0:is were::f("is where", A_ThisHotkey, A_EndChar)
-:XB0:isnt::f("isn't", A_ThisHotkey, A_EndChar)
-:XB0:it begun::f("it began", A_ThisHotkey, A_EndChar)
-:XB0:it lead to::f("it led to", A_ThisHotkey, A_EndChar)
-:XB0:it self::f("itself", A_ThisHotkey, A_EndChar)
-:XB0:it set-up::f("it set up", A_ThisHotkey, A_EndChar)
-:XB0:it setup::f("it set up", A_ThisHotkey, A_EndChar)
-:XB0:it snot::f("it's not", A_ThisHotkey, A_EndChar)
-:XB0:it spend::f("it spent", A_ThisHotkey, A_EndChar)
-:XB0:it use to::f("it used to", A_ThisHotkey, A_EndChar)
-:XB0:it was her who::f("it was she who", A_ThisHotkey, A_EndChar)
-:XB0:it was him who::f("it was he who", A_ThisHotkey, A_EndChar)
-:XB0:it weighted::f("it weighed", A_ThisHotkey, A_EndChar)
-:XB0:it weights::f("it weighs", A_ThisHotkey, A_EndChar)
-:XB0:it' snot::f("it's not", A_ThisHotkey, A_EndChar)
-:XB0:it's current::f("its current", A_ThisHotkey, A_EndChar)
-:XB0:it's end::f("its end", A_ThisHotkey, A_EndChar)
-:XB0:it's entire::f("its entire", A_ThisHotkey, A_EndChar)
-:XB0:it's entirety::f("its entirety", A_ThisHotkey, A_EndChar)
-:XB0:it's final::f("its final", A_ThisHotkey, A_EndChar)
-:XB0:it's first::f("its first", A_ThisHotkey, A_EndChar)
-:XB0:it's former::f("its former", A_ThisHotkey, A_EndChar)
-:XB0:it's goal::f("its goal", A_ThisHotkey, A_EndChar)
-:XB0:it's name::f("its name", A_ThisHotkey, A_EndChar)
-:XB0:it's own::f("its own", A_ThisHotkey, A_EndChar)
-:XB0:it's performance::f("its performance", A_ThisHotkey, A_EndChar)
-:XB0:it's source::f("its source", A_ThisHotkey, A_EndChar)
-:XB0:it's successor::f("its successor", A_ThisHotkey, A_EndChar)
-:XB0:it's tail::f("its tail", A_ThisHotkey, A_EndChar)
-:XB0:it's test::f("its test", A_ThisHotkey, A_EndChar)
-:XB0:it's theme::f("its theme", A_ThisHotkey, A_EndChar)
-:XB0:it's timeslot::f("its timeslot", A_ThisHotkey, A_EndChar)
-:XB0:it's toll::f("its toll", A_ThisHotkey, A_EndChar)
-:XB0:it's total::f("its total", A_ThisHotkey, A_EndChar)
-:XB0:it's user::f("its user", A_ThisHotkey, A_EndChar)
-:XB0:it's website::f("its website", A_ThisHotkey, A_EndChar)
-:XB0:itis::f("it is", A_ThisHotkey, A_EndChar)
-:XB0:its a::f("it's a", A_ThisHotkey, A_EndChar)
-:XB0:its the::f("it's the", A_ThisHotkey, A_EndChar)
-:XB0:itwas::f("it was", A_ThisHotkey, A_EndChar)
-:XB0:iunior::f("junior", A_ThisHotkey, A_EndChar)
-:XB0:japanes::f("Japanese", A_ThisHotkey, A_EndChar)
-:XB0:jaques::f("jacques", A_ThisHotkey, A_EndChar)
-:XB0:jewelery::f("jewelry", A_ThisHotkey, A_EndChar) 
-:XB0:jive with::f("jibe with", A_ThisHotkey, A_EndChar)
-:XB0:johanine::f("Johannine", A_ThisHotkey, A_EndChar)
-:XB0:jorunal::f("journal", A_ThisHotkey, A_EndChar)
-:XB0:jospeh::f("Joseph", A_ThisHotkey, A_EndChar)
-:XB0:journied::f("journeyed", A_ThisHotkey, A_EndChar)
-:XB0:journies::f("journeys", A_ThisHotkey, A_EndChar)
-:XB0:juadaism::f("Judaism", A_ThisHotkey, A_EndChar)
-:XB0:juadism::f("Judaism", A_ThisHotkey, A_EndChar)
-:XB0:key note::f("keynote", A_ThisHotkey, A_EndChar)
-:XB0:klenex::f("kleenex", A_ThisHotkey, A_EndChar)
-:XB0:knifes::f("knives", A_ThisHotkey, A_EndChar)
-:XB0:knive::f("knife", A_ThisHotkey, A_EndChar)
-:XB0:labratory::f("laboratory", A_ThisHotkey, A_EndChar)
-:XB0:lack there of::f("lack thereof", A_ThisHotkey, A_EndChar)
-:XB0:laid ahead::f("lay ahead", A_ThisHotkey, A_EndChar)
-:XB0:laid dormant::f("lay dormant", A_ThisHotkey, A_EndChar)
-:XB0:laid empty::f("lay empty", A_ThisHotkey, A_EndChar)
-:XB0:larg::f("large", A_ThisHotkey, A_EndChar)
-:XB0:larger then::f("larger than", A_ThisHotkey, A_EndChar)
-:XB0:largley::f("largely", A_ThisHotkey, A_EndChar)
-:XB0:largst::f("largest", A_ThisHotkey, A_EndChar)
-:XB0:lastr::f("last", A_ThisHotkey, A_EndChar)
-:XB0:lastyear::f("last year", A_ThisHotkey, A_EndChar)
-:XB0:laughing stock::f("laughingstock", A_ThisHotkey, A_EndChar)
-:XB0:lavae::f("larvae", A_ThisHotkey, A_EndChar)
-:XB0:law suite::f("lawsuit", A_ThisHotkey, A_EndChar)
-:XB0:lay low::f("lie low", A_ThisHotkey, A_EndChar)
-:XB0:layed off::f("laid off", A_ThisHotkey, A_EndChar)
-:XB0:layed::f("laid", A_ThisHotkey, A_EndChar)
-:XB0:laying around::f("lying around", A_ThisHotkey, A_EndChar)
-:XB0:laying awake::f("lying awake", A_ThisHotkey, A_EndChar)
-:XB0:laying low::f("lying low", A_ThisHotkey, A_EndChar)
-:XB0:lays atop::f("lies atop", A_ThisHotkey, A_EndChar)
-:XB0:lays beside::f("lies beside", A_ThisHotkey, A_EndChar)
-:XB0:lays in::f("lies in", A_ThisHotkey, A_EndChar)
-:XB0:lays low::f("lies low", A_ThisHotkey, A_EndChar)
-:XB0:lays near::f("lies near", A_ThisHotkey, A_EndChar)
-:XB0:lays on::f("lies on", A_ThisHotkey, A_EndChar)
-:XB0:lead by::f("led by", A_ThisHotkey, A_EndChar)
-:XB0:lead roll::f("lead role", A_ThisHotkey, A_EndChar)
-:XB0:leading roll::f("leading role", A_ThisHotkey, A_EndChar)
-:XB0:lefted::f("left", A_ThisHotkey, A_EndChar)
-:XB0:less dominate::f("less dominant", A_ThisHotkey, A_EndChar)
-:XB0:less that::f("less than", A_ThisHotkey, A_EndChar)
-:XB0:less then::f("less than", A_ThisHotkey, A_EndChar)
-:XB0:lesser then::f("less than", A_ThisHotkey, A_EndChar)
-:XB0:libary::f("library", A_ThisHotkey, A_EndChar)
-:XB0:libitarianisn::f("libertarianism", A_ThisHotkey, A_EndChar)
-:XB0:licence::f("license", A_ThisHotkey, A_EndChar)
-:XB0:life time::f("lifetime", A_ThisHotkey, A_EndChar)
-:XB0:liftime::f("lifetime", A_ThisHotkey, A_EndChar)
-:XB0:lighter then::f("lighter than", A_ThisHotkey, A_EndChar)
-:XB0:lightyear::f("light year", A_ThisHotkey, A_EndChar)
-:XB0:lightyears::f("light years", A_ThisHotkey, A_EndChar)
-:XB0:line of site::f("line of sight", A_ThisHotkey, A_EndChar)
-:XB0:line-of-site::f("line-of-sight", A_ThisHotkey, A_EndChar)
-:XB0:linnaena::f("linnaean", A_ThisHotkey, A_EndChar)
-:XB0:lions share::f("lion's share", A_ThisHotkey, A_EndChar)
-:XB0:litature::f("literature", A_ThisHotkey, A_EndChar)
-:XB0:lonelyness::f("loneliness", A_ThisHotkey, A_EndChar)
-:XB0:loose to::f("lose to", A_ThisHotkey, A_EndChar)
-:XB0:loosing effort::f("losing effort", A_ThisHotkey, A_EndChar)
-:XB0:loosing record::f("losing record", A_ThisHotkey, A_EndChar)
-:XB0:loosing season::f("losing season", A_ThisHotkey, A_EndChar)
-:XB0:loosing streak::f("losing streak", A_ThisHotkey, A_EndChar)
-:XB0:loosing team::f("losing team", A_ThisHotkey, A_EndChar)
-:XB0:loosing the::f("losing the", A_ThisHotkey, A_EndChar)
-:XB0:loosing to::f("losing to", A_ThisHotkey, A_EndChar)
-:XB0:lot's of::f("lots of", A_ThisHotkey, A_EndChar)
-:XB0:lower that::f("lower than", A_ThisHotkey, A_EndChar)
-:XB0:lower then::f("lower than", A_ThisHotkey, A_EndChar)
-:XB0:maching::f("matching", A_ThisHotkey, A_EndChar)
-:XB0:mackeral::f("mackerel", A_ThisHotkey, A_EndChar)
-:XB0:made it's::f("made its", A_ThisHotkey, A_EndChar)
-:XB0:magasine::f("magazine", A_ThisHotkey, A_EndChar)
-:XB0:magizine::f("magazine", A_ThisHotkey, A_EndChar)
-:XB0:maintance::f("maintenance", A_ThisHotkey, A_EndChar)
-:XB0:major roll::f("major role", A_ThisHotkey, A_EndChar)
-:XB0:make due::f("make do", A_ThisHotkey, A_EndChar)
-:XB0:make it's::f("make its", A_ThisHotkey, A_EndChar)
-:XB0:malcom::f("Malcolm", A_ThisHotkey, A_EndChar)
-:XB0:maltesian::f("Maltese", A_ThisHotkey, A_EndChar)
-:XB0:managerial reigns::f("managerial reins", A_ThisHotkey, A_EndChar)
-:XB0:massachussets::f("Massachusetts", A_ThisHotkey, A_EndChar)
-:XB0:massachussetts::f("Massachusetts", A_ThisHotkey, A_EndChar)
-:XB0:massmedia::f("mass media", A_ThisHotkey, A_EndChar)
-:XB0:materalists::f("materialist", A_ThisHotkey, A_EndChar)
-:XB0:mathematican::f("mathematician", A_ThisHotkey, A_EndChar)
-:XB0:matheticians::f("mathematicians", A_ThisHotkey, A_EndChar)
-:XB0:mean while::f("meanwhile", A_ThisHotkey, A_EndChar)
-:XB0:mear::f("mere", A_ThisHotkey, A_EndChar)
-:XB0:medievel::f("medieval", A_ThisHotkey, A_EndChar)
-:XB0:mediteranean::f("Mediterranean", A_ThisHotkey, A_EndChar)
-:XB0:meerkrat::f("meerkat", A_ThisHotkey, A_EndChar)
-:XB0:melieux::f("milieux", A_ThisHotkey, A_EndChar)
-:XB0:membranaphone::f("membranophone", A_ThisHotkey, A_EndChar)
-:XB0:menally::f("mentally", A_ThisHotkey, A_EndChar)
-:XB0:menat::f("meant", A_ThisHotkey, A_EndChar)
-:XB0:messanger::f("messenger", A_ThisHotkey, A_EndChar)
-:XB0:messenging::f("messaging", A_ThisHotkey, A_EndChar)
-:XB0:michagan::f("Michigan", A_ThisHotkey, A_EndChar)
-:XB0:micheal::f("Michael", A_ThisHotkey, A_EndChar)
-:XB0:might of::f("might have", A_ThisHotkey, A_EndChar)
-:XB0:miligram::f("milligram", A_ThisHotkey, A_EndChar)
-:XB0:millepede::f("millipede", A_ThisHotkey, A_EndChar)
-:XB0:miniscule::f("minuscule", A_ThisHotkey, A_EndChar)
-:XB0:ministery::f("ministry", A_ThisHotkey, A_EndChar)
-:XB0:minor roll::f("minor role", A_ThisHotkey, A_EndChar)
-:XB0:minstries::f("ministries", A_ThisHotkey, A_EndChar)
-:XB0:minstry::f("ministry", A_ThisHotkey, A_EndChar)
-:XB0:minumum::f("minimum", A_ThisHotkey, A_EndChar)
-:XB0:misfourtunes::f("misfortunes", A_ThisHotkey, A_EndChar)
-:XB0:missen::f("mizzen", A_ThisHotkey, A_EndChar)
-:XB0:missle::f("missile", A_ThisHotkey, A_EndChar)
-:XB0:mistery::f("mystery", A_ThisHotkey, A_EndChar)
-:XB0:moderm::f("modem", A_ThisHotkey, A_EndChar)
-:XB0:mohammedans::f("muslims", A_ThisHotkey, A_EndChar)
-:XB0:moil::f("mohel", A_ThisHotkey, A_EndChar)
-:XB0:momento::f("memento", A_ThisHotkey, A_EndChar)
-:XB0:monolite::f("monolithic", A_ThisHotkey, A_EndChar)
-:XB0:more dominate::f("more dominant", A_ThisHotkey, A_EndChar)
-:XB0:more of less::f("more or less", A_ThisHotkey, A_EndChar)
-:XB0:more often then::f("more often than", A_ThisHotkey, A_EndChar)
-:XB0:more resent::f("more recent", A_ThisHotkey, A_EndChar)
-:XB0:more that::f("more than", A_ThisHotkey, A_EndChar)
-:XB0:more then::f("more than", A_ThisHotkey, A_EndChar)
-:XB0:moreso::f("more so", A_ThisHotkey, A_EndChar)
-:XB0:most dominate::f("most dominant", A_ThisHotkey, A_EndChar)
-:XB0:most populace::f("most populous", A_ThisHotkey, A_EndChar)
-:XB0:most resent::f("most recent", A_ThisHotkey, A_EndChar)
-:XB0:muhammadan::f("muslim", A_ThisHotkey, A_EndChar)
-:XB0:multipled::f("multiplied", A_ThisHotkey, A_EndChar)
-:XB0:multiplers::f("multipliers", A_ThisHotkey, A_EndChar)
-:XB0:must of::f("must have", A_ThisHotkey, A_EndChar)
-:XB0:mute point::f("moot point", A_ThisHotkey, A_EndChar)
-:XB0:mysef::f("myself", A_ThisHotkey, A_EndChar)
-:XB0:mysefl::f("myself", A_ThisHotkey, A_EndChar)
-:XB0:myu::f("my", A_ThisHotkey, A_EndChar)
-:XB0:nad::f("and", A_ThisHotkey, A_EndChar)
-:XB0:napoleonian::f("Napoleonic", A_ThisHotkey, A_EndChar)
-:XB0:nation wide::f("nationwide", A_ThisHotkey, A_EndChar)
-:XB0:nazereth::f("Nazareth", A_ThisHotkey, A_EndChar)
-:XB0:near by::f("nearby", A_ThisHotkey, A_EndChar)
-:XB0:neither criteria::f("neither criterion", A_ThisHotkey, A_EndChar)
-:XB0:neither phenomena::f("neither phenomenon", A_ThisHotkey, A_EndChar)
-:XB0:nestin::f("nesting", A_ThisHotkey, A_EndChar)
-:XB0:neverthless::f("nevertheless", A_ThisHotkey, A_EndChar)
-:XB0:new comer::f("newcomer", A_ThisHotkey, A_EndChar)
-:XB0:newletters::f("newsletters", A_ThisHotkey, A_EndChar)
-:XB0:newyorker::f("New Yorker", A_ThisHotkey, A_EndChar)
-:XB0:niether::f("neither", A_ThisHotkey, A_EndChar)
-:XB0:nightime::f("nighttime", A_ThisHotkey, A_EndChar)
-:XB0:nineth::f("ninth", A_ThisHotkey, A_EndChar)
-:XB0:ninteenth::f("nineteenth", A_ThisHotkey, A_EndChar)
-:XB0:ninties::f("nineties", A_ThisHotkey, A_EndChar) ; fixed from "1990s": could refer to temperatures too.
-:XB0:ninty::f("ninety", A_ThisHotkey, A_EndChar)
-:XB0:no where to::f("nowhere to", A_ThisHotkey, A_EndChar)
-:XB0:nontheless::f("nonetheless", A_ThisHotkey, A_EndChar)
-:XB0:noone::f("no one", A_ThisHotkey, A_EndChar)
-:XB0:note worthy::f("noteworthy", A_ThisHotkey, A_EndChar)
-:XB0:noth::f("north", A_ThisHotkey, A_EndChar)
-:XB0:noticable::f("noticeable", A_ThisHotkey, A_EndChar)
-:XB0:noticably::f("noticeably", A_ThisHotkey, A_EndChar)
-:XB0:notwhithstanding::f("notwithstanding", A_ThisHotkey, A_EndChar)
-:XB0:noveau::f("nouveau", A_ThisHotkey, A_EndChar)
-:XB0:nowdays::f("nowadays", A_ThisHotkey, A_EndChar)
-:XB0:nuisanse::f("nuisance", A_ThisHotkey, A_EndChar)
-:XB0:nusance::f("nuisance", A_ThisHotkey, A_EndChar)
-:XB0:obstacal::f("obstacle", A_ThisHotkey, A_EndChar)
-:XB0:of it's kind::f("of its kind", A_ThisHotkey, A_EndChar)
-:XB0:of it's own::f("of its own", A_ThisHotkey, A_EndChar)
-:XB0:ofits::f("of its", A_ThisHotkey, A_EndChar)
-:XB0:oft he::f("of the", A_ThisHotkey, A_EndChar) ; Could be legitimate in poetry, but usually a typo.
-:XB0:oftenly::f("often", A_ThisHotkey, A_EndChar)
-:XB0:oging::f("going", A_ThisHotkey, A_EndChar)
-:XB0:oil barron::f("oil baron", A_ThisHotkey, A_EndChar)
-:XB0:ole::f("olÃ©", A_ThisHotkey, A_EndChar)
-:XB0:omited::f("omitted", A_ThisHotkey, A_EndChar)
-:XB0:omiting::f("omitting", A_ThisHotkey, A_EndChar)
-:XB0:omlette::f("omelette", A_ThisHotkey, A_EndChar)
-:XB0:ommited::f("omitted", A_ThisHotkey, A_EndChar)
-:XB0:ommiting::f("omitting", A_ThisHotkey, A_EndChar)
-:XB0:ommitted::f("omitted", A_ThisHotkey, A_EndChar)
-:XB0:ommitting::f("omitting", A_ThisHotkey, A_EndChar)
-:XB0:on accident::f("by accident", A_ThisHotkey, A_EndChar)
-:XB0:on going::f("ongoing", A_ThisHotkey, A_EndChar)
-:XB0:on it's own::f("on its own", A_ThisHotkey, A_EndChar)
-:XB0:on-going::f("ongoing", A_ThisHotkey, A_EndChar)
-:XB0:one criteria::f("one criterion", A_ThisHotkey, A_EndChar)
-:XB0:one phenomena::f("one phenomenon", A_ThisHotkey, A_EndChar)
-:XB0:oneof::f("one of", A_ThisHotkey, A_EndChar)
-:XB0:onepoint::f("one point", A_ThisHotkey, A_EndChar)
-:XB0:ongoing bases::f("ongoing basis", A_ThisHotkey, A_EndChar)
-:XB0:onnair::f("onnaire", A_ThisHotkey, A_EndChar)
-:XB0:onomatopeia::f("onomatopoeia", A_ThisHotkey, A_EndChar)
-:XB0:ont he::f("on the", A_ThisHotkey, A_EndChar)
-:XB0:onyl::f("only", A_ThisHotkey, A_EndChar)
-:XB0:openess::f("openness", A_ThisHotkey, A_EndChar)
-:XB0:opposit::f("opposite", A_ThisHotkey, A_EndChar)
-:XB0:orded::f("ordered", A_ThisHotkey, A_EndChar)
-:XB0:other then::f("other than", A_ThisHotkey, A_EndChar)
-:XB0:our of::f("out of", A_ThisHotkey, A_EndChar)
-:XB0:our resent::f("our recent", A_ThisHotkey, A_EndChar)
-:XB0:out grow::f("outgrow", A_ThisHotkey, A_EndChar)
-:XB0:out of sink::f("out of sync", A_ThisHotkey, A_EndChar)
-:XB0:out of state::f("out-of-state", A_ThisHotkey, A_EndChar)
-:XB0:out side::f("outside", A_ThisHotkey, A_EndChar)
-:XB0:outof::f("out of", A_ThisHotkey, A_EndChar)
-:XB0:over hear::f("overhear", A_ThisHotkey, A_EndChar)
-:XB0:over heard::f("overheard", A_ThisHotkey, A_EndChar)
-:XB0:over look::f("overlook", A_ThisHotkey, A_EndChar)
-:XB0:over looked::f("overlooked", A_ThisHotkey, A_EndChar)
-:XB0:over looking::f("overlooking", A_ThisHotkey, A_EndChar)
-:XB0:over rated::f("overrated", A_ThisHotkey, A_EndChar)
-:XB0:over saw::f("oversaw", A_ThisHotkey, A_EndChar)
-:XB0:over see::f("oversee", A_ThisHotkey, A_EndChar)
-:XB0:overthere::f("over there", A_ThisHotkey, A_EndChar)
-:XB0:paleolitic::f("paleolithic", A_ThisHotkey, A_EndChar)
-:XB0:paraphenalia::f("paraphernalia", A_ThisHotkey, A_EndChar)
-:XB0:particulary::f("particularly", A_ThisHotkey, A_EndChar)
-:XB0:partof::f("part of", A_ThisHotkey, A_EndChar)
-:XB0:pasengers::f("passengers", A_ThisHotkey, A_EndChar)
-:XB0:passerbys::f("passersby", A_ThisHotkey, A_EndChar)
-:XB0:past away::f("passed away", A_ThisHotkey, A_EndChar)
-:XB0:past down::f("passed down", A_ThisHotkey, A_EndChar)
-:XB0:pasttime::f("pastime", A_ThisHotkey, A_EndChar)
-:XB0:pavillion::f("pavilion", A_ThisHotkey, A_EndChar)
-:XB0:payed::f("paid", A_ThisHotkey, A_EndChar)
-:XB0:peacefuland::f("peaceful and", A_ThisHotkey, A_EndChar)
-:XB0:peak her interest::f("pique her interest", A_ThisHotkey, A_EndChar)
-:XB0:peak his interest::f("pique his interest", A_ThisHotkey, A_EndChar)
-:XB0:peaked my interest::f("piqued my interest", A_ThisHotkey, A_EndChar)
-:XB0:penatly::f("penalty", A_ThisHotkey, A_EndChar)
-:XB0:peotry::f("poetry", A_ThisHotkey, A_EndChar)
-:XB0:per say::f("per se", A_ThisHotkey, A_EndChar)
-:XB0:percentof::f("percent of", A_ThisHotkey, A_EndChar)
-:XB0:percentto::f("percent to", A_ThisHotkey, A_EndChar)
-:XB0:perhasp::f("perhaps", A_ThisHotkey, A_EndChar)
-:XB0:perheaps::f("perhaps", A_ThisHotkey, A_EndChar)
-:XB0:perhpas::f("perhaps", A_ThisHotkey, A_EndChar)
-:XB0:perogative::f("prerogative", A_ThisHotkey, A_EndChar)
-:XB0:perphas::f("perhaps", A_ThisHotkey, A_EndChar)
-:XB0:personel::f("personnel", A_ThisHotkey, A_EndChar)
-:XB0:personell::f("personnel", A_ThisHotkey, A_EndChar)
-:XB0:personnell::f("personnel", A_ThisHotkey, A_EndChar)
-:XB0:pharoah::f("Pharaoh", A_ThisHotkey, A_EndChar)
-:XB0:phenomenonly::f("phenomenally", A_ThisHotkey, A_EndChar)
-:XB0:pheonix::f("phoenix", A_ThisHotkey, A_EndChar) ; Not forcing caps, as it could be the bird
-:XB0:pinapple::f("pineapple", A_ThisHotkey, A_EndChar)
-:XB0:pinnaple::f("pineapple", A_ThisHotkey, A_EndChar)
-:XB0:planation::f("plantation", A_ThisHotkey, A_EndChar)
-:XB0:plantiff::f("plaintiff", A_ThisHotkey, A_EndChar)
-:XB0:poety::f("poetry", A_ThisHotkey, A_EndChar)
-:XB0:poisin::f("poison", A_ThisHotkey, A_EndChar)
-:XB0:pomegranite::f("pomegranate", A_ThisHotkey, A_EndChar)
-:XB0:portayed::f("portrayed", A_ThisHotkey, A_EndChar)
-:XB0:portugese::f("Portuguese", A_ThisHotkey, A_EndChar)
-:XB0:portuguease::f("portuguese", A_ThisHotkey, A_EndChar)
-:XB0:portugues::f("Portuguese", A_ThisHotkey, A_EndChar)
-:XB0:potatoe::f("potato", A_ThisHotkey, A_EndChar)
-:XB0:potatos::f("potatoes", A_ThisHotkey, A_EndChar)
-:XB0:powerfull::f("powerful", A_ThisHotkey, A_EndChar)
-:XB0:pre-Colombian::f("pre-Columbian", A_ThisHotkey, A_EndChar)
-:XB0:precedessor::f("predecessor", A_ThisHotkey, A_EndChar)
-:XB0:precentage::f("percentage", A_ThisHotkey, A_EndChar)
-:XB0:prepat::f("preparat", A_ThisHotkey, A_EndChar)
-:XB0:primarly::f("primarily", A_ThisHotkey, A_EndChar)
-:XB0:principaly::f("principality", A_ThisHotkey, A_EndChar)
-:XB0:principlaity::f("principality", A_ThisHotkey, A_EndChar)
-:XB0:principle advantage::f("principal advantage", A_ThisHotkey, A_EndChar)
-:XB0:principle cause::f("principal cause", A_ThisHotkey, A_EndChar)
-:XB0:principle character::f("principal character", A_ThisHotkey, A_EndChar)
-:XB0:principle component::f("principal component", A_ThisHotkey, A_EndChar)
-:XB0:principle goal::f("principal goal", A_ThisHotkey, A_EndChar)
-:XB0:principle group::f("principal group", A_ThisHotkey, A_EndChar)
-:XB0:principle method::f("principal method", A_ThisHotkey, A_EndChar)
-:XB0:principle owner::f("principal owner", A_ThisHotkey, A_EndChar)
-:XB0:principle source::f("principal source", A_ThisHotkey, A_EndChar)
-:XB0:principle student::f("principal student", A_ThisHotkey, A_EndChar)
-:XB0:principly::f("principally", A_ThisHotkey, A_EndChar)
-:XB0:probelms::f("problems", A_ThisHotkey, A_EndChar)
-:XB0:procedger::f("procedure", A_ThisHotkey, A_EndChar)
-:XB0:prologomena::f("prolegomena", A_ThisHotkey, A_EndChar)
-:XB0:prophacy::f("prophecy", A_ThisHotkey, A_EndChar)
-:XB0:protem::f("pro tem", A_ThisHotkey, A_EndChar)
-:XB0:protocal::f("protocol", A_ThisHotkey, A_EndChar)
-:XB0:proximty::f("proximity", A_ThisHotkey, A_EndChar)
-:XB0:publically::f("publicly", A_ThisHotkey, A_EndChar)
-:XB0:publicaly::f("publicly", A_ThisHotkey, A_EndChar)
-:XB0:purposedly::f("purposely", A_ThisHotkey, A_EndChar)
-:XB0:puting::f("putting", A_ThisHotkey, A_EndChar)
-:XB0:quitted::f("quit", A_ThisHotkey, A_EndChar)
-:XB0:rather then::f("rather than", A_ThisHotkey, A_EndChar)
-:XB0:rebounce::f("rebound", A_ThisHotkey, A_EndChar)
-:XB0:recal::f("recall", A_ThisHotkey, A_EndChar)
-:XB0:receivedfrom::f("received from", A_ThisHotkey, A_EndChar)
-:XB0:reek havoc::f("wreak havoc", A_ThisHotkey, A_EndChar)
-:XB0:refering::f("referring", A_ThisHotkey, A_EndChar)
-:XB0:regular bases::f("regular basis", A_ThisHotkey, A_EndChar)
-:XB0:reign in::f("rein in", A_ThisHotkey, A_EndChar)
-:XB0:reigns of power::f("reins of power", A_ThisHotkey, A_EndChar)
-:XB0:rela::f("real", A_ThisHotkey, A_EndChar)
-:XB0:relected::f("reelected", A_ThisHotkey, A_EndChar)
-:XB0:remaing::f("remaining", A_ThisHotkey, A_EndChar)
-:XB0:rememberable::f("memorable", A_ThisHotkey, A_EndChar)
-:XB0:republi::f("republic", A_ThisHotkey, A_EndChar)
-:XB0:resently::f("recently", A_ThisHotkey, A_EndChar) 
-:XB0:retun::f("return", A_ThisHotkey, A_EndChar)
-:XB0:revaluated::f("reevaluated", A_ThisHotkey, A_EndChar)
-:XB0:rised::f("rose", A_ThisHotkey, A_EndChar)
-:XB0:runner up::f("runner-up", A_ThisHotkey, A_EndChar)
-:XB0:saddle up to::f("sidle up to", A_ThisHotkey, A_EndChar)
-:XB0:saidhe::f("said he", A_ThisHotkey, A_EndChar)
-:XB0:saidt he::f("said the", A_ThisHotkey, A_EndChar)
-:XB0:sandess::f("sadness", A_ThisHotkey, A_EndChar)
-:XB0:scientis::f("scientist", A_ThisHotkey, A_EndChar)
-:XB0:seceed::f("secede", A_ThisHotkey, A_EndChar)
-:XB0:seceeded::f("seceded", A_ThisHotkey, A_EndChar)
-:XB0:severley::f("severely", A_ThisHotkey, A_EndChar)
-:XB0:severly::f("severely", A_ThisHotkey, A_EndChar)
-:XB0:she begun::f("she began", A_ThisHotkey, A_EndChar)
-:XB0:she let's::f("she lets", A_ThisHotkey, A_EndChar)
-:XB0:she seen::f("she saw", A_ThisHotkey, A_EndChar)
-:XB0:sherif::f("sheriff", A_ThisHotkey, A_EndChar)
-:XB0:shiped::f("shipped", A_ThisHotkey, A_EndChar)
-:XB0:shorter then::f("shorter than", A_ThisHotkey, A_EndChar)
-:XB0:shortly there after::f("shortly thereafter", A_ThisHotkey, A_EndChar)
-:XB0:shortwhile::f("short while", A_ThisHotkey, A_EndChar) 
-:XB0:should backup::f("should back up", A_ThisHotkey, A_EndChar)
-:XB0:should not of::f("should not have", A_ThisHotkey, A_EndChar)
-:XB0:should of::f("should have", A_ThisHotkey, A_EndChar) 
-:XB0:should've went::f("should have gone", A_ThisHotkey, A_EndChar)
-:XB0:show resent::f("show recent", A_ThisHotkey, A_EndChar) 
-:XB0:shrinked::f("shrunk", A_ThisHotkey, A_EndChar) 
-:XB0:silicone chip::f("silicon chip", A_ThisHotkey, A_EndChar) 
-:XB0:simplier::f("simpler", A_ThisHotkey, A_EndChar)
-:XB0:single handily::f("single-handedly", A_ThisHotkey, A_EndChar)
-:XB0:singsog::f("singsong", A_ThisHotkey, A_EndChar) 
-:XB0:slight of hand::f("sleight of hand", A_ThisHotkey, A_EndChar)
-:XB0:slue of::f("slew of", A_ThisHotkey, A_EndChar)
-:XB0:smaller then::f("smaller than", A_ThisHotkey, A_EndChar)
-:XB0:smarter then::f("smarter than", A_ThisHotkey, A_EndChar)
-:XB0:sneak peak::f("sneak peek", A_ThisHotkey, A_EndChar)
-:XB0:soley::f("solely", A_ThisHotkey, A_EndChar)
-:XB0:some how::f("somehow", A_ThisHotkey, A_EndChar)
-:XB0:some one::f("someone", A_ThisHotkey, A_EndChar)
-:XB0:some what::f("somewhat", A_ThisHotkey, A_EndChar)
-:XB0:some where::f("somewhere", A_ThisHotkey, A_EndChar)
-:XB0:somene::f("someone", A_ThisHotkey, A_EndChar) 
-:XB0:someting::f("something", A_ThisHotkey, A_EndChar) 
-:XB0:somthing::f("something", A_ThisHotkey, A_EndChar) 
-:XB0:somwhere::f("somewhere", A_ThisHotkey, A_EndChar) 
-:XB0:soon there after::f("soon thereafter", A_ThisHotkey, A_EndChar)
-:XB0:sooner then::f("sooner than", A_ThisHotkey, A_EndChar)
-:XB0:sot hat::f("so that", A_ThisHotkey, A_EndChar) 
-:XB0:sotyr::f("story", A_ThisHotkey, A_EndChar)
-:XB0:spainish::f("Spanish", A_ThisHotkey, A_EndChar)
-:XB0:speach::f("speech", A_ThisHotkey, A_EndChar)
-:XB0:spects::f("aspects", A_ThisHotkey, A_EndChar) 
-:XB0:spilt among::f("split among", A_ThisHotkey, A_EndChar)
-:XB0:spilt between::f("split between", A_ThisHotkey, A_EndChar)
-:XB0:spilt into::f("split into", A_ThisHotkey, A_EndChar)
-:XB0:spilt up::f("split up", A_ThisHotkey, A_EndChar)
-:XB0:spinal chord::f("spinal cord", A_ThisHotkey, A_EndChar)
-:XB0:split in to::f("split into", A_ThisHotkey, A_EndChar)
-:XB0:spreaded::f("spread", A_ThisHotkey, A_EndChar)
-:XB0:sprech::f("speech", A_ThisHotkey, A_EndChar)
-:XB0:sq ft::f("ft²", A_ThisHotkey, A_EndChar)
-:XB0:sq in::f("in²", A_ThisHotkey, A_EndChar)
-:XB0:sq km::f("km²", A_ThisHotkey, A_EndChar)
-:XB0:sq mi::f("mi²", A_ThisHotkey, A_EndChar)
-:XB0:squared feet::f("square feet", A_ThisHotkey, A_EndChar)
-:XB0:standars::f("standards", A_ThisHotkey, A_EndChar)
-:XB0:stay a while::f("stay awhile", A_ThisHotkey, A_EndChar)
-:XB0:stomache::f("stomach", A_ThisHotkey, A_EndChar)
-:XB0:storise::f("stories", A_ThisHotkey, A_EndChar)
-:XB0:stornegst::f("strongest", A_ThisHotkey, A_EndChar)
-:XB0:strictist::f("strictest", A_ThisHotkey, A_EndChar)
-:XB0:strikely::f("strikingly", A_ThisHotkey, A_EndChar)
-:XB0:stronger then::f("stronger than", A_ThisHotkey, A_EndChar)
-:XB0:stubborness::f("stubbornness", A_ThisHotkey, A_EndChar)
-:XB0:student's that::f("students that", A_ThisHotkey, A_EndChar)
-:XB0:subpecies::f("subspecies", A_ThisHotkey, A_EndChar)
-:XB0:succeds::f("succeeds", A_ThisHotkey, A_EndChar)
-:XB0:suppose to::f("supposed to", A_ThisHotkey, A_EndChar)
-:XB0:supposingly::f("supposedly", A_ThisHotkey, A_EndChar) 
-:XB0:surrended::f("surrendered", A_ThisHotkey, A_EndChar)
-:XB0:surviver::f("survivor", A_ThisHotkey, A_EndChar)
-:XB0:survivied::f("survived", A_ThisHotkey, A_EndChar)
-:XB0:t he::f("the", A_ThisHotkey, A_EndChar)
-:XB0:take affect::f("take effect", A_ThisHotkey, A_EndChar)
-:XB0:take over the reigns::f("take over the reins", A_ThisHotkey, A_EndChar)
-:XB0:take the reigns::f("take the reins", A_ThisHotkey, A_EndChar)
-:XB0:taken the reigns::f("taken the reins", A_ThisHotkey, A_EndChar)
-:XB0:taking the reigns::f("taking the reins", A_ThisHotkey, A_EndChar)
-:XB0:tast::f("taste", A_ThisHotkey, A_EndChar)
-:XB0:tath::f("that", A_ThisHotkey, A_EndChar)
-:XB0:teached::f("taught", A_ThisHotkey, A_EndChar) 
-:XB0:tellt he::f("tell the", A_ThisHotkey, A_EndChar) 
-:XB0:thanks@!::f("thanks!", A_ThisHotkey, A_EndChar)
-:XB0:thanks@::f("thanks!", A_ThisHotkey, A_EndChar)
-:XB0:thast::f("that's", A_ThisHotkey, A_EndChar) 
-:XB0:that him and::f("that he and", A_ThisHotkey, A_EndChar)
-:XB0:thats::f("that's", A_ThisHotkey, A_EndChar) 
-:XB0:thatt he::f("that the", A_ThisHotkey, A_EndChar) 
-:XB0:the absent of::f("the absence of", A_ThisHotkey, A_EndChar)
-:XB0:the advise of::f("the advice of", A_ThisHotkey, A_EndChar)
-:XB0:the affect of::f("the effect of", A_ThisHotkey, A_EndChar)
-:XB0:the affect on::f("the effect on", A_ThisHotkey, A_EndChar)
-:XB0:the affects of::f("the effects of", A_ThisHotkey, A_EndChar)
-:XB0:the both the::f("both the", A_ThisHotkey, A_EndChar)
-:XB0:the break down::f("the breakdown", A_ThisHotkey, A_EndChar)
-:XB0:the break up::f("the breakup", A_ThisHotkey, A_EndChar)
-:XB0:the build up::f("the buildup", A_ThisHotkey, A_EndChar)
-:XB0:the clamp down::f("the clampdown", A_ThisHotkey, A_EndChar)
-:XB0:the crack down::f("the crackdown", A_ThisHotkey, A_EndChar)
-:XB0:the dominate::f("the dominant", A_ThisHotkey, A_EndChar)
-:XB0:the extend of::f("the extent of", A_ThisHotkey, A_EndChar)
-:XB0:the follow up::f("the follow-up", A_ThisHotkey, A_EndChar)
-:XB0:the injures::f("the injuries", A_ThisHotkey, A_EndChar)
-:XB0:the lead up::f("the lead-up", A_ThisHotkey, A_EndChar)
-:XB0:the phenomena is::f("the phenomenon is", A_ThisHotkey, A_EndChar)
-:XB0:the rational behind::f("the rationale behind", A_ThisHotkey, A_EndChar)
-:XB0:the rational for::f("the rationale for", A_ThisHotkey, A_EndChar)
-:XB0:the resent::f("the recent", A_ThisHotkey, A_EndChar)
-:XB0:the set up::f("the setup", A_ThisHotkey, A_EndChar)
-:XB0:thecompany::f("the company", A_ThisHotkey, A_EndChar) 
-:XB0:thefirst::f("the first", A_ThisHotkey, A_EndChar) 
-:XB0:theif::f("thief", A_ThisHotkey, A_EndChar)
-:XB0:their are::f("there are", A_ThisHotkey, A_EndChar) 
-:XB0:their had::f("there had", A_ThisHotkey, A_EndChar)
-:XB0:their has::f("there has", A_ThisHotkey, A_EndChar)
-:XB0:their have::f("there have", A_ThisHotkey, A_EndChar)
-:XB0:their is::f("there is", A_ThisHotkey, A_EndChar) 
-:XB0:their may be::f("there may be", A_ThisHotkey, A_EndChar)
-:XB0:their was::f("there was", A_ThisHotkey, A_EndChar)
-:XB0:their were::f("there were", A_ThisHotkey, A_EndChar)
-:XB0:their would::f("there would", A_ThisHotkey, A_EndChar)
-:XB0:theives::f("thieves", A_ThisHotkey, A_EndChar) 
-:XB0:them selves::f("themselves", A_ThisHotkey, A_EndChar)
-:XB0:themselfs::f("themselves", A_ThisHotkey, A_EndChar) 
-:XB0:themslves::f("themselves", A_ThisHotkey, A_EndChar) 
-:XB0:thenew::f("the new", A_ThisHotkey, A_EndChar) 
-:XB0:ther::f("there", A_ThisHotkey, A_EndChar)
-:XB0:therafter::f("thereafter", A_ThisHotkey, A_EndChar) 
-:XB0:therby::f("thereby", A_ThisHotkey, A_EndChar) 
-:XB0:there after::f("thereafter", A_ThisHotkey, A_EndChar)
-:XB0:there best::f("their best", A_ThisHotkey, A_EndChar)
-:XB0:there by::f("thereby", A_ThisHotkey, A_EndChar)
-:XB0:there first::f("their first", A_ThisHotkey, A_EndChar)
-:XB0:there last::f("their last", A_ThisHotkey, A_EndChar)
-:XB0:there new::f("their new", A_ThisHotkey, A_EndChar)
-:XB0:there next::f("their next", A_ThisHotkey, A_EndChar)
-:XB0:there of::f("thereof", A_ThisHotkey, A_EndChar)
-:XB0:there own::f("their own", A_ThisHotkey, A_EndChar)
-:XB0:there where::f("there were", A_ThisHotkey, A_EndChar)
-:XB0:there's is::f("theirs is", A_ThisHotkey, A_EndChar) 
-:XB0:there's three::f("there are three", A_ThisHotkey, A_EndChar)
-:XB0:there's two::f("there are two", A_ThisHotkey, A_EndChar)
-:XB0:theri::f("their", A_ThisHotkey, A_EndChar) 
-:XB0:thesame::f("the same", A_ThisHotkey, A_EndChar) 
-:XB0:these includes::f("these include", A_ThisHotkey, A_EndChar)
-:XB0:these type of::f("these types of", A_ThisHotkey, A_EndChar)
-:XB0:these where::f("these were", A_ThisHotkey, A_EndChar)
-:XB0:thetwo::f("the two", A_ThisHotkey, A_EndChar) 
-:XB0:they begun::f("they began", A_ThisHotkey, A_EndChar)
-:XB0:they maybe::f("they may be", A_ThisHotkey, A_EndChar)
-:XB0:they we're::f("they were", A_ThisHotkey, A_EndChar)
-:XB0:they weight::f("they weigh", A_ThisHotkey, A_EndChar)
-:XB0:they where::f("they were", A_ThisHotkey, A_EndChar)
-:XB0:they're are::f("there are", A_ThisHotkey, A_EndChar) 
-:XB0:they're is::f("there is", A_ThisHotkey, A_EndChar) 
-:XB0:they;l::f("they'll", A_ThisHotkey, A_EndChar) 
-:XB0:they;r::f("they're", A_ThisHotkey, A_EndChar) 
-:XB0:they;v::f("they've", A_ThisHotkey, A_EndChar) 
-:XB0:theyll::f("they'll", A_ThisHotkey, A_EndChar) 
-:XB0:theyre::f("they're", A_ThisHotkey, A_EndChar) 
-:XB0:theyve::f("they've", A_ThisHotkey, A_EndChar) 
-:XB0:this data::f("these data", A_ThisHotkey, A_EndChar)
-:XB0:this gut::f("this guy", A_ThisHotkey, A_EndChar) 
-:XB0:this lead to::f("this led to", A_ThisHotkey, A_EndChar)
-:XB0:this maybe::f("this may be", A_ThisHotkey, A_EndChar)
-:XB0:this resent::f("this recent", A_ThisHotkey, A_EndChar)
-:XB0:thn::f("then", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0:those includes::f("those include", A_ThisHotkey, A_EndChar)
-:XB0:those maybe::f("those may be", A_ThisHotkey, A_EndChar)
-:XB0:thoughout::f("throughout", A_ThisHotkey, A_EndChar) 
-:XB0:threatend::f("threatened", A_ThisHotkey, A_EndChar)
-:XB0:through it's::f("through its", A_ThisHotkey, A_EndChar)
-:XB0:through the ringer::f("through the wringer", A_ThisHotkey, A_EndChar)
-:XB0:throughly::f("thoroughly", A_ThisHotkey, A_EndChar)
-:XB0:throughout it's::f("throughout its", A_ThisHotkey, A_EndChar)
-:XB0:througout::f("throughout", A_ThisHotkey, A_EndChar)
-:XB0:throws of passion::f("throes of passion", A_ThisHotkey, A_EndChar)
-:XB0:thru::f("through", A_ThisHotkey, A_EndChar)
-:XB0:to back fire::f("to backfire", A_ThisHotkey, A_EndChar)
-:XB0:to back-off::f("to back off", A_ThisHotkey, A_EndChar)
-:XB0:to back-out::f("to back out", A_ThisHotkey, A_EndChar)
-:XB0:to back-up::f("to back up", A_ThisHotkey, A_EndChar)
-:XB0:to backoff::f("to back off", A_ThisHotkey, A_EndChar)
-:XB0:to backout::f("to back out", A_ThisHotkey, A_EndChar)
-:XB0:to backup::f("to back up", A_ThisHotkey, A_EndChar)
-:XB0:to bailout::f("to bail out", A_ThisHotkey, A_EndChar)
-:XB0:to bath::f("to bathe", A_ThisHotkey, A_EndChar)
-:XB0:to be build::f("to be built", A_ThisHotkey, A_EndChar)
-:XB0:to be setup::f("to be set up", A_ThisHotkey, A_EndChar)
-:XB0:to blackout::f("to black out", A_ThisHotkey, A_EndChar)
-:XB0:to blastoff::f("to blast off", A_ThisHotkey, A_EndChar)
-:XB0:to blowout::f("to blow out", A_ThisHotkey, A_EndChar)
-:XB0:to blowup::f("to blow up", A_ThisHotkey, A_EndChar)
-:XB0:to breakdown::f("to break down", A_ThisHotkey, A_EndChar)
-:XB0:to breath::f("to breathe", A_ThisHotkey, A_EndChar)
-:XB0:to buildup::f("to build up", A_ThisHotkey, A_EndChar)
-:XB0:to built::f("to build", A_ThisHotkey, A_EndChar)
-:XB0:to buyout::f("to buy out", A_ThisHotkey, A_EndChar)
-:XB0:to chose::f("to choose", A_ThisHotkey, A_EndChar)
-:XB0:to comeback::f("to come back", A_ThisHotkey, A_EndChar)
-:XB0:to crackdown on::f("to crack down on", A_ThisHotkey, A_EndChar)
-:XB0:to cut of::f("to cut off", A_ThisHotkey, A_EndChar)
-:XB0:to cutback::f("to cut back", A_ThisHotkey, A_EndChar)
-:XB0:to cutoff::f("to cut off", A_ThisHotkey, A_EndChar)
-:XB0:to dropout::f("to drop out", A_ThisHotkey, A_EndChar)
-:XB0:to emphasis the::f("to emphasise the", A_ThisHotkey, A_EndChar)
-:XB0:to fill-in::f("to fill in", A_ThisHotkey, A_EndChar)
-:XB0:to forego::f("to forgo", A_ThisHotkey, A_EndChar)
-:XB0:to happened::f("to happen", A_ThisHotkey, A_EndChar)
-:XB0:to have lead to::f("to have led to", A_ThisHotkey, A_EndChar)
-:XB0:to he and::f("to him and", A_ThisHotkey, A_EndChar)
-:XB0:to holdout::f("to hold out", A_ThisHotkey, A_EndChar)
-:XB0:to kickoff::f("to kick off", A_ThisHotkey, A_EndChar)
-:XB0:to loath::f("to loathe", A_ThisHotkey, A_EndChar)
-:XB0:to lockout::f("to lock out", A_ThisHotkey, A_EndChar)
-:XB0:to lockup::f("to lock up", A_ThisHotkey, A_EndChar)
-:XB0:to login::f("to log in", A_ThisHotkey, A_EndChar)
-:XB0:to logout::f("to log out", A_ThisHotkey, A_EndChar)
-:XB0:to lookup::f("to look up", A_ThisHotkey, A_EndChar)
-:XB0:to markup::f("to mark up", A_ThisHotkey, A_EndChar)
-:XB0:to opt-in::f("to opt in", A_ThisHotkey, A_EndChar)
-:XB0:to opt-out::f("to opt out", A_ThisHotkey, A_EndChar)
-:XB0:to phaseout::f("to phase out", A_ThisHotkey, A_EndChar)
-:XB0:to pickup::f("to pick up", A_ThisHotkey, A_EndChar)
-:XB0:to playback::f("to play back", A_ThisHotkey, A_EndChar)
-:XB0:to rebuilt::f("to be rebuilt", A_ThisHotkey, A_EndChar)
-:XB0:to rollback::f("to roll back", A_ThisHotkey, A_EndChar)
-:XB0:to runaway::f("to run away", A_ThisHotkey, A_EndChar)
-:XB0:to seen::f("to be seen", A_ThisHotkey, A_EndChar)
-:XB0:to sent::f("to send", A_ThisHotkey, A_EndChar)
-:XB0:to setup::f("to set up", A_ThisHotkey, A_EndChar)
-:XB0:to shut-down::f("to shut down", A_ThisHotkey, A_EndChar)
-:XB0:to shutdown::f("to shut down", A_ThisHotkey, A_EndChar)
-:XB0:to some extend::f("to some extent", A_ThisHotkey, A_EndChar)
-:XB0:to spent::f("to spend", A_ThisHotkey, A_EndChar)
-:XB0:to spin-off::f("to spin off", A_ThisHotkey, A_EndChar)
-:XB0:to spinoff::f("to spin off", A_ThisHotkey, A_EndChar)
-:XB0:to takeover::f("to take over", A_ThisHotkey, A_EndChar)
-:XB0:to that affect::f("to that effect", A_ThisHotkey, A_EndChar)
-:XB0:to they're::f("to their", A_ThisHotkey, A_EndChar)
-:XB0:to touchdown::f("to touch down", A_ThisHotkey, A_EndChar)
-:XB0:to try and::f("to try to", A_ThisHotkey, A_EndChar)
-:XB0:to try-out::f("to try out", A_ThisHotkey, A_EndChar)
-:XB0:to tryout::f("to try out", A_ThisHotkey, A_EndChar)
-:XB0:to turn-off::f("to turn off", A_ThisHotkey, A_EndChar)
-:XB0:to turnaround::f("to turn around", A_ThisHotkey, A_EndChar)
-:XB0:to turnoff::f("to turn off", A_ThisHotkey, A_EndChar)
-:XB0:to turnout::f("to turn out", A_ThisHotkey, A_EndChar)
-:XB0:to turnover::f("to turn over", A_ThisHotkey, A_EndChar)
-:XB0:to wakeup::f("to wake up", A_ThisHotkey, A_EndChar)
-:XB0:to walkout::f("to walk out", A_ThisHotkey, A_EndChar)
-:XB0:to wipeout::f("to wipe out", A_ThisHotkey, A_EndChar)
-:XB0:to withdrew::f("to withdraw", A_ThisHotkey, A_EndChar)
-:XB0:to workaround::f("to work around", A_ThisHotkey, A_EndChar)
-:XB0:to workout::f("to work out", A_ThisHotkey, A_EndChar)
-:XB0:today of::f("today or", A_ThisHotkey, A_EndChar)
-:XB0:todays::f("today's", A_ThisHotkey, A_EndChar) 
-:XB0:toldt he::f("told the", A_ThisHotkey, A_EndChar) 
-:XB0:tomatos::f("tomatoes", A_ThisHotkey, A_EndChar)
-:XB0:too also::f("also", A_ThisHotkey, A_EndChar)
-:XB0:too be::f("to be", A_ThisHotkey, A_EndChar)
-:XB0:took affect::f("took effect", A_ThisHotkey, A_EndChar)
-:XB0:took and interest::f("took an interest", A_ThisHotkey, A_EndChar)
-:XB0:took awhile::f("took a while", A_ThisHotkey, A_EndChar)
-:XB0:took over the reigns::f("took over the reins", A_ThisHotkey, A_EndChar)
-:XB0:took the reigns::f("took the reins", A_ThisHotkey, A_EndChar)
-:XB0:toolket::f("toolkit", A_ThisHotkey, A_EndChar)
-:XB0:tornadoe::f("tornado", A_ThisHotkey, A_EndChar)
-:XB0:torpeados::f("torpedoes", A_ThisHotkey, A_EndChar)
-:XB0:torpedos::f("torpedoes", A_ThisHotkey, A_EndChar) 
-:XB0:tot he::f("to the", A_ThisHotkey, A_EndChar) 
-:XB0:tothe::f("to the", A_ThisHotkey, A_EndChar) 
-:XB0:trafficing::f("trafficking", A_ThisHotkey, A_EndChar)
-:XB0:transcripting::f("transcribing", A_ThisHotkey, A_EndChar)
-:XB0:transfered::f("transferred", A_ThisHotkey, A_EndChar)
-:XB0:tried to used::f("tried to use", A_ThisHotkey, A_EndChar)
-:XB0:troup::f("troupe", A_ThisHotkey, A_EndChar)
-:XB0:try and::f("try to", A_ThisHotkey, A_EndChar)
-:XB0:turn for the worst::f("turn for the worse", A_ThisHotkey, A_EndChar)
-:XB0:tuscon::f("Tucson", A_ThisHotkey, A_EndChar) 
-:XB0:twelve month's::f("twelve months", A_ThisHotkey, A_EndChar)
-:XB0:twice as much than::f("twice as much as", A_ThisHotkey, A_EndChar)
-:XB0:two in a half::f("two and a half", A_ThisHotkey, A_EndChar)
-:XB0:tyhe::f("they", A_ThisHotkey, A_EndChar)
-:XB0:tyrany::f("tyranny", A_ThisHotkey, A_EndChar)
-:XB0:tyrrany::f("tyranny", A_ThisHotkey, A_EndChar)
-:XB0:uber::f("über", A_ThisHotkey, A_EndChar)
-:XB0:unbeknowst::f("unbeknownst", A_ThisHotkey, A_EndChar)
-:XB0:unconfortability::f("discomfort", A_ThisHotkey, A_EndChar) 
-:XB0:under it's::f("under its", A_ThisHotkey, A_EndChar)
-:XB0:under wear::f("underwear", A_ThisHotkey, A_EndChar)
-:XB0:under went::f("underwent", A_ThisHotkey, A_EndChar)
-:XB0:undert he::f("under the", A_ThisHotkey, A_EndChar) 
-:XB0:undoubtely::f("undoubtedly", A_ThisHotkey, A_EndChar)
-:XB0:unitedstates::f("United States", A_ThisHotkey, A_EndChar) 
-:XB0:unitesstates::f("United States", A_ThisHotkey, A_EndChar) 
-:XB0:unoperational::f("nonoperational", A_ThisHotkey, A_EndChar)
-:XB0:unsed::f("unused", A_ThisHotkey, A_EndChar)
-:XB0:untill::f("until", A_ThisHotkey, A_EndChar)
-:XB0:up field::f("upfield", A_ThisHotkey, A_EndChar)
-:XB0:up it's::f("up its", A_ThisHotkey, A_EndChar)
-:XB0:up side::f("upside", A_ThisHotkey, A_EndChar)
-:XB0:upon it's::f("upon its", A_ThisHotkey, A_EndChar)
-:XB0:upto::f("up to", A_ThisHotkey, A_EndChar) 
-:XB0:usally::f("usually", A_ThisHotkey, A_EndChar)
-:XB0:use to be::f("used to be", A_ThisHotkey, A_EndChar)
-:XB0:use to have::f("used to have", A_ThisHotkey, A_EndChar)
-:XB0:use to::f("used to", A_ThisHotkey, A_EndChar)
-:XB0:via it's::f("via its", A_ThisHotkey, A_EndChar)
-:XB0:viathe::f("via the", A_ThisHotkey, A_EndChar)
-:XB0:vise versa::f("vice versa", A_ThisHotkey, A_EndChar)
-:XB0:volkswagon::f("Volkswagen", A_ThisHotkey, A_EndChar) 
-:XB0:vreity::f("variety", A_ThisHotkey, A_EndChar)
-:XB0:wa snot::f("was not", A_ThisHotkey, A_EndChar) 
-:XB0:waived off::f("waved off", A_ThisHotkey, A_EndChar)
-:XB0:wan tit::f("want it", A_ThisHotkey, A_EndChar) 
-:XB0:wanna::f("want to", A_ThisHotkey, A_EndChar) 
-:XB0:warantee::f("warranty", A_ThisHotkey, A_EndChar) 
-:XB0:warn away::f("worn away", A_ThisHotkey, A_EndChar)
-:XB0:warn down::f("worn down", A_ThisHotkey, A_EndChar)
-:XB0:warn out::f("worn out", A_ThisHotkey, A_EndChar)
-:XB0:was apart of::f("was a part of", A_ThisHotkey, A_EndChar)
-:XB0:was began::f("began", A_ThisHotkey, A_EndChar)
-:XB0:was build::f("was built", A_ThisHotkey, A_EndChar)
-:XB0:was cable of::f("was capable of", A_ThisHotkey, A_EndChar)
-:XB0:was cutoff::f("was cut off", A_ThisHotkey, A_EndChar)
-:XB0:was do to::f("was due to", A_ThisHotkey, A_EndChar)
-:XB0:was drank::f("was drunk", A_ThisHotkey, A_EndChar)
-:XB0:was establish::f("was established", A_ThisHotkey, A_EndChar)
-:XB0:was extend::f("was extended", A_ThisHotkey, A_EndChar)
-:XB0:was it's::f("was its", A_ThisHotkey, A_EndChar)
-:XB0:was knew::f("was known", A_ThisHotkey, A_EndChar)
-:XB0:was know::f("was known", A_ThisHotkey, A_EndChar)
-:XB0:was lain::f("was laid", A_ThisHotkey, A_EndChar)
-:XB0:was laying on::f("was lying on", A_ThisHotkey, A_EndChar)
-:XB0:was lead by::f("was led by", A_ThisHotkey, A_EndChar)
-:XB0:was lead to::f("was led to", A_ThisHotkey, A_EndChar)
-:XB0:was leaded by::f("was led by", A_ThisHotkey, A_EndChar)
-:XB0:was loathe to::f("was loath to", A_ThisHotkey, A_EndChar)
-:XB0:was loathed to::f("was loath to", A_ThisHotkey, A_EndChar)
-:XB0:was meet by::f("was met by", A_ThisHotkey, A_EndChar)
-:XB0:was meet with::f("was met with", A_ThisHotkey, A_EndChar)
-:XB0:was mislead::f("was misled", A_ThisHotkey, A_EndChar)
-:XB0:was ran::f("was run", A_ThisHotkey, A_EndChar)
-:XB0:was rebuild::f("was rebuilt", A_ThisHotkey, A_EndChar)
-:XB0:was release by::f("was released by", A_ThisHotkey, A_EndChar)
-:XB0:was release on::f("was released on", A_ThisHotkey, A_EndChar)
-:XB0:was reran::f("was rerun", A_ThisHotkey, A_EndChar)
-:XB0:was rode::f("was ridden", A_ThisHotkey, A_EndChar)
-:XB0:was sang::f("was sung", A_ThisHotkey, A_EndChar)
-:XB0:was schedule to::f("was scheduled to", A_ThisHotkey, A_EndChar)
-:XB0:was send::f("was sent", A_ThisHotkey, A_EndChar)
-:XB0:was sentence to::f("was sentenced to", A_ThisHotkey, A_EndChar)
-:XB0:was set-up::f("was set up", A_ThisHotkey, A_EndChar)
-:XB0:was setup::f("was set up", A_ThisHotkey, A_EndChar)
-:XB0:was shook::f("was shaken", A_ThisHotkey, A_EndChar)
-:XB0:was shoot::f("was shot", A_ThisHotkey, A_EndChar)
-:XB0:was show by::f("was shown by", A_ThisHotkey, A_EndChar)
-:XB0:was show on::f("was shown on", A_ThisHotkey, A_EndChar)
-:XB0:was showed::f("was shown", A_ThisHotkey, A_EndChar)
-:XB0:was shut-off::f("was shut off", A_ThisHotkey, A_EndChar)
-:XB0:was shutdown::f("was shut down", A_ThisHotkey, A_EndChar)
-:XB0:was shutoff::f("was shut off", A_ThisHotkey, A_EndChar)
-:XB0:was shutout::f("was shut out", A_ThisHotkey, A_EndChar)
-:XB0:was sold-out::f("was sold out", A_ThisHotkey, A_EndChar)
-:XB0:was spend::f("was spent", A_ThisHotkey, A_EndChar)
-:XB0:was succeed by::f("was succeeded by", A_ThisHotkey, A_EndChar)
-:XB0:was suppose to::f("was supposed to", A_ThisHotkey, A_EndChar)
-:XB0:was the dominate::f("was the dominant", A_ThisHotkey, A_EndChar)
-:XB0:was though that::f("was thought that", A_ThisHotkey, A_EndChar)
-:XB0:was tore::f("was torn", A_ThisHotkey, A_EndChar)
-:XB0:was use to::f("was used to", A_ThisHotkey, A_EndChar)
-:XB0:was wrote::f("was written", A_ThisHotkey, A_EndChar)
-:XB0:wasnt::f("wasn't", A_ThisHotkey, A_EndChar) 
-:XB0:wat::f("way", A_ThisHotkey, A_EndChar)
-:XB0:way side::f("wayside", A_ThisHotkey, A_EndChar)
-:XB0:wayword::f("wayward", A_ThisHotkey, A_EndChar) 
-:XB0:we;d::f("we'd", A_ThisHotkey, A_EndChar) 
-:XB0:weaponary::f("weaponry", A_ThisHotkey, A_EndChar) 
-:XB0:weather or not::f("whether or not", A_ThisHotkey, A_EndChar)
-:XB0:well know::f("well known", A_ThisHotkey, A_EndChar)
-:XB0:wendsay::f("Wednesday", A_ThisHotkey, A_EndChar) 
-:XB0:wensday::f("Wednesday", A_ThisHotkey, A_EndChar) 
-:XB0:went rouge::f("went rogue", A_ThisHotkey, A_EndChar)
-:XB0:went threw::f("went through", A_ThisHotkey, A_EndChar)
-:XB0:were apart of::f("were a part of", A_ThisHotkey, A_EndChar)
-:XB0:were began::f("were begun", A_ThisHotkey, A_EndChar)
-:XB0:were build::f("were built", A_ThisHotkey, A_EndChar)
-:XB0:were cutoff::f("were cut off", A_ThisHotkey, A_EndChar)
-:XB0:were drew::f("were drawn", A_ThisHotkey, A_EndChar)
-:XB0:were he was::f("where he was", A_ThisHotkey, A_EndChar)
-:XB0:were it was::f("where it was", A_ThisHotkey, A_EndChar)
-:XB0:were it's::f("were its", A_ThisHotkey, A_EndChar)
-:XB0:were knew::f("were known", A_ThisHotkey, A_EndChar)
-:XB0:were know::f("were known", A_ThisHotkey, A_EndChar)
-:XB0:were lain::f("were laid", A_ThisHotkey, A_EndChar)
-:XB0:were lead by::f("were led by", A_ThisHotkey, A_EndChar)
-:XB0:were loathe to::f("were loath to", A_ThisHotkey, A_EndChar)
-:XB0:were meet by::f("were met by", A_ThisHotkey, A_EndChar)
-:XB0:were meet with::f("were met with", A_ThisHotkey, A_EndChar)
-:XB0:were overran::f("were overrun", A_ThisHotkey, A_EndChar)
-:XB0:were ran::f("were run", A_ThisHotkey, A_EndChar)
-:XB0:were rebuild::f("were rebuilt", A_ThisHotkey, A_EndChar)
-:XB0:were reran::f("were rerun", A_ThisHotkey, A_EndChar)
-:XB0:were rode::f("were ridden", A_ThisHotkey, A_EndChar)
-:XB0:were sang::f("were sung", A_ThisHotkey, A_EndChar)
-:XB0:were set-up::f("were set up", A_ThisHotkey, A_EndChar)
-:XB0:were setup::f("were set up", A_ThisHotkey, A_EndChar)
-:XB0:were she was::f("where she was", A_ThisHotkey, A_EndChar)
-:XB0:were showed::f("were shown", A_ThisHotkey, A_EndChar)
-:XB0:were shut-out::f("were shut out", A_ThisHotkey, A_EndChar)
-:XB0:were shutdown::f("were shut down", A_ThisHotkey, A_EndChar)
-:XB0:were shutoff::f("were shut off", A_ThisHotkey, A_EndChar)
-:XB0:were shutout::f("were shut out", A_ThisHotkey, A_EndChar)
-:XB0:were spend::f("were spent", A_ThisHotkey, A_EndChar)
-:XB0:were suppose to::f("were supposed to", A_ThisHotkey, A_EndChar)
-:XB0:were the dominate::f("were the dominant", A_ThisHotkey, A_EndChar)
-:XB0:were took::f("were taken", A_ThisHotkey, A_EndChar)
-:XB0:were tore::f("were torn", A_ThisHotkey, A_EndChar)
-:XB0:were use to::f("were used to", A_ThisHotkey, A_EndChar)
-:XB0:were wrote::f("were written", A_ThisHotkey, A_EndChar)
-:XB0:wereabouts::f("whereabouts", A_ThisHotkey, A_EndChar) 
-:XB0:wern't::f("weren't", A_ThisHotkey, A_EndChar) 
-:XB0:wet your::f("whet your", A_ThisHotkey, A_EndChar)
-:XB0:wether or not::f("whether or not", A_ThisHotkey, A_EndChar)
-:XB0:what lead to::f("what led to", A_ThisHotkey, A_EndChar)
-:XB0:what lied::f("what lay", A_ThisHotkey, A_EndChar)
-:XB0:when ever::f("whenever", A_ThisHotkey, A_EndChar)
-:XB0:whent he::f("when the", A_ThisHotkey, A_EndChar) 
-:XB0:wheras::f("whereas", A_ThisHotkey, A_EndChar) 
-:XB0:where abouts::f("whereabouts", A_ThisHotkey, A_EndChar)
-:XB0:where as::f("whereas", A_ThisHotkey, A_EndChar)
-:XB0:where being::f("were being", A_ThisHotkey, A_EndChar)
-:XB0:where by::f("whereby", A_ThisHotkey, A_EndChar)
-:XB0:where him::f("where he", A_ThisHotkey, A_EndChar)
-:XB0:where made::f("were made", A_ThisHotkey, A_EndChar)
-:XB0:where taken::f("were taken", A_ThisHotkey, A_EndChar)
-:XB0:where upon::f("whereupon", A_ThisHotkey, A_EndChar)
-:XB0:where won::f("were won", A_ThisHotkey, A_EndChar)
-:XB0:whereas as::f("whereas", A_ThisHotkey, A_EndChar)
-:XB0:wherease::f("whereas", A_ThisHotkey, A_EndChar) 
-:XB0:whereever::f("wherever", A_ThisHotkey, A_EndChar)
-:XB0:whic::f("which", A_ThisHotkey, A_EndChar)
-:XB0:which had lead::f("which had led", A_ThisHotkey, A_EndChar)
-:XB0:which has lead::f("which has led", A_ThisHotkey, A_EndChar)
-:XB0:which have lead::f("which have led", A_ThisHotkey, A_EndChar)
-:XB0:which where::f("which were", A_ThisHotkey, A_EndChar)
-:XB0:whicht he::f("which the", A_ThisHotkey, A_EndChar) 
-:XB0:while him::f("while he", A_ThisHotkey, A_EndChar)
-:XB0:who had lead::f("who had led", A_ThisHotkey, A_EndChar)
-:XB0:who has lead::f("who has led", A_ThisHotkey, A_EndChar)
-:XB0:who have lead::f("who have led", A_ThisHotkey, A_EndChar)
-:XB0:who setup::f("who set up", A_ThisHotkey, A_EndChar)
-:XB0:who use to::f("who used to", A_ThisHotkey, A_EndChar)
-:XB0:who where::f("who were", A_ThisHotkey, A_EndChar)
-:XB0:who's actual::f("whose actual", A_ThisHotkey, A_EndChar)
-:XB0:who's brother::f("whose brother", A_ThisHotkey, A_EndChar)
-:XB0:who's father::f("whose father", A_ThisHotkey, A_EndChar)
-:XB0:who's mother::f("whose mother", A_ThisHotkey, A_EndChar)
-:XB0:who's name::f("whose name", A_ThisHotkey, A_EndChar)
-:XB0:who's opinion::f("whose opinion", A_ThisHotkey, A_EndChar)
-:XB0:who's own::f("whose own", A_ThisHotkey, A_EndChar)
-:XB0:who's parents::f("whose parents", A_ThisHotkey, A_EndChar)
-:XB0:who's previous::f("whose previous", A_ThisHotkey, A_EndChar)
-:XB0:who's team::f("whose team", A_ThisHotkey, A_EndChar)
-:XB0:wholey::f("wholly", A_ThisHotkey, A_EndChar)
-:XB0:wholy::f("wholly", A_ThisHotkey, A_EndChar)
-:XB0:whther::f("whether", A_ThisHotkey, A_EndChar)
-:XB0:will backup::f("will back up", A_ThisHotkey, A_EndChar)
-:XB0:will buyout::f("will buy out", A_ThisHotkey, A_EndChar)
-:XB0:will of::f("will have", A_ThisHotkey, A_EndChar) 
-:XB0:will shutdown::f("will shut down", A_ThisHotkey, A_EndChar)
-:XB0:will shutoff::f("will shut off", A_ThisHotkey, A_EndChar)
-:XB0:willbe::f("will be", A_ThisHotkey, A_EndChar) 
-:XB0:with be::f("will be", A_ThisHotkey, A_EndChar)
-:XB0:with in::f("within", A_ThisHotkey, A_EndChar)
-:XB0:with it's::f("with its", A_ThisHotkey, A_EndChar)
-:XB0:with on of::f("with one of", A_ThisHotkey, A_EndChar)
-:XB0:with out::f("without", A_ThisHotkey, A_EndChar)
-:XB0:with regards to::f("with regard to", A_ThisHotkey, A_EndChar)
-:XB0:with who::f("with whom", A_ThisHotkey, A_EndChar)
-:XB0:witha::f("with a", A_ThisHotkey, A_EndChar) 
-:XB0:witheld::f("withheld", A_ThisHotkey, A_EndChar)
-:XB0:withi t::f("with it", A_ThisHotkey, A_EndChar)
-:XB0:within it's::f("within its", A_ThisHotkey, A_EndChar)
-:XB0:within site of::f("within sight of", A_ThisHotkey, A_EndChar)
-:XB0:withing::f("within", A_ThisHotkey, A_EndChar) 
-:XB0:witht he::f("with the", A_ThisHotkey, A_EndChar) 
-:XB0:wo'nt::f("won't", A_ThisHotkey, A_EndChar) 
-:XB0:won it's::f("won its", A_ThisHotkey, A_EndChar)
-:XB0:wonderfull::f("wonderful", A_ThisHotkey, A_EndChar)
-:XB0:wordlwide::f("worldwide", A_ThisHotkey, A_EndChar) 
-:XB0:working progress::f("work in progress", A_ThisHotkey, A_EndChar)
-:XB0:world wide::f("worldwide", A_ThisHotkey, A_EndChar)
-:XB0:worse comes to worse::f("worse comes to worst", A_ThisHotkey, A_EndChar)
-:XB0:worse then::f("worse than", A_ThisHotkey, A_EndChar)
-:XB0:worse-case scenario::f("worst-case scenario", A_ThisHotkey, A_EndChar)
-:XB0:worst comes to worst::f("worse comes to worst", A_ThisHotkey, A_EndChar)
-:XB0:worst than::f("worse than", A_ThisHotkey, A_EndChar)
-:XB0:worth it's::f("worth its", A_ThisHotkey, A_EndChar)
-:XB0:worth while::f("worthwhile", A_ThisHotkey, A_EndChar)
-:XB0:would backup::f("would back up", A_ThisHotkey, A_EndChar)
-:XB0:would comeback::f("would come back", A_ThisHotkey, A_EndChar)
-:XB0:would fair::f("would fare", A_ThisHotkey, A_EndChar)
-:XB0:would forego::f("would forgo", A_ThisHotkey, A_EndChar)
-:XB0:would of::f("would have", A_ThisHotkey, A_EndChar) 
-:XB0:would setup::f("would set up", A_ThisHotkey, A_EndChar)
-:XB0:wouldbe::f("would be", A_ThisHotkey, A_EndChar) 
-:XB0:wouldnt::f("wouldn't", A_ThisHotkey, A_EndChar) 
-:XB0:wreck havoc::f("wreak havoc", A_ThisHotkey, A_EndChar)
-:XB0:writers block::f("writer's block", A_ThisHotkey, A_EndChar)
-:XB0:you're own::f("your own", A_ThisHotkey, A_EndChar) 
-:XB0:you;d::f("you'd", A_ThisHotkey, A_EndChar) 
-:XB0:youare::f("you are", A_ThisHotkey, A_EndChar) 
-:XB0:younger then::f("younger than", A_ThisHotkey, A_EndChar)
-:XB0:your a::f("you're a", A_ThisHotkey, A_EndChar) 
-:XB0:your an::f("you're an", A_ThisHotkey, A_EndChar) 
-:XB0:your her::f("you're her", A_ThisHotkey, A_EndChar) 
-:XB0:your here::f("you're here", A_ThisHotkey, A_EndChar) 
-:XB0:your his::f("you're his", A_ThisHotkey, A_EndChar) 
-:XB0:your my::f("you're my", A_ThisHotkey, A_EndChar) 
-:XB0:your the::f("you're the", A_ThisHotkey, A_EndChar) 
-:XB0:your their::f("you're their", A_ThisHotkey, A_EndChar) 
-:XB0:your your::f("you're your", A_ThisHotkey, A_EndChar) 
-:XB0:youseff::f("yousef", A_ThisHotkey, A_EndChar) 
-:XB0:youself::f("yourself", A_ThisHotkey, A_EndChar) 
-:XB0:youve::f("you've", A_ThisHotkey, A_EndChar) 
-:XB0:youv’e::f("you've", A_ThisHotkey, A_EndChar) 
-:XB0?*:0n0::f("-n-", A_ThisHotkey, A_EndChar) ; For this-n-that
-:XB0?*:abaptiv::f("adaptiv", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:abberr::f("aberr", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:abbout::f("about", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:abck::f("back", A_ThisHotkey, A_EndChar) ; Fixes 410 words
-:XB0?*:abilt::f("abilit", A_ThisHotkey, A_EndChar) ; Fixes 1110 words
-:XB0?*:ablit::f("abilit", A_ThisHotkey, A_EndChar) ; Fixes 1110 words
-:XB0?*:abotu::f("about", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:abrit::f("arbit", A_ThisHotkey, A_EndChar) ; Fixes 53 words
-:XB0?*:abuda::f("abunda", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:acadm::f("academ", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:accadem::f("academ", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:acccus::f("accus", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:acceller::f("acceler", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:accensi::f("ascensi", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:acceptib::f("acceptab", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:accessab::f("accessib", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:accomadat::f("accommodat", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:accomo::f("accommo", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:accoring::f("according", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:accous::f("acous", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:accqu::f("acqu", A_ThisHotkey, A_EndChar) ; Fixes 89 words
-:XB0?*:accro::f("acro", A_ThisHotkey, A_EndChar) ; Fixes 145 words, but misspells accroides (An alcohol-soluble resin from Australian trees; used in varnishes and in manufacturing paper) 
-:XB0?*:accuss::f("accus", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:acede::f("acade", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:acheiv::f("achiev", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:achievment::f("achievement", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:acocu::f("accou", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:acom::f("accom", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:acquaintence::f("acquaintance", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:acquiantence::f("acquaintance", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:actial::f("actical", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:acurac::f("accurac", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:acustom::f("accustom", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:acys::f("acies", A_ThisHotkey, A_EndChar) ; Fixes 101 words
-:XB0?*:adantag::f("advantag", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:adaption::f("adaptation", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:adavan::f("advan", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:addion::f("addition", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:additon::f("addition", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:addm::f("adm", A_ThisHotkey, A_EndChar) ; Fixes 144 words
-:XB0?*:addop::f("adop", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:addow::f("adow", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:adequite::f("adequate", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:adif::f("atif", A_ThisHotkey, A_EndChar) ; Fixes 50 words, but misspells Gadiformes (Cods, haddocks, grenadiers; in some classifications considered equivalent to the order Anacanthini)
-:XB0?*:adiquate::f("adequate", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:admend::f("amend", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:admissab::f("admissib", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:admited::f("admitted", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:admition::f("admission", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:adquate::f("adequate", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:adquir::f("acquir", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:advanag::f("advantag", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:adventr::f("adventur", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:advertant::f("advertent", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:adviced::f("advised", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:aelog::f("aeolog", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:aeriel::f("aerial", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:affilat::f("affiliat", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:affilliat::f("affiliat", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:affort::f("afford", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:affraid::f("afraid", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:aggree::f("agree", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:agrava::f("aggrava", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:agreemnt::f("agreement", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:agreg::f("aggreg", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:agress::f("aggress", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:ahev::f("have", A_ThisHotkey, A_EndChar) ; Fixes 47 words
-:XB0?*:ahpp::f("happ", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:ahve::f("have", A_ThisHotkey, A_EndChar) ; Fixes 47 words, but misspells Ahvenanmaa, Jahvey, Wahvey, Yahve, Yahveh (All are different Hebrew names for God.) 
-:XB0?*:aible::f("able", A_ThisHotkey, A_EndChar) ; Fixes 2387 words
-:XB0?*:aicraft::f("aircraft", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:ailabe::f("ailable", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:ailiab::f("ailab", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:ailib::f("ailab", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:aisian::f("Asian", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:aiton::f("ation", A_ThisHotkey, A_EndChar) ; Fixes 5205 words
-:XB0?*:alchohol::f("alcohol", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:alchol::f("alcohol", A_ThisHotkey, A_EndChar) ;fixes 28 words
-:XB0?*:alcohal::f("alcohol", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:aliab::f("ailab", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:alibit::f("abilit", A_ThisHotkey, A_EndChar) ; Fixes 1110 words
-:XB0?*:alitv::f("lativ", A_ThisHotkey, A_EndChar) ; Fixes 97 words
-:XB0?*:allign::f("align", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:allth::f("alth", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:allto::f("alto", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:alochol::f("alcohol", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:alott::f("allott", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:alowe::f("allowe", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:altion::f("lation", A_ThisHotkey, A_EndChar) ; Fixes 448 words
-:XB0?*:ameria::f("America", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:amerli::f("ameli", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:ametal::f("amental", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:amke::f("make", A_ThisHotkey, A_EndChar) ; Fixes 122 words
-:XB0?*:amking::f("making", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:ammou::f("amou", A_ThisHotkey, A_EndChar) ; Fixes 99 words
-:XB0?*:amny::f("many", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:analitic::f("analytic", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:anbd::f("and", A_ThisHotkey, A_EndChar) ; Fixes 2083 words
-:XB0?*:angabl::f("angeabl", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:angeing::f("anging", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:anmd::f("and", A_ThisHotkey, A_EndChar) ; Fixes 2083 words
-:XB0?*:annn::f("ann", A_ThisHotkey, A_EndChar) ; Fixes 650 words
-:XB0?*:annoi::f("anoi", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:annuled::f("annulled", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:anomo::f("anoma", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:anounc::f("announc", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:antaine::f("antine", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:anwser::f("answer", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:aost::f("oast", A_ThisHotkey, A_EndChar) ; Fixes 75 words
-:XB0?*:aparen::f("apparen", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:apear::f("appear", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:aplic::f("applic", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:aplie::f("applie", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:apoint::f("appoint", A_ThisHotkey, A_EndChar) ; Fixes 30 words ; Misspells username Datapoint.
-:XB0?*:apparan::f("apparen", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:appart::f("apart", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:appeares::f("appears", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:apperance::f("appearance", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:appol::f("apol", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0?*:apprearance::f("appearance", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:apreh::f("appreh", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:apropri::f("appropri", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:aprov::f("approv", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:aptue::f("apture", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:aquain::f("acquain", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:aquiant::f("acquaint", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:aquisi::f("acquisi", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:arange::f("arrange", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:arbitar::f("arbitrar", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:archaelog::f("archaeolog", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:archao::f("archeo", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:archetect::f("architect", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:architectual::f("architectural", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:areat::f("arat", A_ThisHotkey, A_EndChar) ; Fixes 136 words
-:XB0?*:arguement::f("argument", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:arhip::f("arship", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:ariage::f("arriage", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:arign::f("aring", A_ThisHotkey, A_EndChar) ; Fixes 140 words
-:XB0?*:ariman::f("airman", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:arogen::f("arrogan", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:arrri::f("arri", A_ThisHotkey, A_EndChar) ; Fixes 159 words
-:XB0?*:artdridge::f("artridge", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:articel::f("article", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:artrige::f("artridge", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:asdver::f("adver", A_ThisHotkey, A_EndChar) ; Fixes 67 words
-:XB0?*:asign::f("assign", A_ThisHotkey, A_EndChar) ; Fixes 27
-:XB0?*:asnd::f("and", A_ThisHotkey, A_EndChar) ; Fixes 2083 words
-:XB0?*:asociat::f("associat", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:asorb::f("absorb", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:asr::f("ase", A_ThisHotkey, A_EndChar) ; Fixes 698 words, but misspells Basra (An oil city in Iraq) 
-:XB0?*:assempl::f("assembl", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:assertation::f("assertion", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:assoca::f("associa", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:assoicat::f("associat", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:asss::f("as", A_ThisHotkey, A_EndChar) ; Fixes 9311 words
-:XB0?*:assym::f("asym", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:asthet::f("aesthet", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:asuing::f("ausing", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:atain::f("attain", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:ateing::f("ating", A_ThisHotkey, A_EndChar) ; Fixes 1117 words
-:XB0?*:atempt::f("attempt", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:atention::f("attention", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:athori::f("authori", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:aticula::f("articula", A_ThisHotkey, A_EndChar) ; Fixes 69 words
-:XB0?*:atoin::f("ation", A_ThisHotkey, A_EndChar) ; Fixes 5229 words
-:XB0?*:atribut::f("attribut", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:attemt::f("attempt", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:attenden::f("attendan", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:attensi::f("attenti", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:attentioin::f("attention", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:auclar::f("acular", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:audiance::f("audience", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:auther::f("author", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:authobiograph::f("autobiograph", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:authror::f("author", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:automonom::f("autonom", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:avaialb::f("availab", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:availb::f("availab", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:availib::f("availab", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:avalab::f("availab", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:avalib::f("availab", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:aveing::f("aving", A_ThisHotkey, A_EndChar) ; Fixes 60 words
-:XB0?*:avila::f("availa", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:awess::f("awless", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:awya::f("away", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:babilat::f("babilit", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:bakc::f("back", A_ThisHotkey, A_EndChar) ; Fixes 410 words
-:XB0?*:ballan::f("balan", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:baout::f("about", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:bateabl::f("batabl", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:bcak::f("back", A_ThisHotkey, A_EndChar) ; Fixes 410 words
-:XB0?*:beahv::f("behav", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:beatiful::f("beautiful", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:beaurocra::f("bureaucra", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:becoe::f("become", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:becomm::f("becom", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:bedore::f("before", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:beei::f("bei", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:behaio::f("behavio", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:belan::f("blan", A_ThisHotkey, A_EndChar) ; Fixes 60 words
-:XB0?*:belei::f("belie", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:belligeran::f("belligeren", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:benif::f("benef", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:bilsh::f("blish", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:biul::f("buil", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:blence::f("blance", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:bliah::f("blish", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:blich::f("blish", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:blihs::f("blish", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:blisg::f("blish", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:bllish::f("blish", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:boaut::f("about", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:bombardement::f("bombardment", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:bombarment::f("bombardment", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:bondary::f("boundary", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:borrom::f("bottom", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:boundr::f("boundar", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:boxs::f("boxes", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:bradcast::f("broadcast", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:breif::f("brief", A_ThisHotkey, A_EndChar) ; Fixes 22 words.
-:XB0?*:brenc::f("branc", A_ThisHotkey, A_EndChar) ; Fixes 70 words
-:XB0?*:broadacast::f("broadcast", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:brod::f("broad", A_ThisHotkey, A_EndChar) ; Fixes 55 words. Misspells brodiaea (a type of plant)
-:XB0?*:buisn::f("busin", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:buring::f("burying", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:burrie::f("burie", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:busness::f("business", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:bussiness::f("business", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:caculater::f("calculator", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:caffin::f("caffein", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:caharcter::f("character", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:cahrac::f("charac", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:calculater::f("calculator", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:calculla::f("calcula", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:calculs::f("calculus", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:caluclat::f("calculat", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:caluculat::f("calculat", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:calulat::f("calculat", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:camae::f("came", A_ThisHotkey, A_EndChar) ; Fixes 57 words
-:XB0?*:campagin::f("campaign", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:campain::f("campaign", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:candad::f("candid", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:candiat::f("candidat", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:candidta::f("candidat", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:cannonic::f("canonic", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:caperbi::f("capabi", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:capibl::f("capabl", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:captia::f("capita", A_ThisHotkey, A_EndChar) ; Fixes 69 words
-:XB0?*:caracht::f("charact", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:caract::f("charact", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:carcirat::f("carcerat", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:carism::f("charism", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:cartileg::f("cartilag", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:cartilidg::f("cartilag", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:casette::f("cassette", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:casue::f("cause", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:catagor::f("categor", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:catergor::f("categor", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:cathlic::f("catholic", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:catholoc::f("catholic", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:catre::f("cater", A_ThisHotkey, A_EndChar) ; Fixes 23 words.  Misspells fornicatress
-:XB0?*:ccce::f("cce", A_ThisHotkey, A_EndChar) ; Fixes 175 words
-:XB0?*:ccesi::f("ccessi", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:ceiev::f("ceiv", A_ThisHotkey, A_EndChar) ; Fixes 82 words
-:XB0?*:ceing::f("cing", A_ThisHotkey, A_EndChar) ; Fixes 275 words
-:XB0?*:cencu::f("censu", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:centente::f("centen", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:cerimo::f("ceremo", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:ceromo::f("ceremo", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:certian::f("certain", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:cesion::f("cession", A_ThisHotkey, A_EndChar) ; Fixes 51 words
-:XB0?*:cesor::f("cessor", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:cesser::f("cessor", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:cev::f("ceiv", A_ThisHotkey, A_EndChar) ; Fixes 82 words, but misspells ceviche (South American seafood dish)
-:XB0?*:chagne::f("change", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0?*:chaleng::f("challeng", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:challang::f("challeng", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:challengabl::f("challengeabl", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:changab::f("changeab", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:charasma::f("charisma", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:charater::f("character", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:charecter::f("character", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:charector::f("character", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:chargab::f("chargeab", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:chartiab::f("charitab", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:cheif::f("chief", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:chemcial::f("chemical", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:chemestr::f("chemistr", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:chict::f("chit", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:childen::f("children", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:chracter::f("character", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:chter::f("cter", A_ThisHotkey, A_EndChar) ; Fixes 221 words
-:XB0?*:cidan::f("ciden", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:ciencio::f("cientio", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:ciepen::f("cipien", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:ciev::f("ceiv", A_ThisHotkey, A_EndChar) ; Fixes 82 words
-:XB0?*:cigic::f("cific", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:cilation::f("ciliation", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:cilliar::f("cillar", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:circut::f("circuit", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:ciricu::f("circu", A_ThisHotkey, A_EndChar) ; Fixes 168 words
-:XB0?*:cirp::f("crip", A_ThisHotkey, A_EndChar) ; Fixes 126 words, but misspells Scirpus (Rhizomatous perennial grasslike herbs)
-:XB0?*:cison::f("cision", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:citment::f("citement", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:civilli::f("civili", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:clae::f("clea", A_ThisHotkey, A_EndChar) ; Fixes 151 words
-:XB0?*:clasic::f("classic", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:clincial::f("clinical", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:clomation::f("clamation", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:cmo::f("com", A_ThisHotkey, A_EndChar) ; Fixes 1749 words
-:XB0?*:cna::f("can", A_ThisHotkey, A_EndChar) ; Fixes 1019 words.  Misspells Pycnanthemum (mint), and Tridacna (giant clam).+
-:XB0?*:coform::f("conform", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:cogis::f("cognis", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:cogiz::f("cogniz", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:cogntivie::f("cognitive", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:colaborat::f("collaborat", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:colecti::f("collecti", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:colelct::f("collect", A_ThisHotkey, A_EndChar) ; Fixes 69 words
-:XB0?*:collon::f("colon", A_ThisHotkey, A_EndChar) ; Fixes 89 words
-:XB0?*:comanie::f("companie", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:comany::f("company", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:comapan::f("compan", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:comapn::f("compan", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:comban::f("combin", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:combatent::f("combatant", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:combinatin::f("combination", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:combusi::f("combusti", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:comemmorat::f("commemorat", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:comemorat::f("commemorat", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:comision::f("commission", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:comiss::f("commiss", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:comitt::f("committ", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:commed::f("comed", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:commerical::f("commercial", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:commericial::f("commercial", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:commini::f("communi", A_ThisHotkey, A_EndChar) ; Fixes 117 words
-:XB0?*:commision::f("commission", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:commite::f("committe", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:commongly::f("commonly", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:commuica::f("communica", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:commuinica::f("communica", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:communcia::f("communica", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:communia::f("communica", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:comnt::f("cont", A_ThisHotkey, A_EndChar) ; Fixes 587 words
-:XB0?*:comon::f("common", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:compatab::f("compatib", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:compatiab::f("compatib", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:compeit::f("competit", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:compenc::f("compens", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:competan::f("competen", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:competati::f("competiti", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:competens::f("competenc", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:competive::f("competitive", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:comphr::f("compr", A_ThisHotkey, A_EndChar) ; Fixes 106 words
-:XB0?*:compleate::f("complete", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:compleatness::f("completeness", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:comprab::f("comparab", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:comprimis::f("compromis", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:comun::f("commun", A_ThisHotkey, A_EndChar) ; Fixes 140 words
-:XB0?*:concider::f("consider", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:concieve::f("conceive", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:concious::f("conscious", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:condidt::f("condit", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:conect::f("connect", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:conferanc::f("conferenc", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:configurea::f("configura", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:confort::f("comfort", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:conqur::f("conquer", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:conscen::f("consen", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:consdider::f("consider", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:consectu::f("consecu", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:consentr::f("concentr", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:consept::f("concept", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:consern::f("concern", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:conservit::f("conservat", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:consici::f("consci", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:consico::f("conscio", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:considerd::f("considered", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:considerit::f("considerat", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:consio::f("conscio", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:consitu::f("constitu", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:consoloda::f("consolida", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:consonent::f("consonant", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:constain::f("constrain", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:constin::f("contin", A_ThisHotkey, A_EndChar) ; Fixes 86 words
-:XB0?*:consumate::f("consummate", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:consumbe::f("consume", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:contian::f("contain", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:contien::f("conscien", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:contigen::f("contingen", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:contined::f("continued", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:continential::f("continental", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:continetal::f("continental", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:contino::f("continuo", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:contitut::f("constitut", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:contravers::f("controvers", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:contributer::f("contributor", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:controle::f("controlle", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:controling::f("controlling", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:controveri::f("controversi", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:controversal::f("controversial", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:controvertial::f("controversial", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:contru::f("constru", A_ThisHotkey, A_EndChar) ; Fixes 73 words
-:XB0?*:convenant::f("covenant", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:convential::f("conventional", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:convice::f("convince", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:coopor::f("cooper", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:coorper::f("cooper", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:copm::f("comp", A_ThisHotkey, A_EndChar) ; Fixes 729 words
-:XB0?*:copty::f("copy", A_ThisHotkey, A_EndChar) ; Fixes 78 words
-:XB0?*:coput::f("comput", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:copywrite::f("copyright", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:coropor::f("corpor", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0?*:corpar::f("corpor", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0?*:corpera::f("corpora", A_ThisHotkey, A_EndChar) ; Fixes 59 words
-:XB0?*:corporta::f("corporat", A_ThisHotkey, A_EndChar) ; Fixes 53 words
-:XB0?*:corprat::f("corporat", A_ThisHotkey, A_EndChar) ; Fixes 53 words
-:XB0?*:corpro::f("corpor", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0?*:corrispond::f("correspond", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:corruptab::f("corruptib", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:costit::f("constit", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:cotten::f("cotton", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:countain::f("contain", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:couraing::f("couraging", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:couro::f("coro", A_ThisHotkey, A_EndChar) ; Fixes 53 words
-:XB0?*:courur::f("cour", A_ThisHotkey, A_EndChar) ; Fixes 144 words
-:XB0?*:cpom::f("com", A_ThisHotkey, A_EndChar) ; Fixes 1749 words
-:XB0?*:cpoy::f("copy", A_ThisHotkey, A_EndChar) ; Fixes 78 words
-:XB0?*:creaet::f("creat", A_ThisHotkey, A_EndChar) ; Fixes 75 words
-:XB0?*:credia::f("credita", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:credida::f("credita", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:criib::f("crib", A_ThisHotkey, A_EndChar) ; Fixes 119 words
-:XB0?*:crti::f("criti", A_ThisHotkey, A_EndChar) ; Fixes 59 words
-:XB0?*:crticis::f("criticis", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:crusie::f("cruise", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:crutia::f("crucia", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:crystalisa::f("crystallisa", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:ctaegor::f("categor", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:ctail::f("cktail", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:ctent::f("ctant", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:cticious::f("ctitious", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:ctinos::f("ctions", A_ThisHotkey, A_EndChar) ; Fixes 214 words
-:XB0?*:ctoin::f("ction", A_ThisHotkey, A_EndChar) ; Fixes 717 words
-:XB0?*:cualr::f("cular", A_ThisHotkey, A_EndChar) ; Fixes 256 words
-:XB0?*:cuas::f("caus", A_ThisHotkey, A_EndChar) ; Fixes 55 words
-:XB0?*:cultral::f("cultural", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:cultue::f("culture", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:culure::f("culture", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:curcuit::f("circuit", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:cusotm::f("custom", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:cutsom::f("custom", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:cuture::f("culture", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:cxan::f("can", A_ThisHotkey, A_EndChar) ; Fixes 1015 words
-:XB0?*:damenor::f("demeanor", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:damenour::f("demeanour", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:dammag::f("damag", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:damy::f("demy", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:daugher::f("daughter", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:dcument::f("document", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:ddti::f("dditi", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:deatil::f("detail", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:decend::f("descend", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:decideab::f("decidab", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:decrib::f("describ", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:dectect::f("detect", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:defendent::f("defendant", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:deffens::f("defens", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:deffin::f("defin", A_ThisHotkey, A_EndChar) ; Fixes 54 words
-:XB0?*:definat::f("definit", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:defintion::f("definition", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:degrat::f("degrad", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:degred::f("degrad", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:deinc::f("dienc", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:delag::f("deleg", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:delevop::f("develop", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:demeno::f("demeano", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:demorcr::f("democr", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:denegrat::f("denigrat", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:denpen::f("depen", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:dentational::f("dental", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:deparment::f("department", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:depedant::f("dependent", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:depeden::f("dependen", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:dependan::f("dependen", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:deptart::f("depart", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:deram::f("dream", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:deriviate::f("derive", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:derivit::f("derivat", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:descib::f("describ", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:descision::f("decision", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:descus::f("discus", A_ThisHotkey, A_EndChar) ; Fixes 14 words.
-:XB0?*:desided::f("decided", A_ThisHotkey, A_EndChar) ; Fixes 7 words.
-:XB0?*:desinat::f("destinat", A_ThisHotkey, A_EndChar) ; Fixes 11 words.
-:XB0?*:desireab::f("desirab", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:desision::f("decision", A_ThisHotkey, A_EndChar) ; Fixes 5 words.
-:XB0?*:desitn::f("destin", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:despatch::f("dispatch", A_ThisHotkey, A_EndChar) ; Fixes 7 words.
-:XB0?*:despensib::f("dispensab", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:despict::f("depict", A_ThisHotkey, A_EndChar) ; Fixes 10 words.
-:XB0?*:despira::f("despera", A_ThisHotkey, A_EndChar) ; Fixes 9 words.
-:XB0?*:dessign::f("design", A_ThisHotkey, A_EndChar) ; Fixes 51 words.
-:XB0?*:destory::f("destroy", A_ThisHotkey, A_EndChar) ; Fixes 8 words.
-:XB0?*:detecab::f("detectab", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:develeopr::f("developer", A_ThisHotkey, A_EndChar) ; Fixes 6 words.
-:XB0?*:devellop::f("develop", A_ThisHotkey, A_EndChar) ; Fixes 44 words.
-:XB0?*:developor::f("developer", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:developpe::f("develope", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:develp::f("develop", A_ThisHotkey, A_EndChar) ; Fixes 44 words.
-:XB0?*:devid::f("divid", A_ThisHotkey, A_EndChar) ; Fixes 61 words.
-:XB0?*:devolop::f("develop", A_ThisHotkey, A_EndChar) ; Fixes 44 words.
-:XB0?*:dgeing::f("dging", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:dgement::f("dgment", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:diapl::f("displ", A_ThisHotkey, A_EndChar) ; Fixes 33 words.
-:XB0?*:diarhe::f("diarrhoe", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:dicatb::f("dictab", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:diciplin::f("disciplin", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:dicover::f("discover", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:dicus::f("discus", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:difef::f("diffe", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:diferre::f("differe", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:differan::f("differen", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:diffren::f("differen", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:dimenion::f("dimension", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:dimention::f("dimension", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:dimesnion::f("dimension", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:diosese::f("diocese", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:dipend::f("depend", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:diriv::f("deriv", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:discrib::f("describ", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:disign::f("design", A_ThisHotkey, A_EndChar) ; Fixes 51 words
-:XB0?*:disipl::f("discipl", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:disolved::f("dissolved", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:dispaly::f("display", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:dispenc::f("dispens", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:dispensib::f("dispensab", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:disputib::f("disputab", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:disrict::f("district", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:distruct::f("destruct", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:ditonal::f("ditional", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:ditribut::f("distribut", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:divice::f("device", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:divsi::f("divisi", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:dmant::f("dment", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:dminst::f("dminist", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:doccu::f("docu", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:doctin::f("doctrin", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:docuement::f("document", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:docuemnt::f("document", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:documetn::f("document", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:documnet::f("document", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:doind::f("doing", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:dolan::f("dolen", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:doller::f("dollar", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:dominent::f("dominant", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:dowloads::f("download", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:dpend::f("depend", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:dramtic::f("dramatic", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:driect::f("direct", A_ThisHotkey, A_EndChar) ; Fixes 71 words
-:XB0?*:driveing::f("driving", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:drnik::f("drink", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:dulgue::f("dulge", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:dupicat::f("duplicat", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:durig::f("during", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:durring::f("during", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:duting::f("during", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:eacll::f("ecall", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:eanr::f("earn", A_ThisHotkey, A_EndChar) ; Fixes 60 words
-:XB0?*:eaolog::f("eolog", A_ThisHotkey, A_EndChar) ; Fixes 134 words
-:XB0?*:eareance::f("earance", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:earence::f("earance", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:easen::f("easan", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:easr::f("ears", A_ThisHotkey, A_EndChar) ; Fixes 102 words
-:XB0?*:ecco::f("eco", A_ThisHotkey, A_EndChar) ; Fixes 994 words, but misspells Prosecco (Italian wine) and recco (abbrev. for Reconnaissance)
-:XB0?*:eccu::f("ecu", A_ThisHotkey, A_EndChar) ; Fixes 353 words
-:XB0?*:eceed::f("ecede", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:eceonom::f("econom", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:ecepi::f("ecipi", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:ecomon::f("econom", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:ecuat::f("equat", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:ecyl::f("ecycl", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:edabl::f("edibl", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:eearl::f("earl", A_ThisHotkey, A_EndChar) ; Fixes 66 words
-:XB0?*:eeen::f("een", A_ThisHotkey, A_EndChar) ; Fixes 452 words
-:XB0?*:eeep::f("eep", A_ThisHotkey, A_EndChar) ; Fixes 316 words
-:XB0?*:eferan::f("eferen", A_ThisHotkey, A_EndChar) ; Fixes 35 words 
-:XB0?*:efered::f("eferred", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:efering::f("eferring", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:efern::f("eferen", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:effecien::f("efficien", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:efficen::f("efficien", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:egth::f("ength", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:ehter::f("ether", A_ThisHotkey, A_EndChar) ; Fixes 84 words
-:XB0?*:eild::f("ield", A_ThisHotkey, A_EndChar) ; Fixes 147 words
-:XB0?*:elavan::f("elevan", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:elction::f("election", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:electic::f("electric", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:electrial::f("electrical", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:elemin::f("elimin", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:eletric::f("electric", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:elien::f("elian", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:eligab::f("eligib", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:eligo::f("eligio", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:eliment::f("element", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:ellected::f("elected", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:elyhood::f("elihood", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:embarass::f("embarrass", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:emce::f("ence", A_ThisHotkey, A_EndChar) ; Fixes 775 words, but misspells emcee (host at formal occasion)
-:XB0?*:emiting::f("emitting", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:emmediate::f("immediate", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:emmigr::f("emigr", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:emmin::f("emin", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:emmis::f("emis", A_ThisHotkey, A_EndChar) ; Fixes 214 words
-:XB0?*:emmit::f("emitt", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:emostr::f("emonstr", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:empahs::f("emphas", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:emperic::f("empiric", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:emphais::f("emphasis", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:emphsis::f("emphasis", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:emprison::f("imprison", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:enchang::f("enchant", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:encial::f("ential", A_ThisHotkey, A_EndChar) ; Fixes 244 words
-:XB0?*:endand::f("endant", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:endig::f("ending", A_ThisHotkey, A_EndChar) ; Fixes 109 words
-:XB0?*:enduc::f("induc", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:enece::f("ence", A_ThisHotkey, A_EndChar) ; Fixes 775 words
-:XB0?*:enence::f("enance", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:enflam::f("inflam", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:engagment::f("engagement", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:engeneer::f("engineer", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:engieneer::f("engineer", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:engten::f("engthen", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:entagl::f("entangl", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:entaly::f("entally", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:entatr::f("entar", A_ThisHotkey, A_EndChar) ; Fixes 81 words
-:XB0?*:entce::f("ence", A_ThisHotkey, A_EndChar) ; Fixes 775 words
-:XB0?*:entgh::f("ength", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:enthusiatic::f("enthusiastic", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:entiatiation::f("entiation", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:entily::f("ently", A_ThisHotkey, A_EndChar) ; Fixes 261 wordsuently
-:XB0?*:envolu::f("evolu", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:enxt::f("next", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:eperat::f("eparat", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:equalibr::f("equilibr", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:equelibr::f("equilibr", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:equialent::f("equivalent", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:equilibium::f("equilibrium", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:equilibrum::f("equilibrium", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:equivelant::f("equivalent", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:equivilant::f("equivalent", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:equivilent::f("equivalent", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:erchen::f("erchan", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:ereance::f("earance", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:eremt::f("erent", A_ThisHotkey, A_EndChar) ; Fixes 96 words
-:XB0?*:ernece::f("erence", A_ThisHotkey, A_EndChar) ; Fixes 54 words
-:XB0?*:ernt::f("erent", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:erruped::f("errupted", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:esab::f("essab", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:esential::f("essential", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:esisten::f("esistan", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:esitmat::f("estimat", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:esnt::f("esent", A_ThisHotkey, A_EndChar) ; Fixes 103 words
-:XB0?*:esorce::f("esource", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:essense::f("essence", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:essentail::f("essential", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:essentual::f("essential", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:essesital::f("essential", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:estabish::f("establish", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:estoin::f("estion", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:esxual::f("sexual", A_ThisHotkey, A_EndChar) ; Fixes 91 words
-:XB0?*:etanc::f("etenc", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:etead::f("eated", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:eveyr::f("every", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:exagerat::f("exaggerat", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:exagerrat::f("exaggerat", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:exampt::f("exempt", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:exapan::f("expan", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:excact::f("exact", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:excang::f("exchang", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:excecut::f("execut", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:excedd::f("exceed", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:excercis::f("exercis", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:exchanch::f("exchang", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:excist::f("exist", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:execis::f("exercis", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:exeed::f("exceed", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:exept::f("except", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:exersize::f("exercise", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:exict::f("excit", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:exinct::f("extinct", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:exisit::f("exist", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:existan::f("existen", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:exlile::f("exile", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:exmapl::f("exampl", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:expalin::f("explain", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:expeced::f("expected", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:expecial::f("especial", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:experianc::f("experienc", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:expidi::f("expedi", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:expierenc::f("experienc", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:expirien::f("experien", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:explict::f("explicit", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:exploitit::f("exploitat", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:explotat::f("exploitat", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:exprienc::f("experienc", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:exressed::f("expressed", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:exsis::f("exis", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:extention::f("extension", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:extint::f("extinct", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:facist::f("fascist", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:fagia::f("phagia", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:falab::f("fallib", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:fallab::f("fallib", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:familar::f("familiar", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:familli::f("famili", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:fammi::f("fami", A_ThisHotkey, A_EndChar) ; Fixes 57 words
-:XB0?*:fascit::f("facet", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:fasia::f("phasia", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:fatc::f("fact", A_ThisHotkey, A_EndChar) ; Fixes 200 words
-:XB0?*:fature::f("facture", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:faught::f("fought", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:feasable::f("feasible", A_ThisHotkey, A_EndChar) ; Fixes 11 words, but misspells unfeasable (archaic, no longer used)
-:XB0?*:fedre::f("feder", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:femmi::f("femi", A_ThisHotkey, A_EndChar) ; Fixes 53 words
-:XB0?*:fencive::f("fensive", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:ferec::f("ferenc", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:fereing::f("fering", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:feriang::f("ferring", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:ferren::f("feren", A_ThisHotkey, A_EndChar) ; Fixes 113 words
-:XB0?*:fertily::f("fertility", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:fesion::f("fession", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:fesser::f("fessor", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:festion::f("festation", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:ffese::f("fesse", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:ffesion::f("fession", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:fficen::f("fficien", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:fianit::f("finit", A_ThisHotkey, A_EndChar) ; Fixes 79 words
-:XB0?*:fictious::f("fictitious", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:fidn::f("find", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:fiet::f("feit", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:filiament::f("filament", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:filitrat::f("filtrat", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:fimil::f("famil", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:finac::f("financ", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:finat::f("finit", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:finet::f("finit", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:finining::f("fining", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:firc::f("furc", A_ThisHotkey, A_EndChar) ; Fixes 33 words, Case-sensitive to not misspell FIRCA (sustainable funding mechanism for agricultural development)
-:XB0?*:firend::f("friend", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:firmm::f("firm", A_ThisHotkey, A_EndChar) ; Fixes 85 words
-:XB0?*:fisi::f("fissi", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:flama::f("flamma", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:flourid::f("fluorid", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:flourin::f("fluorin", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:fluan::f("fluen", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:fluorish::f("flourish", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:focuss::f("focus", A_ThisHotkey, A_EndChar) ; Fixes 6 words 
-:XB0?*:foer::f("fore", A_ThisHotkey, A_EndChar) ; Fixes 340 words
-:XB0?*:follwo::f("follow", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:folow::f("follow", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:fomat::f("format", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:fomed::f("formed", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:fomr::f("form", A_ThisHotkey, A_EndChar) ; Fixes 1269 words
-:XB0?*:foneti::f("phoneti", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:fontrier::f("frontier", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:fooot::f("foot", A_ThisHotkey, A_EndChar) ; Fixes 176 words
-:XB0?*:forbiden::f("forbidden", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:foretun::f("fortun", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:forgetab::f("forgettab", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:forgiveabl::f("forgivabl", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:formidible::f("formidable", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:formost::f("foremost", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:forsee::f("foresee", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:forwrd::f("forward", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:foucs::f("focus", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:foudn::f("found", A_ThisHotkey, A_EndChar) ; Fixes 62 words
-:XB0?*:fourti::f("forti", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:fourtun::f("fortun", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:foward::f("forward", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:freind::f("friend", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:frence::f("ference", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:fromed::f("formed", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:fromi::f("formi", A_ThisHotkey, A_EndChar) ; Fixes 84 words
-:XB0?*:fucnt::f("funct", A_ThisHotkey, A_EndChar) ; Fixes 60 words
-:XB0?*:fufill::f("fulfill", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:fulen::f("fluen", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0?*:fullfill::f("fulfill", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:furut::f("furt", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:gallax::f("galax", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:galvin::f("galvan", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:ganaly::f("ginally", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:ganera::f("genera", A_ThisHotkey, A_EndChar) ; Fixes 124 words
-:XB0?*:garant::f("guarant", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:garav::f("grav", A_ThisHotkey, A_EndChar) ; Fixes 128 words
-:XB0?*:garnison::f("garrison", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:gaurant::f("guarant", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:gaurd::f("guard", A_ThisHotkey, A_EndChar) ; Fixes 57 words
-:XB0?*:gemer::f("gener", A_ThisHotkey, A_EndChar) ; Fixes 151 words
-:XB0?*:generatt::f("generat", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0?*:gestab::f("gestib", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:giid::f("good", A_ThisHotkey, A_EndChar) ; Fixes 31 words, but misspells Phalangiidae (typoe of Huntsman spider)
-:XB0?*:giveing::f("giving", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:glight::f("flight", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:glph::f("glyph", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:glua::f("gula", A_ThisHotkey, A_EndChar) ; Fixes 174 words
-:XB0?*:gnficia::f("gnifica", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:gnizen::f("gnizan", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:godess::f("goddess", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:gorund::f("ground", A_ThisHotkey, A_EndChar) ; Fixes 80 words
-:XB0?*:gourp::f("group", A_ThisHotkey, A_EndChar) ; Fixes 28 words 
-:XB0?*:govement::f("government", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:govenment::f("government", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:govenrment::f("government", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:govera::f("governa", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:goverment::f("government", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:govor::f("govern", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:gradded::f("graded", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:graffitti::f("graffiti", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:grama::f("gramma", A_ThisHotkey, A_EndChar) ; Fixes 72 words, but misspells grama (Pasture grass of plains of South America and western North America)
-:XB0?*:grammma::f("gramma", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:greatful::f("grateful", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:greee::f("gree", A_ThisHotkey, A_EndChar) ; Fixes 185 words
-:XB0?*:gresion::f("gression", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:gropu::f("group", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:gruop::f("group", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:grwo::f("grow", A_ThisHotkey, A_EndChar) ; Fixes 67 words
-:XB0?*:gsit::f("gist", A_ThisHotkey, A_EndChar) ; Fixes 585 words
-:XB0?*:gubl::f("guabl", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:guement::f("gument", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:guidence::f("guidance", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:gurantee::f("guarantee", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:habitans::f("habitants", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:habition::f("hibition", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:haneg::f("hange", A_ThisHotkey, A_EndChar) ; Fixes 69 words
-:XB0?*:harased::f("harassed", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:havour::f("havior", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:hcange::f("change", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0?*:hcih::f("hich", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:heirarch::f("hierarch", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:heiroglyph::f("hieroglyph", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:heiv::f("hiev", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:herant::f("herent", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:heridit::f("heredit", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:hertia::f("herita", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:hertzs::f("hertz", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:hicial::f("hical", A_ThisHotkey, A_EndChar) ; Fixes 170 words
-:XB0?*:hierach::f("hierarch", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:hierarcic::f("hierarchic", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:higway::f("highway", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:hnag::f("hang", A_ThisHotkey, A_EndChar) ; Fixes 150 words
-:XB0?*:holf::f("hold", A_ThisHotkey, A_EndChar) ; Fixes 120 words
-:XB0?*:hospiti::f("hospita", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:houno::f("hono", A_ThisHotkey, A_EndChar) ; Fixes 99 words
-:XB0?*:hstor::f("histor", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:humerous::f("humorous", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:humur::f("humour", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:hvae::f("have", A_ThisHotkey, A_EndChar) ; Fixes 47 words
-:XB0?*:hvai::f("havi", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:hvea::f("have", A_ThisHotkey, A_EndChar) ; Fixes 47 words
-:XB0?*:hwere::f("where", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:hwihc::f("which", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:hydog::f("hydrog", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:hymm::f("hym", A_ThisHotkey, A_EndChar) ; Fixes 125 words
-:XB0?*:ibile::f("ible", A_ThisHotkey, A_EndChar) ; Fixes 367 words
-:XB0?*:ibilt::f("ibilit", A_ThisHotkey, A_EndChar) ; Fixes 281 words
-:XB0?*:iblit::f("ibilit", A_ThisHotkey, A_EndChar) ; Fixes 281 words
-:XB0?*:icibl::f("iceabl", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:iciton::f("iction", A_ThisHotkey, A_EndChar) ; Fixes 89 words
-:XB0?*:ictoin::f("iction", A_ThisHotkey, A_EndChar) ; Fixes 89 words
-:XB0?*:idenital::f("idential", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:iegh::f("eigh", A_ThisHotkey, A_EndChar) ; Fixes 186 words
-:XB0?*:iegn::f("eign", A_ThisHotkey, A_EndChar) ; Fixes 83 words
-:XB0?*:ievn::f("iven", A_ThisHotkey, A_EndChar) ; Fixes 440 words
-:XB0?*:igeou::f("igiou", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:igini::f("igni", A_ThisHotkey, A_EndChar) ; Fixes 127 words
-:XB0?*:ignf::f("ignif", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:igous::f("igious", A_ThisHotkey, A_EndChar) ; Fixes 23 words, but misspells pemphigous (a skin disease)
-:XB0?*:igth::f("ight", A_ThisHotkey, A_EndChar) ; Jack's fixes 315 words
-:XB0?*:ihs::f("his", A_ThisHotkey, A_EndChar) ; Fixes 618 words
-:XB0?*:iht::f("ith", A_ThisHotkey, A_EndChar) ; Fixes 560 words
-:XB0?*:ijng::f("ing", A_ThisHotkey, A_EndChar) ; Fixes 15158 words
-:XB0?*:ilair::f("iliar", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:illution::f("illusion", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:imagen::f("imagin", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:immita::f("imita", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:impliment::f("implement", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:imploy::f("employ", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:importen::f("importan", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:imprion::f("imprison", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:incede::f("incide", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:incidential::f("incidental", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:incra::f("incre", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:inctro::f("intro", A_ThisHotkey, A_EndChar) ; Fixes 68 words
-:XB0?*:indeca::f("indica", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:indite::f("indict", A_ThisHotkey, A_EndChar) ; Fixes 22 words, but misspells indite (Produce a literaryÂ work)
-:XB0?*:indutr::f("industr", A_ThisHotkey, A_EndChar) ; Fixes 59 words
-:XB0?*:indvidua::f("individua", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:inece::f("ience", A_ThisHotkey, A_EndChar) ; Fixes 101 words
-:XB0?*:ineing::f("ining", A_ThisHotkey, A_EndChar) ; Fixes 193 words
-:XB0?*:inential::f("inental", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:infectuo::f("infectio", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:infrant::f("infant", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:infrige::f("infringe", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:ingenius::f("ingenious", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:inheritage::f("inheritance", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:inheritence::f("inheritance", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:inially::f("inally", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:ininis::f("inis", A_ThisHotkey, A_EndChar) ; Fixes 388 words
-:XB0?*:inital::f("initial", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:inng::f("ing", A_ThisHotkey, A_EndChar) ; Fixes 15158 words
-:XB0?*:innocula::f("inocula", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:inpeach::f("impeach", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:inpolit::f("impolit", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:inprison::f("imprison", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:inprov::f("improv", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:insitut::f("institut", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:institue::f("institute", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:instu::f("instru", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:intelect::f("intellect", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:intelig::f("intellig", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:intenational::f("international", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:intented::f("intended", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:intepret::f("interpret", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:interational::f("international", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:interferance::f("interference", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:intergrat::f("integrat", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:interpet::f("interpret", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:interupt::f("interrupt", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:inteven::f("interven", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:intrduc::f("introduc", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:intrest::f("interest", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:intruduc::f("introduc", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:intut::f("intuit", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:inudstr::f("industr", A_ThisHotkey, A_EndChar) ; Fixes 59 words
-:XB0?*:investingat::f("investigat", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:iopn::f("ion", A_ThisHotkey, A_EndChar) ; Fixes 8515 words
-:XB0?*:iouness::f("iousness", A_ThisHotkey, A_EndChar) ; Fixes 220 words
-:XB0?*:iousit::f("iosit", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:irts::f("irst", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:isherr::f("isher", A_ThisHotkey, A_EndChar) ; Fixes 71 words
-:XB0?*:ishor::f("isher", A_ThisHotkey, A_EndChar) ; Fixes 71 words
-:XB0?*:ishre::f("isher", A_ThisHotkey, A_EndChar) ; Fixes 71 words
-:XB0?*:isile::f("issile", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:issence::f("issance", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:iticing::f("iticising", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:itina::f("itiona", A_ThisHotkey, A_EndChar) ; Fixes 79 words, misspells Mephitinae (skunk), neritina (snail)
-:XB0?*:ititia::f("initia", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:itition::f("ition", A_ThisHotkey, A_EndChar) ; Fixes 389 words
-:XB0?*:itnere::f("intere", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:itnroduc::f("introduc", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:itoin::f("ition", A_ThisHotkey, A_EndChar) ; Fixes 389 words
-:XB0?*:itttle::f("ittle", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:iveing::f("iving", A_ThisHotkey, A_EndChar) ; Fixes 75 words
-:XB0?*:iverous::f("ivorous", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:ivle::f("ivel", A_ThisHotkey, A_EndChar) ; Fixes 589 words, but misspells braaivleis (Type of S. Affrican BBQ)
-:XB0?*:iwll::f("will", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0?*:iwth::f("with", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:jecutr::f("jectur", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:jist::f("gist", A_ThisHotkey, A_EndChar) ; Fixes 587 words
-:XB0?*:jstu::f("just", A_ThisHotkey, A_EndChar) ; Fixes 83 words
-:XB0?*:jsut::f("just", A_ThisHotkey, A_EndChar) ; Fixes 83 words
-:XB0?*:juct::f("junct", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0?*:judgment::f("judgement", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:judical::f("judicial", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:judisua::f("judicia", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:juduci::f("judici", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:jugment::f("judgment", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:juristiction::f("jurisdiction", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:kindergarden::f("kindergarten", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:knowldeg::f("knowledg", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:knowldg::f("knowledg", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:knowleg::f("knowledg", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:knwo::f("know", A_ThisHotkey, A_EndChar) ; Fixes 66 words
-:XB0?*:konw::f("know", A_ThisHotkey, A_EndChar) ; Fixes 66 words
-:XB0?*:kwno::f("know", A_ThisHotkey, A_EndChar) ; Fixes 66 words
-:XB0?*:labat::f("laborat", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:laeg::f("leag", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:laguage::f("language", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:laimation::f("lamation", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:laion::f("lation", A_ThisHotkey, A_EndChar) ; Fixes 448 words
-:XB0?*:lalbe::f("lable", A_ThisHotkey, A_EndChar) ; Fixes 122 words
-:XB0?*:laraty::f("larity", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:lastes::f("lates", A_ThisHotkey, A_EndChar) ; Fixes 212 words
-:XB0?*:lateab::f("latab", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:latrea::f("latera", A_ThisHotkey, A_EndChar) ; Fixes 70 words
-:XB0?*:lattitude::f("latitude", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:launhe::f("launche", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:lcud::f("clud", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:leagur::f("leaguer", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:leathal::f("lethal", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:lece::f("lesce", A_ThisHotkey, A_EndChar) ; Fixes 52 words, but misspells Illecebrum (contains the single species Illecebrum verticillatum, which is a trailing annual plant native to Europe)
-:XB0?*:lecton::f("lection", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:legitamat::f("legitimat", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:legitm::f("legitim", A_ThisHotkey, A_EndChar) ; Fixes 67 words
-:XB0?*:legue::f("league", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:leiv::f("liev", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:libgui::f("lingui", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:liek::f("like", A_ThisHotkey, A_EndChar) ; Fixes 405 words
-:XB0?*:liement::f("lement", A_ThisHotkey, A_EndChar) ; Fixes 128 words
-:XB0?*:lieuenan::f("lieutenan", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:lieutenen::f("lieutenan", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:likl::f("likel", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:liscen::f("licen", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:lisehr::f("lisher", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:lisen::f("licen", A_ThisHotkey, A_EndChar) ; Fixes 34 words, but misspells lisente (100 lisente equal 1 loti in Lesotho, S. Afterica)
-:XB0?*:lisheed::f("lished", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:lishh::f("lish", A_ThisHotkey, A_EndChar) ; Fixes 211 words
-:XB0?*:lissh::f("lish", A_ThisHotkey, A_EndChar) ; Fixes 211 words
-:XB0?*:listn::f("listen", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:litav::f("lativ", A_ThisHotkey, A_EndChar) ; Fixes 97 words
-:XB0?*:litert::f("literat", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:littel::f("little", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:litteral::f("literal", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:littoe::f("little", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:liuke::f("like", A_ThisHotkey, A_EndChar) ; Fixes 405 words
-:XB0?*:llarious::f("larious", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:llegen::f("llegian", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:llegien::f("llegian", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:lmits::f("limits", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:loev::f("love", A_ThisHotkey, A_EndChar) ; Fixes 111 words
-:XB0?*:lonle::f("lonel", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:lpp::f("lp", A_ThisHotkey, A_EndChar) ; Fixes 509 words
-:XB0?*:lsih::f("lish", A_ThisHotkey, A_EndChar) ; Fixes 211 words
-:XB0?*:lsot::f("lso", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:lutly::f("lutely", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:lyed::f("lied", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?*:machne::f("machine", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:maintina::f("maintain", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:maintion::f("mention", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:majorot::f("majorit", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:makeing::f("making", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:making it's::f("making its", A_ThisHotkey, A_EndChar)
-:XB0?*:makse::f("makes", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:mallise::f("malize", A_ThisHotkey, A_EndChar) ; Fixes 17 words ; Ambiguous
-:XB0?*:mallize::f("malize", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:mamal::f("mammal", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:mamant::f("mament", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:managab::f("manageab", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:managment::f("management", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:maneouv::f("manoeuv", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:manoeuver::f("maneuver", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:manouver::f("maneuver", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:mantain::f("maintain", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:manuever::f("maneuver", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:manuver::f("maneuver", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:marjorit::f("majorit", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:markes::f("marks", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:markett::f("market", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:marrage::f("marriage", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:mathamati::f("mathemati", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:mathmati::f("mathemati", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:mberan::f("mbran", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:mbintat::f("mbinat", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:mchan::f("mechan", A_ThisHotkey, A_EndChar) ; Fixes 54 words
-:XB0?*:meber::f("member", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:medac::f("medic", A_ThisHotkey, A_EndChar) ; Fixes 76 words
-:XB0?*:medeival::f("medieval", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:medevial::f("medieval", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:meent::f("ment", A_ThisHotkey, A_EndChar) ; Fixes 1763 words
-:XB0?*:meing::f("ming", A_ThisHotkey, A_EndChar) ; Fixes 410 words
-:XB0?*:melad::f("malad", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:memeber::f("member", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:memmor::f("memor", A_ThisHotkey, A_EndChar) ; Fixes 70 words
-:XB0?*:memt::f("ment", A_ThisHotkey, A_EndChar) ; Fixes 1763 words
-:XB0?*:menatr::f("mentar", A_ThisHotkey, A_EndChar) ; Fixes 71 words
-:XB0?*:metalic::f("metallic", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:mialr::f("milar", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:mibil::f("mobil", A_ThisHotkey, A_EndChar) ; Fixes 78 words
-:XB0?*:mileau::f("milieu", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:milen::f("millen", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:mileu::f("milieu", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:milirat::f("militar", A_ThisHotkey, A_EndChar) ; Fixes 54 words
-:XB0?*:millit::f("milit", A_ThisHotkey, A_EndChar) ; Fixes 85 words
-:XB0?*:millon::f("million", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:milta::f("milita", A_ThisHotkey, A_EndChar) ; Fixes 70 words
-:XB0?*:minatur::f("miniatur", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:minining::f("mining", A_ThisHotkey, A_EndChar) ; Fixes 15 words.
-:XB0?*:miscelane::f("miscellane", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:mision::f("mission", A_ThisHotkey, A_EndChar) ; Fixes 63 words
-:XB0?*:missabi::f("missibi", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:misson::f("mission", A_ThisHotkey, A_EndChar) ; Fixes 63 words
-:XB0?*:mition::f("mission", A_ThisHotkey, A_EndChar) ; Fixes 63 words
-:XB0?*:mittm::f("mitm", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:mitty::f("mittee", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:mkae::f("make", A_ThisHotkey, A_EndChar) ; Fixes 122 words
-:XB0?*:mkaing::f("making", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:mkea::f("make", A_ThisHotkey, A_EndChar) ; Fixes 122 words
-:XB0?*:mmorow::f("morrow", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:mnet::f("ment", A_ThisHotkey, A_EndChar) ; Fixes 1763 words
-:XB0?*:modle::f("model", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:moent::f("moment", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:moleclue::f("molecule", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:morgag::f("mortgag", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:mornal::f("normal", A_ThisHotkey, A_EndChar) ; Fixes 66 words 
-:XB0?*:morot::f("motor", A_ThisHotkey, A_EndChar) ; Fixes 72 words  
-:XB0?*:morow::f("morrow", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:mortag::f("mortgag", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:mostur::f("moistur", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:moung::f("mong", A_ThisHotkey, A_EndChar) ; Fixes 89 words
-:XB0?*:mounth::f("month", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:mpossa::f("mpossi", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:mrak::f("mark", A_ThisHotkey, A_EndChar) ; Fixes 175 words
-:XB0?*:mroe::f("more", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:msot::f("most", A_ThisHotkey, A_EndChar) ; Fixes 73 words
-:XB0?*:mtion::f("mation", A_ThisHotkey, A_EndChar) ; Fixes 119 words
-:XB0?*:mucuous::f("mucous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:muder::f("murder", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:mulatat::f("mulat", A_ThisHotkey, A_EndChar) ; Fixes 110 words
-:XB0?*:munber::f("number", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:munites::f("munities", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:muscel::f("muscle", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:muscial::f("musical", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:mutiliat::f("mutilat", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:naisance::f("naissance", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:naton::f("nation", A_ThisHotkey, A_EndChar) ; Fixes 451 words but misspells Akhenaton (Early ruler of Egypt who regected old gods and replaced with sun worship, died 1358 BC).
-:XB0?*:naturely::f("naturally", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:naturual::f("natural", A_ThisHotkey, A_EndChar) ; Fixes 54 words
-:XB0?*:nclr::f("ncr", A_ThisHotkey, A_EndChar) ; Fixes 193 words
-:XB0?*:ndunt::f("ndant", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:necass::f("necess", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:neccesar::f("necessar", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:neccessar::f("necessar", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:necesar::f("necessar", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:necesser::f("necessar", A_ThisHotkey, A_EndChar) ; Fixes 9 words 
-:XB0?*:nefica::f("neficia", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:negociat::f("negotiat", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:negota::f("negotia", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:neice::f("niece", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:neigbor::f("neighbor", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:neigbour::f("neighbor", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:neize::f("nize", A_ThisHotkey, A_EndChar) ; Fixes 475 words
-:XB0?*:neolitic::f("neolithic", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:nerial::f("neral", A_ThisHotkey, A_EndChar) ; Fixes 103 words
-:XB0?*:neribl::f("nerabl", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:nessasar::f("necessar", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:nessec::f("necess", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:nght::f("ngth", A_ThisHotkey, A_EndChar) ; Jack's fixes 33 words
-:XB0?*:ngiht::f("night", A_ThisHotkey, A_EndChar) ; Fixes 103 words
-:XB0?*:ngng::f("nging", A_ThisHotkey, A_EndChar) ; Fixes 126 words
-:XB0?*:nht::f("nth", A_ThisHotkey, A_EndChar) ; Jack's fixes 769 words
-:XB0?*:niant::f("nant", A_ThisHotkey, A_EndChar) ; Fixes 147 words
-:XB0?*:niare::f("naire", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:nickle::f("nickel", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:nifiga::f("nifica", A_ThisHotkey, A_EndChar) ; Fixes 55 words
-:XB0?*:nihgt::f("night", A_ThisHotkey, A_EndChar) ; Fixes 103 words
-:XB0?*:nilog::f("nolog", A_ThisHotkey, A_EndChar) ; Fixes 223 words
-:XB0?*:nisator::f("niser", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:nisb::f("nsib", A_ThisHotkey, A_EndChar) ; Fixes 88 words
-:XB0?*:nistion::f("nisation", A_ThisHotkey, A_EndChar) ; Fixes 140 words
-:XB0?*:nitian::f("nician", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:niton::f("nition", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:nizator::f("nizer", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:niztion::f("nization", A_ThisHotkey, A_EndChar) ; Fixes 154 words
-:XB0?*:nkow::f("know", A_ThisHotkey, A_EndChar) ; Fixes 66 words, but misspells Minkowski (German mathematician)
-:XB0?*:nlcu::f("nclu", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:nlees::f("nless", A_ThisHotkey, A_EndChar) ; Fixes 89 words
-:XB0?*:nmae::f("name", A_ThisHotkey, A_EndChar) ; Fixes 100 words
-:XB0?*:nnst::f("nst", A_ThisHotkey, A_EndChar) ; Fixes 729 words, misspells Dennstaedtia (fern), Hoffmannsthal, (poet)
-:XB0?*:nnung::f("nning", A_ThisHotkey, A_EndChar) ; Fixes 107 words
-:XB0?*:nonom::f("nonym", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:nouce::f("nounce", A_ThisHotkey, A_EndChar) ; Fixes 47 words
-:XB0?*:nounch::f("nounc", A_ThisHotkey, A_EndChar) ; Fixes 54 words
-:XB0?*:nouncia::f("nuncia", A_ThisHotkey, A_EndChar) ; Fixes 47 words
-:XB0?*:nsistan::f("nsisten", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:nsitu::f("nstitu", A_ThisHotkey, A_EndChar) ; Fixes 87 words
-:XB0?*:nstade::f("nstead", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:nstatan::f("nstan", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:nsted::f("nstead", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:nstiv::f("nsitiv", A_ThisHotkey, A_EndChar) ; Fixes 62 words
-:XB0?*:ntaines::f("ntains", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:ntamp::f("ntemp", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:ntfic::f("ntific", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:ntifc::f("ntific", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:ntrui::f("nturi", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:nucular::f("nuclear", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:nuculear::f("nuclear", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:nuei::f("nui", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:nuptual::f("nuptial", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:nvien::f("nven", A_ThisHotkey, A_EndChar) ; Fixes 101 words
-:XB0?*:obedian::f("obedien", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:obelm::f("oblem", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:occassi::f("occasi", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:occasti::f("occasi", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:occour::f("occur", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:occuran::f("occurren", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:occurran::f("occurren", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:ocup::f("occup", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:ocurran::f("occurren", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:odouriferous::f("odoriferous", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:odourous::f("odorous", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:oducab::f("oducib", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:oeny::f("oney", A_ThisHotkey, A_EndChar) ; Fixes 83 words
-:XB0?*:oeopl::f("eopl", A_ThisHotkey, A_EndChar) ; Fixes 53 words
-:XB0?*:oeprat::f("operat", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0?*:offereing::f("offering", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:offesi::f("ofessi", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:offical::f("official", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:offred::f("offered", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:ogeous::f("ogous", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:ogess::f("ogress", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:ohter::f("other", A_ThisHotkey, A_EndChar) ; Fixes 229 words
-:XB0?*:ointiment::f("ointment", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:olece::f("olesce", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:olgist::f("ologist", A_ThisHotkey, A_EndChar) ; Fixes 445 words
-:XB0?*:olision::f("olition", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:ollum::f("olum", A_ThisHotkey, A_EndChar) ; Fixes 69 words
-:XB0?*:olpe::f("ople", A_ThisHotkey, A_EndChar) ; Fixes 62 words
-:XB0?*:olther::f("other", A_ThisHotkey, A_EndChar) ; Fixes 229 words
-:XB0?*:omenom::f("omenon", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:ommision::f("omission", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:ommm::f("omm", A_ThisHotkey, A_EndChar) ; Fixes 606 words
-:XB0?*:omnio::f("omino", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:omptabl::f("ompatibl", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:omre::f("more", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:omse::f("onse", A_ThisHotkey, A_EndChar) ; Fixes 159 words
-:XB0?*:ongraph::f("onograph", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:onnal::f("onal", A_ThisHotkey, A_EndChar) ; Fixes 1038 words
-:XB0?*:onnsibilt::f("onsibilit", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:ononent::f("onent", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:ononym::f("onym", A_ThisHotkey, A_EndChar) ; Fixes 137 words
-:XB0?*:onsenc::f("onsens", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:onsern::f("concern", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:ontruc::f("onstruc", A_ThisHotkey, A_EndChar) ; Fixes 63 words
-:XB0?*:ontstr::f("onstr", A_ThisHotkey, A_EndChar) ; Fixes 165 words
-:XB0?*:onyic::f("onic", A_ThisHotkey, A_EndChar) ; Fixes 353 words
-:XB0?*:onymn::f("onym", A_ThisHotkey, A_EndChar) ; Fixes 137 words
-:XB0?*:oook::f("ook", A_ThisHotkey, A_EndChar) ; Fixes 427 words
-:XB0?*:oparate::f("operate", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:oportun::f("opportun", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:opperat::f("operat", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0?*:oppertun::f("opportun", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:oppini::f("opini", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:opprotun::f("opportun", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:opth::f("ophth", A_ThisHotkey, A_EndChar) ; Fixes 47 words
-:XB0?*:ordianti::f("ordinati", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:orginis::f("organiz", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:orginiz::f("organiz", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:orht::f("orth", A_ThisHotkey, A_EndChar) ; Fixes 275 words
-:XB0?*:oridal::f("ordial", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:oridina::f("ordina", A_ThisHotkey, A_EndChar) ; Fixes 63 words
-:XB0?*:origion::f("origin", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:orign::f("origin", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:ormenc::f("ormanc", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:osible::f("osable", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:oteab::f("otab", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:otehr::f("other", A_ThisHotkey, A_EndChar) ; Fixes 229 words
-:XB0?*:ouevre::f("oeuvre", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:ouhg::f("ough", A_ThisHotkey, A_EndChar) ; Fixes 230 words
-:XB0?*:oulb::f("oubl", A_ThisHotkey, A_EndChar) ; Fixes 63 words
-:XB0?*:ountian::f("ountain", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:ourious::f("orious", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:owinf::f("owing", A_ThisHotkey, A_EndChar) ; Fixes 133 words
-:XB0?*:owrk::f("work", A_ThisHotkey, A_EndChar) ; Fixes 338 words
-:XB0?*:oxident::f("oxidant", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:oxigen::f("oxygen", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:paiti::f("pati", A_ThisHotkey, A_EndChar) ; Fixes 157 words
-:XB0?*:palce::f("place", A_ThisHotkey, A_EndChar) ; Fixes 94 words
-:XB0?*:paliament::f("parliament", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:papaer::f("paper", A_ThisHotkey, A_EndChar) ; Fixes 69 words
-:XB0?*:paralel::f("parallel", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:parellel::f("parallel", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:parision::f("parison", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:parisit::f("parasit", A_ThisHotkey, A_EndChar) ; Fixes 57 words
-:XB0?*:paritucla::f("particula", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:parliment::f("parliament", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:parment::f("partment", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:parralel::f("parallel", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:parrall::f("parall", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:parren::f("paren", A_ThisHotkey, A_EndChar) ; Fixes 65 words
-:XB0?*:pased::f("passed", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:patab::f("patib", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:pattent::f("patent", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:pbli::f("publi", A_ThisHotkey, A_EndChar) ; Fixes 67 words
-:XB0?*:pbuli::f("publi", A_ThisHotkey, A_EndChar) ; Fixes 67 words
-:XB0?*:pcial::f("pical", A_ThisHotkey, A_EndChar) ; Fixes 102 words
-:XB0?*:pcitur::f("pictur", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:peall::f("peal", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:peapl::f("peopl", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:pefor::f("perfor", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:peice::f("piece", A_ThisHotkey, A_EndChar) ; Fixes 60 words
-:XB0?*:peiti::f("petiti", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:pendece::f("pendence", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:pendendet::f("pendent", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:penerat::f("penetrat", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:penisula::f("peninsula", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:penninsula::f("peninsula", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:pennisula::f("peninsula", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:pensanti::f("pensati", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:pensinula::f("peninsula", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:penten::f("pentan", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:pention::f("pension", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:peopel::f("people", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:percepted::f("perceived", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:perfom::f("perform", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:performes::f("performs", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:permenan::f("permanen", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:perminen::f("permanen", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:permissab::f("permissib", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:peronal::f("personal", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:perosn::f("person", A_ThisHotkey, A_EndChar) ; Fixes 130 words
-:XB0?*:persistan::f("persisten", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:persud::f("persuad", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:pertrat::f("petrat", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:pertuba::f("perturba", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:peteti::f("petiti", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:petion::f("petition", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:petive::f("petitive", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:phenomenonal::f("phenomenal", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:phenomon::f("phenomen", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:phenonmen::f("phenomen", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:philisoph::f("philosoph", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:phillipi::f("Philippi", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:phillo::f("philo", A_ThisHotkey, A_EndChar) ; Fixes 61 words
-:XB0?*:philosph::f("philosoph", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:phoricial::f("phorical", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:phyllis::f("philis", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:phylosoph::f("philosoph", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:piant::f("pient", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:piblish::f("publish", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:pinon::f("pion", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:piten::f("peten", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:plament::f("plement", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:plausab::f("plausib", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:pld::f("ple", A_ThisHotkey, A_EndChar) ; Fixes 843 words
-:XB0?*:pleasent::f("pleasant", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:plesan::f("pleasan", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:pletetion::f("pletion", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:pmant::f("pment", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:poenis::f("penis", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:poepl::f("peopl", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:poleg::f("polog", A_ThisHotkey, A_EndChar) ; Fixes 59 words
-:XB0?*:polina::f("pollina", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:politican::f("politician", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:polti::f("politi", A_ThisHotkey, A_EndChar) ; Fixes 61 words
-:XB0?*:polut::f("pollut", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:pomd::f("pond", A_ThisHotkey, A_EndChar) ; Fixes 109 words
-:XB0?*:ponan::f("ponen", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:ponsab::f("ponsib", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:poportion::f("proportion", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:popoul::f("popul", A_ThisHotkey, A_EndChar) ; Fixes 71 words
-:XB0?*:porblem::f("problem", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:portad::f("ported", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:porv::f("prov", A_ThisHotkey, A_EndChar) ; Fixes 213 words
-:XB0?*:posat::f("posit", A_ThisHotkey, A_EndChar) ; Fixes 215 words
-:XB0?*:posess::f("possess", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:posion::f("poison", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:possab::f("possib", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:postion::f("position", A_ThisHotkey, A_EndChar) ; Fixes 103 words
-:XB0?*:postit::f("posit", A_ThisHotkey, A_EndChar) ; Fixes 215 words
-:XB0?*:postiv::f("positiv", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:potunit::f("portunit", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:poulat::f("populat", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:poverful::f("powerful", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:poweful::f("powerful", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:ppment::f("pment", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:pposs::f("ppos", A_ThisHotkey, A_EndChar) ; Fixes 90 words
-:XB0?*:ppub::f("pub", A_ThisHotkey, A_EndChar) ; Fixes 96 words
-:XB0?*:practial::f("practical", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:prait::f("priat", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:pratic::f("practic", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:precendent::f("precedent", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:precic::f("precis", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:precid::f("preced", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:prega::f("pregna", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:pregne::f("pregna", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:preiod::f("period", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:prelifer::f("prolifer", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:prepair::f("prepare", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:prerio::f("perio", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:presan::f("presen", A_ThisHotkey, A_EndChar) ; Fixes 90 words
-:XB0?*:presp::f("persp", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:pretect::f("protect", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:pricip::f("princip", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:priestood::f("priesthood", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:prisonn::f("prison", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:privale::f("privile", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:privele::f("privile", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:privelig::f("privileg", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:privelle::f("privile", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:privilag::f("privileg", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:priviledg::f("privileg", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:privledg::f("privileg", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:probabli::f("probabili", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:probal::f("probabl", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:procce::f("proce", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?*:proclame::f("proclaime", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:proffession::f("profession", A_ThisHotkey, A_EndChar) ; Fixes 33 words
-:XB0?*:progrom::f("program", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:prohabit::f("prohibit", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:prominan::f("prominen", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:prominate::f("prominent", A_ThisHotkey, A_EndChar) ; Fixes 4 words::prominately::prominently
-:XB0?*:proov::f("prov", A_ThisHotkey, A_EndChar) ; Fixes 213 words
-:XB0?*:propiat::f("priat", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:propiet::f("propriet", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:propmt::f("prompt", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:propotion::f("proportion", A_ThisHotkey, A_EndChar) ; Fixes 25 words::propotions::proportions
-:XB0?*:propper::f("proper", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:propro::f("pro", A_ThisHotkey, A_EndChar) ; Fixes 2311 words
-:XB0?*:prorp::f("propr", A_ThisHotkey, A_EndChar) ; Fixes 68 words
-:XB0?*:protie::f("protei", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:protray::f("portray", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:prounc::f("pronounc", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:provd::f("provid", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:provicial::f("provincial", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:provinicial::f("provincial", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:provison::f("provision", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:proxia::f("proxima", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:psect::f("spect", A_ThisHotkey, A_EndChar) ; Fixes 177 words
-:XB0?*:psoiti::f("positi", A_ThisHotkey, A_EndChar) ; Fixes 155 words
-:XB0?*:psuedo::f("pseudo", A_ThisHotkey, A_EndChar) ; Fixes 70 words
-:XB0?*:psyco::f("psycho", A_ThisHotkey, A_EndChar) ; Fixes 161 words
-:XB0?*:psyh::f("psych", A_ThisHotkey, A_EndChar) ; Fixes 192 words, but misspells gypsyhood.
-:XB0?*:ptenc::f("ptanc", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:ptete::f("pete", A_ThisHotkey, A_EndChar) ; Fixes 61 words
-:XB0?*:ptition::f("petition", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:ptogress::f("progress", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:ptoin::f("ption", A_ThisHotkey, A_EndChar) ; Fixes 183 words
-:XB0?*:pturd::f("ptured", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:pubish::f("publish", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:publian::f("publican", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:publise::f("publishe", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:publush::f("publish", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:pulare::f("pular", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:puler::f("pular", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:pulishe::f("publishe", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:puplish::f("publish", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:pursuad::f("persuad", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:purtun::f("portun", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:pususad::f("persuad", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:putar::f("puter", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:putib::f("putab", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:pwoer::f("power", A_ThisHotkey, A_EndChar) ; Fixes 67 words
-:XB0?*:pysch::f("psych", A_ThisHotkey, A_EndChar) ; Fixes 192 words
-:XB0?*:qtuie::f("quite", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:quesece::f("quence", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:quesion::f("question", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:questiom::f("question", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:queston::f("question", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:quetion::f("question", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:quirment::f("quirement", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:qush::f("quish", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:quti::f("quit", A_ThisHotkey, A_EndChar) ; Fixes 86 words
-:XB0?*:rabinn::f("rabbin", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:radiactiv::f("radioactiv", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:raell::f("reall", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:rafic::f("rific", A_ThisHotkey, A_EndChar) ; Fixes 85 words
-:XB0?*:ranie::f("rannie", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:ratly::f("rately", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:raverci::f("roversi", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:rcaft::f("rcraft", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:reaccurr::f("recurr", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:reaci::f("reachi", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:rebll::f("rebell", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:recide::f("reside", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:recqu::f("requ", A_ThisHotkey, A_EndChar) ; Fixes 96 words
-:XB0?*:recration::f("recreation", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:recrod::f("record", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:recter::f("rector", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:recuring::f("recurring", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:reedem::f("redeem", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:reenfo::f("reinfo", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:referal::f("referral", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:reffer::f("refer", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0?*:refrer::f("refer", A_ThisHotkey, A_EndChar) ; Fixes 58 words
-:XB0?*:reigin::f("reign", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:reing::f("ring", A_ThisHotkey, A_EndChar) ; Fixes 1481 words
-:XB0?*:reiv::f("riev", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:relese::f("release", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:releven::f("relevan", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:renial::f("rennial", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:renno::f("reno", A_ThisHotkey, A_EndChar) ; Fixes 85 words
-:XB0?*:rentee::f("rantee", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:rentor::f("renter", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:reomm::f("recomm", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:repatiti::f("repetiti", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:repb::f("repub", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:repentent::f("repentant", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:repetant::f("repentant", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:repetent::f("repentant", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:replacab::f("replaceab", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:reposd::f("respond", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:resense::f("resence", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:residental::f("residential", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:resistab::f("resistib", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:resiv::f("ressiv", A_ThisHotkey, A_EndChar) ; Fixes 80 words
-:XB0?*:responc::f("respons", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:respondan::f("responden", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:restict::f("restrict", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:revelan::f("relevan", A_ThisHotkey, A_EndChar) ; Fixes 12 words 
-:XB0?*:reversab::f("reversib", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:rhitm::f("rithm", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:rhythem::f("rhythm", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:rhytm::f("rhythm", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:ributred::f("ributed", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:ridgid::f("rigid", A_ThisHotkey, A_EndChar) ; Fixes 25 words 
-:XB0?*:rieciat::f("reciat", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:rifing::f("rifying", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:rigeur::f("rigor", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:rigourous::f("rigorous", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:rilia::f("rillia", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:rimetal::f("rimental", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:rininging::f("ringing", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:riodal::f("roidal", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:ritent::f("rient", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0?*:ritm::f("rithm", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:rixon::f("rison", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:rmaly::f("rmally", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:rmaton::f("rmation", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?*:rnign::f("rning", A_ThisHotkey, A_EndChar) ; Fixes 77 words
-:XB0?*:rocord::f("record", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:ropiat::f("ropriat", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:rowm::f("rown", A_ThisHotkey, A_EndChar) ; Fixes 85 words
-:XB0?*:roximite::f("roximate", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:rraige::f("rriage", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:rshan::f("rtion", A_ThisHotkey, A_EndChar) ; Fixes 84 words, but misspells darshan (Hinduism)
-:XB0?*:rshon::f("rtion", A_ThisHotkey, A_EndChar) ; Fixes 84 words
-:XB0?*:rshun::f("rtion", A_ThisHotkey, A_EndChar) ; Fixes 84 words
-:XB0?*:rtaure::f("rature", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:rtnat::f("rtant", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:ruming::f("rumming", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:ruptab::f("ruptib", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:rwit::f("writ", A_ThisHotkey, A_EndChar) ; Fixes 88 words
-:XB0?*:ryed::f("ried", A_ThisHotkey, A_EndChar) ; Fixes 98 words
-:XB0?*:rythim::f("rhythm", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:rythym::f("rhythm", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:saccari::f("sacchari", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:safte::f("safet", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:saidit::f("said it", A_ThisHotkey, A_EndChar) ; Fixes 0 words
-:XB0?*:saidthat::f("said that", A_ThisHotkey, A_EndChar) ; Fixes 0 words
-:XB0?*:sampel::f("sample", A_ThisHotkey, A_EndChar) ; Fixes 20 words 
-:XB0?*:santion::f("sanction", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:sassan::f("sassin", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:satelite::f("satellite", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:satric::f("satiric", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:sattelite::f("satellite", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:saveing::f("saving", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:scaleable::f("scalable", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:scedul::f("schedul", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:schedual::f("schedule", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:scholarstic::f("scholastic", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:scince::f("science", A_ThisHotkey, A_EndChar) ; Fixes 25 words, but misspells Scincella (A reptile genus of Scincidae)
-:XB0?*:scipt::f("script", A_ThisHotkey, A_EndChar) ; Fixes 113 words
-:XB0?*:scripton::f("scription", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:sctruct::f("struct", A_ThisHotkey, A_EndChar) ; Fixes 171 words
-:XB0?*:sdide::f("side", A_ThisHotkey, A_EndChar) ; Fixes 317 words
-:XB0?*:sdier::f("sider", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0?*:seach::f("search", A_ThisHotkey, A_EndChar) ; Fixes 25 words, but misspells Taoiseach (The prime minister of the Irish Republic)
-:XB0?*:secretery::f("secretary", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:sedere::f("sidere", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:seeked::f("sought", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:segement::f("segment", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:seige::f("siege", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:seing::f("seeing", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:senqu::f("sequ", A_ThisHotkey, A_EndChar) ; Fixes 91 words
-:XB0?*:sensativ::f("sensitiv", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:sensur::f("censur", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:sentive::f("sentative", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:seper::f("separ", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:sepulchure::f("sepulcher", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:sepulcre::f("sepulcher", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:sequentually::f("sequently", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:serach::f("search", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:sercu::f("circu", A_ThisHotkey, A_EndChar) ; Fixes 168 words
-:XB0?*:sesi::f("sessi", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?*:sevic::f("servic", A_ThisHotkey, A_EndChar) ; Fixes 25 words, but misspells seviche (South American dish of raw fish)
-:XB0?*:sgin::f("sign", A_ThisHotkey, A_EndChar) ; Fixes 243 words.
-:XB0?*:shaddow::f("shadow", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:shco::f("scho", A_ThisHotkey, A_EndChar) ; Fixes 117 words
-:XB0?*:sheild::f("shield", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:siad::f("said", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:sibile::f("sible", A_ThisHotkey, A_EndChar) ; Fixes 137 words
-:XB0?*:siblit::f("sibilit", A_ThisHotkey, A_EndChar) ; Fixes 110 words
-:XB0?*:sicion::f("cision", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:sicne::f("since", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:sidenta::f("sidentia", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:signifa::f("significa", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:significe::f("significa", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:signit::f("signat", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:simala::f("simila", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:similia::f("simila", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:simmi::f("simi", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0?*:simpt::f("sympt", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:sincerley::f("sincerely", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:sincerly::f("sincerely", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:sinse::f("since", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:sistend::f("sistent", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:sistion::f("sition", A_ThisHotkey, A_EndChar) ; Fixes 135 words
-:XB0?*:sitll::f("still", A_ThisHotkey, A_EndChar) ; Fixes 62 words
-:XB0?*:siton::f("sition", A_ThisHotkey, A_EndChar) ; Fixes 135 words
-:XB0?*:skelaton::f("skeleton", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:slowy::f("slowly", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:smae::f("same", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:smealt::f("smelt", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:smoe::f("some", A_ThisHotkey, A_EndChar) ; Fixes 260 words
-:XB0?*:snese::f("sense", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:socal::f("social", A_ThisHotkey, A_EndChar) ; Fixes 47 words
-:XB0?*:socre::f("score", A_ThisHotkey, A_EndChar) ; Fixes 34 words 
-:XB0?*:soem::f("some", A_ThisHotkey, A_EndChar) ; Fixes 260 words
-:XB0?*:sohw::f("show", A_ThisHotkey, A_EndChar) ; Fixes 79 words
-:XB0?*:soica::f("socia", A_ThisHotkey, A_EndChar) ; Fixes 115 words
-:XB0?*:sollut::f("solut", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:soluab::f("solub", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:sonent::f("sonant", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:sophicat::f("sophisticat", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:sorbsi::f("sorpti", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:sorbti::f("sorpti", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:sosica::f("socia", A_ThisHotkey, A_EndChar) ; Fixes 115 words
-:XB0?*:sotry::f("story", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:soudn::f("sound", A_ThisHotkey, A_EndChar) ; Fixes 51 words
-:XB0?*:soverign::f("sovereign", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:specal::f("special", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:specfic::f("specific", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:specialliz::f("specializ", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:specifiy::f("specify", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:spectaular::f("spectacular", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:spectum::f("spectrum", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:speices::f("species", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:speling::f("spelling", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:spesial::f("special", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:spiria::f("spira", A_ThisHotkey, A_EndChar) ; Fixes 70 words
-:XB0?*:spoac::f("spac", A_ThisHotkey, A_EndChar) ; Fixes 83 words
-:XB0?*:sponib::f("sponsib", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:sponser::f("sponsor", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:spred::f("spread", A_ThisHotkey, A_EndChar) ; Fixes 37 words
-:XB0?*:spririt::f("spirit", A_ThisHotkey, A_EndChar) ; Fixes 70 words
-:XB0?*:spritual::f("spiritual", A_ThisHotkey, A_EndChar) ; Fixes 31 words, but misspells spritual (A light spar that crosses a fore-and-aft sail diagonally) 
-:XB0?*:spyc::f("psyc", A_ThisHotkey, A_EndChar) ; Fixes 192 words, but misspells spycatcher (secret spy stuff) 
-:XB0?*:sqaur::f("squar", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:ssanger::f("ssenger", A_ThisHotkey, A_EndChar)  ; Fixes 6 words
-:XB0?*:ssese::f("ssesse", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:ssition::f("sition", A_ThisHotkey, A_EndChar) ; Fixes 135 words
-:XB0?*:sssurect::f("surrect", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:ssurect::f("surrect", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:stablise::f("stabilise", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:staleld::f("stalled", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:stancial::f("stantial", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:stange::f("strange", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:starna::f("sterna", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:starteg::f("strateg", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:stateman::f("statesman", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:statment::f("statement", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:steriod::f("steroid", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:sterotype::f("stereotype", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:stingent::f("stringent", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:stiring::f("stirring", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:stirrs::f("stirs", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?*:stituan::f("stituen", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:stnad::f("stand", A_ThisHotkey, A_EndChar) ; Fixes 119 words
-:XB0?*:stoin::f("stion", A_ThisHotkey, A_EndChar) ; Fixes 53 words, but misspells histoincompatibility.
-:XB0?*:stong::f("strong", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:stradeg::f("strateg", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:stratagic::f("strategic", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:streem::f("stream", A_ThisHotkey, A_EndChar) ; Fixes 45 words
-:XB0?*:strengh::f("strength", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:structual::f("structural", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:sttr::f("str", A_ThisHotkey, A_EndChar) ; Fixes 2295 words
-:XB0?*:stuct::f("struct", A_ThisHotkey, A_EndChar) ; Fixes 171 words
-:XB0?*:studdy::f("study", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:studing::f("studying", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:sturctur::f("structur", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:stutionaliz::f("stitutionaliz", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:substancia::f("substantia", A_ThisHotkey, A_EndChar) ; Fixes 55 words
-:XB0?*:succesful::f("successful", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:succsess::f("success", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:sueing::f("suing", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:suffc::f("suffic", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:sufferr::f("suffer", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:suffician::f("sufficien", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:superintendan::f("superintenden", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:suph::f("soph", A_ThisHotkey, A_EndChar) ; Fixes 153 words
-:XB0?*:supos::f("suppos", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:suppoed::f("supposed", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:supposs::f("suppos", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?*:suppy::f("supply", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:suprass::f("surpass", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:supress::f("suppress", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:supris::f("surpris", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:supriz::f("surpris", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:surect::f("surrect", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:surence::f("surance", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:surfce::f("surface", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:surle::f("surel", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:suro::f("surro", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:surpress::f("suppress", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:surpriz::f("surpris", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:susept::f("suscept", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:svae::f("save", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:swepth::f("swept", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:symetr::f("symmetr", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:symettr::f("symmetr", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:symmetral::f("symmetric", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:syncro::f("synchro", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:sypmtom::f("symptom", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:sysmatic::f("systematic", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:sytem::f("system", A_ThisHotkey, A_EndChar) ; Fixes 62 words
-:XB0?*:sytl::f("styl", A_ThisHotkey, A_EndChar) ; Fixes 100 words
-:XB0?*:tagan::f("tagon", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?*:tahn::f("than", A_ThisHotkey, A_EndChar) ; Fixes 135 words
-:XB0?*:taht::f("that", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:tailled::f("tailed", A_ThisHotkey, A_EndChar) ; Fixes 16 words.
-:XB0?*:taimina::f("tamina", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:tainence::f("tenance", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:taion::f("tation", A_ThisHotkey, A_EndChar) ; Fixes 490 words
-:XB0?*:tait::f("trait", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?*:tamt::f("tant", A_ThisHotkey, A_EndChar) ; Fixes 330 words
-:XB0?*:tanous::f("taneous", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?*:taral::f("tural", A_ThisHotkey, A_EndChar) ; Fixes 140 words
-:XB0?*:tarey::f("tary", A_ThisHotkey, A_EndChar) ; Fixes 86 words
-:XB0?*:tatch::f("tach", A_ThisHotkey, A_EndChar) ; Fixes 105 words
-:XB0?*:tatn::f("tant", A_ThisHotkey, A_EndChar) ; Fixes 530 words
-:XB0?*:taxan::f("taxon", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:techic::f("technic", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?*:techini::f("techni", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?*:techt::f("tect", A_ThisHotkey, A_EndChar) ; Fixes 102 words
-:XB0?*:tecn::f("techn", A_ThisHotkey, A_EndChar) ; Fixes 87 words
-:XB0?*:telpho::f("telepho", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:tempalt::f("templat", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:tempara::f("tempera", A_ThisHotkey, A_EndChar) ; Fixes 22 words
-:XB0?*:temperar::f("temporar", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:tempoa::f("tempora", A_ThisHotkey, A_EndChar) ; Fixes 35 words
-:XB0?*:temporaneus::f("temporaneous", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:tendac::f("tendenc", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:tendor::f("tender", A_ThisHotkey, A_EndChar) ; Fixes 54 words
-:XB0?*:tepmor::f("tempor", A_ThisHotkey, A_EndChar) ; Fixes 73 words
-:XB0?*:teriod::f("teroid", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:terranian::f("terranean", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:terrestial::f("terrestrial", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:terrior::f("territor", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:territorist::f("terrorist", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:terroist::f("terrorist", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:tghe::f("the", A_ThisHotkey, A_EndChar) ; Fixes 2176 words
-:XB0?*:tghi::f("thi", A_ThisHotkey, A_EndChar) ; Fixes 827 words
-:XB0?*:thakn::f("thank", A_ThisHotkey, A_EndChar) ; Fixes 19 words 
-:XB0?*:thaph::f("taph", A_ThisHotkey, A_EndChar) ; Fixes 60 words
-:XB0?*:theather::f("theater", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:theese::f("these", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:thgat::f("that", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:thiun::f("thin", A_ThisHotkey, A_EndChar) ; Fixes 212 words
-:XB0?*:thnig::f("thing", A_ThisHotkey, A_EndChar) ; Fixes 103 words
-:XB0?*:threatn::f("threaten", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:thsoe::f("those", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:thyat::f("that", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:tiait::f("tiat", A_ThisHotkey, A_EndChar) ; Fixes 139 words
-:XB0?*:tiblit::f("tibilit", A_ThisHotkey, A_EndChar) ; Fixes 75 words
-:XB0?*:tibut::f("tribut", A_ThisHotkey, A_EndChar) ; Fixes 92 words
-:XB0?*:ticeing::f("ticing", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:ticial::f("tical", A_ThisHotkey, A_EndChar) ; Fixes 863 words
-:XB0?*:ticio::f("titio", A_ThisHotkey, A_EndChar) ; Fixes 68 words
-:XB0?*:ticlular::f("ticular", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?*:tiction::f("tinction", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:tiget::f("tiger", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:tihkn::f("think", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?*:tihs::f("this", A_ThisHotkey, A_EndChar) ; Fixes 57 words
-:XB0?*:tiion::f("tion", A_ThisHotkey, A_EndChar) ; Fixes 7052 words
-:XB0?*:tingish::f("tinguish", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:tioge::f("toge", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0?*:tionnab::f("tionab", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:tionnal::f("tional", A_ThisHotkey, A_EndChar) ; Fixes 713 words
-:XB0?*:tionne::f("tione", A_ThisHotkey, A_EndChar) ; Fixes 108 words
-:XB0?*:tionni::f("tioni", A_ThisHotkey, A_EndChar) ; Fixes 265 words
-:XB0?*:tiosn::f("tion", A_ThisHotkey, A_EndChar) ; Fixes 7055 words
-:XB0?*:tisment::f("tisement", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:titid::f("titud", A_ThisHotkey, A_EndChar) ; Fixes 88 words
-:XB0?*:titity::f("tity", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?*:titui::f("tituti", A_ThisHotkey, A_EndChar) ; Fixes 83 words
-:XB0?*:tiviat::f("tivat", A_ThisHotkey, A_EndChar) ; Fixes 100 words
-:XB0?*:tje::f("the", A_ThisHotkey, A_EndChar) ; Fixes 2176 words, but misspells Ondaatje (Canadian writer (born in Sri Lanka in 1943)) 
-:XB0?*:tjhe::f("the", A_ThisHotkey, A_EndChar) ; Fixes 2176 words
-:XB0?*:tkae::f("take", A_ThisHotkey, A_EndChar) ; Fixes 83 words
-:XB0?*:tkaing::f("taking", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:tlak::f("talk", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0?*:tlied::f("tled", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:tlme::f("tleme", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:tlye::f("tyle", A_ThisHotkey, A_EndChar) ; Fixes 81 words
-:XB0?*:tned::f("nted", A_ThisHotkey, A_EndChar) ; Fixes 288 words
-:XB0?*:tofy::f("tify", A_ThisHotkey, A_EndChar) ; Fixes 73 words
-:XB0?*:togani::f("tagoni", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:toghether::f("together", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:toleren::f("toleran", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?*:tority::f("torily", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:touble::f("trouble", A_ThisHotkey, A_EndChar) ; Fixes 25 words
-:XB0?*:tounge::f("tongue", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:tourch::f("torch", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:toword::f("toward", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:towrad::f("toward", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:tradion::f("tradition", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:tradtion::f("tradition", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:tranf::f("transf", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?*:transmissab::f("transmissib", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:tribusion::f("tribution", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:triger::f("trigger", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?*:tritian::f("trician", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:tritut::f("tribut", A_ThisHotkey, A_EndChar) ; Fixes 92 words
-:XB0?*:troling::f("trolling", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?*:troverci::f("troversi", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:trubution::f("tribution", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:tstion::f("tation", A_ThisHotkey, A_EndChar) ; Fixes 490 words
-:XB0?*:ttele::f("ttle", A_ThisHotkey, A_EndChar) ; Fixes 237 words
-:XB0?*:tuara::f("taura", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:tudonal::f("tudinal", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:tuer::f("teur", A_ThisHotkey, A_EndChar) ; Fixes 53 words
-:XB0?*:twpo::f("two", A_ThisHotkey, A_EndChar) ; Fixes 92 words
-:XB0?*:tyfull::f("tiful", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:tyha::f("tha", A_ThisHotkey, A_EndChar) ; Fixes 512 words
-:XB0?*:udner::f("under", A_ThisHotkey, A_EndChar) ; Fixes 803 words
-:XB0?*:udnet::f("udent", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?*:ugth::f("ught", A_ThisHotkey, A_EndChar) ; Jack's fixes 146 words
-:XB0?*:uitious::f("uitous", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:ulaton::f("ulation", A_ThisHotkey, A_EndChar) ; Fixes 192 words
-:XB0?*:umetal::f("umental", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:understoon::f("understood", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:untion::f("unction", A_ThisHotkey, A_EndChar) ; Fixes 79 words
-:XB0?*:unviers::f("univers", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:uoul::f("oul", A_ThisHotkey, A_EndChar) ; Fixes 207 words
-:XB0?*:uraunt::f("urant", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:uredd::f("ured", A_ThisHotkey, A_EndChar) ; Fixes 196 words
-:XB0?*:urgan::f("urgen", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?*:urveyer::f("urveyor", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?*:useage::f("usage", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:useing::f("using", A_ThisHotkey, A_EndChar) ; Fixes 78 words
-:XB0?*:usuab::f("usab", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:ususal::f("usual", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:utrab::f("urab", A_ThisHotkey, A_EndChar) ; Fixes 138 words
-:XB0?*:vacative::f("vocative", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?*:valant::f("valent", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:valubl::f("valuabl", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:valueabl::f("valuabl", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?*:varation::f("variation", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:varien::f("varian", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?*:varing::f("varying", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:varous::f("various", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:vegat::f("veget", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:vegit::f("veget", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:vegt::f("veget", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:veinen::f("venien", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?*:veiw::f("view", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:velant::f("valent", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:velent::f("valent", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:venem::f("venom", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:vereal::f("veral", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:verison::f("version", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:vertibrat::f("vertebrat", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:vertion::f("version", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:vetat::f("vitat", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:veyr::f("very", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:vigeur::f("vigor", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:vigilen::f("vigilan", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:visiosn::f("vision", A_ThisHotkey, A_EndChar) ; Fixes 51 words
-:XB0?*:vison::f("vision", A_ThisHotkey, A_EndChar) ; Fixes 51 words
-:XB0?*:visting::f("visiting", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?*:vivous::f("vious", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:vlalent::f("valent", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:vment::f("vement", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:voiu::f("viou", A_ThisHotkey, A_EndChar) ; Fixes 45 words 
-:XB0?*:volont::f("volunt", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:volount::f("volunt", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?*:volumn::f("volum", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?*:volvment::f("volvement", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:vrey::f("very", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:vyer::f("very", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:vyre::f("very", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?*:waer::f("wear", A_ThisHotkey, A_EndChar) ; Fixes 99 words
-:XB0?*:waht::f("what", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:warrent::f("warrant", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:wehn::f("when", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?*:weildl::f("wield", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:werre::f("were", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:whant::f("want", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:wherre::f("where", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?*:whta::f("what", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?*:wief::f("wife", A_ThisHotkey, A_EndChar) ; Fixes 28 words
-:XB0?*:wieldl::f("wield", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?*:wierd::f("weird", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?*:wiew::f("view", A_ThisHotkey, A_EndChar) ; Fixes 52 words
-:XB0?*:willk::f("will", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0?*:windoes::f("windows", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?*:wirt::f("writ", A_ThisHotkey, A_EndChar) ; Fixes 88 words
-:XB0?*:witten::f("written", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:wiull::f("will", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0?*:wnat::f("want", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?*:woh::f("who", A_ThisHotkey, A_EndChar) ; Fixes 92 words
-:XB0?*:wokr::f("work", A_ThisHotkey, A_EndChar) ; Fixes 338 words
-:XB0?*:worls::f("world", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:wriet::f("write", A_ThisHotkey, A_EndChar) ; Fixes 48 words
-:XB0?*:wrighter::f("writer", A_ThisHotkey, A_EndChar) ; Fixes 31 words
-:XB0?*:writen::f("written", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?*:writting::f("writing", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?*:wrod::f("word", A_ThisHotkey, A_EndChar) ; Fixes 92 words
-:XB0?*:wrok::f("work", A_ThisHotkey, A_EndChar) ; Fixes 338 words
-:XB0?*:wtih::f("with", A_ThisHotkey, A_EndChar) ; Fixes 56 words
-:XB0?*:wupp::f("supp", A_ThisHotkey, A_EndChar) ; Fixes 168 words
-:XB0?*:yaer::f("year", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:yearm::f("year", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?*:yoiu::f("you", A_ThisHotkey, A_EndChar) ; Fixes 51 words
-:XB0?*:ythim::f("ythm", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?*:ytou::f("you", A_ThisHotkey, A_EndChar) ; Fixes 51 words
-:XB0?*:yuo::f("you", A_ThisHotkey, A_EndChar) ; Fixes 51 words
-:XB0?*:zyne::f("zine", A_ThisHotkey, A_EndChar) ; Fixes 89 words
-:XB0?*C:Amercia::f("America", A_ThisHotkey, A_EndChar) ; Fixes 28 words, Case sensitive to not misspell amerciable (Of a crime or misdemeanor) 
-:XB0?*C:bouy::f("buoy", A_ThisHotkey, A_EndChar) ; Fixes 13 words.  Case-sensitive to not misspell Bouyie (a branch of Tai language).
-:XB0?*C:comt::f("cont", A_ThisHotkey, A_EndChar) ; Fixes 587 words.  Misspells vicomte (French nobleman), Case sensitive so not misspell Comte (founder of Positivism and type of cheese)
-:XB0?*C:doimg::f("doing", A_ThisHotkey, A_EndChar) ; Fixes 21 words but might be a variable name(??)
-:XB0?*C:elicid::f("elicit", A_ThisHotkey, A_EndChar) ; Fixes 26 words, :C: so not to misspell Lelicidae (snail).
-:XB0?*C:elpa::f("epla", A_ThisHotkey, A_EndChar) ; Fixes 92 words.  Case sensitive to not misspell CELPA.
-:XB0?*C:manan::f("manen", A_ThisHotkey, A_EndChar) ; Fixes 27 words.  Case sensitive, so not to misspell Manannan (Celtic god of the sea; son of Ler)
-:XB0?*C:mnt::f("ment", A_ThisHotkey, A_EndChar) ; Fixes 1763 words.  Case-sensitive, to not misspell TMNT (Teenage Mutant Ninja Turtles)
-:XB0?*C:moust::f("mous", A_ThisHotkey, A_EndChar) ; Fixes 445 words, Case-sensitive to not Mousterian (archaeological culture, Neanderthal, before 70,000â€“32,000 BC)
-:XB0?*C:oppen::f("open", A_ThisHotkey, A_EndChar) ; Fixes 91 words.  Case-sensitive so not to misspell "Oppenheimer."
-:XB0?*C:origen::f("origin", A_ThisHotkey, A_EndChar) ; Fixes 37 words, Case sensitive to not misspell Origen (Greek philosopher and theologian).
-:XB0?*C:pulic::f("public", A_ThisHotkey, A_EndChar) ; Fixes 50 words, Case-sensitive to not misspell Pulicaria (Genus of temperate Old World herbs: fleabane)
-:XB0?*C:sigin::f("sign", A_ThisHotkey, A_EndChar) ; Fixes 243 words. Case-sensitive to not misspell SIGINT "Info from electronics telemetry intel."
-:XB0?*C:tehr::f("ther", A_ThisHotkey, A_EndChar) ; Fixes 921 words. Case sesnsitive to not misspell Tehran (capital and largest city of Iran).
-:XB0?*C:tempra::f("tempora", A_ThisHotkey, A_EndChar) ; Fixes 35 words. Case sensitive to not misspell Tempra (type of medicine).
-:XB0?:'nt::f("n't", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?:, btu::f(", but", A_ThisHotkey, A_EndChar) ; Not just replacing "btu", as that is a unit of heat.
-:XB0?:; btu::f("; but", A_ThisHotkey, A_EndChar)
-:XB0?:;ll::f("'ll", A_ThisHotkey, A_EndChar)
-:XB0?:;re::f("'re", A_ThisHotkey, A_EndChar)
-:XB0?:;s::f("'s", A_ThisHotkey, A_EndChar)
-:XB0?:;ve::f("'ve", A_ThisHotkey, A_EndChar)
-:XB0?:Spet::f("Sept", A_ThisHotkey, A_EndChar) ; Fixes 2 words 
-:XB0?:abely::f("ably", A_ThisHotkey, A_EndChar) ; Fixes 568 words
-:XB0?:abley::f("ably", A_ThisHotkey, A_EndChar) ; Fixes 568 words
-:XB0?:acn::f("can", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0?:addres::f("address", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:adresing::f("addressing", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:aelly::f("eally", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?:aindre::f("ained", A_ThisHotkey, A_EndChar) ; Fixes 81 words
-:XB0?:ainity::f("ainty", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:alekd::f("alked", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?:alowing::f("allowing", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:alyl::f("ally", A_ThisHotkey, A_EndChar) ; Fixes 2436 words
-:XB0?:amde::f("made", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:ancestory::f("ancestry", A_ThisHotkey, A_EndChar)
-:XB0?:ancles::f("acles", A_ThisHotkey, A_EndChar) ; Fixes 21 words
-:XB0?:andd::f("and", A_ThisHotkey, A_EndChar) ; Fixes 251 words
-:XB0?:anim::f("anism", A_ThisHotkey, A_EndChar) ; Fixes 123 words, but misspells minyanim (The quorum required by Jewish law to be present for public worship)
-:XB0?:aotrs::f("ators", A_ThisHotkey, A_EndChar) ; Fixes 414 words
-:XB0?:appearred::f("appeared", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:artice::f("article", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:aticly::f("atically", A_ThisHotkey, A_EndChar) ; Fixes 113 words
-:XB0?:ativs::f("atives", A_ThisHotkey, A_EndChar) ; Fixes 63 words
-:XB0?:atley::f("ately", A_ThisHotkey, A_EndChar) ; Fixes 162 words, but misspells Wheatley (a fictional artificial intelligence from the Portal franchise)
-:XB0?:atn::f("ant", A_ThisHotkey, A_EndChar) ; Fixes 506 words
-:XB0?:atnt::f("ant", A_ThisHotkey, A_EndChar) ; Fixes 506 words
-:XB0?:attemp::f("attempt", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:aunchs::f("aunches", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?:autor::f("author", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:ayd::f("ady", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?:aywa::f("away", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?:bilites::f("bilities", A_ThisHotkey, A_EndChar) ; Fixes 487 words
-:XB0?:bilties::f("bilities", A_ThisHotkey, A_EndChar) ; Fixes 487 words
-:XB0?:bilty::f("bility", A_ThisHotkey, A_EndChar) ; Fixes 915 words
-:XB0?:blility::f("bility", A_ThisHotkey, A_EndChar) ; Fixes 915 words
-:XB0?:blities::f("bilities", A_ThisHotkey, A_EndChar) ; Fixes 487 words
-:XB0?:blity::f("bility", A_ThisHotkey, A_EndChar) ; Fixes 915 words
-:XB0?:blly::f("bly", A_ThisHotkey, A_EndChar) ; Fixes 735 words
-:XB0?:boared::f("board", A_ThisHotkey, A_EndChar)
-:XB0?:borke::f("broke", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:bthe::f("b the", A_ThisHotkey, A_EndChar)
-:XB0?:busines::f("business", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:busineses::f("businesses", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:bve::f("be", A_ThisHotkey, A_EndChar) ; Fixes 127 words
-:XB0?:caht::f("chat", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:certainity::f("certainty", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:certaintly::f("certainly", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:cialy::f("cially", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?:cisly::f("cisely", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:claimes::f("claims", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?:claming::f("claiming", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?:clas::f("class", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:clud::f("clude", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:comit::f("commit", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:comming::f("coming", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?:commiting::f("committing", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:committe::f("committee", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:compability::f("compatibility", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:competely::f("completely", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:controll::f("control", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:controlls::f("controls", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:criticists::f("critics", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:cthe::f("c the", A_ThisHotkey, A_EndChar)
-:XB0?:cticly::f("ctically", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?:ctino::f("ction", A_ThisHotkey, A_EndChar) ; Fixes 226 words
-:XB0?:ctoty::f("ctory", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?:cually::f("cularly", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?:cuarly::f("cularly", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?:cularily::f("cularly", A_ThisHotkey, A_EndChar) ; Fixes 38 words
-:XB0?:culem::f("culum", A_ThisHotkey, A_EndChar) ; Fixes 19 words
-:XB0?:currenly::f("currently", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:decidely::f("decidedly", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:develope::f("develop", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:developes::f("develops", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:dfull::f("dful", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?:difere::f("differe", A_ThisHotkey, A_EndChar) ; Fixes 41 words
-:XB0?:disctinct::f("distinct", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?:dng::f("ding", A_ThisHotkey, A_EndChar) ; Fixes 618 words
-:XB0?:doens::f("does", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?:doese::f("does", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?:dreasm::f("dreams", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:dtae::f("date", A_ThisHotkey, A_EndChar) ; Fixes 59 words
-:XB0?:dthe::f("d the", A_ThisHotkey, A_EndChar)
-:XB0?:eamil::f("email", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:eath::f("each", A_ThisHotkey, A_EndChar) 
-:XB0?:ecclectic::f("eclectic", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:eclisp::f("eclips", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:edely::f("edly", A_ThisHotkey, A_EndChar) ; Fixes 674 words
-:XB0?:efel::f("feel", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:efort::f("effort", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:efull::f("eful", A_ThisHotkey, A_EndChar) ; Fixes 74 words
-:XB0?:efulls::f("efuls", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?:ehre::f("here", A_ThisHotkey, A_EndChar) ; Fixes 49 words
-:XB0?:elyl::f("ely", A_ThisHotkey, A_EndChar) ; Fixes 1076 words
-:XB0?:encs::f("ences", A_ThisHotkey, A_EndChar) ; Fixes 301 words
-:XB0?:equiped::f("equipped", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:eraly::f("erally", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?:essess::f("esses", A_ThisHotkey, A_EndChar) ; Fixes 200 words
-:XB0?:establising::f("establishing", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:examinated::f("examined", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:ferrs::f("fers", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?:ficaly::f("fically", A_ThisHotkey, A_EndChar) ; Fixes 20 words
-:XB0?:fiel::f("file", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?:finit::f("finite", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:finitly::f("finitely", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:forceing::f("forcing", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:frmo::f("from", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:froms::f("forms", A_ThisHotkey, A_EndChar) ; Fixes 29 words
-:XB0?:frp,::f("from", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:fthe::f("f the", A_ThisHotkey, A_EndChar)
-:XB0?:fuly::f("fully", A_ThisHotkey, A_EndChar) ; Fixes 191 words
-:XB0?:gardes::f("gards", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:getted::f("geted", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:gettin::f("getting", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:gfulls::f("gfuls", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:ginaly::f("ginally", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:giory::f("gory", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:glases::f("glasses", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?:gracefull::f("graceful", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:gratefull::f("grateful", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:gred::f("greed", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:gthe::f("g the", A_ThisHotkey, A_EndChar)
-:XB0?:hace::f("hare", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?:herad::f("heard", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:herefor::f("herefore", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:hfull::f("hful", A_ThisHotkey, A_EndChar) ; Fixes 30 words
-:XB0?:hge::f("he", A_ThisHotkey, A_EndChar) ; Fixes 147 words
-:XB0?:higns::f("hings", A_ThisHotkey, A_EndChar) ; Fixes 79 words
-:XB0?:higsn::f("hings", A_ThisHotkey, A_EndChar) ; Fixes 79 words
-:XB0?:hsa::f("has", A_ThisHotkey, A_EndChar) ; Fixes 62 words
-:XB0?:hsi::f("his", A_ThisHotkey, A_EndChar) ; Fixes 59 words
-:XB0?:hte::f("the", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?:hthe::f("h the", A_ThisHotkey, A_EndChar)
-:XB0?:iaing::f("iating", A_ThisHotkey, A_EndChar) ; Fixes 84 words
-:XB0?:ialy::f("ially", A_ThisHotkey, A_EndChar) ; Fixes 244 words, but misspells bialy (Flat crusty-bottomed onion roll) 
-:XB0?:iatly::f("iately", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?:iblilty::f("ibility", A_ThisHotkey, A_EndChar) ; Fixes 168 words
-:XB0?:icaly::f("ically", A_ThisHotkey, A_EndChar) ; Fixes 1432 words
-:XB0?:icm::f("ism", A_ThisHotkey, A_EndChar) ; Fixes 1075 words
-:XB0?:icms::f("isms", A_ThisHotkey, A_EndChar) ; Fixes 717 words
-:XB0?:idty::f("dity", A_ThisHotkey, A_EndChar) ; Fixes 67 words
-:XB0?:ienty::f("iently", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?:ign::f("ing", A_ThisHotkey, A_EndChar) ; Fixes 11384 words, but misspells a bunch (which are nullified above)
-:XB0?:ikn::f("ink", A_ThisHotkey, A_EndChar) ; Fixes 66 words
-:XB0?:ilarily::f("ilarly", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:ilny::f("inly", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?:inm::f("in", A_ThisHotkey, A_EndChar) 
-:XB0?:iosn::f("ions", A_ThisHotkey, A_EndChar) ; Fixes 3055 words
-:XB0?:isio::f("ision", A_ThisHotkey, A_EndChar) ; Fixes 27 words
-:XB0?:itino::f("ition", A_ThisHotkey, A_EndChar) ; Fixes 113 words
-:XB0?:itiy::f("ity", A_ThisHotkey, A_EndChar) ; Fixes 1890 words
-:XB0?:itoy::f("itory", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?:itr::f("it", A_ThisHotkey, A_EndChar) ; Fixes 366 words, but misspells Savitr (Important Hindu god) 
-:XB0?:ityes::f("ities", A_ThisHotkey, A_EndChar) ; Fixes 1347 words
-:XB0?:ivites::f("ivities", A_ThisHotkey, A_EndChar) ; Fixes 73 words
-:XB0?:kc::f("ck", A_ThisHotkey, A_EndChar) ; Fixes 610 words.  Misspells kc (thousand per second).
-:XB0?:kfulls::f("kfuls", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:kn::f("nk", A_ThisHotkey, A_EndChar) ; Fixes 168 words
-:XB0?:kthe::f("k the", A_ThisHotkey, A_EndChar)
-:XB0?:l;y::f("ly", A_ThisHotkey, A_EndChar) ; Fixes 10464 words
-:XB0?:laly::f("ally", A_ThisHotkey, A_EndChar) ; Fixes 2436 words
-:XB0?:letness::f("leteness", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:lfull::f("lful", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?:lieing::f("lying", A_ThisHotkey, A_EndChar) ; Fixes 46 words
-:XB0?:lighly::f("lightly", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:ligy::f("lify", A_ThisHotkey, A_EndChar) ; ixes 15 words
-:XB0?:likey::f("likely", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:lility::f("ility", A_ThisHotkey, A_EndChar) ; Fixes 956 words
-:XB0?:llete::f("lette", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?:lsit::f("list", A_ThisHotkey, A_EndChar) ; Fixes 244 words
-:XB0?:lthe::f("l the", A_ThisHotkey, A_EndChar)
-:XB0?:lwats::f("lways", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:lyu::f("ly", A_ThisHotkey, A_EndChar) ; Fixes 9123 words
-:XB0?:maked::f("marked", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?:maticas::f("matics", A_ThisHotkey, A_EndChar) ; Fixes 26 words
-:XB0?:metn::f("ment", A_ThisHotkey, A_EndChar) ; Fixes 587 words
-:XB0?:metns::f("ments", A_ThisHotkey, A_EndChar) ; Fixes 577 words
-:XB0?:miantly::f("minately", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:mibly::f("mably", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?:miliary::f("military", A_ThisHotkey, A_EndChar) ; Fixes 4 words, but misspells miliary ()
-:XB0?:morphysis::f("morphosis", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:motted::f("moted", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:mpley::f("mply", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?:mpyl::f("mply", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?:mthe::f("m the", A_ThisHotkey, A_EndChar)
-:XB0?:n;t::f("n't", A_ThisHotkey, A_EndChar)
-:XB0?:narys::f("naries", A_ThisHotkey, A_EndChar) ; Fixes 47 words
-:XB0?:natley::f("nately", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?:natly::f("nately", A_ThisHotkey, A_EndChar) ; Fixes 42 words
-:XB0?:ndacies::f("ndances", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:nfull::f("nful", A_ThisHotkey, A_EndChar) ; Fixes 36 words
-:XB0?:nfulls::f("nfuls", A_ThisHotkey, A_EndChar) ; Fixes 17 words
-:XB0?:ngment::f("ngement", A_ThisHotkey, A_EndChar) ; Fixes 18 words
-:XB0?:nicly::f("nically", A_ThisHotkey, A_EndChar) ; Fixes 136 words
-:XB0?:nig::f("ing", A_ThisHotkey, A_EndChar) ; Fixes 11414 words.  Misspells pfennig (100 pfennigs formerly equaled 1 DeutscheÂ Mark in Germany).
-:XB0?:nision::f("nisation", A_ThisHotkey, A_EndChar) ; Fixes 93 words
-:XB0?:nnally::f("nally", A_ThisHotkey, A_EndChar) ; Fixes 249 words
-:XB0?:nnology::f("nology", A_ThisHotkey, A_EndChar) ; Fixes 43 words
-:XB0?:ns't::f("sn't", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:nsly::f("nsely", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:nsof::f("ns of", A_ThisHotkey, A_EndChar)
-:XB0?:nsur::f("nsure", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?:ntay::f("ntary", A_ThisHotkey, A_EndChar) ; Fixes 34 words
-:XB0?:nyed::f("nied", A_ThisHotkey, A_EndChar) ; Fixes 15 words
-:XB0?:oachs::f("oaches", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?:occured::f("occurred", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:occurr::f("occur", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:olgy::f("ology", A_ThisHotkey, A_EndChar) ; Fixes 316 words
-:XB0?:omst::f("most", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?:onaly::f("onally", A_ThisHotkey, A_EndChar) ; Fixes 174 words
-:XB0?:onw::f("one", A_ThisHotkey, A_EndChar) ; Fixes 341 words
-:XB0?:otaly::f("otally", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:otherw::f("others", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?:otino::f("otion", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?:otu::f("out", A_ThisHotkey, A_EndChar) ; Fixes 97 words
-:XB0?:ougly::f("oughly", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:ouldent::f("ouldn't", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:ouldnt::f("ouldn't", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:ourary::f("orary", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:paide::f("paid", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:pich::f("pitch", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:pleatly::f("pletely", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:pletly::f("pletely", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:polical::f("political", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:proces::f("process", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:proprietory::f("proprietary", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:pthe::f("p the", A_ThisHotkey, A_EndChar)
-:XB0?:publis::f("publics", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:puertorrican::f("Puerto Rican", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:quater::f("quarter", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:quaters::f("quarters", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:querd::f("quered", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:raly::f("rally", A_ThisHotkey, A_EndChar) ; Fixes 120 words
-:XB0?:rarry::f("rary", A_ThisHotkey, A_EndChar) ; Fixes 23 words
-:XB0?:realy::f("really", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?:receeded::f("receded", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:reched::f("reached", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?:reciding::f("residing", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:reday::f("ready", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:resed::f("ressed", A_ThisHotkey, A_EndChar) ; Fixes 50 words
-:XB0?:resing::f("ressing", A_ThisHotkey, A_EndChar) ; Fixes 40 words
-:XB0?:returnd::f("returned", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:riey::f("riety", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:rithy::f("rity", A_ThisHotkey, A_EndChar) ; Fixes 120 words
-:XB0?:ritiers::f("rities", A_ThisHotkey, A_EndChar) ; Fixes 105 words
-:XB0?:rthe::f("r the", A_ThisHotkey, A_EndChar)
-:XB0?:ruley::f("ruly", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:ryied::f("ried", A_ThisHotkey, A_EndChar) ; Fixes 70 words
-:XB0?:saccharid::f("saccharide", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:safty::f("safety", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:sasy::f("says", A_ThisHotkey, A_EndChar) ; Fixes 12 words
-:XB0?:saught::f("sought", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:schol::f("school", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:scoll::f("scroll", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:seses::f("sesses", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:sfull::f("sful", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:sfuly::f("sfully", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:sfulyl::f("sfully", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:shiping::f("shipping", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:shorly::f("shortly", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:siary::f("sary", A_ThisHotkey, A_EndChar) ; Fixes 16 words
-:XB0?:sicaly::f("sically", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?:sice::f("sive", A_ThisHotkey, A_EndChar) ; Fixes 166 words, but misspells sice (The number six at dice)
-:XB0?:sicly::f("sically", A_ThisHotkey, A_EndChar) ; Fixes 24 words
-:XB0?:smoothe::f("smooth", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:sorce::f("source", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:specif::f("specify", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:ssfull::f("ssful", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:ssully::f("ssfully", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:stanly::f("stantly", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:sthe::f("s the", A_ThisHotkey, A_EndChar)
-:XB0?:stino::f("stion", A_ThisHotkey, A_EndChar) ; Fixes 14 words
-:XB0?:storicians::f("storians", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:stpo::f("stop", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:strat::f("start", A_ThisHotkey, A_EndChar) ; Fixes 5 words
-:XB0?:struced::f("structed", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?:stuls::f("sults", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:sucesfuly::f("successfully", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:syas::f("says", A_ThisHotkey, A_EndChar) ; Fixes 12 words, but misspells Vaisyas (A member of the mercantile and professional Hindu caste.) 
-:XB0?:t eh::f("the", A_ThisHotkey, A_EndChar) ; Fixes 44 words ; Made case sensitive for 'at EH.'
-:XB0?:targetting::f("targeting", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:teh::f("the", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?:tempory::f("temporary", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:teraly::f("terally", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?:tfull::f("tful", A_ThisHotkey, A_EndChar) ; Fixes 64 words
-:XB0?:theh::f("the", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?:thge::f("the", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?:thh::f("th", A_ThisHotkey, A_EndChar) ; Fixes 408 words
-:XB0?:thn::f("then", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?:thne::f("then", A_ThisHotkey, A_EndChar) ; Fixes 11 words
-:XB0?:throught::f("through", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:tht::f("th", A_ThisHotkey, A_EndChar) ; Fixes 408 words
-:XB0?:thw::f("the", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?:thyness::f("thiness", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?:tialy::f("tially", A_ThisHotkey, A_EndChar) ; Fixes 57 words
-:XB0?:tiem::f("time", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?:timne::f("time", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?:tionar::f("tionary", A_ThisHotkey, A_EndChar) ; Fixes 68 words
-:XB0?:tooes::f("toos", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:topry::f("tory", A_ThisHotkey, A_EndChar) ; Fixes 317 words
-:XB0?:toreis::f("tories", A_ThisHotkey, A_EndChar) ; Fixes 62 words
-:XB0?:toyr::f("tory", A_ThisHotkey, A_EndChar) ; Fixes 317 words
-:XB0?:traing::f("traying", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:tricly::f("trically", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?:tricty::f("tricity", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?:truely::f("truly", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:tust::f("trust", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:twon::f("town", A_ThisHotkey, A_EndChar) ; Fixes 32 words
-:XB0?:tyo::f("to", A_ThisHotkey, A_EndChar) ; Fixes 185 words
-:XB0?:typicaly::f("typically", A_ThisHotkey, A_EndChar) ; Fixes 9 words
-:XB0?:ualy::f("ually", A_ThisHotkey, A_EndChar) ; Fixes 72 words
-:XB0?:uarly::f("ularly", A_ThisHotkey, A_EndChar) ; Fixes 66 words
-:XB0?:ularily::f("ularly", A_ThisHotkey, A_EndChar) ; Fixes 66 words
-:XB0?:ultimely::f("ultimately", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:uraly::f("urally", A_ThisHotkey, A_EndChar) ; Fixes 44 words
-:XB0?:urchs::f("urches", A_ThisHotkey, A_EndChar) ; Fixes 4 words
-:XB0?:urnk::f("runk", A_ThisHotkey, A_EndChar) ; Fixes 8 words
-:XB0?:usefull::f("useful", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:utino::f("ution", A_ThisHotkey, A_EndChar) ; Fixes 55 words
-:XB0?:veill::f("veil", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:verd::f("vered", A_ThisHotkey, A_EndChar) ; Fixes 39 words
-:XB0?:videntally::f("vidently", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:vly::f("vely", A_ThisHotkey, A_EndChar) ; Fixes 547 words
-:XB0?:wass::f("was", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?:wasy::f("ways", A_ThisHotkey, A_EndChar) ; Fixes 106 words
-:XB0?:weas::f("was", A_ThisHotkey, A_EndChar) ; Fixes 13 words
-:XB0?:weath::f("wealth", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:wifes::f("wives", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:wille::f("will", A_ThisHotkey, A_EndChar) ; Fixes 10 words
-:XB0?:willingless::f("willingness", A_ThisHotkey, A_EndChar) ; Fixes 2 words
-:XB0?:wordly::f("worldly", A_ThisHotkey, A_EndChar) ; Fixes 3 words
-:XB0?:wroet::f("wrote", A_ThisHotkey, A_EndChar) ; Fixes 7 words
-:XB0?:wthe::f("w the", A_ThisHotkey, A_EndChar)
-:XB0?:wya::f("way", A_ThisHotkey, A_EndChar) ; Fixes 113 words
-:XB0?:wyas::f("ways", A_ThisHotkey, A_EndChar) ; Fixes 106 words
-:XB0?:xthe::f("x the", A_ThisHotkey, A_EndChar)
-:XB0?:yng::f("ying", A_ThisHotkey, A_EndChar) ; Fixes 514 words
-:XB0?:ywat::f("yway", A_ThisHotkey, A_EndChar) ; Fixes 6 words
-:XB0?C:hc::f("ch", A_ThisHotkey, A_EndChar) ; Fixes 446 words ; :C: so not to break THC or LHC
-:XB0?C:itn::f("ith", A_ThisHotkey, A_EndChar) ; Fixes 70 words, Case sensitive, to not misspell ITN (Independent Television News) 
-:XB0C:ASS::f("ADD", A_ThisHotkey, A_EndChar) ; Case-sensitive to fix acronym, but not word.
-:XB0C:may of::f("may have", A_ThisHotkey, A_EndChar)
+;============== Determine start line of autocorrect items ======================
+; Trigger String duplicate items validity check will skip lines of code before ACitemsStartAt var value.
+; Gets called from Validity Check function. 
+getStartLineNumber(*)
+{	For idx, line in StrSplit(FileRead(A_ScriptName), "`n")
+		If inStr(line, "AUTOCORRECT START POINT MARKER") { ; <--- Sees itself..  LOL 
+			Global ACitemsStartAt := idx + 9 ; Should equal line number where autocorrect list starts. 
+			Break ; We found it, so no need to keep looping.  
+		}
+	Return ACitemsStartAt
+}
+;===============================================================================
+
+; ===== Beginning of Don't Sort items ==========
+:B0X*:inteh::f("in the") ; Fixes 1 word
+:B0X*:ireleven::f("irrelevan") ; Fixes 6 words
+:B0X*:managerial reign::f("managerial rein") ; Fixes 2 word
+:B0X*:minsitr::f("ministr") ; Fixes 6 words
+:B0X*:ommision::f("omission") ; Fixes 2 words
+:B0X*:peculure::f("peculiar") ; Fixes 5 words
+:B0X*:pinon::f("piñon") ; noun any of several low-growing pines of western North America
+:B0X*:presed::f("presid") ; Fixes 18 words
+:B0X*:recommed::f("recommend") ; Fixes 12 words
+:B0X*:resturaunt::f("restaurant") ; Fixes 6 words
+:B0X*:thge::f("the") ; Fixes 402 words
+:B0X*:thsi::f("this") ; Fixes 7 words
+:B0X*:unkow::f("unknow") ; Fixes 14 words
+:B0X:inprocess::f("in process") ; Fixes 1 word
+:B0X?*:abotu::f("about") ; Fixes 37 words
+:B0X?*:allign::f("align") ; Fixes 41 words
+:B0X?*:arign::f("aring") ; Fixes 140 words
+:B0X?*:asign::f("assign") ; Fixes 27
+:B0X?*:bakc::f("back") ; Fixes 410 words
+:B0X?*:blihs::f("blish") ; Fixes 56 words
+:B0X?*:charecter::f("character") ; Fixes 38 words
+:B0X?*:comnt::f("cont") ; Fixes 587 words
+:B0X?*:degred::f("degrad") ; Fixes 31 words
+:B0X?*:dessign::f("design") ; Fixes 51 words.
+:B0X?*:disign::f("design") ; Fixes 51 words
+:B0X?*:docuemnt::f("document") ; Fixes 26 words
+:B0X?*:easr::f("ears") ; Fixes 102 words
+:B0X?*:ecomon::f("econom") ; Fixes 50 words
+:B0X?*:esorce::f("esource") ; Fixes 11 words
+:B0X?*:juristiction::f("jurisdiction") ; Fixes 4 words
+:B0X?*:konw::f("know") ; Fixes 66 words
+:B0X?*:mmorow::f("morrow") ; Fixes 4 words
+:B0X?*:ngiht::f("night") ; Fixes 103 words
+:B0X?*:orign::f("origin") ; Fixes 37 words
+:B0X?*:rnign::f("rning") ; Fixes 77 words
+:B0X?*:sensur::f("censur") ; Fixes 12 words
+:B0X?*:soverign::f("sovereign") ; Fixes 10 words
+:B0X?*:ssurect::f("surrect") ; Fixes 15 words
+:B0X?*:tatn::f("tant") ; Fixes 530 words
+:B0X?*:thakn::f("thank") ; Fixes 19 words 
+:B0X?*:thnig::f("thing") ; Fixes 103 words
+:B0X?*:threatn::f("threaten") ; Fixes 10 words
+:B0X?*:tihkn::f("think") ; Fixes 43 words
+:B0X?*:tiojn::f("tion") ; Fixes 7052 words
+:B0X?*:visiosn::f("vision") ; Fixes 51 words
+:B0X?:adresing::f("addressing") ; Fixes 3 words
+:B0X?:clas::f("class") ; Fixes 8 words
+:B0X?:efull::f("eful") ; Fixes 74 words
+:B0X?:ficaly::f("fically") ; Fixes 20 words
+; ===== End of Don't Sort items ===========
+
+; ===== Main List ==========================
+:B0X*:2dn::f("2nd")
+:B0X*:Buddist::f("Buddhist") ; Fixes 3 words
+:B0X*:Feburary::f("February") ; Fixes 1 word
+:B0X*:Hatian::f("Haitian") ; Fixes 2 words
+:B0X*:Isaax ::f("Isaac") ; Fixes 1 word
+:B0X*:Israelies::f("Israelis") ; Fixes 1 word
+:B0X*:Janurary::f("January") ; Fixes 1 word
+:B0X*:Januray::f("January") ; Fixes 1 word
+:B0X*:Karent::f("Karen") ; Fixes 1 word
+:B0X*:Montnana::f("Montana") ; Fixes 1 word
+:B0X*:Naploeon::f("Napoleon") ; Fixes 6 words
+:B0X*:Napolean::f("Napoleon") ; Fixes 6 words
+:B0X*:Novermber::f("November") ; Fixes 1 word
+:B0X*:Pennyslvania::f("Pennsylvania") ; Fixes 3 words
+:B0X*:Queenland::f("Queensland") ; Fixes 3 words
+:B0X*:Sacremento::f("Sacramento") ; Fixes 1 word
+:B0X*:Straight of::f("Strait of") ; geography ; Fixes 1 word
+:B0X*:ToolTop::f("ToolTip") ; Fixes 1 word
+:B0X*:a FM::f("an FM") ; Fixes 1 word
+:B0X*:a MRI::f("an MRI") ; Fixes 1 word
+:B0X*:a ab::f("an ab") ; Fixes 1 word
+:B0X*:a ac::f("an ac") ; Fixes 1 word
+:B0X*:a ad::f("an ad") ; Fixes 1 word
+:B0X*:a af::f("an af") ; Fixes 1 word
+:B0X*:a ag::f("an ag") ; Fixes 1 word
+:B0X*:a al::f("an al") ; Fixes 1 word
+:B0X*:a am::f("an am") ; Fixes 1 word
+:B0X*:a an::f("an an") ; Fixes 1 word
+:B0X*:a ap::f("an ap") ; Fixes 1 word
+:B0X*:a as::f("an as") ; Fixes 1 word
+:B0X*:a av::f("an av") ; Fixes 1 word
+:B0X*:a aw::f("an aw") ; Fixes 1 word
+:B0X*:a businessmen::f("a businessman") ; Fixes 1 word
+:B0X*:a businesswomen::f("a businesswoman") ; Fixes 1 word
+:B0X*:a consortia::f("a consortium") ; Fixes 1 word
+:B0X*:a criteria::f("a criterion") ; Fixes 1 word
+:B0X*:a ea::f("an ea") ; Fixes 1 word
+:B0X*:a ef::f("an ef") ; Fixes 1 word
+:B0X*:a ei::f("an ei") ; Fixes 1 word
+:B0X*:a el::f("an el") ; Fixes 1 word
+:B0X*:a em::f("an em") ; Fixes 1 word
+:B0X*:a en::f("an en") ; Fixes 1 word
+:B0X*:a ep::f("an ep") ; Fixes 1 word
+:B0X*:a eq::f("an eq") ; Fixes 1 word
+:B0X*:a es::f("an es") ; Fixes 1 word
+:B0X*:a et::f("an et") ; Fixes 1 word
+:B0X*:a ex::f("an ex") ; Fixes 1 word
+:B0X*:a falling out::f("a falling-out") ; Fixes 1 word
+:B0X*:a firemen::f("a fireman") ; Fixes 1 word
+:B0X*:a flagella::f("a flagellum") ; Fixes 1 word
+:B0X*:a forward by::f("a foreword by") ; Fixes 1 word
+:B0X*:a freshmen::f("a freshman") ; Fixes 1 word
+:B0X*:a fungi::f("a fungus") ; Fixes 1 word
+:B0X*:a gunmen::f("a gunman") ; Fixes 1 word
+:B0X*:a heir::f("an heir") ; Fixes 1 word
+:B0X*:a herb::f("an herb") ; Fixes 1 word
+:B0X*:a honest::f("an honest") ; Fixes 1 word
+:B0X*:a honor::f("an honor") ; Fixes 1 word
+:B0X*:a hour::f("an hour") ; Fixes 1 word
+:B0X*:a ic::f("an ic") ; Fixes 1 word
+:B0X*:a id::f("an id") ; Fixes 1 word
+:B0X*:a ig::f("an ig") ; Fixes 1 word
+:B0X*:a il::f("an il") ; Fixes 1 word
+:B0X*:a im::f("an im") ; Fixes 1 word
+:B0X*:a in::f("an in") ; Fixes 1 word
+:B0X*:a ir::f("an ir") ; Fixes 1 word
+:B0X*:a is::f("an is") ; Fixes 1 word
+:B0X*:a larvae::f("a larva") ; Fixes 1 word
+:B0X*:a lock up::f("a lockup") ; Fixes 1 word
+:B0X*:a nuclei::f("a nucleus") ; Fixes 1 word
+:B0X*:a numbers of::f("a number of") ; Fixes 1 word
+:B0X*:a oa::f("an oa") ; Fixes 1 word
+:B0X*:a ob::f("an ob") ; Fixes 1 word
+:B0X*:a ocean::f("an ocean") ; Fixes 1 word
+:B0X*:a offen::f("an offen; Fixes 1 word") 
+:B0X*:a offic::f("an offic") ; Fixes 1 word
+:B0X*:a oi::f("an oi") ; Fixes 1 word
+:B0X*:a ol::f("an ol") ; Fixes 1 word
+:B0X*:a one of the::f("one of the") ; Fixes 1 word
+:B0X*:a op::f("an op") ; Fixes 1 word
+:B0X*:a or::f("an or") ; Fixes 1 word
+:B0X*:a os::f("an os") ; Fixes 1 word
+:B0X*:a ot::f("an ot") ; Fixes 1 word
+:B0X*:a ou::f("an ou") ; Fixes 1 word
+:B0X*:a ov::f("an ov") ; Fixes 1 word
+:B0X*:a ow::f("an ow") ; Fixes 1 word
+:B0X*:a parentheses::f("a parenthesis") ; Fixes 1 word
+:B0X*:a pupae::f("a pupa") ; Fixes 1 word
+:B0X*:a radii::f("a radius") ; Fixes 1 word
+:B0X*:a regular bases::f("a regular basis") ; Fixes 1 word
+:B0X*:a resent::f("a recent") ; Fixes 1 word
+:B0X*:a run in::f("a run-in") ; Fixes 1 word
+:B0X*:a set back::f("a set-back") ; Fixes 1 word
+:B0X*:a set up::f("a setup") ; Fixes 1 word
+:B0X*:a several::f("several") ; Fixes 1 word
+:B0X*:a simple as::f("as simple as") ; Fixes 1 word
+:B0X*:a spermatozoa::f("a spermatozoon") ; Fixes 1 word
+:B0X*:a statesmen::f("a statesman") ; Fixes 1 word
+:B0X*:a two months::f("a two-month") ; Fixes 1 word
+:B0X*:a ud::f("an ud") ; Fixes 1 word
+:B0X*:a ug::f("an ug") ; Fixes 1 word
+:B0X*:a ul::f("an ul") ; Fixes 1 word
+:B0X*:a um::f("an um") ; Fixes 1 word
+:B0X*:a up::f("an up") ; Fixes 1 word
+:B0X*:a urban::f("an urban") ; Fixes 1 word
+:B0X*:a vertebrae::f("a vertebra") ; Fixes 1 word
+:B0X*:a women::f("a woman") ; Fixes 1 word
+:B0X*:a work out::f("a workout") ; Fixes 1 word
+:B0X*:abandonned::f("abandoned") ; Fixes 2 words
+:B0X*:abcense::f("absence") ; Fixes 2 words
+:B0X*:abera::f("aberra") ; Fixes 15 words
+:B0X*:abondon::f("abandon") ; Fixes 8 words
+:B0X*:about it's::f("about its") ; Fixes 1 word
+:B0X*:about they're::f("about their") ; Fixes 1 word
+:B0X*:about who to::f("about whom to") ; Fixes 1 word
+:B0X*:about who's::f("about whose") ; Fixes 1 word
+:B0X*:abouta::f("about a") ; Fixes 1 word
+:B0X*:aboutit::f("about it") ; Fixes 1 word
+:B0X*:above it's::f("above its") ; Fixes 1 word
+:B0X*:abreviat::f("abbreviat") ; Fixes 9 words
+:B0X*:absail::f("abseil") ; Fixes 6 words
+:B0X*:abscen::f("absen") ; Fixes 16 words
+:B0X*:absense::f("absence") ; Fixes 2 words
+:B0X*:abutts::f("abuts") ; Fixes 1 word
+:B0X*:accidently::f("accidentally") ; Fixes 1 word
+:B0X*:acclimit::f("acclimat") ; Fixes 18 words
+:B0X*:accomd::f("accommod") ; Fixes 16 words
+:B0X*:accordeon::f("accordion") ; Fixes 4 words
+:B0X*:accordian::f("accordion") ; Fixes 4 words
+:B0X*:according a::f("according to a") ; Fixes 1 word
+:B0X*:accordingto::f("according to") ; Fixes 1 word
+:B0X*:achei::f("achie") ; Fixes 12 words
+:B0X*:achiv::f("achiev") ; Fixes 10 words
+:B0X*:aciden::f("acciden") ; Fixes 8 words
+:B0X*:ackward::f("awkward") ; Fixes 5 words
+:B0X*:acord::f("accord") ; Fixes 15 words
+:B0X*:acquite::f("acquitte") ; Fixes 3 words
+:B0X*:across it's::f("across its") ; Fixes 1 word
+:B0X*:acuse::f("accuse") ; Fixes 6 words
+:B0X*:adbandon::f("abandon") ; Fixes 8 words
+:B0X*:adhear::f("adher") ; Fixes 9 words
+:B0X*:adheran::f("adheren") ; Fixes 5 words
+:B0X*:adresa::f("addressa") ; Fixes 3 words
+:B0X*:adress::f("address") ; Fixes 13 words
+:B0X*:adves::f("advers") ; Fixes 11 words
+:B0X*:afair::f("affair") ; Fixes 4 words
+:B0X*:affect upon::f("effect upon") ; Fixes 1 word
+:B0X*:afficianado::f("aficionado") ; Fixes 2 words
+:B0X*:afficionado::f("aficionado") ; Fixes 2 words
+:B0X*:after along time::f("after a long time") ; Fixes 1 word
+:B0X*:after awhile::f("after a while") ; Fixes 1 word
+:B0X*:after been::f("after being") ; Fixes 1 word
+:B0X*:after it's::f("after its") ; Fixes 1 word
+:B0X*:after quite awhile::f("after quite a while") ; Fixes 1 word
+:B0X*:against it's::f("against its") ; Fixes 1 word
+:B0X*:againstt he::f("against the") ; Fixes 1 word
+:B0X*:agani::f("again") ; Fixes 2 words
+:B0X*:aggregious::f("egregious") ; Fixes 3 words
+:B0X*:agian::f("again") ; Fixes 2 words
+:B0X*:agina::f("again") ; Fixes 2 words
+:B0X*:aginst::f("against") ; Fixes 1 word
+:B0X*:agriev::f("aggriev") ; Fixes 5 words
+:B0X*:ahjk::f("ahk") ; Fixes 1 word
+:B0X*:aiport::f("airport") ; Fixes 2 words
+:B0X*:airbourne::f("airborne") ; Fixes 1 word
+:B0X*:airplane hanger::f("airplane hangar") ; Fixes 1 word
+:B0X*:airporta::f("airports") ; Fixes 1 word
+:B0X*:airrcraft::f("aircraft") ; Fixes 1 word
+:B0X*:albiet::f("albeit") ; Fixes 1 word
+:B0X*:aledg::f("alleg") ; Fixes 46 words
+:B0X*:alege::f("allege") ; Fixes 6 words
+:B0X*:alegien::f("allegian") ; Fixes 5 words
+:B0X*:algebraical::f("algebraic") ; Fixes 3 words
+:B0X*:alientat::f("alienat") ; Fixes 8 words
+:B0X*:all it's::f("all its") ; Fixes 1 word
+:B0X*:all tolled::f("all told") ; Fixes 1 word
+:B0X*:alledg::f("alleg") ; Fixes 46 words
+:B0X*:allegedy::f("allegedly") ; Fixes 1 word
+:B0X*:allegely::f("allegedly") ; Fixes 1 word
+:B0X*:allivia::f("allevia") ; Fixes 12 words
+:B0X*:allopon::f("allophon") ; Fixes 4 words
+:B0X*:allot of::f("a lot of") ; Fixes 1 word
+:B0X*:allready::f("already") ; Fixes 1 word
+:B0X*:alltime::f("all-time") ; Fixes 1 word
+:B0X*:alma matter::f("alma mater") ; Fixes 1 word
+:B0X*:almots::f("almost") ; Fixes 1 word
+:B0X*:along it's::f("along its") ; Fixes 1 word
+:B0X*:along side::f("alongside") ; Fixes 1 word
+:B0X*:along time::f("a long time") ; Fixes 1 word
+:B0X*:alongside it's::f("alongside its") ; Fixes 1 word
+:B0X*:alse::f("else") ; Fixes 3 words
+:B0X*:alter boy::f("altar boy") ; Fixes 1 word
+:B0X*:alter server::f("altar server") ; Fixes 1 word
+:B0X*:alterior::f("ulterior") ; Fixes 4 words
+:B0X*:alternit::f("alternat") ; Fixes 15 words
+:B0X*:althought::f("although") ; Fixes 1 word
+:B0X*:altoug::f("althoug") ; Fixes 1 word
+:B0X*:alusi::f("allusi") ; Fixes 5 words
+:B0X*:am loathe to::f("am loath to") ; Fixes 1 word
+:B0X*:amalgom::f("amalgam") ; Fixes 11 words
+:B0X*:amature::f("amateur") ; Fixes 7 words
+:B0X*:amid it's::f("amid its") ; Fixes 1 word
+:B0X*:amidst it's::f("amidst its") ; Fixes 1 word
+:B0X*:amme::f("ame") ; Fixes 341 words, Misspells ammeter (electrician's tool).
+:B0X*:ammuse::f("amuse") ; Fixes 6 words.
+:B0X*:among it's::f("among it") ; Fixes 1 word
+:B0X*:among others things::f("among other things") ; Fixes 1 word
+:B0X*:amongst it's::f("amongst its") ; Fixes 1 word
+:B0X*:amongst one of the::f("amongst the") ; Fixes 1 word
+:B0X*:amongst others things::f("amongst other things") ; Fixes 1 word
+:B0X*:amung::f("among") ; Fixes 2 words
+:B0X*:amunition::f("ammunition") ; Fixes 2 words
+:B0X*:an USB::f("a USB") ; Fixes 1 word
+:B0X*:an Unix::f("a Unix") ; Fixes 1 word
+:B0X*:an another::f("another") ; Fixes 1 word
+:B0X*:an antennae::f("an antenna") ; Fixes 1 word
+:B0X*:an film::f("a film") ; Fixes 1 word
+:B0X*:an half::f("a half") ; Fixes 1 word
+:B0X*:an halt::f("a halt") ; Fixes 1 word
+:B0X*:an hand::f("a hand") ; Fixes 1 word
+:B0X*:an head::f("a head") ; Fixes 1 word
+:B0X*:an heart::f("a heart") ; Fixes 1 word
+:B0X*:an helicopter::f("a helicopter") ; Fixes 1 word
+:B0X*:an hero::f("a hero") ; Fixes 1 word
+:B0X*:an high::f("a high") ; Fixes 1 word
+:B0X*:an histor::f("a histor") ; Fixes 1 word
+:B0X*:an hospital::f("a hospital") ; Fixes 1 word
+:B0X*:an hotel::f("a hotel") ; Fixes 1 word
+:B0X*:an humanitarian::f("a humanitarian") ; Fixes 1 word
+:B0X*:an large::f("a large") 
+:B0X*:an law::f("a law") ; Fixes 1 word
+:B0X*:an local::f("a local") ; Fixes 1 word
+:B0X*:an new::f("a new") ; Fixes 1 word
+:B0X*:an nin::f("a nin") ; Fixes 1 word
+:B0X*:an non::f("a non") ; Fixes 1 word
+:B0X*:an number::f("a number") ; Fixes 1 word
+:B0X*:an pair::f("a pair") ; Fixes 1 word
+:B0X*:an player::f("a player") ; Fixes 1 word
+:B0X*:an popular::f("a popular") ; Fixes 1 word
+:B0X*:an pre-::f("a pre-") ; Fixes 1 word
+:B0X*:an sec::f("a sec") ; Fixes 199 word
+:B0X*:an ser::f("a ser") ; Fixes 293 word
+:B0X*:an seven::f("a seven") ; Fixes 1 word
+:B0X*:an six::f("a six") ; Fixes 1 word
+:B0X*:an song::f("a song") ; Fixes 1 word
+:B0X*:an spec::f("a spec") ; Fixes 1 word
+:B0X*:an stat::f("a stat") ; Fixes 1 word
+:B0X*:an ten::f("a ten") ; Fixes 1 word
+:B0X*:an union::f("a union") ; Fixes 1 word
+:B0X*:an unit::f("a unit") ; Fixes 1 word
+:B0X*:analag::f("analog") ; Fixes 23 words
+:B0X*:anarchim::f("anarchism") ; Fixes 2 words
+:B0X*:anarchistm::f("anarchism") ; Fixes 1 word
+:B0X*:and so fourth::f("and so forth") ; Fixes 1 word
+:B0X*:andd::f("and") ; Fixes 73 words
+:B0X*:andone::f("and one") ; Fixes 1 word
+:B0X*:androgenous::f("androgynous") ; Fixes 3 words
+:B0X*:androgeny::f("androgyny") ; Fixes 1 word
+:B0X*:anih::f("annih") ; Fixes 9 words
+:B0X*:aniv::f("anniv") ; Fixes 2 words
+:B0X*:anonim::f("anonym") ; Fixes 19 words
+:B0X*:anoyance::f("annoyance") ; Fixes 2 words
+:B0X*:ansal::f("nasal") ; Fixes 20 words
+:B0X*:ansest::f("ancest") ; Fixes 8 words
+:B0X*:antartic::f("antarctic") ; Fixes 2 words
+:B0X*:anthrom::f("anthropom") ; Fixes 27 words
+:B0X*:anti-semetic::f("anti-Semitic") ; Fixes 1 word
+:B0X*:antiapartheid::f("anti-apartheid") ; Fixes 1 word
+:B0X*:anual::f("annual") ; Fixes 15 words
+:B0X*:anul::f("annul") ; Fixes 17 words
+:B0X*:any another::f("another") ; Fixes 1 word
+:B0X*:any resent::f("any recent") ; Fixes 1 word
+:B0X*:any where::f("anywhere") ; Fixes 1 word
+:B0X*:anyother::f("any other") ; Fixes 1 word
+:B0X*:anytying::f("anything") ; Fixes 1 word
+:B0X*:apart form::f("apart from") ; Fixes 1 word
+:B0X*:aproxim::f("approxim") ; Fixes 14 words
+:B0X*:aquaduct::f("aqueduct") ; Fixes 2 words
+:B0X*:aquir::f("acquir") ; Fixes 12 words
+:B0X*:arbouret::f("arboret") ; Fixes 3 words
+:B0X*:archiac::f("archaic") ; Fixes 6 words
+:B0X*:archimedian::f("Archimedean") ; Fixes 1 word
+:B0X*:archtyp::f("archetyp") ; Fixes 6 words
+:B0X*:are aloud to::f("are allowed to") ; Fixes 1 word
+:B0X*:are build::f("are built") ; Fixes 1 word
+:B0X*:are drew::f("are drawn") ; Fixes 1 word
+:B0X*:are it's::f("are its") ; Fixes 1 word
+:B0X*:are know::f("are known") ; Fixes 1 word
+:B0X*:are lain::f("are laid") ; Fixes 1 word
+:B0X*:are lead by::f("are led by") ; Fixes 1 word
+:B0X*:are loathe to::f("are loath to") ; Fixes 1 word
+:B0X*:are ran by::f("are run by") ; Fixes 1 word
+:B0X*:are set-up::f("are set up") ; Fixes 1 word
+:B0X*:are setup::f("are set up") ; Fixes 1 word
+:B0X*:are shutdown::f("are shut down") ; Fixes 1 word
+:B0X*:are shutout::f("are shut out") ; Fixes 1 word
+:B0X*:are suppose to::f("are supposed to") ; Fixes 1 word
+:B0X*:are use to::f("are used to") ; Fixes 1 word
+:B0X*:aready::f("already") ; Fixes 1 word
+:B0X*:areod::f("aerod") ; Fixes 10 words
+:B0X*:arised::f("arose") ; Fixes 1 word
+:B0X*:ariv::f("arriv") ; Fixes 11 words
+:B0X*:armistace::f("armistice") ; Fixes 2 words
+:B0X*:arn't::f("aren't") ; Fixes 1 word
+:B0X*:arogan::f("arrogan") ; Fixes 6 words
+:B0X*:arond::f("around") ; Fixes 1 word
+:B0X*:aroud::f("around") ; Fixes 1 word
+:B0X*:around it's::f("around its") ; Fixes 1 word
+:B0X*:arren::f("arran") ; Fixes 12 words
+:B0X*:arrou::f("arou") ; Fixes 11 words
+:B0X*:artc::f("artic") ; Fixes 26 words
+:B0X*:artical::f("article") ; Fixes 3 words
+:B0X*:artifical::f("artificial") ; Fixes 6 words
+:B0X*:artillar::f("artiller") ; Fixes 6 words
+:B0X*:as a resulted::f("as a result") ; Fixes 1 word
+:B0X*:as apposed to::f("as opposed to") ; Fixes 1 word
+:B0X*:as back up::f("as backup") ; Fixes 1 word
+:B0X*:as oppose to::f("as opposed to") ; Fixes 1 word
+:B0X*:asetic::f("ascetic") ; Fixes 6 words
+:B0X*:asfar::f("as far") ; Fixes 1 word
+:B0X*:aside form::f("aside from") ; Fixes 1 word
+:B0X*:aside it's::f("aside its") ; Fixes 1 word
+:B0X*:asphyxa::f("asphyxia") ; Fixes 13 words
+:B0X*:assasin::f("assassin") ; Fixes 10 words
+:B0X*:assesment::f("assessment") ; Fixes 4 words
+:B0X*:asside::f("aside") ; Fixes 2 words
+:B0X*:assisnat::f("assassinat") ; Fixes 8 words
+:B0X*:assistent::f("assistant") ; Fixes 4 words
+:B0X*:assit::f("assist") ; Fixes 14 words
+:B0X*:assualt::f("assault") ; Fixes 10 words
+:B0X*:assume the reigns::f("assume the reins") ; Fixes 1 word
+:B0X*:assume the roll::f("assume the role") ; Fixes 1 word
+:B0X*:asum::f("assum") ; Fixes 19 words
+:B0X*:aswell::f("as well") ; Fixes 1 word
+:B0X*:at it's::f("at its") ; Fixes 1 word
+:B0X*:at of::f("at or") ; Fixes 1 word
+:B0X*:at the alter::f("at the altar") ; Fixes 1 word
+:B0X*:at the reigns::f("at the reins") ; Fixes 1 word
+:B0X*:at then end::f("at the end") ; Fixes 1 word
+:B0X*:at-rist::f("at-risk ") ; Fixes 1 word
+:B0X*:atheistical::f("atheistic") ; Fixes 1 word
+:B0X*:athenean::f("Athenian") ; Fixes 2 words
+:B0X*:atleast::f("at least") ; Fixes 1 word
+:B0X*:atn::f("ant") ; Fixes 704 words
+:B0X*:atorne::f("attorne") ; Fixes 5 words
+:B0X*:attened::f("attended") ; Fixes 1 word
+:B0X*:attourne::f("attorne") ; Fixes 5 words
+:B0X*:attroci::f("atroci") ; Fixes 5 words
+:B0X*:auromat::f("automat") ; Fixes 36 words
+:B0X*:austrailia::f("Australia") ; Fixes 14 words
+:B0X*:authorative::f("authoritative") ; Fixes 3 words
+:B0X*:authorites::f("authorities") ; Fixes 1 word
+:B0X*:authoritive::f("authoritative") ; Fixes 3 words
+:B0X*:autochtonous::f("autochthonous") ; Fixes 3 words
+:B0X*:autocton::f("autochthon") ; Fixes 10 words
+:B0X*:autorit::f("authorit") ; Fixes 9 words
+:B0X*:autsim::f("autism") ; Fixes 2 words
+:B0X*:auxilar::f("auxiliar") ; Fixes 2 words
+:B0X*:auxillar::f("auxiliar") ; Fixes 2 words
+:B0X*:auxilliar::f("auxiliar") ; Fixes 2 words
+:B0X*:avalance::f("avalanche") ; Fixes 3 words
+:B0X*:avati::f("aviati") ; Fixes 3 words
+:B0X*:avengence::f("a vengeance") ; Fixes 1 word
+:B0X*:averagee::f("average") ; Fixes 5 words
+:B0X*:away form::f("away from") ; Fixes 1 word
+:B0X*:aywa::f("away") ; Fixes 4 words
+:B0X*:baceause::f("because") ; Fixes 1 word
+:B0X*:back and fourth::f("back and forth") ; Fixes 1 word
+:B0X*:back drop::f("backdrop") ; Fixes 1 word
+:B0X*:back fire::f("backfire") ; Fixes 1 word
+:B0X*:back peddle::f("backpedal") ; Fixes 1 word
+:B0X*:back round::f("background") ; Fixes 1 word
+:B0X*:badly effected::f("badly affected") ; Fixes 1 word
+:B0X*:baited breath::f("bated breath") ; Fixes 1 word
+:B0X*:baled out::f("bailed out") ; Fixes 1 word
+:B0X*:baling out::f("bailing out") ; Fixes 1 word
+:B0X*:bananna::f("banana") ; Fixes 2 words
+:B0X*:bandonn::f("abandon") ; Fixes 8 words
+:B0X*:bandwith::f("bandwidth") ; Fixes 2 words
+:B0X*:bankrupc::f("bankruptc") ; Fixes 2 words
+:B0X*:banrupt::f("bankrupt") ; Fixes 7 words
+:B0X*:barb wire::f("barbed wire") ; Fixes 2 words
+:B0X*:bare in mind::f("bear in mind") ; Fixes 1 word
+:B0X*:barily::f("barely") ; Fixes 1 word
+:B0X*:basic principal::f("basic principle") ; Fixes 1 word
+:B0X*:be apart of::f("be a part of") ; Fixes 1 word
+:B0X*:be build::f("be built") ; Fixes 1 word
+:B0X*:be cause::f("because") ; Fixes 1 word
+:B0X*:be drew::f("be drawn") ; Fixes 1 word
+:B0X*:be it's::f("be its") ; Fixes 1 word
+:B0X*:be know as::f("be known as") ; Fixes 1 word
+:B0X*:be lain::f("be laid") ; Fixes 1 word
+:B0X*:be lead by::f("be led by") ; Fixes 1 word
+:B0X*:be loathe to::f("be loath to") ; Fixes 1 word
+:B0X*:be rebuild::f("be rebuilt") ; Fixes 1 word
+:B0X*:be set-up::f("be set up") ; Fixes 1 word
+:B0X*:be setup::f("be set up") ; Fixes 1 word
+:B0X*:be shutdown::f("be shut down") ; Fixes 1 word
+:B0X*:be use to::f("be used to") ; Fixes 1 word
+:B0X*:be ware::f("beware") ; Fixes 1 word
+:B0X*:beachead::f("beachhead") ; Fixes 2 words
+:B0X*:beacuse::f("because") ; Fixes 1 word
+:B0X*:beastia::f("bestia") ; Fixes 14 words
+:B0X*:became it's::f("became its") ; Fixes 1 word
+:B0X*:because of it's::f("because of its") ; Fixes 1 word
+:B0X*:becausea::f("because a") ; Fixes 1 word
+:B0X*:becauseof::f("because of") ; Fixes 1 word
+:B0X*:becausethe::f("because the") ; Fixes 1 word
+:B0X*:becauseyou::f("because you") ; Fixes 1 word
+:B0X*:beccause::f("because") ; Fixes 1 word
+:B0X*:becouse::f("because") ; Fixes 1 word
+:B0X*:becuse::f("because") ; Fixes 1 word
+:B0X*:been accustom to::f("been accustomed to") ; Fixes 1 word
+:B0X*:been build::f("been built") ; Fixes 1 word
+:B0X*:been it's::f("been its") ; Fixes 1 word
+:B0X*:been lain::f("been laid") ; Fixes 1 word
+:B0X*:been lead by::f("been led by") ; Fixes 1 word
+:B0X*:been loathe to::f("been loath to") ; Fixes 1 word
+:B0X*:been mislead::f("been misled") ; Fixes 1 word
+:B0X*:been rebuild::f("been rebuilt") ; Fixes 1 word
+:B0X*:been set-up::f("been set up") ; Fixes 1 word
+:B0X*:been setup::f("been set up") ; Fixes 1 word
+:B0X*:been show on::f("been shown on") ; Fixes 1 word
+:B0X*:been shutdown::f("been shut down") ; Fixes 1 word
+:B0X*:been use to::f("been used to") ; Fixes 1 word
+:B0X*:before hand::f("beforehand") ; Fixes 1 word
+:B0X*:began it's::f("began its") ; Fixes 1 word
+:B0X*:begginer::f("beginner") ; Fixes 2 words
+:B0X*:beggining::f("beginning") ; Fixes 3 words
+:B0X*:beggins::f("begins") ; Fixes 1 word
+:B0X*:begining::f("beginning") ; Fixes 3 words
+:B0X*:behind it's::f("behind its") ; Fixes 1 word
+:B0X*:being build::f("being built") ; Fixes 1 word
+:B0X*:being it's::f("being its") ; Fixes 1 word
+:B0X*:being lain::f("being laid") ; Fixes 1 word
+:B0X*:being lead by::f("being led by") ; Fixes 1 word
+:B0X*:being loathe to::f("being loath to") ; Fixes 1 word
+:B0X*:being set-up::f("being set up") ; Fixes 1 word
+:B0X*:being setup::f("being set up") ; Fixes 1 word
+:B0X*:being show on::f("being shown on") ; Fixes 1 word
+:B0X*:being shutdown::f("being shut down") ; Fixes 1 word
+:B0X*:being use to::f("being used to") ; Fixes 1 word
+:B0X*:beligum::f("Belgium") ; Fixes 1 word
+:B0X*:belived::f("believed") ; Fixes 1 word
+:B0X*:belives::f("believes") ; Fixes 1 word
+:B0X*:bellweather::f("bellwether") ; Fixes 2 words
+:B0X*:below it's::f("below its") ; Fixes 1 word
+:B0X*:beneath it's::f("beneath its") ; Fixes 1 word
+:B0X*:bergamont::f("bergamot") ; Fixes 2 words
+:B0X*:beseig::f("besieg") ; Fixes 9 words
+:B0X*:beside it's::f("beside its") ; Fixes 1 word
+:B0X*:besides it's::f("besides its") ; Fixes 1 word
+:B0X*:beteen::f("between") ; Fixes 3 words
+:B0X*:better know as::f("better known as") ; Fixes 1 word
+:B0X*:better know for::f("better known for") ; Fixes 1 word
+:B0X*:better then::f("better than") ; Fixes 1 word
+:B0X*:between I and::f("between me and") ; Fixes 1 word
+:B0X*:between he and::f("between him and") ; Fixes 1 word
+:B0X*:between it's::f("between its") ; Fixes 1 word
+:B0X*:between they and::f("between them and") ; Fixes 1 word
+:B0X*:betwen::f("between") ; Fixes 3 words
+:B0X*:beut::f("beaut") ; Fixes 20 words
+:B0X*:beween::f("between") ; Fixes 3 words
+:B0X*:bewteen::f("between") ; Fixes 3 words
+:B0X*:beyond it's::f("beyond its") ; Fixes 1 word
+:B0X*:biginning::f("beginning") ; Fixes 3 words
+:B0X*:billingual::f("bilingual") ; Fixes 7 words
+:B0X*:bizzare::f("bizarre") ; Fixes 3 words
+:B0X*:blaim::f("blame") ; Fixes 14 words
+:B0X*:blitzkreig::f("Blitzkrieg") ; Fixes 4 words
+:B0X*:bodydbuilder::f("bodybuilder") ; Fixes 2 words
+:B0X*:bonifide::f("bonafide") ; Fixes 1 word 
+:B0X*:bonofide::f("bonafide") ; Fixes 1 word 
+:B0X*:both it's::f("both its") ; Fixes 1 word
+:B0X*:both of it's::f("both of its") ; Fixes 1 word
+:B0X*:both of them is::f("both of them are") ; Fixes 1 word
+:B0X*:boyan::f("buoyan") ; Fixes 5 words
+:B0X*:brake away::f("break away") ; Fixes 1 word
+:B0X*:brasillian::f("Brazilian") ; Fixes 2 words
+:B0X*:breakthough::f("breakthrough") ; Fixes 2 words
+:B0X*:breakthroughts::f("breakthroughs") ; Fixes 1 word
+:B0X*:breath fire::f("breathe fire") ; Fixes 1 word
+:B0X*:brethen::f("brethren") ; Fixes 1 word
+:B0X*:bretheren::f("brethren") ; Fixes 1 word
+:B0X*:brew haha::f("brouhaha") ; Fixes 1 word
+:B0X*:brillan::f("brillian") ; Fixes 9 words
+:B0X*:brimestone::f("brimstone") ; Fixes 1 word
+:B0X*:britian::f("Britain") ; Fixes 1 word
+:B0X*:brittish::f("British") ; Fixes 1 word
+:B0X*:broacasted::f("broadcast") ; Fixes 1 word
+:B0X*:broady::f("broadly") ; Fixes 1 word
+:B0X*:brocolli::f("broccoli") ; Fixes 2 words
+:B0X*:buddah::f("Buddha") ; Fixes 2 words
+:B0X*:buoan::f("buoyan") ; Fixes 5 words
+:B0X*:bve::f("be") ; Fixes 1565 words
+:B0X*:by it's::f("by its") ; Fixes 1 word
+:B0X*:by who's::f("by whose") ; Fixes 1 word
+:B0X*:byt he::f("by the") ; Fixes 1 word
+:B0X*:cacus::f("caucus") ; Fixes 4 words
+:B0X*:calaber::f("caliber") ; Fixes 2 words
+:B0X*:calander::f("calendar") ; Fixes 4 words
+:B0X*:calender::f("calendar") ; Fixes 4 words
+:B0X*:califronia::f("California") ; Fixes 3 words
+:B0X*:caligra::f("calligra") ; Fixes 15 words
+:B0X*:callipigian::f("callipygian") ; Fixes 1 word
+:B0X*:cambrige::f("Cambridge") ; Fixes 2 words
+:B0X*:camoflag::f("camouflag") ; Fixes 4 words
+:B0X*:can backup::f("can back up") ; Fixes 1 word
+:B0X*:can been::f("can be") ; Fixes 1 word
+:B0X*:can blackout::f("can black out") ; Fixes 1 word
+:B0X*:can checkout::f("can check out") ; Fixes 1 word
+:B0X*:can playback::f("can play back") ; Fixes 1 word
+:B0X*:can setup::f("can set up") ; Fixes 1 word
+:B0X*:can tryout::f("can try out") ; Fixes 1 word
+:B0X*:can workout::f("can work out") ; Fixes 1 word
+:B0X*:candidiat::f("candidat") ; Fixes 4 words
+:B0X*:cannota::f("connota") ; Fixes 5 words
+:B0X*:cansel::f("cancel") ; Fixes 21 words
+:B0X*:cansent::f("consent ") ; Fixes 1 word
+:B0X*:cantalop::f("cantaloup") ; Fixes 4 words
+:B0X*:capetown::f("Cape Town") ; Fixes 1 word
+:B0X*:carnege::f("Carnegie") ; Fixes 1 word
+:B0X*:carnige::f("Carnegie") ; Fixes 1 word
+:B0X*:carniver::f("carnivor") ; Fixes 7 words
+:B0X*:carree::f("caree") ; Fixes 12 words
+:B0X*:carrib::f("Carib") ; Fixes 8 words
+:B0X*:carthogr::f("cartogr") ; Fixes 9 words
+:B0X*:casion::f("caisson") ; Fixes 2 words
+:B0X*:cassawor::f("cassowar") ; Fixes 2 words
+:B0X*:cassowarr::f("cassowar") ; Fixes 2 words
+:B0X*:casulat::f("casualt") ; Fixes 2 words
+:B0X*:catapillar::f("caterpillar") ; Fixes 2 words
+:B0X*:catapiller::f("caterpillar") ; Fixes 2 words
+:B0X*:catepillar::f("caterpillar") ; Fixes 2 words
+:B0X*:caterpilar::f("caterpillar") ; Fixes 2 words
+:B0X*:caterpiller::f("caterpillar") ; Fixes 2 words
+:B0X*:catterpilar::f("caterpillar") ; Fixes 2 words
+:B0X*:catterpillar::f("caterpillar") ; Fixes 2 words
+:B0X*:caucasion::f("Caucasian") ; Fixes 2 words
+:B0X*:ceasa::f("Caesa") ; Fixes 14 words
+:B0X*:celcius::f("Celsius") ; Fixes 1 word
+:B0X*:cementary::f("cemetery") ; Fixes 1 word
+:B0X*:cemetar::f("cemeter") ; Fixes 3 words
+:B0X*:centruy::f("century") ; Fixes 1 word
+:B0X*:centuties::f("centuries") ; Fixes 1 word
+:B0X*:centuty::f("century") ; Fixes 1 word
+:B0X*:cervial::f("cervical") ; Fixes 1 word
+:B0X*:chalk full::f("chock-full") ; Fixes 1 word
+:B0X*:champang::f("champagn") ; Fixes 5 words
+:B0X*:changed it's::f("changed its") ; Fixes 1 word
+:B0X*:charistics::f("characteristics") ; Fixes 1 word
+:B0X*:chauffer::f("chauffeur") ; Fixes 4 words
+:B0X*:childrens::f("children's") ; Fixes 1 word
+:B0X*:chock it up::f("chalk it up") ; Fixes 1 word
+:B0X*:chocked full::f("chock-full") ; Fixes 1 word
+:B0X*:choclat::f("chocolat") ; Fixes 7 words
+:B0X*:chomping at the bit::f("champing at the bit") ; Fixes 1 word
+:B0X*:choosen::f("chosen") ; Fixes 1 word
+:B0X*:chuch::f("church") ; Fixes 30 words
+:B0X*:ciel::f("ceil") ; Fixes 10 words
+:B0X*:cilind::f("cylind") ; Fixes 8 words
+:B0X*:cincinatti::f("Cincinnati") ; Fixes 1 word
+:B0X*:cincinnatti::f("Cincinnati") ; Fixes 1 word
+:B0X*:cirtu::f("citru") ; Fixes 7 words
+:B0X*:clera::f("clear") ; Fixes 27 words
+:B0X*:closed it's::f("closed its") ; Fixes 1 word
+:B0X*:closer then::f("closer than") ; Fixes 1 word
+:B0X*:co-incided::f("coincided") ; Fixes 1 word
+:B0X*:colate::f("collate") ; Fixes 19 words
+:B0X*:colea::f("collea") ; Fixes 2 words
+:B0X*:collaber::f("collabor") ; Fixes 15 words
+:B0X*:collos::f("coloss") ; Fixes 9 words
+:B0X*:comande::f("commande") ; Fixes 11 words
+:B0X*:comando::f("commando") ; Fixes 2 words
+:B0X*:comback::f("comeback") ; Fixes 2 words
+:B0X*:comdem::f("condem") ; Fixes 12 words
+:B0X*:commadn::f("command") ; Fixes 22 words
+:B0X*:commandoes::f("commandos") ; Fixes 1 word
+:B0X*:commemerat::f("commemorat") ; Fixes 12 words
+:B0X*:commerorat::f("commemorat") ; Fixes 12 words
+:B0X*:commonly know as::f("commonly known as") ; Fixes 1 word
+:B0X*:commonly know for::f("commonly known for") ; Fixes 1 word
+:B0X*:compair::f("compare") ; Fixes 3 words
+:B0X*:comparit::f("comparat") ; Fixes 6 words
+:B0X*:compona::f("compone") ; Fixes 5 words
+:B0X*:compulsar::f("compulsor") ; Fixes 3 words
+:B0X*:compulser::f("compulsor") ; Fixes 3 words
+:B0X*:concensu::f("consensu") ; Fixes 4 words
+:B0X*:conciet::f("conceit") ; Fixes 5 words
+:B0X*:condamn::f("condemn") ; Fixes 12 words
+:B0X*:condemm::f("condemn") ; Fixes 12 words
+:B0X*:conesencu::f("consensu") ; Fixes 4 words
+:B0X*:confidental::f("confidential") ; Fixes 5 words
+:B0X*:confids::f("confides") ; Fixes 1 word
+:B0X*:congradulat::f("congratulat") ; Fixes 9 words
+:B0X*:coniv::f("conniv") ; Fixes 11 words
+:B0X*:conneticut::f("Connecticut") ; Fixes 2 words
+:B0X*:conot::f("connot") ; Fixes 9 words
+:B0X*:conquerer::f("conqueror") ; Fixes 2 words
+:B0X*:consorci::f("consorti") ; Fixes 4 words
+:B0X*:construction sight::f("construction site") ; Fixes 1 word
+:B0X*:consulan::f("consultan") ; Fixes 4 words
+:B0X*:consulten::f("consultan") ; Fixes 4 words
+:B0X*:controvercy::f("controversy") ; Fixes 1 word
+:B0X*:controvery::f("controversy") ; Fixes 1 word
+:B0X*:copy or report::f("copy of report") 
+:B0X*:copy or signed::f("copy of signed") 
+:B0X*:corosi::f("corrosi") ; Fixes 6 words
+:B0X*:correpond::f("correspond") ; Fixes 12 words
+:B0X*:corridoor::f("corridor") ; Fixes 2 words
+:B0X*:coucil::f("council") ; Fixes 14 words
+:B0X*:coudl::f("could") 
+:B0X*:coudn't::f("couldn't") ; Fixes 1 word
+:B0X*:could backup::f("could back up") ; Fixes 1 word
+:B0X*:could setup::f("could set up") ; Fixes 1 word
+:B0X*:could workout::f("could work out") ; Fixes 1 word
+:B0X*:councellor::f("counselor") ; Fixes 4 words
+:B0X*:counr::f("countr") ; Fixes 18 words
+:B0X*:countires::f("countries") ; Fixes 1 word
+:B0X*:creeden::f("creden") ; Fixes 10 words
+:B0X*:creme::f("crème") ; Fixes 2 words
+:B0X*:critere::f("criteri") ; Fixes 6 words
+:B0X*:criteria is::f("criteria are") ; Fixes 1 word
+:B0X*:criteria was::f("criteria were") ; Fixes 1 word
+:B0X*:criterias::f("criteria") ; Fixes 1 word
+:B0X*:critiz::f("criticiz") ; Fixes 7 words
+:B0X*:crucifiction::f("crucifixion") ; Fixes 2 words
+:B0X*:culimi::f("culmi") ; Fixes 8 words
+:B0X*:curriculm::f("curriculum") ; Fixes 2 words
+:B0X*:cyclind::f("cylind") ; Fixes 8 words
+:B0X*:dacquiri::f("daiquiri") ; Fixes 2 words
+:B0X*:dael::f("deal") ; Fixes 31 words
+:B0X*:dakiri::f("daiquiri") ; Fixes 2 words
+:B0X*:dalmation::f("dalmatian") ; Fixes 2 words
+:B0X*:dardenelles::f("Dardanelles") ; Fixes 1 word
+:B0X*:darker then::f("darker than") ; Fixes 1 word
+:B0X*:deafult::f("default") ; Fixes 6 words
+:B0X*:decathalon::f("decathlon") ; Fixes 2 words
+:B0X*:deciding on how::f("deciding how") ; Fixes 1 word
+:B0X*:decomposited::f("decomposed") ; Fixes 1 word
+:B0X*:decompositing::f("decomposing") ; Fixes 1 word
+:B0X*:decomposits::f("decomposes") ; Fixes 1 word
+:B0X*:decress::f("decrees") ; Fixes 1 word
+:B0X*:deep-seeded::f("deep-seated") ; Fixes 1 word
+:B0X*:definan::f("defian") ; Fixes 5 words
+:B0X*:delapidat::f("dilapidat") ; Fixes 6 words
+:B0X*:deleri::f("deliri") ; Fixes 7 words
+:B0X*:delusionally::f("delusionary") ; Fixes 1 word
+:B0X*:demographical::f("demographic") ; Fixes 1 word
+:B0X*:derogit::f("derogat") ; Fixes 11 words
+:B0X*:descripter::f("descriptor") ; Fixes 2 words
+:B0X*:desease::f("disease") ; Fixes 5 words.
+:B0X*:desica::f("desicca") ; Fixes 11 words
+:B0X*:desinte::f("disinte") ; Fixes 24 words.
+:B0X*:desktiop::f("desktop") ; Fixes 2 words
+:B0X*:desorder::f("disorder") ; Fixes 8 words.
+:B0X*:desorient::f("disorient") ; Fixes 10 words.
+:B0X*:desparat::f("desperat") ; Fixes 6 words.
+:B0X*:despite of::f("despite") ; Fixes 1 word
+:B0X*:dessicat::f("desiccat") ; Fixes 9 words.
+:B0X*:deteoriat::f("deteriorat") ; Fixes 6 words.
+:B0X*:deteriat::f("deteriorat") ; Fixes 6 words.
+:B0X*:deterioriat::f("deteriorat") ; Fixes 6 words.
+:B0X*:detrement::f("detriment") ; Fixes 5 words.
+:B0X*:devaste::f("devastate") ; Fixes 3 words
+:B0X*:devestat::f("devastat") ; Fixes 9 words.
+:B0X*:devistat::f("devastat") ; Fixes 9 words.
+:B0X*:diablic::f("diabolic") ; Fixes 4 words.
+:B0X*:diamons::f("diamonds") ; Fixes 1 word
+:B0X*:diast::f("disast") ; Fixes 5 words.
+:B0X*:dicht::f("dichot") ; Fixes 18 words.  Misspells "Mulloidichthys" a genus of Mullidae (goatfishes or red mullets).
+:B0X*:diconnect::f("disconnect") ; Fixes 9 words.
+:B0X*:did attempted::f("did attempt") ; Fixes 1 word
+:B0X*:didint::f("didn't") ; Fixes 1 word
+:B0X*:didn't fair::f("didn't fare") ; Fixes 1 word
+:B0X*:didnot::f("did not") ; Fixes 1 word
+:B0X*:didnt::f("didn't") ; Fixes 1 word
+:B0X*:dieties::f("deities") ; Fixes 1 word
+:B0X*:diety::f("deity") ; Fixes 1 word
+:B0X*:diffcult::f("difficult") ; Fixes 5 words
+:B0X*:different tact::f("different tack") ; Fixes 1 word
+:B0X*:different to::f("different from") ; Fixes 1 word
+:B0X*:difficulity::f("difficulty") ; Fixes 1 word
+:B0X*:diffuse the::f("defuse the") ; Fixes 1 word
+:B0X*:dificult::f("difficult") ; Fixes 5 words
+:B0X*:diminuit::f("diminut") ; Fixes 6 words
+:B0X*:dimunit::f("diminut") ; Fixes 6 words
+:B0X*:diphtong::f("diphthong") ; Fixes 14 words
+:B0X*:diplomanc::f("diplomac") ; Fixes 2 words
+:B0X*:diptheria::f("diphtheria") ; Fixes 3 words
+:B0X*:dipthong::f("diphthong") ; Fixes 14 words
+:B0X*:direct affect::f("direct effect") ; Fixes 1 word
+:B0X*:disasterous::f("disastrous") ; Fixes 3 words
+:B0X*:disatisf::f("dissatisf") ; Fixes 11 words
+:B0X*:disatrous::f("disastrous") ; Fixes 3 words
+:B0X*:discontentment::f("discontent") ; Fixes 1 word
+:B0X*:discus a::f("discuss a") ; Fixes 1 word
+:B0X*:discus the::f("discuss the") ; Fixes 1 word
+:B0X*:discus this::f("discuss this") ; Fixes 1 word
+:B0X*:diseminat::f("disseminat") ; Fixes 9 words
+:B0X*:dispair::f("despair") ; Fixes 6 words
+:B0X*:disparingly::f("disparagingly") ; Fixes 1 word
+:B0X*:dispele::f("dispelle") ; Fixes 3 words
+:B0X*:dispicab::f("despicab") ; Fixes 5 words
+:B0X*:dispite::f("despite") ; Fixes 5 words
+:B0X*:disproportiate::f("disproportionate") ; Fixes 6 words
+:B0X*:dissag::f("disag") ; Fixes 16 words
+:B0X*:dissap::f("disap") ; Fixes 37 words
+:B0X*:dissar::f("disar") ; Fixes 25 words
+:B0X*:dissob::f("disob") ; Fixes 15 words
+:B0X*:divinition::f("divination") ; Fixes 2 words
+:B0X*:docrines::f("doctrines") ; Fixes 1 word
+:B0X*:doe snot::f("does not") ; *could* be legitimate... but very unlikely! ; Fixes 1 word
+:B0X*:doen't::f("doesn't") ; Fixes 1 word
+:B0X*:dolling out::f("doling out") ; Fixes 1 word
+:B0X*:dominate player::f("dominant player") ; Fixes 1 word
+:B0X*:dominate role::f("dominant role") ; Fixes 1 word
+:B0X*:don't no::f("don't know") ; Fixes 1 word
+:B0X*:dont::f("don't") ; Fixes 1 word
+:B0X*:door jam::f("doorjamb") ; Fixes 1 word
+:B0X*:dosen't::f("doesn't") ; Fixes 1 word
+:B0X*:dosn't::f("doesn't") ; Fixes 1 word
+:B0X*:double header::f("doubleheader") ; Fixes 2 words
+:B0X*:down it's::f("down its") ; Fixes 1 word
+:B0X*:down side::f("downside") ; Fixes 1 word
+:B0X*:draughtm::f("draughtsm") ; Fixes 4 words
+:B0X*:drunkeness::f("drunkenness") ; Fixes 1 word
+:B0X*:due to it's::f("due to its") ; Fixes 1 word
+:B0X*:dukeship::f("dukedom") ; Fixes 1 word
+:B0X*:dumbell::f("dumbbell") ; Fixes 1 word
+:B0X*:during it's::f("during its") ; Fixes 1 word
+:B0X*:during they're::f("during their") ; Fixes 1 word
+:B0X*:each phenomena::f("each phenomenon") ; Fixes 1 word
+:B0X*:ealier::f("earlier") ; Fixes 1 word
+:B0X*:earnt::f("earned") ; Fixes 1 word
+:B0X*:eiter::f("either") ; Fixes 1 word
+:B0X*:eles::f("eels") ; Fixes 1 word
+:B0X*:elphant::f("elephant") ; Fixes 6 words
+:B0X*:eluded to::f("alluded to") ; Fixes 1 word
+:B0X*:embargos::f("embargoes") ; Fixes 1 word
+:B0X*:embezell::f("embezzl") ; Fixes 8 words
+:B0X*:emblamatic::f("emblematic") ; Fixes 4 words
+:B0X*:emial::f("email") ; Fixes 6 words
+:B0X*:eminat::f("emanat") ; Fixes 6 words
+:B0X*:emite::f("emitte") ; Fixes 3 words
+:B0X*:emn::f("enm") ; Fixes 8 words
+:B0X*:emphysyma::f("emphysema") ; Fixes 3 words
+:B0X*:empirial::f("imperial") ; Fixes 18 words
+:B0X*:emporer::f("emperor") ; Fixes 4 words
+:B0X*:enameld::f("enamelled") ; Fixes 1 word
+:B0X*:enchanc::f("enhanc") ; Fixes 9 words
+:B0X*:encylop::f("encyclop") ; Fixes 16 word
+:B0X*:endevors::f("endeavors") ; Fixes 8 words
+:B0X*:endolithe::f("endolith") ; Fixes 2 words
+:B0X*:ened::f("need") ; Fixes 44 words
+:B0X*:enlargment::f("enlargement") ; Fixes 2 words
+:B0X*:enlish::f("English") ; Fixes 8 words
+:B0X*:enought::f("enough") ; Fixes 1 word
+:B0X*:enourmous::f("enormous") ; Fixes 3 words
+:B0X*:enscons::f("ensconc") ; Fixes 4 words
+:B0X*:enteratin::f("entertain") ; Fixes 10 words
+:B0X*:entrepeneur::f("entrepreneur") ; Fixes 7 words
+:B0X*:enviorment::f("environment") ; Fixes 8 words
+:B0X*:enviorn::f("environ") ; Fixes 12 words
+:B0X*:envirom::f("environm") ; Fixes 8 words
+:B0X*:envrion::f("environ") ; Fixes 8 words
+:B0X*:epidsod::f("episod") ; Fixes 6 words
+:B0X*:epsiod::f("episod") ; Fixes 6 words
+:B0X*:equitor::f("equator") ; Fixes 5 words
+:B0X*:eral::f("real") ; Fixes 74 words
+:B0X*:eratic::f("erratic") ; Fixes 4 words
+:B0X*:erest::f("arrest") ; Fixes 14 words
+:B0X*:errupt::f("erupt") ; Fixes 6 words
+:B0X*:escta::f("ecsta") ; Fixes 5 words
+:B0X*:esle::f("else") ; Fixes 3 words
+:B0X*:europian::f("European") ; Fixes 15 words
+:B0X*:eurpean::f("European") ; Fixes 15 words
+:B0X*:eurpoean::f("European") ; Fixes 15 words
+:B0X*:evental::f("eventual") ; Fixes 4 words
+:B0X*:eventhough::f("even though") ; Fixes 1 word
+:B0X*:evential::f("eventual") ; Fixes 4 words
+:B0X*:everthing::f("everything") ; Fixes 1 word
+:B0X*:everytime::f("every time") ; Fixes 1 word
+:B0X*:everyting::f("everything") ; Fixes 1 word
+:B0X*:excede::f("exceed") ; Fixes 8 words
+:B0X*:excelen::f("excellen") ; Fixes 9 words
+:B0X*:excellan::f("excellen") ; Fixes 9 words
+:B0X*:excells::f("excels") ; Fixes 1 word
+:B0X*:exection::f("execution") ; Fixes 5 words
+:B0X*:exectued::f("executed") ; Fixes 1 word
+:B0X*:exelen::f("excellen") ; Fixes 9 words
+:B0X*:exellen::f("excellen") ; Fixes 9 words
+:B0X*:exemple::f("example") ; Fixes 1 word
+:B0X*:exerbat::f("exacerbat") ; Fixes 7 words
+:B0X*:exerciese::f("exercises") ; Fixes 1 word
+:B0X*:exerpt::f("excerpt") ; Fixes 6 words
+:B0X*:exerternal::f("external") ; Fixes 22 words
+:B0X*:exhalt::f("exalt") ; Fixes 10 words
+:B0X*:exhibt::f("exhibit") ; Fixes 20 words
+:B0X*:exibit::f("exhibit") ; Fixes 20 words
+:B0X*:exilera::f("exhilara") ; Fixes 9 words
+:B0X*:existince::f("existence") ; Fixes 1 word
+:B0X*:exlud::f("exclud") ; Fixes 7 words
+:B0X*:exonorat::f("exonerat") ; Fixes 7 words
+:B0X*:expatriot::f("expatriate") ; Fixes 1 word
+:B0X*:expeditonary::f("expeditionary") ; Fixes 1 word
+:B0X*:expeiment::f("experiment") ; Fixes 14 words
+:B0X*:explainat::f("explanat") ; Fixes 7 words
+:B0X*:explaning::f("explaining") ; Fixes 1 word
+:B0X*:exteme::f("extreme") ; Fixes 6 words
+:B0X*:extered::f("exerted") ; Fixes 1 word
+:B0X*:extermist::f("extremist") ; Fixes 1 word
+:B0X*:extract punishment::f("exact punishment") ; Fixes 1 word
+:B0X*:extract revenge::f("exact revenge") ; Fixes 1 word
+:B0X*:extradiction::f("extradition") ; Fixes 1 word
+:B0X*:extravagent::f("extravagant") ; Fixes 3 words
+:B0X*:extrememly::f("extremely") ; Fixes 1 word
+:B0X*:extremeophile::f("extremophile") ; Fixes 1 word
+:B0X*:extremly::f("extremely") ; Fixes 1 word
+:B0X*:extrordinar::f("extraordinar") ; Fixes 3 words
+:B0X*:eyar::f("year") ; Fixes 17 words
+:B0X*:eye brow::f("eyebrow") ; Fixes 1 word
+:B0X*:eye lash::f("eyelash") ; Fixes 1 word
+:B0X*:eye lid::f("eyelid") ; Fixes 1 word
+:B0X*:eye sight::f("eyesight") ; Fixes 1 word
+:B0X*:eye sore::f("eyesore") ; Fixes 1 word
+:B0X*:eyt::f("yet") ; Fixes 1 word
+:B0X*:faciliat::f("facilitat") ; Fixes 10 words
+:B0X*:facilites::f("facilities") ; Fixes 1 word
+:B0X*:facillitat::f("facilitat") ; Fixes 10 words
+:B0X*:facinat::f("fascinat") ; Fixes 10 words
+:B0X*:faetur::f("featur") ; Fixes 6 words
+:B0X*:faired as well::f("fared as well") ; Fixes 1 word
+:B0X*:faired badly::f("fared badly") ; Fixes 1 word
+:B0X*:faired better::f("fared better") ; Fixes 1 word
+:B0X*:faired far::f("fared far") ; Fixes 1 word
+:B0X*:faired less::f("fared less") ; Fixes 1 word
+:B0X*:faired little::f("fared little") ; Fixes 1 word
+:B0X*:faired much::f("fared much") ; Fixes 1 word
+:B0X*:faired no better::f("fared no better") ; Fixes 1 word
+:B0X*:faired poorly::f("fared poorly") ; Fixes 1 word
+:B0X*:faired quite::f("fared quite") ; Fixes 1 word
+:B0X*:faired rather::f("fared rather") ; Fixes 1 word
+:B0X*:faired slightly::f("fared slightly") ; Fixes 1 word
+:B0X*:faired somewhat::f("fared somewhat") ; Fixes 1 word
+:B0X*:faired well::f("fared well") ; Fixes 1 word
+:B0X*:faired worse::f("fared worse") ; Fixes 1 word
+:B0X*:familes::f("families") ; Fixes 1 word
+:B0X*:fanatism::f("fanaticism") ; Fixes 1 word
+:B0X*:farenheit::f("Fahrenheit") ; Fixes 1 word
+:B0X*:farther then::f("farther than") ; Fixes 1 word
+:B0X*:faster then::f("faster than") ; Fixes 1 word
+:B0X*:febuary::f("February") ; Fixes 1 word
+:B0X*:femail::f("female") ; Fixes 1 word
+:B0X*:feromone::f("pheromone") ; Fixes 1 word
+:B0X*:fianlly::f("finally") ; Fixes 1 word
+:B0X*:ficed::f("fixed") ; Fixes 1 word
+:B0X*:fiercly::f("fiercely") ; Fixes 1 word
+:B0X*:fightings::f("fighting") ; Fixes 1 word
+:B0X*:figure head::f("figurehead") ; Fixes 1 word
+:B0X*:filled a lawsuit::f("filed a lawsuit") ; Fixes 1 word
+:B0X*:finaly::f("finally") ; Fixes 1 word
+:B0X*:firey::f("fiery") ; Fixes 1 word
+:B0X*:flag ship::f("flagship") ; Fixes 1 word
+:B0X*:fleed::f("freed") ; Fixes 4 words
+:B0X*:florescent::f("fluorescent") ; Fixes 1 word
+:B0X*:flourescent::f("fluorescent") ; Fixes 1 word
+:B0X*:follow suite::f("follow suit") ; Fixes 1 word
+:B0X*:following it's::f("following its") ; Fixes 1 word
+:B0X*:for all intensive purposes::f("for all intents and purposes") ; Fixes 1 word
+:B0X*:for along time::f("for a long time") ; Fixes 1 word
+:B0X*:for awhile::f("for a while") ; Fixes 1 word
+:B0X*:for quite awhile::f("for quite a while") ; Fixes 1 word
+:B0X*:for way it's::f("for what it's") ; Fixes 1 word
+:B0X*:fore ground::f("foreground") ; Fixes 1 word
+:B0X*:forego her::f("forgo her") ; Fixes 1 word
+:B0X*:forego his::f("forgo his") ; Fixes 1 word
+:B0X*:forego their::f("forgo their") ; Fixes 1 word
+:B0X*:foreward::f("foreword") ; Fixes 1 word
+:B0X*:forgone conclusion::f("foregone conclusion") ; Fixes 1 word
+:B0X*:forhe::f("forehe") ; Fixes 5 words
+:B0X*:formalhaut::f("Fomalhaut") ; Fixes 1 word
+:B0X*:formelly::f("formerly") ; Fixes 1 word
+:B0X*:forsaw::f("foresaw") ; Fixes 1 word
+:B0X*:fortell::f("foretell") ; Fixes 5 words
+:B0X*:forunner::f("forerunner") ; Fixes 1 word
+:B0X*:foundar::f("foundr") ; Fixes 5 words
+:B0X*:fouth::f("fourth") ; Fixes 3 words
+:B0X*:fransiscan::f("Franciscan") ; Fixes 3 words
+:B0X*:friut::f("fruit") ; Fixes 32 words
+:B0X*:fromt he::f("from the") ; Fixes 1 word
+:B0X*:froniter::f("frontier") ; Fixes 6 words
+:B0X*:fued::f("feud") ; Fixes 28 words
+:B0X*:fuhrer::f("Führer") ; Fixes 2 words
+:B0X*:fulfiled::f("fulfilled") ; Fixes 1 word
+:B0X*:full compliment of::f("full complement of") ; Fixes 1 word
+:B0X*:funguses::f("fungi") ; Fixes 1 word
+:B0X*:furner::f("funer") ; Fixes 6 words
+:B0X*:futhe::f("furthe") ; Fixes 10 words
+:B0X*:fwe::f("few") ; Fixes 5 words
+:B0X*:galatic::f("galactic") ; Fixes 1 word
+:B0X*:galations::f("Galatians") ; Fixes 1 word
+:B0X*:gameboy::f("Game Boy") ; Fixes 1 word
+:B0X*:ganes::f("games") ; Fixes 1 word
+:B0X*:ganst::f("gangst") ; Fixes 6 words
+:B0X*:gaol::f("goal") ; Fixes 22 words ; Misspells British spelling of "jail"
+:B0X*:gauarana::f("guarana") ; Fixes 1 word
+:B0X*:gauren::f("guaran") ; Fixes 15 words
+:B0X*:gave advise::f("gave advice") ; Fixes 1 word
+:B0X*:geneolog::f("genealog") ; Fixes 7 words
+:B0X*:genialia::f("genitalia") ; Fixes 1 word
+:B0X*:gentlemens::f("gentlemen's") ; Fixes 1 word
+:B0X*:gerat::f("great") ; Fixes 12 words
+:B0X*:get setup::f("get set up") ; Fixes 1 word
+:B0X*:get use to::f("get used to") ; Fixes 1 word
+:B0X*:geting::f("getting") ; Fixes 1 word
+:B0X*:gets it's::f("gets its") ; Fixes 1 word
+:B0X*:getting use to::f("getting used to") ; Fixes 1 word
+:B0X*:ghandi::f("Gandhi") ; Fixes 1 word
+:B0X*:girat::f("gyrat") ; Fixes 9 words
+:B0X*:give advise::f("give advice") ; Fixes 1 word
+:B0X*:gives advise::f("gives advice") ; Fixes 1 word
+:B0X*:glamourous::f("glamorous") ; Fixes 1 word
+:B0X*:gloabl::f("global") ; Fixes 18 words
+:B0X*:gnaww::f("gnaw") ; Fixes 8 words
+:B0X*:going threw::f("going through") ; Fixes 1 word
+:B0X*:got ran::f("got run") ; Fixes 1 word
+:B0X*:got setup::f("got set up") ; Fixes 1 word
+:B0X*:got shutdown::f("got shut down") ; Fixes 1 word
+:B0X*:got shutout::f("got shut out") ; Fixes 1 word
+:B0X*:gouvener::f("governor") ; Fixes 6 words
+:B0X*:governer::f("governor") ; Fixes 6 words
+:B0X*:graet::f("great") ; Fixes 12 words
+:B0X*:grafitti::f("graffiti") ; Fixes 5 words
+:B0X*:grammer::f("grammar") ; Fixes 1 word
+:B0X*:greater then::f("greater than") ; Fixes 1 word
+:B0X*:greif::f("grief") ; Fixes 1 word
+:B0X*:gridle::f("griddle") ; Fixes 5 words
+:B0X*:ground work::f("groundwork") ; Fixes 1 word
+:B0X*:guadulupe::f("Guadalupe") ; Fixes 1 word
+:B0X*:guage::f("gauge") ; Fixes 6 words
+:B0X*:guatamala::f("Guatemala") ; Fixes 1 word
+:B0X*:guerrila::f("guerrilla") ; Fixes 2 words
+:B0X*:guest stared::f("guest-starred") ; Fixes 1 word
+:B0X*:guidlin::f("guidelin") ; Fixes 2 words
+:B0X*:guiliani::f("Giuliani") ; Fixes 1 word
+:B0X*:guilio::f("Giulio") ; Fixes 1 word
+:B0X*:guiness::f("Guinness") ; Fixes 1 word
+:B0X*:guiseppe::f("Giuseppe") ; Fixes 1 word
+:B0X*:gunanine::f("guanine") ; Fixes 1 word ; It's in bat poop. LOL 
+:B0X*:gusy::f("guys") ; Fixes 1 word
+:B0X*:gutteral::f("guttural") ; Fixes 4 words
+:B0X*:habaeus::f("habeas") ; Fixes 1 word
+:B0X*:habbit::f("habit") ; Fixes 31 words
+:B0X*:habeus::f("habeas") ; Fixes 1 word
+:B0X*:habsbourg::f("Habsburg") ; Fixes 1 word
+:B0X*:had arose::f("had arisen") ; Fixes 1 word
+:B0X*:had became::f("had become") ; Fixes 1 word
+:B0X*:had began::f("had begun") ; Fixes 1 word
+:B0X*:had being::f("had been") ; Fixes 1 word
+:B0X*:had brung::f("had brought") ; Fixes 1 word
+:B0X*:had came::f("had come") ; Fixes 1 word
+:B0X*:had comeback::f("had come back") ; Fixes 1 word
+:B0X*:had cut-off::f("had cut off") ; Fixes 1 word
+:B0X*:had did::f("had done") ; Fixes 1 word
+:B0X*:had drank::f("had drunk") ; Fixes 1 word
+:B0X*:had drew::f("had drawn") ; Fixes 1 word
+:B0X*:had drove::f("had driven") ; Fixes 1 word
+:B0X*:had flew::f("had flown") ; Fixes 1 word
+:B0X*:had gave::f("had given") ; Fixes 1 word
+:B0X*:had grew::f("had grown") ; Fixes 1 word
+:B0X*:had it's::f("had its") ; Fixes 1 word
+:B0X*:had knew::f("had known") ; Fixes 1 word
+:B0X*:had lead for::f("had led for") ; Fixes 1 word
+:B0X*:had lead the::f("had led the") ; Fixes 1 word
+:B0X*:had lead to::f("had led to") ; Fixes 1 word
+:B0X*:had meet::f("had met") ; Fixes 1 word
+:B0X*:had mislead::f("had misled") ; Fixes 1 word
+:B0X*:had overcame::f("had overcome") ; Fixes 1 word
+:B0X*:had overran::f("had overrun") ; Fixes 1 word
+:B0X*:had overtook::f("had overtaken") ; Fixes 1 word
+:B0X*:had runaway::f("had run away") ; Fixes 1 word
+:B0X*:had sang::f("had sung") ; Fixes 1 word
+:B0X*:had send::f("had sent") ; Fixes 1 word
+:B0X*:had set-up::f("had set up") ; Fixes 1 word
+:B0X*:had setup::f("had set up") ; Fixes 1 word
+:B0X*:had shook::f("had shaken") ; Fixes 1 word
+:B0X*:had shut-down::f("had shut down") ; Fixes 1 word
+:B0X*:had shutdown::f("had shut down") ; Fixes 1 word
+:B0X*:had shutout::f("had shut out") ; Fixes 1 word
+:B0X*:had sowed::f("had sown") ; Fixes 1 word
+:B0X*:had spend::f("had spent") ; Fixes 1 word
+:B0X*:had sprang::f("had sprung") ; Fixes 1 word
+:B0X*:had threw::f("had thrown") ; Fixes 1 word
+:B0X*:had thunk::f("had thought") ; Fixes 1 word
+:B0X*:had to much::f("had too much") ; Fixes 1 word
+:B0X*:had to used::f("had to use") ; Fixes 1 word
+:B0X*:had took::f("had taken") ; Fixes 1 word
+:B0X*:had tore::f("had torn") ; Fixes 1 word
+:B0X*:had undertook::f("had undertaken") ; Fixes 1 word
+:B0X*:had underwent::f("had undergone") ; Fixes 1 word
+:B0X*:had went::f("had gone") ; Fixes 1 word
+:B0X*:had wore::f("had worn") ; Fixes 1 word
+:B0X*:had wrote::f("had written") ; Fixes 1 word
+:B0X*:hadbeen::f("had been") ; Fixes 1 word
+:B0X*:hadn't went::f("hadn't gone") ; Fixes 1 word
+:B0X*:haemorrage::f("haemorrhage") ; Fixes 3 words
+:B0X*:haev::f("have") ; Fixes 1 word
+:B0X*:halarious::f("hilarious") ; Fixes 3 words
+:B0X*:half and hour::f("half an hour") ; Fixes 1 word
+:B0X*:hallowean::f("Halloween") ; Fixes 1 word
+:B0X*:halp::f("help") ; Fixes 21 words
+:B0X*:hand the reigns::f("hand the reins") ; Fixes 1 word
+:B0X*:hapen::f("happen") ; Fixes 7 words
+:B0X*:harases::f("harasses") ; Fixes 1 word
+:B0X*:harasm::f("harassm") ; Fixes 2 words
+:B0X*:harassement::f("harassment") ; Fixes 2 words
+:B0X*:has brung::f("has brought") ; Fixes 1 word
+:B0X*:has came::f("has come") ; Fixes 1 word
+:B0X*:has cut-off::f("has cut off") ; Fixes 1 word
+:B0X*:has did::f("has done") ; Fixes 1 word
+:B0X*:has drank::f("has drunk") ; Fixes 1 word
+:B0X*:has drew::f("has drawn") ; Fixes 1 word
+:B0X*:has gave::f("has given") ; Fixes 1 word
+:B0X*:has having::f("as having") ; Fixes 1 word
+:B0X*:has it's::f("has its") ; Fixes 1 word
+:B0X*:has lead the::f("has led the") ; Fixes 1 word
+:B0X*:has lead to::f("has led to") ; Fixes 1 word
+:B0X*:has meet::f("has met") ; Fixes 1 word
+:B0X*:has mislead::f("has misled") ; Fixes 1 word
+:B0X*:has overcame::f("has overcome") ; Fixes 1 word
+:B0X*:has rang::f("has rung") ; Fixes 1 word
+:B0X*:has sang::f("has sung") ; Fixes 1 word
+:B0X*:has set-up::f("has set up") ; Fixes 1 word
+:B0X*:has setup::f("has set up") ; Fixes 1 word
+:B0X*:has shook::f("has shaken") ; Fixes 1 word
+:B0X*:has sprang::f("has sprung") ; Fixes 1 word
+:B0X*:has threw::f("has thrown") ; Fixes 1 word
+:B0X*:has throve::f("has thrived") ; Fixes 1 word
+:B0X*:has thunk::f("has thought") ; Fixes 1 word
+:B0X*:has took::f("has taken") ; Fixes 1 word
+:B0X*:has undertook::f("has undertaken") ; Fixes 1 word
+:B0X*:has underwent::f("has undergone") ; Fixes 1 word
+:B0X*:has went::f("has gone") ; Fixes 1 word
+:B0X*:has wrote::f("has written") ; Fixes 1 word
+:B0X*:hasbeen::f("has been") ; Fixes 1 word
+:B0X*:hasnt::f("hasn't") ; Fixes 1 word
+:B0X*:have drank::f("have drunk") ; Fixes 1 word
+:B0X*:have it's::f("have its") ; Fixes 1 word
+:B0X*:have lead to::f("have led to") ; Fixes 1 word
+:B0X*:have mislead::f("have misled") ; Fixes 1 word
+:B0X*:have rang::f("have rung") ; Fixes 1 word
+:B0X*:have sang::f("have sung") ; Fixes 1 word
+:B0X*:have setup::f("have set up") ; Fixes 1 word
+:B0X*:have sprang::f("have sprung") ; Fixes 1 word
+:B0X*:have took::f("have taken") ; Fixes 1 word
+:B0X*:have underwent::f("have undergone") ; Fixes 1 word
+:B0X*:have went::f("have gone") ; Fixes 1 word
+:B0X*:havebeen::f("have been") ; Fixes 1 word
+:B0X*:haviest::f("heaviest") ; Fixes 1 word
+:B0X*:having became::f("having become") ; Fixes 1 word
+:B0X*:having began::f("having begun") ; Fixes 1 word
+:B0X*:having being::f("having been") ; Fixes 1 word
+:B0X*:having it's::f("having its") ; Fixes 1 word
+:B0X*:having sang::f("having sung") ; Fixes 1 word
+:B0X*:having setup::f("having set up") ; Fixes 1 word
+:B0X*:having took::f("having taken") ; Fixes 1 word
+:B0X*:having underwent::f("having undergone") ; Fixes 1 word
+:B0X*:having went::f("having gone") ; Fixes 1 word
+:B0X*:hay day::f("heyday") ; Fixes 1 word
+:B0X*:hda::f("had") ; Fixes 28 words
+:B0X*:he begun::f("he began") ; Fixes 1 word
+:B0X*:he let's::f("he lets") ; Fixes 1 word
+:B0X*:he seen::f("he saw") ; Fixes 1 word
+:B0X*:he use to::f("he used to") ; Fixes 1 word
+:B0X*:he's drank::f("he drank") ; Fixes 1 word
+:B0X*:head gear::f("headgear") ; Fixes 1 word
+:B0X*:head quarters::f("headquarters") ; Fixes 1 word
+:B0X*:head stone::f("headstone") ; Fixes 1 word
+:B0X*:head wear::f("headwear") ; Fixes 1 word
+:B0X*:headquarer::f("headquarter") ; Fixes 4 words
+:B0X*:healther::f("health") ; Fixes 11 words
+:B0X*:heared::f("heard") ; Fixes 1 word
+:B0X*:heathy::f("healthy") ; Fixes 1 word
+:B0X*:heidelburg::f("Heidelberg") ; Fixes 1 word
+:B0X*:heigher::f("higher") ; Fixes 1 word
+:B0X*:held the reigns::f("held the reins") ; Fixes 1 word
+:B0X*:helf::f("held") ; Fixes 1 word
+:B0X*:hellow::f("hello") ; Fixes 1 word
+:B0X*:helment::f("helmet") ; Fixes 5 words
+:B0X*:help and make::f("help to make") ; Fixes 1 word
+:B0X*:helpfull::f("helpful") ; Fixes 1 word
+:B0X*:hemmorhage::f("hemorrhage") ; Fixes 3 words
+:B0X*:herf::f("href") ; Fixes 1 word
+:B0X*:heroe::f("hero") ; Fixes 1 word
+:B0X*:heros::f("heroes") ; Fixes 1 word
+:B0X*:hersuit::f("hirsute") ; Fixes 1 word
+:B0X*:hesaid::f("he said") ; Fixes 1 word
+:B0X*:hesista::f("hesita") ; Fixes 19 words
+:B0X*:heterogenous::f("heterogeneous") ; Fixes 1 word
+:B0X*:hewas::f("he was") ; Fixes 1 word
+:B0X*:hge::f("he") ; Fixes 1607 words
+:B0X*:higer::f("higher") ; Fixes 1 word
+:B0X*:higest::f("highest") ; Fixes 1 word
+:B0X*:higher then::f("higher than") ; Fixes 1 word
+:B0X*:himselv::f("himself") ; Fixes 1 word
+:B0X*:hinderance::f("hindrance") ; Fixes 1 word
+:B0X*:hinderence::f("hindrance") ; Fixes 1 word
+:B0X*:hindrence::f("hindrance") ; Fixes 1 word
+:B0X*:hipopotamus::f("hippopotamus") ; Fixes 1 word
+:B0X*:his resent::f("his recent") ; Fixes 1 word ; not good for 'her' 
+:B0X*:hismelf::f("himself") ; Fixes 1 word
+:B0X*:hit the breaks::f("hit the brakes") ; Fixes 1 word
+:B0X*:hitsingles::f("hit singles") ; Fixes 1 word
+:B0X*:hlep::f("help") ; Fixes 21 words
+:B0X*:hold onto::f("hold on to") ; Fixes 1 word
+:B0X*:hold the reigns::f("hold the reins") ; Fixes 1 word
+:B0X*:holding the reigns::f("holding the reins") ; Fixes 1 word
+:B0X*:holds the reigns::f("holds the reins") ; Fixes 1 word
+:B0X*:holliday::f("holiday") ; Fixes 6 words
+:B0X*:homestate::f("home state") ; Fixes 1 word
+:B0X*:hone in on::f("home in on") ; Fixes 1 word
+:B0X*:honed in::f("homed in") ; Fixes 1 word
+:B0X*:honory::f("honorary") ; Fixes 1 word
+:B0X*:honourarium::f("honorarium") ; Fixes 1 word
+:B0X*:honourific::f("honorific") ; Fixes 1 word
+:B0X*:hosit::f("hoist") ; Fixes 6 words
+:B0X*:hostring::f("hotstring")
+:B0X*:hotsring::f("hotstring")
+:B0X*:hotter then::f("hotter than") ; Fixes 1 word
+:B0X*:house hold::f("household") ; Fixes 1 word
+:B0X*:housr::f("hours") ; Fixes 1 word
+:B0X*:hsa::f("has") ; Fixes 64 words
+:B0X*:hte::f("the") ; Fixes 402 words
+:B0X*:hti::f("thi") ; Fixes 186 words
+:B0X*:huminoid::f("humanoid") ; Fixes 1 word
+:B0X*:humoural::f("humoral") ; Fixes 1 word
+:B0X*:hwi::f("whi") ; Fixes 310 words
+:B0X*:hwo::f("who") ; Fixes 76 words
+:B0X*:hydropile::f("hydrophile") ; Fixes 1 word
+:B0X*:hydropilic::f("hydrophilic") ; Fixes 1 word
+:B0X*:hydropobe::f("hydrophobe") ; Fixes 1 word
+:B0X*:hydropobic::f("hydrophobic") ; Fixes 1 word
+:B0X*:hygein::f("hygien") ; Fixes 18 words
+:B0X*:hyjack::f("hijack") ; Fixes 7 words
+:B0X*:hypocracy::f("hypocrisy") ; Fixes 1 word
+:B0X*:hypocrasy::f("hypocrisy") ; Fixes 1 word
+:B0X*:hypocricy::f("hypocrisy") ; Fixes 1 word
+:B0X*:hypocrits::f("hypocrites") ; Fixes 1 word
+:B0X*:i snot::f("is not") ; Fixes 1 word
+:B0X*:i"m::f("I'm") ; Fixes 1 word
+:B0X*:i;d::f("I'd") ; Fixes 1 word
+:B0X*:iconclas::f("iconoclas") ; Fixes 6 words
+:B0X*:idae::f("idea") ; Fixes 40 words
+:B0X*:idealogi::f("ideologi") ; Fixes 7 words
+:B0X*:idealogy::f("ideology") ; Fixes 1 word
+:B0X*:identifer::f("identifier") ; Fixes 2 words
+:B0X*:ideosyncratic::f("idiosyncratic") ; Fixes 1 word
+:B0X*:idesa::f("ideas") ; Fixes 1 word
+:B0X*:idiosyncracy::f("idiosyncrasy") ; Fixes 1 word
+:B0X*:if is::f("it is") ; Fixes 1 word
+:B0X*:if was::f("it was") ; Fixes 1 word
+:B0X*:ifb y::f("if by") ; Fixes 1 word
+:B0X*:ifi t::f("if it") ; Fixes 1 word
+:B0X*:ift he::f("if the") ; Fixes 1 word
+:B0X*:ignorence::f("ignorance") ; Fixes 1 word
+:B0X*:ihaca::f("Ithaca") ; Fixes 1 word
+:B0X*:iits the::f("it's the") ; Fixes 1 word
+:B0X*:illegim::f("illegitim") ; Fixes 6 words
+:B0X*:illess::f("illness") ; Fixes 1 word
+:B0X*:illicited::f("elicited") ; Fixes 1 word
+:B0X*:illieg::f("illeg") ; Fixes 27 words
+:B0X*:ilness::f("illness") ; Fixes 1 word
+:B0X*:ilog::f("illog") ; Fixes 7 words
+:B0X*:ilu::f("illu") ; Fixes 61 words
+:B0X*:imaginery::f("imaginary") ; Fixes 1 word
+:B0X*:iman::f("immin") ; Fixes 11 words
+:B0X*:imcom::f("incom") ; Fixes 78 words
+:B0X*:imigra::f("immigra") ; Fixes 8 words
+:B0X*:immida::f("immedia") ; Fixes 5 words
+:B0X*:immidia::f("immedia") ; Fixes 5 words
+:B0X*:imminent domain::f("eminent domain") ; Fixes 1 word
+:B0X*:impecab::f("impecca") ; Fixes 6 words
+:B0X*:impedence::f("impedance") ; Fixes 2 words
+:B0X*:impressa::f("impresa") ; Fixes 4 words
+:B0X*:improvision::f("improvisation") ; Fixes 4 words
+:B0X*:in along time::f("in a long time") ; Fixes 1 word
+:B0X*:in anyway::f("in any way") ; Fixes 1 word
+:B0X*:in awhile::f("in a while") ; Fixes 1 word
+:B0X*:in edition to::f("in addition to") ; Fixes 1 word
+:B0X*:in lu of::f("in lieu of") ; Fixes 1 word
+:B0X*:in masse::f("en masse") ; Fixes 1 word
+:B0X*:in parenthesis::f("in parentheses") ; Fixes 1 word
+:B0X*:in placed::f("in place") ; Fixes 1 word
+:B0X*:in principal::f("in principle") ; Fixes 1 word
+:B0X*:in quite awhile::f("in quite a while") ; Fixes 1 word
+:B0X*:in regards to::f("in regard to") ; Fixes 1 word
+:B0X*:in stead of::f("instead of") ; Fixes 1 word
+:B0X*:in tact::f("intact") ; Fixes 1 word
+:B0X*:in the long-term::f("in the long term") ; Fixes 1 word
+:B0X*:in the short-term::f("in the short term") ; Fixes 1 word
+:B0X*:in titled::f("entitled") ; Fixes 1 word
+:B0X*:in vein::f("in vain") ; Fixes 1 word
+:B0X*:inagura::f("inaugura") ; Fixes 11 words
+:B0X*:inate::f("innate") ; Fixes 3 words
+:B0X*:inaugure::f("inaugurate") ; Fixes 3 words
+:B0X*:inbalance::f("imbalance") ; Fixes 3 words
+:B0X*:inbetween::f("between") ; Fixes 1 word
+:B0X*:incase of::f("in case of") ; Fixes 1 word
+:B0X*:incidently::f("incidentally") ; Fixes 1 word
+:B0X*:incread::f("incred") ; Fixes 10 words
+:B0X*:incuding::f("including") ; Fixes 1 word
+:B0X*:indefineab::f("undefinab") ; Fixes 4 words
+:B0X*:indentical::f("identical") ; Fixes 1 word
+:B0X*:indesp::f("indisp") ; Fixes 16 words
+:B0X*:indictement::f("indictment") ; Fixes 1 word
+:B0X*:indigine::f("indigen") ; Fixes 24 words
+:B0X*:inevatibl::f("inevitabl") ; Fixes 4 words
+:B0X*:inevitib::f("inevitab") ; Fixes 6 words
+:B0X*:inevititab::f("inevitab") ; Fixes 6 words
+:B0X*:infact::f("in fact") ; Fixes 1 word
+:B0X*:infered::f("inferred") ; Fixes 1 word
+:B0X*:influented::f("influenced") ; Fixes 1 word
+:B0X*:ingreediants::f("ingredients") ; Fixes 1 word
+:B0X*:inmigra::f("immigra") ; Fixes 8 words
+:B0X*:inocenc::f("innocenc") ; Fixes 4 words
+:B0X*:inofficial::f("unofficial") ; Fixes 3 words
+:B0X*:inot::f("into") ; Fixes 36 words
+:B0X*:inpen::f("impen") ; Fixes 22 words
+:B0X*:inperson::f("in-person") ; Fixes 1 word
+:B0X*:inspite::f("in spite") ; Fixes 1 word
+:B0X*:int he::f("in the") ; Fixes 1 word
+:B0X*:interbread::f("interbred") ; Fixes 1 word
+:B0X*:intered::f("interred") ; Fixes 1 word
+:B0X*:interelat::f("interrelat") ; Fixes 10 words
+:B0X*:interm::f("interim") ; Fixes 1 word
+:B0X*:interrim::f("interim") ; Fixes 1 word
+:B0X*:interrugum::f("interregnum") ; Fixes 1 word
+:B0X*:intertain::f("entertain") ; Fixes 10 words
+:B0X*:interum::f("interim") ; Fixes 1 word
+:B0X*:intervines::f("intervenes") ; Fixes 1 word
+:B0X*:intial::f("initial") ; Fixes 25 words
+:B0X*:into affect::f("into effect") ; Fixes 1 word
+:B0X*:into it's::f("into its") ; Fixes 1 word
+:B0X*:introdued::f("introduced") ; Fixes 1 word
+:B0X*:intrument::f("instrument") ; Fixes 19 words
+:B0X*:intrust::f("entrust") ; Fixes 4 words
+:B0X*:inumer::f("innumer") ; Fixes 8 words
+:B0X*:inventer::f("inventor") ; Fixes 6 words
+:B0X*:invision::f("envision") ; Fixes 4 words 
+:B0X*:inwhich::f("in which") ; Fixes 1 word
+:B0X*:iresis::f("irresis") ; Fixes 9 words 
+:B0X*:iresistib::f("irresistib") ; Fixes 5 words
+:B0X*:iritab::f("irritab") ; Fixes 5 words
+:B0X*:iritat::f("irritat") ; Fixes 12 words
+:B0X*:irregardless::f("regardless") ; Fixes 1 word
+:B0X*:is front of::f("in front of") ; Fixes 1 word
+:B0X*:is it's::f("is its") ; Fixes 1 word
+:B0X*:is lead by::f("is led by") ; Fixes 1 word
+:B0X*:is loathe to::f("is loath to") ; Fixes 1 word
+:B0X*:is ran by::f("is run by") ; Fixes 1 word
+:B0X*:is renown for::f("is renowned for") ; Fixes 1 word
+:B0X*:is schedule to::f("is scheduled to") ; Fixes 1 word
+:B0X*:is set-up::f("is set up") ; Fixes 1 word
+:B0X*:is setup::f("is set up") ; Fixes 1 word
+:B0X*:is use to::f("is used to") ; Fixes 1 word
+:B0X*:is were::f("is where") ; Fixes 1 word
+:B0X*:isnt::f("isn't") ; Fixes 1 word
+:B0X*:it begun::f("it began") ; Fixes 1 word
+:B0X*:it lead to::f("it led to") ; Fixes 1 word
+:B0X*:it set-up::f("it set up") ; Fixes 1 word
+:B0X*:it setup::f("it set up") ; Fixes 1 word
+:B0X*:it snot::f("it's not") ; Fixes 1 word
+:B0X*:it spend::f("it spent") ; Fixes 1 word
+:B0X*:it use to::f("it used to") ; Fixes 1 word
+:B0X*:it was her who::f("it was she who") ; Fixes 1 word
+:B0X*:it was him who::f("it was he who") ; Fixes 1 word
+:B0X*:it weighted::f("it weighed") ; Fixes 1 word
+:B0X*:it weights::f("it weighs") ; Fixes 1 word
+:B0X*:it' snot::f("it's not") ; Fixes 1 word
+:B0X*:it's current::f("its current") ; Fixes 1 word
+:B0X*:it's end::f("its end") ; Fixes 1 word
+:B0X*:it's entire::f("its entire") ; Fixes 1 word
+:B0X*:it's former::f("its former") ; Fixes 1 word
+:B0X*:it's goal::f("its goal") ; Fixes 1 word
+:B0X*:it's name::f("its name") ; Fixes 1 word
+:B0X*:it's own::f("its own") ; Fixes 1 word
+:B0X*:it's performance::f("its performance") ; Fixes 1 word
+:B0X*:it's source::f("its source") ; Fixes 1 word
+:B0X*:it's successor::f("its successor") ; Fixes 1 word
+:B0X*:it's tail::f("its tail") ; Fixes 1 word
+:B0X*:it's theme::f("its theme") ; Fixes 1 word
+:B0X*:it's timeslot::f("its timeslot") ; Fixes 1 word
+:B0X*:it's toll::f("its toll") ; Fixes 1 word
+:B0X*:it's website::f("its website") ; Fixes 1 word
+:B0X*:itis::f("it is") ; Fixes 1 word
+:B0X*:itr::f("it") ; Fixes 101 words, but misspells itraconazole (Antifungal drug). 
+:B0X*:its a::f("it's a") ; Fixes 1 word
+:B0X*:its the::f("it's the") ; Fixes 1 word
+:B0X*:itwas::f("it was") ; Fixes 1 word
+:B0X*:iunior::f("junior") ; Fixes 1 word
+:B0X*:jeapard::f("jeopard") ; Fixes 13 words
+:B0X*:jewelery::f("jewelry") ; Fixes 1 word
+:B0X*:jive with::f("jibe with") ; Fixes 1 word
+:B0X*:johanine::f("Johannine") ; Fixes 1 word
+:B0X*:jorunal::f("journal") ; Fixes 1 word
+:B0X*:jospeh::f("Joseph") ; Fixes 1 word
+:B0X*:jouney::f("journey") ; Fixes 9 words
+:B0X*:journied::f("journeyed") ; Fixes 1 word
+:B0X*:journies::f("journeys") ; Fixes 1 word
+:B0X*:juadaism::f("Judaism") ; Fixes 1 word
+:B0X*:juadism::f("Judaism") ; Fixes 1 word
+:B0X*:key note::f("keynote") ; Fixes 1 word
+:B0X*:klenex::f("kleenex") ; Fixes 1 word
+:B0X*:knifes::f("knives") ; Fixes 1 word
+:B0X*:knive::f("knife") ; Fixes 1 word
+:B0X*:lable::f("label") ; Fixes 12 words
+:B0X*:labratory::f("laboratory") ; Fixes 1 word
+:B0X*:lack there of::f("lack thereof") ; Fixes 1 word
+:B0X*:laid ahead::f("lay ahead") ; Fixes 1 word
+:B0X*:laid dormant::f("lay dormant") ; Fixes 1 word
+:B0X*:laid empty::f("lay empty") ; Fixes 1 word
+:B0X*:larger then::f("larger than") ; Fixes 1 word
+:B0X*:largley::f("largely") ; Fixes 1 word
+:B0X*:largst::f("largest") ; Fixes 1 word
+:B0X*:lasoo::f("lasso") ; Fixes 8 words
+:B0X*:lastr::f("last") ; Fixes 1 word
+:B0X*:lastyear::f("last year") ; Fixes 1 word
+:B0X*:laughing stock::f("laughingstock") ; Fixes 1 word
+:B0X*:lavae::f("larvae") ; Fixes 1 word
+:B0X*:law suite::f("lawsuit") ; Fixes 1 word
+:B0X*:lay low::f("lie low") ; Fixes 1 word
+:B0X*:layed::f("laid") ; Fixes 1 word
+:B0X*:laying around::f("lying around") ; Fixes 1 word
+:B0X*:laying awake::f("lying awake") ; Fixes 1 word
+:B0X*:laying low::f("lying low") ; Fixes 1 word
+:B0X*:lays atop::f("lies atop") ; Fixes 1 word
+:B0X*:lays beside::f("lies beside") ; Fixes 1 word
+:B0X*:lays in::f("lies in") ; Fixes 1 word
+:B0X*:lays low::f("lies low") ; Fixes 1 word
+:B0X*:lays near::f("lies near") ; Fixes 1 word
+:B0X*:lays on::f("lies on") ; Fixes 1 word
+:B0X*:lazer::f("laser") ; Fixes 4 words
+:B0X*:lead by::f("led by") ; Fixes 1 word
+:B0X*:lead roll::f("lead role") ; Fixes 1 word
+:B0X*:leading roll::f("leading role") ; Fixes 1 word
+:B0X*:leage::f("league") ; Fixes 7 words
+:B0X*:lefr::f("left") ; Fixes 22 words
+:B0X*:lefted::f("left") ; Fixes 1 word
+:B0X*:leran::f("learn") ; Fixes 13 words
+:B0X*:less dominate::f("less dominant") ; Fixes 1 word
+:B0X*:less that::f("less than") ; Fixes 1 word
+:B0X*:less then::f("less than") ; Fixes 1 word
+:B0X*:lesser then::f("less than") ; Fixes 1 word
+:B0X*:leutenan::f("lieutenan") ; Fixes 4 words
+:B0X*:levle::f("level") ; Fixes 24 words
+:B0X*:lias::f("liais") ; Fixes 6 words, Case-sensitive to not misspell Lias (One of the Jurrasic periods.)
+:B0X*:libary::f("library") ; Fixes 1 word
+:B0X*:libell::f("libel") ; Fixes 18 words
+:B0X*:libitarianisn::f("libertarianism") ; Fixes 1 word
+:B0X*:lible::f("libel") ; Fixes 18 words
+:B0X*:librer::f("librar") ; Fixes 6 words
+:B0X*:licence::f("license") ; Fixes 1 word
+:B0X*:liesure::f("leisure") ; Fixes 5 words
+:B0X*:liev::f("live") ; Fixes 58 words
+:B0X*:life time::f("lifetime") ; Fixes 1 word
+:B0X*:liftime::f("lifetime") ; Fixes 1 word
+:B0X*:lighter then::f("lighter than") ; Fixes 1 word
+:B0X*:lightyear::f("light year") ; Fixes 1 word
+:B0X*:line of site::f("line of sight") ; Fixes 1 word
+:B0X*:line-of-site::f("line-of-sight") ; Fixes 1 word
+:B0X*:linnaena::f("Linnaean") ; Fixes 1 word
+:B0X*:lions share::f("lion's share") ; Fixes 1 word
+:B0X*:liquif::f("liquef") ; Fixes 11 words
+:B0X*:litature::f("literature") ; Fixes 1 word
+:B0X*:lonelyness::f("loneliness") ; Fixes 1 word
+:B0X*:loosing effort::f("losing effort") ; Fixes 1 word
+:B0X*:loosing record::f("losing record") ; Fixes 1 word
+:B0X*:loosing season::f("losing season") ; Fixes 1 word
+:B0X*:loosing streak::f("losing streak") ; Fixes 1 word
+:B0X*:loosing team::f("losing team") ; Fixes 1 word
+:B0X*:loosing to::f("losing to") ; Fixes 1 word
+:B0X*:lower that::f("lower than") ; Fixes 1 word
+:B0X*:lower then::f("lower than") ; Fixes 1 word
+:B0X*:lsat::f("last") ; Fixes 11 words
+:B0X*:lsit::f("list") ; Fixes 30 words
+:B0X*:lveo::f("love") ; Fixes 42 words
+:B0X*:lvoe::f("love") ; Fixes 42 words
+:B0X*:lybia::f("Libya") ; Fixes 3 words
+:B0X*:machinary::f("machinery") ; Fixes 1 word
+:B0X*:maching::f("matching") ; Fixes 1 word
+:B0X*:mackeral::f("mackerel") ; Fixes 1 word
+:B0X*:made it's::f("made its") ; Fixes 1 word
+:B0X*:magasine::f("magazine") ; Fixes 1 word
+:B0X*:maginc::f("magic") ; Fixes 9 words
+:B0X*:magizine::f("magazine") ; Fixes 1 word
+:B0X*:magnificien::f("magnificen") ; Fixes 5 words
+:B0X*:magol::f("magnol") ; Fixes 7 words
+:B0X*:maintance::f("maintenance") ; Fixes 1 word
+:B0X*:major roll::f("major role") ; Fixes 1 word
+:B0X*:make due::f("make do") ; Fixes 1 word
+:B0X*:make it's::f("make its") ; Fixes 1 word
+:B0X*:malcom::f("Malcolm") ; Fixes 1 word
+:B0X*:manisf::f("manif") ; Fixes 17 words
+:B0X*:marrtyr::f("martyr") ; Fixes 23 words
+:B0X*:massachussets::f("Massachusetts") ; Fixes 1 word
+:B0X*:massachussetts::f("Massachusetts") ; Fixes 1 word
+:B0X*:massmedia::f("mass media") ; Fixes 1 word
+:B0X*:masterbat::f("masturbat") ; Fixes 9 words
+:B0X*:mataph::f("metaph") ; Fixes 18 words
+:B0X*:materalist::f("materialist") ; Fixes 2 word
+:B0X*:mathematican::f("mathematician") ; Fixes 2 word
+:B0X*:mathetician::f("mathematician") ; Fixes 2 word
+:B0X*:mean while::f("meanwhile") ; Fixes 1 word
+:B0X*:mechandi::f("merchandi") ; Fixes 12 words
+:B0X*:medievel::f("medieval") ; Fixes 1 word
+:B0X*:mediteranean::f("Mediterranean") ; Fixes 1 word
+:B0X*:meerkrat::f("meerkat") ; Fixes 1 word
+:B0X*:melieux::f("milieux") ; Fixes 1 word
+:B0X*:membranaphone::f("membranophone") ; Fixes 1 word
+:B0X*:menally::f("mentally") ; Fixes 1 word
+:B0X*:mercentil::f("mercantil") ; Fixes 7 words
+:B0X*:mesag::f("messag") ; Fixes 5 words
+:B0X*:messenging::f("messaging") ; Fixes 1 word
+:B0X*:meterolog::f("meteorolog") ; Fixes 7 words
+:B0X*:michagan::f("Michigan") ; Fixes 1 word
+:B0X*:micheal::f("Michael") ; Fixes 1 word
+:B0X*:micos::f("micros") ; Fixes 40 words
+:B0X*:miligram::f("milligram") ; Fixes 1 word
+:B0X*:milion::f("million") ; Fixes 9 words
+:B0X*:milleni::f("millenni") ; Fixes 9 words
+:B0X*:millepede::f("millipede") ; Fixes 1 word
+:B0X*:miniscule::f("minuscule") ; Fixes 1 word
+:B0X*:ministery::f("ministry") ; Fixes 1 word
+:B0X*:minor roll::f("minor role") ; Fixes 1 word
+:B0X*:minstries::f("ministries") ; Fixes 1 word
+:B0X*:minstry::f("ministry") ; Fixes 1 word
+:B0X*:minumum::f("minimum") ; Fixes 1 word
+:B0X*:mirrorr::f("mirror") ; Fixes 6 words
+:B0X*:miscellanious::f("miscellaneous") ; Fixes 3 words
+:B0X*:miscellanous::f("miscellaneous") ; Fixes 3 words
+:B0X*:mischevious::f("mischievous") ; Fixes 3 words
+:B0X*:mischievious::f("mischievous") ; Fixes 3 words
+:B0X*:misdameanor::f("misdemeanor") ; Fixes 2 words
+:B0X*:misouri::f("Missouri") ; Fixes 5 words
+:B0X*:mispell::f("misspell") ; Fixes 5 words
+:B0X*:missle::f("missile") ; Fixes 1 word
+:B0X*:misteri::f("mysteri") ; Fixes 4 words
+:B0X*:mistery::f("mystery") ; Fixes 1 word
+:B0X*:mohammedans::f("muslims") ; Fixes 1 word
+:B0X*:moil::f("mohel") ; Fixes 1 word
+:B0X*:momento::f("memento") ; Fixes 1 word
+:B0X*:monestar::f("monaster") ; Fixes 2 words
+:B0X*:monicker::f("moniker") ; Fixes 3 words
+:B0X*:monkie::f("monkey") ; Fixes 10 words
+:B0X*:montain::f("mountain") ; Fixes 17 words
+:B0X*:montyp::f("monotyp") ; Fixes 3 words
+:B0X*:more dominate::f("more dominant") ; Fixes 1 word
+:B0X*:more of less::f("more or less") ; Fixes 1 word
+:B0X*:more often then::f("more often than") ; Fixes 1 word
+:B0X*:most populace::f("most populous") ; Fixes 1 word
+:B0X*:movei::f("movie") ; Fixes 6 words
+:B0X*:muhammadan::f("muslim") ; Fixes 1 word
+:B0X*:multipled::f("multiplied") ; Fixes 1 word
+:B0X*:multiplers::f("multipliers") ; Fixes 1 word
+:B0X*:muncipal::f("municipal") ; Fixes 16 words
+:B0X*:munnicipal::f("municipal") ; Fixes 16 words
+:B0X*:muscician::f("musician") ; Fixes 5 words
+:B0X*:mute point::f("moot point") ; Fixes 1 word
+:B0X*:myown::f("my own")
+:B0X*:myraid::f("myriad") ; Fixes 3 words
+:B0X*:mysogyn::f("misogyn") ; Fixes 10 words
+:B0X*:mysterous::f("mysterious") ; Fixes 3 words
+:B0X*:naieve::f("naive") ; Fixes 9 words
+:B0X*:napoleonian::f("Napoleonic") ; Fixes 1 word
+:B0X*:nation wide::f("nationwide") ; Fixes 1 word
+:B0X*:nazereth::f("Nazareth") ; Fixes 1 word
+:B0X*:near by::f("nearby") ; Fixes 1 word
+:B0X*:necessiat::f("necessitat") ; Fixes 6 words
+:B0X*:neglib::f("negligib") ; Fixes 4 words
+:B0X*:negligab::f("negligib") ; Fixes 4 words
+:B0X*:negociab::f("negotiab") ; Fixes 4 words
+:B0X*:neverthless::f("nevertheless") ; Fixes 1 word
+:B0X*:new comer::f("newcomer") ; Fixes 1 word
+:B0X*:newletter::f("newsletter") ; Fixes 2 word
+:B0X*:newyorker::f("New Yorker") ; Fixes 1 word
+:B0X*:niether::f("neither") ; Fixes 1 word
+:B0X*:nightime::f("nighttime") ; Fixes 1 word
+:B0X*:nineth::f("ninth") ; Fixes 1 word
+:B0X*:ninteenth::f("nineteenth") ; Fixes 1 word
+:B0X*:ninties::f("nineties") ; fixed from "1990s": could refer to temperatures too. ; Fixes 1 word
+:B0X*:ninty::f("ninety") ; Fixes 1 word
+:B0X*:nkwo::f("know") ; Fixes 24 words
+:B0X*:no where to::f("nowhere to") ; Fixes 1 word
+:B0X*:nontheless::f("nonetheless") ; Fixes 1 word
+:B0X*:noone::f("no one") ; Fixes 1 word
+:B0X*:norhe::f("northe") ; Fixes 24 words
+:B0X*:northen::f("northern") ; Fixes 8 words
+:B0X*:northereast::f("northeast") ; Fixes 11 words
+:B0X*:note worthy::f("noteworthy") ; Fixes 1 word
+:B0X*:noteri::f("notori") ; Fixes 5 words
+:B0X*:nothern::f("northern") ; Fixes 8 words
+:B0X*:noticable::f("noticeable") ; Fixes 1 word
+:B0X*:noticably::f("noticeably") ; Fixes 1 word
+:B0X*:notive::f("notice") ; Fixes 10 words
+:B0X*:notwhithstanding::f("notwithstanding") ; Fixes 1 word
+:B0X*:noveau::f("nouveau") ; Fixes 1 word
+:B0X*:nowdays::f("nowadays") ; Fixes 1 word
+:B0X*:nowe::f("now") ; Fixes 17 words
+:B0X*:nto::f("not") ; Fixes 116 words
+:B0X*:nuisanse::f("nuisance") ; Fixes 1 word
+:B0X*:numbero::f("numero") ; Fixes 11 words
+:B0X*:nusance::f("nuisance") ; Fixes 1 word
+:B0X*:nutur::f("nurtur") ; Fixes 10 words
+:B0X*:nver::f("never") ; Fixes 3 words
+:B0X*:nwe::f("new") ; Fixes 123 words
+:B0X*:nwo::f("now") ; Fixes 17 words
+:B0X*:obess::f("obsess") ; Fixes 14 words
+:B0X*:obssess::f("obsess") ; Fixes 14 words
+:B0X*:obstacal::f("obstacle") ; Fixes 1 word
+:B0X*:ocasion::f("occasion") ; Fixes 12 words
+:B0X*:ocass::f("occas") ; Fixes 12 words
+:B0X*:occaison::f("occasion") ; Fixes 12 words
+:B0X*:occation::f("occasion") ; Fixes 12 words
+:B0X*:octohedr::f("octahedr") ; Fixes 5 words
+:B0X*:ocuntr::f("countr") ; Fixes 18 words
+:B0X*:of it's kind::f("of its kind") ; Fixes 1 word
+:B0X*:of it's own::f("of its own") ; Fixes 1 word
+:B0X*:offce::f("office") ; Fixes 11 words
+:B0X*:ofits::f("of its") ; Fixes 1 word
+:B0X*:oft he::f("of the") ; Could be legitimate in poetry, but usually a typo. ; Fixes 1 word
+:B0X*:oftenly::f("often") ; Fixes 1 word
+:B0X*:oging::f("going") ; Fixes 1 word
+:B0X*:oil barron::f("oil baron") ; Fixes 1 word
+:B0X*:omited::f("omitted") ; Fixes 1 word
+:B0X*:omiting::f("omitting") ; Fixes 1 word
+:B0X*:omlette::f("omelette") ; Fixes 1 word
+:B0X*:ommited::f("omitted") ; Fixes 1 word
+:B0X*:ommiting::f("omitting") ; Fixes 1 word
+:B0X*:ommitted::f("omitted") ; Fixes 1 word
+:B0X*:ommitting::f("omitting") ; Fixes 1 word
+:B0X*:on accident::f("by accident") ; Fixes 1 word
+:B0X*:on going::f("ongoing") ; Fixes 1 word
+:B0X*:on it's own::f("on its own") ; Fixes 1 word
+:B0X*:on-going::f("ongoing") ; Fixes 1 word
+:B0X*:oneof::f("one of") ; Fixes 1 word
+:B0X*:ongoing bases::f("ongoing basis") ; Fixes 1 word
+:B0X*:onomatopeia::f("onomatopoeia") ; Fixes 1 word
+:B0X*:onot::f("not") ; Fixes 116 words
+:B0X*:onpar::f("on par") ; Fixes 1 word
+:B0X*:ont he::f("on the") ; Fixes 1 word
+:B0X*:onyl::f("only") ; Fixes 1 word
+:B0X*:openess::f("openness") ; Fixes 1 word
+:B0X*:oponen::f("opponen") ; Fixes 4 words
+:B0X*:opose::f("oppose") ; Fixes 6 words
+:B0X*:oposi::f("opposi") ; Fixes 17 words
+:B0X*:oppositit::f("opposit") ; Fixes 15 words
+:B0X*:opre::f("oppre") ; Fixes 11 words
+:B0X*:optmiz::f("optimiz") ; Fixes 8 words
+:B0X*:optomi::f("optimi") ; Fixes 22 words
+:B0X*:orded::f("ordered") ; Fixes 1 word
+:B0X*:orthag::f("orthog") ; Fixes 23 words
+:B0X*:other then::f("other than") ; Fixes 1 word
+:B0X*:oublish::f("publish") ; Fixes 9 words
+:B0X*:our resent::f("our recent") ; Fixes 1 word
+:B0X*:oustanding::f("outstanding") ; Fixes 3 words
+:B0X*:out grow::f("outgrow") ; Fixes 1 word
+:B0X*:out of sink::f("out of sync") ; Fixes 1 word
+:B0X*:out of state::f("out-of-state") ; Fixes 1 word
+:B0X*:out side::f("outside") ; Fixes 1 word
+:B0X*:outof::f("out of") ; Fixes 1 word
+:B0X*:over hear::f("overhear") ; Fixes 1 word
+:B0X*:over look::f("overlook") ; Fixes 1 word
+:B0X*:over rate::f("overrate") ; Fixes 2 words
+:B0X*:over saw::f("oversaw") ; Fixes 1 word
+:B0X*:over see::f("oversee") ; Fixes 1 word
+:B0X*:overthere::f("over there") ; Fixes 1 word
+:B0X*:overwelm::f("overwhelm") ; Fixes 6 words
+:B0X*:owudl::f("would") ; Fixes 5 words
+:B0X*:owuld::f("would") ; Fixes 5 words
+:B0X*:oximoron::f("oxymoron") ; Fixes 3 words
+:B0X*:paleolitic::f("paleolithic") ; Fixes 1 word
+:B0X*:palist::f("Palest") ; Fixes 7 words
+:B0X*:pamflet::f("pamphlet") ; Fixes 6 words
+:B0X*:pamplet::f("pamphlet") ; Fixes 6 words
+:B0X*:pantomine::f("pantomime") ; Fixes 5 words
+:B0X*:paranthe::f("parenthe") ; Fixes 15 words
+:B0X*:paraphenalia::f("paraphernalia") ; Fixes 1 word
+:B0X*:parrakeet::f("parakeet") ; Fixes 2 words
+:B0X*:particulary::f("particularly") ; Fixes 1 word
+:B0X*:partof::f("part of") ; Fixes 1 word
+:B0X*:pasenger::f("passenger") ; Fixes 2 words
+:B0X*:passerbys::f("passersby") ; Fixes 1 word
+:B0X*:past away::f("passed away") ; Fixes 1 word
+:B0X*:past down::f("passed down") ; Fixes 1 word
+:B0X*:pasttime::f("pastime") ; Fixes 1 word
+:B0X*:pastural::f("pastoral") ; Fixes 11 words
+:B0X*:pavillion::f("pavilion") ; Fixes 1 word
+:B0X*:payed::f("paid") ; Fixes 1 word
+:B0X*:peacefuland::f("peaceful and") ; Fixes 1 word
+:B0X*:peageant::f("pageant") ; Fixes 4 words
+:B0X*:peak her interest::f("pique her interest") ; Fixes 1 word
+:B0X*:peak his interest::f("pique his interest") ; Fixes 1 word
+:B0X*:peaked my interest::f("piqued my interest") ; Fixes 1 word
+:B0X*:pedestrain::f("pedestrian") ; Fixes 15 words
+:B0X*:pensle::f("pencil") ; Fixes 10 words
+:B0X*:peom::f("poem") ; Fixes 2 words
+:B0X*:peotry::f("poetry") ; Fixes 1 word
+:B0X*:perade::f("parade") ; Fixes 5 words
+:B0X*:percentof::f("percent of") ; Fixes 1 word
+:B0X*:percentto::f("percent to") ; Fixes 1 word
+:B0X*:peretrat::f("perpetrat") ; Fixes 8 words
+:B0X*:perheaps::f("perhaps") ; Fixes 1 word
+:B0X*:perhpas::f("perhaps") ; Fixes 1 word
+:B0X*:peripathetic::f("peripatetic") ; Fixes 7 words
+:B0X*:peristen::f("persisten") ; Fixes 6 words
+:B0X*:perjer::f("perjur") ; Fixes 9 words
+:B0X*:perjorative::f("pejorative") ; Fixes 3 words
+:B0X*:perogative::f("prerogative") ; Fixes 1 word
+:B0X*:perpindicular::f("perpendicular") ; Fixes 6 words
+:B0X*:persan::f("person") ; Fixes 55 words
+:B0X*:perseveren::f("perseveran") ; Fixes 4 words
+:B0X*:personell::f("personnel") ; Fixes 1 word
+:B0X*:personnell::f("personnel") ; Fixes 1 word
+:B0X*:persue::f("pursue") ; Fixes 5 words
+:B0X*:persui::f("pursui") ; Fixes 6 words
+:B0X*:pharoah::f("Pharaoh") ; Fixes 1 word
+:B0X*:phenomenonly::f("phenomenally") ; Fixes 1 word
+:B0X*:pheonix::f("phoenix") ; Not forcing caps, as it could be the bird ; Fixes 1 word
+:B0X*:philipi::f("Philippi") ; Fixes 7 words
+:B0X*:pilgrimm::f("pilgrim") ; Fixes 8 words
+:B0X*:pinapple::f("pineapple") ; Fixes 1 word
+:B0X*:pinnaple::f("pineapple") ; Fixes 1 word
+:B0X*:plagar::f("plagiar") ; Fixes 23 words
+:B0X*:planation::f("plantation") ; Fixes 1 word
+:B0X*:plantiff::f("plaintiff") ; Fixes 1 word
+:B0X*:plateu::f("plateau") ; Fixes 5 words
+:B0X*:playright::f("playwright") ; Fixes 3 words
+:B0X*:playwrite::f("playwright") ; Fixes 3 words
+:B0X*:plebicit::f("plebiscit") ; Fixes 3 words
+:B0X*:poety::f("poetry") ; Fixes 1 word
+:B0X*:pomegranite::f("pomegranate") ; Fixes 1 word
+:B0X*:pomot::f("promot") ; Fixes 14 words
+:B0X*:portayed::f("portrayed") ; Fixes 1 word
+:B0X*:portugese::f("Portuguese") ; Fixes 1 word
+:B0X*:portuguease::f("Portuguese") ; Fixes 1 word
+:B0X*:portugues::f("Portuguese") ; Fixes 1 word
+:B0X*:posthomous::f("posthumous") ; Fixes 3 words
+:B0X*:potatoe::f("potato") ; Fixes 1 word
+:B0X*:potatos::f("potatoes") ; Fixes 1 word
+:B0X*:potra::f("portra") ; Fixes 15 words
+:B0X*:powerfull::f("powerful") ; Fixes 1 word
+:B0X*:practioner::f("practitioner") ; Fixes 2 words
+:B0X*:prairy::f("prairie") ; Fixes 2 words
+:B0X*:prarie::f("prairie") ; Fixes 2 words
+:B0X*:pre-Colombian::f("pre-Columbian") ; Fixes 1 word
+:B0X*:preample::f("preamble") ; Fixes 3 words
+:B0X*:precedessor::f("predecessor") ; Fixes 1 word
+:B0X*:precentage::f("percentage") ; Fixes 1 word
+:B0X*:precurser::f("precursor") ; Fixes 3 words
+:B0X*:preferra::f("prefera") ; Fixes 5 words
+:B0X*:premei::f("premie") ; Fixes 10 words
+:B0X*:premillenial::f("premillennial") ; Fixes 6 words
+:B0X*:preminen::f("preeminen") ; Fixes 4 words
+:B0X*:premissio::f("permissio") ; Fixes 3 words
+:B0X*:prepart::f("preparat") ; Fixes 5 words
+:B0X*:prepat::f("preparat") ; Fixes 5 words, but misspells prepatent. 
+:B0X*:prepera::f("prepara") ; Fixes 5 words
+:B0X*:presitg::f("prestig") ; Fixes 5 words
+:B0X*:prevers::f("pervers") ; Fixes 10 words
+:B0X*:primarly::f("primarily") ; Fixes 1 word
+:B0X*:primativ::f("primitiv") ; Fixes 8 words
+:B0X*:primordal::f("primordial") ; Fixes 4 words
+:B0X*:principaly::f("principality") ; Fixes 1 word
+:B0X*:principial::f("principal") ; Fixes 8 words
+:B0X*:principlaity::f("principality") ; Fixes 1 word
+:B0X*:principle advantage::f("principal advantage") ; Fixes 2 words
+:B0X*:principle cause::f("principal cause") ; Fixes 2 words
+:B0X*:principle character::f("principal character") ; Fixes 2 words
+:B0X*:principle component::f("principal component") ; Fixes 2 words
+:B0X*:principle goal::f("principal goal") ; Fixes 2 words
+:B0X*:principle group::f("principal group") ; Fixes 2 words
+:B0X*:principle method::f("principal method") ; Fixes 2 words
+:B0X*:principle owner::f("principal owner") ; Fixes 2 words
+:B0X*:principle source::f("principal source") ; Fixes 2 words
+:B0X*:principle student::f("principal student") ; Fixes 2 words
+:B0X*:principly::f("principally") ; Fixes 1 word
+:B0X*:prinici::f("princi") ; Fixes 17 words
+:B0X*:privt::f("privat") ; Fixes 35 words
+:B0X*:procede::f("proceed") ; Fixes 5 words
+:B0X*:procedger::f("procedure") ; Fixes 1 word
+:B0X*:proceding::f("proceeding") ; Fixes 2 words
+:B0X*:proceedur::f("procedur") ; Fixes 4 words
+:B0X*:profesor::f("professor") ; Fixes 10 words
+:B0X*:profilic::f("prolific") ; Fixes 5 words
+:B0X*:progid::f("prodig") ; Fixes 10 words
+:B0X*:prologomena::f("prolegomena") ; Fixes 1 word
+:B0X*:promiscous::f("promiscuous") ; Fixes 3 words
+:B0X*:pronomial::f("pronominal") ; Fixes 3 words
+:B0X*:proof read::f("proofread") ; Fixes 5 words
+:B0X*:prophacy::f("prophecy") ; Fixes 1 word
+:B0X*:propoga::f("propaga") ; Fixes 25 words
+:B0X*:proseletyz::f("proselytiz") ; Fixes 8 words
+:B0X*:protocal::f("protocol") ; Fixes 2 words
+:B0X*:protruberanc::f("protuberanc") ; Fixes 4 words
+:B0X*:proximty::f("proximity") ; Fixes 1 word
+:B0X*:pseudonyn::f("pseudonym") ; Fixes 9 words
+:B0X*:publically::f("publicly") ; Fixes 1 word
+:B0X*:puch::f("push") ; Fixes 34 words
+:B0X*:pumkin::f("pumpkin") ; Fixes 4 words
+:B0X*:puritannic::f("puritanic") ; Fixes 4 words
+:B0X*:purposedly::f("purposely") ; Fixes 1 word
+:B0X*:purpot::f("purport") ; Fixes 5 words
+:B0X*:puting::f("putting") ; Fixes 1 word
+:B0X*:pysci::f("psychi") ; Fixes 12 words
+:B0X*:quantat::f("quantit") ; Fixes 14 words
+:B0X*:quess::f("guess") ; Fixes 14 words 
+:B0X*:quinessen::f("quintessen") ; Fixes 4 words
+:B0X*:quitted::f("quit") ; Fixes 1 word
+:B0X*:quize::f("quizze") ; Fixes 4 words
+:B0X*:racaus::f("raucous") ; Fixes 3 words
+:B0X*:raed::f("read") ; Fixes 63 words
+:B0X*:raing::f("rating") ; Fixes 1 word 
+:B0X*:rasberr::f("raspberr") ; Fixes 2 words
+:B0X*:rather then::f("rather than") ; Fixes 1 word
+:B0X*:reasea::f("resea") ; Fixes 18 words
+:B0X*:rebounce::f("rebound") ; Fixes 1 word
+:B0X*:receivedfrom::f("received from") ; Fixes 1 word
+:B0X*:recie::f("recei") ; Fixes 17 words
+:B0X*:reciv::f("receiv") ; Fixes 13 words
+:B0X*:recomen::f("recommen") ; Fixes 18 words
+:B0X*:reconaissance::f("reconnaissance") ; Fixes 2 words
+:B0X*:reconize::f("recognize") ; Fixes 6 words
+:B0X*:recuit::f("recruit") ; Fixes 9 words
+:B0X*:recurran::f("recurren") ; Fixes 4 words
+:B0X*:redicu::f("ridicu") ; Fixes 9 words
+:B0X*:reek havoc::f("wreak havoc") ; Fixes 1 word
+:B0X*:refedend::f("referend") ; Fixes 3 words
+:B0X*:refridgera::f("refrigera") ; Fixes 11 words
+:B0X*:refusla::f("refusal") ; Fixes 2 words
+:B0X*:reher::f("rehear") ; Fixes 13 words
+:B0X*:reica::f("reinca") ; Fixes 9 words
+:B0X*:reign in::f("rein in") ; Fixes 1 word
+:B0X*:reigns of power::f("reins of power") ; Fixes 1 word
+:B0X*:reknown::f("renown") ; Fixes 5 words
+:B0X*:relected::f("reelected") ; Fixes 1 word
+:B0X*:reliz::f("realiz") ; Fixes 12 words
+:B0X*:remaing::f("remaining") ; Fixes 1 word
+:B0X*:rememberable::f("memorable") ; Fixes 1 word
+:B0X*:remenant::f("remnant") ; Fixes 2 words
+:B0X*:remenic::f("reminisc") ; Fixes 12 words
+:B0X*:reminent::f("remnant") ; Fixes 2 words
+:B0X*:remines::f("reminis") ; Fixes 12 words
+:B0X*:reminsc::f("reminisc") ; Fixes 12 words
+:B0X*:reminsic::f("reminisc") ; Fixes 12 words
+:B0X*:rendevous::f("rendezvous") ; Fixes 4 words
+:B0X*:rendezous::f("rendezvous") ; Fixes 4 words
+:B0X*:renewl::f("renewal") ; Fixes 2 words
+:B0X*:repid::f("rapid") ; Fixes 8 words
+:B0X*:repon::f("respon") ; Fixes 22 words
+:B0X*:reprtoire::f("repertoire") ; Fixes 2 words
+:B0X*:repubi::f("republi") ; Fixes 15 words
+:B0X*:requr::f("requir") ; Fixes 9 words
+:B0X*:resaura::f("restaura") ; Fixes 8 words
+:B0X*:resembe::f("resemble") ; Fixes 5 words
+:B0X*:resently::f("recently") ; Fixes 1 word
+:B0X*:resevoir::f("reservoir") ; Fixes 2 words
+:B0X*:resignement::f("resignation") ; Fixes 2 words
+:B0X*:resignment::f("resignation") ; Fixes 2 words
+:B0X*:resse::f("rese") ; Fixes 98 words
+:B0X*:ressurrect::f("resurrect") ; Fixes 7 words
+:B0X*:restara::f("restaura") ; Fixes 8 words
+:B0X*:restaurati::f("restorati") ; Fixes 9 words
+:B0X*:resteraunt::f("restaurant") ; Fixes 6 words
+:B0X*:restraunt::f("restaurant") ; Fixes 6 words
+:B0X*:resturant::f("restaurant") ; Fixes 6 words
+:B0X*:retalitat::f("retaliat") ; Fixes 10 words
+:B0X*:retrun::f("return") ; Fixes 10 words 
+:B0X*:retun::f("return") ; Fixes 1 word
+:B0X*:reult::f("result") ; Fixes 7 words
+:B0X*:revaluat::f("reevaluat") ; Fixes 6 words
+:B0X*:reveral::f("reversal") ; Fixes 2 words
+:B0X*:rfere::f("refere") ; Fixes 20 words
+:B0X*:rised::f("rose") ; Fixes 1 word
+:B0X*:rockerfeller::f("Rockefeller") ; Fixes 2 words
+:B0X*:rococco::f("rococo") ; Fixes 2 words
+:B0X*:role call::f("roll call") ; Fixes 4 words
+:B0X*:roll play::f("role play") ; Fixes 4 words
+:B0X*:roomate::f("roommate") ; Fixes 2 words
+:B0X*:rucupera::f("recupera") ; Fixes 11 words
+:B0X*:rulle::f("rule") ; Fixes 9 words
+:B0X*:rumer::f("rumor") ; Fixes 6 words
+:B0X*:runner up::f("runner-up") ; Fixes 1 word
+:B0X*:russina::f("Russian") ; Fixes 13 words
+:B0X*:russion::f("Russian") ; Fixes 13 words
+:B0X*:rythem::f("rhythm") ; Fixes 8 words
+:B0X*:rythm::f("rhythm") ; Fixes 8 words
+:B0X*:sacrelig::f("sacrileg") ; Fixes 5 words
+:B0X*:sacrifical::f("sacrificial") ; Fixes 2 words
+:B0X*:saddle up to::f("sidle up to") ; Fixes 1 word
+:B0X*:safegard::f("safeguard") ; added by steve
+:B0X*:saidhe::f("said he") ; Fixes 1 word
+:B0X*:saidt he::f("said the") ; Fixes 1 word
+:B0X*:salery::f("salary") ; Fixes 3 words
+:B0X*:sandess::f("sadness") ; Fixes 1 word
+:B0X*:sandwhich::f("sandwich") ; Fixes 6 words
+:B0X*:sargan::f("sergean") ; Fixes 6 words
+:B0X*:sargean::f("sergean") ; Fixes 6 words
+:B0X*:saterday::f("Saturday") ; Fixes 2 words
+:B0X*:saxaphon::f("saxophon") ; Fixes 5 words
+:B0X*:say la v::f("c'est la vie") ; Fixes 1 word
+:B0X*:scandanavia::f("Scandinavia") ; Fixes 3 words
+:B0X*:scaricit::f("scarcit") ; Fixes 2 words
+:B0X*:scavang::f("scaveng") ; Fixes 6 words
+:B0X*:scrutinit::f("scrutin") ; Fixes 18 words
+:B0X*:scuptur::f("sculptur") ; Fixes 11 words
+:B0X*:secceed::f("seced") ; Fixes 4 words
+:B0X*:secrata::f("secreta") ; Fixes 14 words
+:B0X*:see know::f("see now") ; Fixes 1 word 
+:B0X*:seguoy::f("segue") ; Fixes 4 words
+:B0X*:seh::f("she") ; Fixes 236 words
+:B0X*:seinor::f("senior") ; Fixes 5 words
+:B0X*:senari::f("scenari") ; Fixes 4 words
+:B0X*:senc::f("sens") ; Fixes 107 words
+:B0X*:sentan::f("senten") ; Fixes 9 words
+:B0X*:sepina::f("subpoena") ; Fixes 4 words
+:B0X*:sergent::f("sergeant") ; Fixes 4 words
+:B0X*:set back::f("setback") ; Fixes 2 words
+:B0X*:severley::f("severely") ; Fixes 1 word
+:B0X*:severly::f("severely") ; Fixes 1 word
+:B0X*:shamen::f("shaman") ; Fixes 15 words
+:B0X*:she begun::f("she began") ; Fixes 1 word
+:B0X*:she let's::f("she lets") ; Fixes 1 word
+:B0X*:she seen::f("she saw") ; Fixes 1 word
+:B0X*:shiped::f("shipped") ; Fixes 1 word
+:B0X*:short coming::f("shortcoming") ; Fixes 2 words
+:B0X*:shorter then::f("shorter than") ; Fixes 1 word
+:B0X*:shortly there after::f("shortly thereafter") ; Fixes 1 word
+:B0X*:shortwhile::f("short while") ; Fixes 1 word
+:B0X*:shoudl::f("should") ; Fixes 8 words
+:B0X*:should backup::f("should back up") ; Fixes 1 word
+:B0X*:should've went::f("should have gone") ; Fixes 1 word
+:B0X*:shreak::f("shriek") ; Fixes 8 words
+:B0X*:shrinked::f("shrunk") ; Fixes 1 word
+:B0X*:side affect::f("side effect") ; Fixes 2 words
+:B0X*:side kick::f("sidekick") ; Fixes 2 words
+:B0X*:sideral::f("sidereal") ; Fixes 2 words
+:B0X*:siez::f("seiz") ; Fixes 12 words
+:B0X*:silicone chip::f("silicon chip") ; Fixes 1 word
+:B0X*:simetr::f("symmetr") ; Fixes 18 words 
+:B0X*:simplier::f("simpler") ; Fixes 1 word
+:B0X*:single handily::f("single-handedly") ; Fixes 1 word
+:B0X*:singsog::f("singsong") ; Fixes 1 word
+:B0X*:site line::f("sight line") ; Fixes 2 words
+:B0X*:slight of hand::f("sleight of hand") ; Fixes 1 word
+:B0X*:slue of::f("slew of") ; Fixes 1 word
+:B0X*:smaller then::f("smaller than") ; Fixes 1 word
+:B0X*:smarter then::f("smarter than") ; Fixes 1 word
+:B0X*:sneak peak::f("sneak peek") ; Fixes 1 word
+:B0X*:sneek::f("sneak") ; Fixes 13 words
+:B0X*:so it you::f("so if you") ; Fixes 35 words 
+:B0X*:socit::f("societ") ; Fixes 4 words
+:B0X*:sofware::f("software") ; Fixes 2 words
+:B0X*:soilder::f("soldier") ; Fixes 15 words
+:B0X*:solatar::f("solitar") ; Fixes 4 words
+:B0X*:soley::f("solely") ; Fixes 1 word
+:B0X*:soliders::f("soldiers") ; Fixes 3 words
+:B0X*:soliliqu::f("soliloqu") ; Fixes 12 words
+:B0X*:some what::f("somewhat") ; Fixes 1 word
+:B0X*:some where::f("somewhere") ; Fixes 1 word
+:B0X*:somene::f("someone") ; Fixes 1 word
+:B0X*:someting::f("something") ; Fixes 1 word
+:B0X*:somthing::f("something") ; Fixes 1 word
+:B0X*:somtime::f("sometime") ; Fixes 2 words
+:B0X*:somwhere::f("somewhere") ; Fixes 1 word
+:B0X*:soon there after::f("soon thereafter") ; Fixes 1 word
+:B0X*:sooner then::f("sooner than") ; Fixes 1 word
+:B0X*:sophmore::f("sophomore") ; Fixes 2 words
+:B0X*:sorceror::f("sorcerer") ; Fixes 2 words
+:B0X*:sorround::f("surround") ; Fixes 6 words
+:B0X*:sot hat::f("so that") ; Fixes 1 word
+:B0X*:sotyr::f("story") ; Fixes 1 word
+:B0X*:sould::f("should") ; Fixes 8 words
+:B0X*:sountrack::f("soundtrack") ; Fixes 2 words
+:B0X*:sourth::f("south") ; Fixes 59 words
+:B0X*:souvenier::f("souvenir") ; Fixes 2 words
+:B0X*:soveit::f("soviet") ; Fixes 19 words
+:B0X*:sovereignit::f("sovereignt") ; Fixes 4 words
+:B0X*:spainish::f("Spanish") ; Fixes 1 word
+:B0X*:speach::f("speech") ; Fixes 1 word
+:B0X*:speciman::f("specimen") ; Fixes 2 words
+:B0X*:spendour::f("splendour") ; Fixes 2 words
+:B0X*:spilt among::f("split among") ; Fixes 1 word
+:B0X*:spilt between::f("split between") ; Fixes 1 word
+:B0X*:spilt into::f("split into") ; Fixes 1 word
+:B0X*:spilt up::f("split up") ; Fixes 1 word
+:B0X*:spinal chord::f("spinal cord") ; Fixes 1 word
+:B0X*:split in to::f("split into") ; Fixes 1 word
+:B0X*:sportscar::f("sports car") ; Fixes 2 words
+:B0X*:sppech::f("speech") ; Fixes 18 words
+:B0X*:spreaded::f("spread") ; Fixes 1 word
+:B0X*:sprech::f("speech") ; Fixes 1 word
+:B0X*:sq ft::f("ft²") ; Fixes 1 word
+:B0X*:sq in::f("in²") ; Fixes 1 word
+:B0X*:sq km::f("km²") ; Fixes 1 word
+:B0X*:squared feet::f("square feet") ; Fixes 1 word
+:B0X*:squared inch::f("square inch") ; Fixes 2 words
+:B0X*:squared kilometer::f("square kilometer") ; Fixes 2 words
+:B0X*:squared meter::f("square meter") ; Fixes 2 words
+:B0X*:squared mile::f("square mile") ; Fixes 2 words
+:B0X*:stale mat::f("stalemat") ; Fixes 4 words
+:B0X*:standars::f("standards") ; Fixes 1 word
+:B0X*:staring role::f("starring role") ; Fixes 2 words
+:B0X*:starring roll::f("starring role") ; Fixes 2 words
+:B0X*:stay a while::f("stay awhile") ; Fixes 1 word
+:B0X*:stilus::f("stylus") ; Fixes 2 words
+:B0X*:stomache::f("stomach") ; Fixes 1 word
+:B0X*:storise::f("stories") ; Fixes 1 word
+:B0X*:stornegst::f("strongest") ; Fixes 1 word
+:B0X*:stpo::f("stop") ; Fixes 33 words
+:B0X*:strenous::f("strenuous") ; Fixes 3 words
+:B0X*:strictist::f("strictest") ; Fixes 1 word
+:B0X*:strike out::f("strikeout") ; Fixes 2 words
+:B0X*:strikely::f("strikingly") ; Fixes 1 word
+:B0X*:strnad::f("strand") ; Fixes 6 words
+:B0X*:stronger then::f("stronger than") ; Fixes 1 word
+:B0X*:stroy::f("story") ; Fixes 12 words
+:B0X*:struggel::f("struggle") ; Fixes 5 words
+:B0X*:strugl::f("struggl") ; Fixes 7 words
+:B0X*:stubborness::f("stubbornness") ; Fixes 1 word
+:B0X*:student's that::f("students that") ; Fixes 1 word
+:B0X*:stuggl::f("struggl") ; Fixes 7 words
+:B0X*:subjudgation::f("subjugation") ; Fixes 2 words
+:B0X*:subpecies::f("subspecies") ; Fixes 1 word
+:B0X*:subsidar::f("subsidiar") ; Fixes 6 words
+:B0X*:subsiduar::f("subsidiar") ; Fixes 6 words
+:B0X*:subsquen::f("subsequen") ; Fixes 5 words
+:B0X*:substace::f("substance") ; Fixes 2 words
+:B0X*:substatia::f("substantia") ; Fixes 22 words
+:B0X*:substitud::f("substitut") ; Fixes 14 words
+:B0X*:substract::f("subtract") ; Fixes 12 words
+:B0X*:subtance::f("substance") ; Fixes 2 words
+:B0X*:suburburban::f("suburban") ; Fixes 16 words
+:B0X*:succedd::f("succeed") ; Fixes 7 words
+:B0X*:succede::f("succeede") ; Fixes 3 words
+:B0X*:succeds::f("succeeds") ; Fixes 1 word
+:B0X*:suceed::f("succeed") ; Fixes 7 words
+:B0X*:sucide::f("suicide") ; Fixes 3 words
+:B0X*:sucidial::f("suicidal") ; Fixes 4 words
+:B0X*:sudent::f("student") ; Fixes 7 words
+:B0X*:sufferag::f("suffrag") ; Fixes 10 words
+:B0X*:sumar::f("summar") ; Fixes 22 words
+:B0X*:suop::f("soup") ; Fixes 14 words
+:B0X*:superce::f("superse") ; Fixes 17 words
+:B0X*:supliment::f("supplement") ; Fixes 10 words
+:B0X*:suppliment::f("supplement") ; Fixes 10 words
+:B0X*:suppose to::f("supposed to") ; Fixes 1 word
+:B0X*:supposingly::f("supposedly") ; Fixes 1 word
+:B0X*:surplant::f("supplant") ; Fixes 6 words
+:B0X*:surrended::f("surrendered") ; Fixes 1 word
+:B0X*:surrepetitious::f("surreptitious") ; Fixes 3 words
+:B0X*:surreptious::f("surreptitious") ; Fixes 3 words
+:B0X*:surrond::f("surround") ; Fixes 6 words
+:B0X*:surroud::f("surround") ; Fixes 6 words
+:B0X*:surrunder::f("surrender") ; Fixes 6 words
+:B0X*:surveilen::f("surveillan") ; Fixes 3 words
+:B0X*:surviver::f("survivor") ; Fixes 1 word
+:B0X*:survivied::f("survived") ; Fixes 1 word
+:B0X*:swiming::f("swimming") ; Fixes 3 words
+:B0X*:synagouge::f("synagogue") ; Fixes 2 words
+:B0X*:synph::f("symph") ; Fixes 30 words
+:B0X*:syrap::f("syrup") ; Fixes 4 words
+:B0X*:tabacco::f("tobacco") ; Fixes 4 words
+:B0X*:take affect::f("take effect") ; Fixes 1 word
+:B0X*:take over the reigns::f("take over the reins") ; Fixes 1 word
+:B0X*:take the reigns::f("take the reins") ; Fixes 1 word
+:B0X*:taken the reigns::f("taken the reins") ; Fixes 1 word
+:B0X*:taking the reigns::f("taking the reins") ; Fixes 1 word
+:B0X*:tatoo::f("tattoo") ; Fixes 8 words
+:B0X*:teacg::f("teach") ; Fixes 15 words
+:B0X*:teached::f("taught") ; Fixes 1 word
+:B0X*:telelev::f("telev") ; Fixes 14 words
+:B0X*:televiz::f("televis") ; Fixes 10 words
+:B0X*:televsion::f("television") ; Fixes 2 words
+:B0X*:tellt he::f("tell the") ; Fixes 1 word
+:B0X*:temerature::f("temperature") ; Fixes 2 words
+:B0X*:temperment::f("temperament") ; Fixes 5 words
+:B0X*:temperture::f("temperature") ; Fixes 2 words
+:B0X*:tenacle::f("tentacle") ; Fixes 3 words
+:B0X*:termoil::f("turmoil") ; Fixes 2 words
+:B0X*:testomon::f("testimon") ; Fixes 4 words
+:B0X*:thansk::f("thanks") ; Fixes 6 words
+:B0X*:thast::f("that's") ; Fixes 1 word
+:B0X*:that him and::f("that he and") ; Fixes 1 word
+:B0X*:thats::f("that's") ; Fixes 1 word
+:B0X*:thatt he::f("that the") ; Fixes 1 word
+:B0X*:the absent of::f("the absence of") ; Fixes 1 word
+:B0X*:the affect on::f("the effect on") ; Fixes 1 word
+:B0X*:the affects of::f("the effects of") ; Fixes 1 word
+:B0X*:the both the::f("both the") ; Fixes 1 word
+:B0X*:the break down::f("the breakdown") ; Fixes 1 word
+:B0X*:the break up::f("the breakup") ; Fixes 1 word
+:B0X*:the build up::f("the buildup") ; Fixes 1 word
+:B0X*:the clamp down::f("the clampdown") ; Fixes 1 word
+:B0X*:the crack down::f("the crackdown") ; Fixes 1 word
+:B0X*:the follow up::f("the follow-up") ; Fixes 1 word
+:B0X*:the injures::f("the injuries") ; Fixes 1 word
+:B0X*:the lead up::f("the lead-up") ; Fixes 1 word
+:B0X*:the phenomena is::f("the phenomenon is") ; Fixes 1 word
+:B0X*:the rational behind::f("the rationale behind") ; Fixes 1 word
+:B0X*:the rational for::f("the rationale for") ; Fixes 1 word
+:B0X*:the resent::f("the recent") ; Fixes 1 word
+:B0X*:the set up::f("the setup") ; Fixes 1 word
+:B0X*:thecompany::f("the company") ; Fixes 1 word
+:B0X*:thefirst::f("the first") ; Fixes 1 word
+:B0X*:thegovernment::f("the government") ; Fixes 4 words
+:B0X*:theif::f("thief") ; Fixes 1 word
+:B0X*:their are::f("there are") ; Fixes 1 word
+:B0X*:their had::f("there had") ; Fixes 1 word
+:B0X*:their may be::f("there may be") ; Fixes 1 word
+:B0X*:their was::f("there was") ; Fixes 1 word
+:B0X*:their were::f("there were") ; Fixes 1 word
+:B0X*:their would::f("there would") ; Fixes 1 word
+:B0X*:them selves::f("themselves") ; Fixes 1 word
+:B0X*:themselfs::f("themselves") ; Fixes 1 word
+:B0X*:themslves::f("themselves") ; Fixes 1 word
+:B0X*:thenew::f("the new") ; Fixes 1 word
+:B0X*:therafter::f("thereafter") ; Fixes 1 word
+:B0X*:therby::f("thereby") ; Fixes 1 word
+:B0X*:there after::f("thereafter") ; Fixes 1 word
+:B0X*:there best::f("their best") ; Fixes 1 word
+:B0X*:there by::f("thereby") ; Fixes 1 word
+:B0X*:there final::f("their final") ; Fixes 2 words
+:B0X*:there first::f("their first") ; Fixes 1 word
+:B0X*:there last::f("their last") ; Fixes 1 word
+:B0X*:there new::f("their new") ; Fixes 1 word
+:B0X*:there own::f("their own") ; Fixes 1 word
+:B0X*:there where::f("there were") ; Fixes 1 word
+:B0X*:there's is::f("theirs is") ; Fixes 1 word
+:B0X*:there's three::f("there are three") ; Fixes 1 word
+:B0X*:there's two::f("there are two") ; Fixes 1 word
+:B0X*:thesame::f("the same") ; Fixes 1 word
+:B0X*:these includes::f("these include") ; Fixes 1 word
+:B0X*:these type of::f("these types of") ; Fixes 1 word
+:B0X*:these where::f("these were") ; Fixes 1 word
+:B0X*:thetwo::f("the two") ; Fixes 1 word
+:B0X*:they begun::f("they began") ; Fixes 1 word
+:B0X*:they we're::f("they were") ; Fixes 1 word
+:B0X*:they weight::f("they weigh") ; Fixes 1 word
+:B0X*:they where::f("they were") ; Fixes 1 word
+:B0X*:they're are::f("there are") ; Fixes 1 word
+:B0X*:they're is::f("there is") ; Fixes 1 word
+:B0X*:theyll::f("they'll") ; Fixes 1 word
+:B0X*:theyre::f("they're") ; Fixes 1 word
+:B0X*:theyve::f("they've") ; Fixes 1 word
+:B0X*:thier::f("their") ; Fixes 2 words
+:B0X*:this data::f("these data") ; Fixes 1 word
+:B0X*:this gut::f("this guy") ; Fixes 1 word
+:B0X*:this maybe::f("this may be") ; Fixes 1 word
+:B0X*:this resent::f("this recent") ; Fixes 1 word
+:B0X*:thisyear::f("this year") ; Fixes 2 words
+:B0X*:thna::f("than") ; Fixes 35 words
+:B0X*:those includes::f("those include") ; Fixes 1 word
+:B0X*:those maybe::f("those may be") ; Fixes 1 word
+:B0X*:thoughout::f("throughout") ; Fixes 1 word
+:B0X*:thousend::f("thousand") ; Fixes 5 words 
+:B0X*:threatend::f("threatened") ; Fixes 1 word
+:B0X*:threee::f("three") ; Fixes 17 words
+:B0X*:threshhold::f("threshold") ; Fixes 4 words
+:B0X*:thrid::f("third") ; Fixes 5 words
+:B0X*:thror::f("thor") ; Fixes 57 words
+:B0X*:through it's::f("through its") ; Fixes 1 word
+:B0X*:through the ringer::f("through the wringer") ; Fixes 1 word
+:B0X*:throughly::f("thoroughly") ; Fixes 1 word
+:B0X*:throughout it's::f("throughout its") ; Fixes 1 word
+:B0X*:througout::f("throughout") ; Fixes 1 word
+:B0X*:throws of passion::f("throes of passion") ; Fixes 1 word
+:B0X*:thta::f("that") ; Fixes 14 words
+:B0X*:tiem::f("time") ; Fixes 49 words
+:B0X*:time out::f("timeout") ; Fixes 2 words
+:B0X*:timeschedule::f("time schedule") ; Fixes 2 words
+:B0X*:timne::f("time") ; Fixes 49 words
+:B0X*:tiome::f("time") ; Fixes 49 words
+:B0X*:to back fire::f("to backfire") ; Fixes 1 word
+:B0X*:to back-off::f("to back off") ; Fixes 1 word
+:B0X*:to back-out::f("to back out") ; Fixes 1 word
+:B0X*:to back-up::f("to back up") ; Fixes 1 word
+:B0X*:to backoff::f("to back off") ; Fixes 1 word
+:B0X*:to backout::f("to back out") ; Fixes 1 word
+:B0X*:to backup::f("to back up") ; Fixes 1 word
+:B0X*:to bailout::f("to bail out") ; Fixes 1 word
+:B0X*:to be setup::f("to be set up") ; Fixes 1 word
+:B0X*:to blackout::f("to black out") ; Fixes 1 word
+:B0X*:to blastoff::f("to blast off") ; Fixes 1 word
+:B0X*:to blowout::f("to blow out") ; Fixes 1 word
+:B0X*:to blowup::f("to blow up") ; Fixes 1 word
+:B0X*:to breakdown::f("to break down") ; Fixes 1 word
+:B0X*:to buildup::f("to build up") ; Fixes 1 word
+:B0X*:to built::f("to build") ; Fixes 1 word
+:B0X*:to buyout::f("to buy out") ; Fixes 1 word
+:B0X*:to comeback::f("to come back") ; Fixes 1 word
+:B0X*:to crackdown on::f("to crack down on") ; Fixes 1 word
+:B0X*:to cutback::f("to cut back") ; Fixes 1 word
+:B0X*:to cutoff::f("to cut off") ; Fixes 1 word
+:B0X*:to dropout::f("to drop out") ; Fixes 1 word
+:B0X*:to emphasis the::f("to emphasise the") ; Fixes 1 word
+:B0X*:to fill-in::f("to fill in") ; Fixes 1 word
+:B0X*:to forego::f("to forgo") ; Fixes 1 word
+:B0X*:to happened::f("to happen") ; Fixes 1 word
+:B0X*:to have lead to::f("to have led to") ; Fixes 1 word
+:B0X*:to he and::f("to him and") ; Fixes 1 word
+:B0X*:to holdout::f("to hold out") ; Fixes 1 word
+:B0X*:to kickoff::f("to kick off") ; Fixes 1 word
+:B0X*:to lockout::f("to lock out") ; Fixes 1 word
+:B0X*:to lockup::f("to lock up") ; Fixes 1 word
+:B0X*:to login::f("to log in") ; Fixes 1 word
+:B0X*:to logout::f("to log out") ; Fixes 1 word
+:B0X*:to lookup::f("to look up") ; Fixes 1 word
+:B0X*:to markup::f("to mark up") ; Fixes 1 word
+:B0X*:to opt-in::f("to opt in") ; Fixes 1 word
+:B0X*:to opt-out::f("to opt out") ; Fixes 1 word
+:B0X*:to phaseout::f("to phase out") ; Fixes 1 word
+:B0X*:to pickup::f("to pick up") ; Fixes 1 word
+:B0X*:to playback::f("to play back") ; Fixes 1 word
+:B0X*:to rebuilt::f("to be rebuilt") ; Fixes 1 word
+:B0X*:to rollback::f("to roll back") ; Fixes 1 word
+:B0X*:to runaway::f("to run away") ; Fixes 1 word
+:B0X*:to seen::f("to be seen") ; Fixes 1 word
+:B0X*:to sent::f("to send") ; Fixes 1 word
+:B0X*:to setup::f("to set up") ; Fixes 1 word
+:B0X*:to shut-down::f("to shut down") ; Fixes 1 word
+:B0X*:to shutdown::f("to shut down") ; Fixes 1 word
+:B0X*:to spent::f("to spend") ; Fixes 1 word
+:B0X*:to spin-off::f("to spin off") ; Fixes 1 word
+:B0X*:to spinoff::f("to spin off") ; Fixes 1 word
+:B0X*:to takeover::f("to take over") ; Fixes 1 word
+:B0X*:to that affect::f("to that effect") ; Fixes 1 word
+:B0X*:to they're::f("to their") ; Fixes 1 word
+:B0X*:to touchdown::f("to touch down") ; Fixes 1 word
+:B0X*:to try-out::f("to try out") ; Fixes 1 word
+:B0X*:to tryout::f("to try out") ; Fixes 1 word
+:B0X*:to turn-off::f("to turn off") ; Fixes 1 word
+:B0X*:to turnaround::f("to turn around") ; Fixes 1 word
+:B0X*:to turnoff::f("to turn off") ; Fixes 1 word
+:B0X*:to turnout::f("to turn out") ; Fixes 1 word
+:B0X*:to turnover::f("to turn over") ; Fixes 1 word
+:B0X*:to wakeup::f("to wake up") ; Fixes 1 word
+:B0X*:to walkout::f("to walk out") ; Fixes 1 word
+:B0X*:to wipeout::f("to wipe out") ; Fixes 1 word
+:B0X*:to withdrew::f("to withdraw") ; Fixes 1 word
+:B0X*:to workaround::f("to work around") ; Fixes 1 word
+:B0X*:to workout::f("to work out") ; Fixes 1 word
+:B0X*:tobbaco::f("tobacco") ; Fixes 4 words
+:B0X*:today of::f("today or") ; Fixes 1 word
+:B0X*:todays::f("today's") ; Fixes 1 word
+:B0X*:todya::f("today") ; Fixes 2 words
+:B0X*:toldt he::f("told the") ; Fixes 1 word
+:B0X*:tolkein::f("Tolkien") ; Fixes 2 words
+:B0X*:tomatos::f("tomatoes") ; Fixes 1 word
+:B0X*:tommorrow::f("tomorrow") ; Fixes 2 words
+:B0X*:too also::f("also") ; Fixes 1 word
+:B0X*:too be::f("to be") ; Fixes 1 word
+:B0X*:took affect::f("took effect") ; Fixes 1 word
+:B0X*:took and interest::f("took an interest") ; Fixes 1 word
+:B0X*:took awhile::f("took a while") ; Fixes 1 word
+:B0X*:took over the reigns::f("took over the reins") ; Fixes 1 word
+:B0X*:took the reigns::f("took the reins") ; Fixes 1 word
+:B0X*:toolket::f("toolkit") ; Fixes 1 word
+:B0X*:tornadoe::f("tornado") ; Fixes 1 word
+:B0X*:torpeados::f("torpedoes") ; Fixes 1 word
+:B0X*:torpedos::f("torpedoes") ; Fixes 1 word
+:B0X*:tortise::f("tortoise") ; Fixes 4 words
+:B0X*:tot he::f("to the") ; Fixes 1 word
+:B0X*:tothe::f("to the") ; Fixes 1 word
+:B0X*:traffice::f("trafficke") ; Fixes 3 words
+:B0X*:trafficing::f("trafficking") ; Fixes 1 word
+:B0X*:trancend::f("transcend") ; Fixes 17 words
+:B0X*:transcendan::f("transcenden") ; Fixes 13 words
+:B0X*:transcripting::f("transcribing") ; Fixes 1 word
+:B0X*:transend::f("transcend") ; Fixes 17 words
+:B0X*:transfered::f("transferred") ; Fixes 1 word
+:B0X*:transferin::f("transferrin") ; Fixes 3 words
+:B0X*:translater::f("translator") ; Fixes 2 words
+:B0X*:transpora::f("transporta") ; Fixes 8 words
+:B0X*:tremelo::f("tremolo") ; Fixes 2 words
+:B0X*:triathalon::f("triathlon") ; Fixes 2 words
+:B0X*:tried to used::f("tried to use") ; Fixes 1 word
+:B0X*:triguer::f("trigger") ; Fixes 8 words
+:B0X*:triolog::f("trilog") ; Fixes 2 words
+:B0X*:try and::f("try to") ; Fixes 1 word
+:B0X*:tthe::f("the") ; Fixes 402 words
+:B0X*:turn for the worst::f("turn for the worse") ; Fixes 1 word
+:B0X*:tuscon::f("Tucson") ; Fixes 1 word
+:B0X*:tust::f("trust") ; Fixes 33 words
+:B0X*:tution::f("tuition") ; Fixes 3 words
+:B0X*:twelth::f("twelfth") ; Fixes 4 words
+:B0X*:twelve month's::f("twelve months") ; Fixes 1 word
+:B0X*:twice as much than::f("twice as much as") ; Fixes 1 word
+:B0X*:two in a half::f("two and a half") ; Fixes 1 word
+:B0X*:tyhe::f("they") ; Fixes 1 word
+:B0X*:tyo::f("to") ; Fixes 1110 words
+:B0X*:tyrany::f("tyranny") ; Fixes 1 word
+:B0X*:tyrrani::f("tyranni") ; Fixes 20 words
+:B0X*:tyrrany::f("tyranny") ; Fixes 1 word
+:B0X*:uber::f("über") ; Fixes 1 word
+:B0X*:ubli::f("publi") ; Fixes 37 words
+:B0X*:uise::f("use") ; Fixes 20 words
+:B0X*:ukran::f("Ukrain") ; Fixes 3 words
+:B0X*:ulser::f("ulcer") ; Fixes 12 words 
+:B0X*:unanym::f("unanim") ; Fixes 8 words
+:B0X*:unbeknowst::f("unbeknownst") ; Fixes 1 word
+:B0X*:under go::f("undergo") ; Fixes 4 words
+:B0X*:under it's::f("under its") ; Fixes 1 word
+:B0X*:under rate::f("underrate") ; Fixes 3 words
+:B0X*:under take::f("undertake") ; Fixes 5 words
+:B0X*:under wear::f("underwear") ; Fixes 1 word
+:B0X*:under went::f("underwent") ; Fixes 1 word
+:B0X*:underat::f("underrat") ; Fixes 4 words 
+:B0X*:undert he::f("under the") ; Fixes 1 word
+:B0X*:undoubtely::f("undoubtedly") ; Fixes 1 word
+:B0X*:undreground::f("underground") ; Fixes 3 words
+:B0X*:unecessar::f("unnecessar") ; Fixes 3 words
+:B0X*:unequalit::f("inequalit") ; Fixes 2 words
+:B0X*:unihabit::f("uninhabit") ; Fixes 6 words
+:B0X*:unitedstates::f("United States") ; Fixes 1 word
+:B0X*:unitesstates::f("United States") ; Fixes 1 word
+:B0X*:univeral::f("universal") ; Fixes 22 words
+:B0X*:univerist::f("universit") ; Fixes 2 words
+:B0X*:univerit::f("universit") ; Fixes 2 words
+:B0X*:universti::f("universit") ; Fixes 2 words
+:B0X*:univesit::f("universit") ; Fixes 2 words
+:B0X*:unoperational::f("nonoperational") ; Fixes 1 word
+:B0X*:unotice::f("unnotice") ; Fixes 4 words
+:B0X*:unplease::f("displease") ; Fixes 5 words
+:B0X*:unsed::f("unused") ; Fixes 1 word
+:B0X*:untill::f("until") ; Fixes 1 word
+:B0X*:unuseable::f("unusable") ; Fixes 2 words
+:B0X*:up field::f("upfield") ; Fixes 1 word
+:B0X*:up it's::f("up its") ; Fixes 1 word
+:B0X*:up side::f("upside") ; Fixes 1 word
+:B0X*:upon it's::f("upon its") ; Fixes 1 word
+:B0X*:upto::f("up to") ; Fixes 1 word
+:B0X*:usally::f("usually") ; Fixes 1 word
+:B0X*:use to::f("used to") ; Fixes 1 word
+:B0X*:vaccum::f("vacuum") ; Fixes 4 words
+:B0X*:vacinit::f("vicinit") ; Fixes 2 words
+:B0X*:vaguar::f("vagar") ; Fixes 4 words
+:B0X*:vaiet::f("variet") ; Fixes 5 words
+:B0X*:varit::f("variet") ; Fixes 5 words
+:B0X*:vasall::f("vassal") ; Fixes 4 words
+:B0X*:vehicule::f("vehicle") ; Fixes 2 words
+:B0X*:vengance::f("vengeance") ; Fixes 2 words
+:B0X*:vengence::f("vengeance") ; Fixes 2 words
+:B0X*:verfication::f("verification") ; Fixes 4 words
+:B0X*:vermillion::f("vermilion") ; Fixes 4 words
+:B0X*:versitilat::f("versatilit") ; Fixes 2 words
+:B0X*:versitlit::f("versatilit") ; Fixes 2 words
+:B0X*:vetween::f("between") ; Fixes 3 words
+:B0X*:via it's::f("via its") ; Fixes 1 word
+:B0X*:viathe::f("via the") ; Fixes 1 word
+:B0X*:vigour::f("vigor") ; Fixes 9 words
+:B0X*:villian::f("villain") ; Fixes 11 words
+:B0X*:villifi::f("vilifi") ; Fixes 6 words
+:B0X*:villify::f("vilify") ; Fixes 2 words
+:B0X*:villin::f("villain") ; Fixes 11 words
+:B0X*:vincinit::f("vicinit") ; Fixes 2 words
+:B0X*:virutal::f("virtual") ; Fixes 16 words
+:B0X*:visabl::f("visibl") ; Fixes 3 words
+:B0X*:vise versa::f("vice versa") ; Fixes 1 word
+:B0X*:vistor::f("visitor") ; Fixes 2 words
+:B0X*:vitor::f("victor") ; Fixes 15 words
+:B0X*:vocal chord::f("vocal cord") ; Fixes 2 words
+:B0X*:volcanoe::f("volcano") ; Fixes 8 words
+:B0X*:voley::f("volley") ; Fixes 8 words
+:B0X*:volkswagon::f("Volkswagen") ; Fixes 1 word
+:B0X*:vreity::f("variety") ; Fixes 1 word
+:B0X*:vriet::f("variet") ; Fixes 5 words
+:B0X*:vulnerablilit::f("vulnerabilit") ; Fixes 2 words
+:B0X*:wa snot::f("was not") ; Fixes 1 word
+:B0X*:waived off::f("waved off") ; Fixes 1 word
+:B0X*:wan tit::f("want it") ; Fixes 1 word
+:B0X*:wanna::f("want to") ; Fixes 1 word
+:B0X*:warantee::f("warranty") ; Fixes 1 word
+:B0X*:wardobe::f("wardrobe") ; Fixes 2 words
+:B0X*:warn away::f("worn away") ; Fixes 1 word
+:B0X*:warn down::f("worn down") ; Fixes 1 word
+:B0X*:warn out::f("worn out") ; Fixes 1 word
+:B0X*:was apart of::f("was a part of") ; Fixes 1 word
+:B0X*:was began::f("began") ; Fixes 1 word
+:B0X*:was build::f("was built") ; Fixes 1 word
+:B0X*:was cutoff::f("was cut off") ; Fixes 1 word
+:B0X*:was do to::f("was due to") ; Fixes 1 word
+:B0X*:was drank::f("was drunk") ; Fixes 1 word
+:B0X*:was it's::f("was its") ; Fixes 1 word
+:B0X*:was knew::f("was known") ; Fixes 1 word
+:B0X*:was lain::f("was laid") ; Fixes 1 word
+:B0X*:was laying on::f("was lying on") ; Fixes 1 word
+:B0X*:was lead by::f("was led by") ; Fixes 1 word
+:B0X*:was lead to::f("was led to") ; Fixes 1 word
+:B0X*:was leaded by::f("was led by") ; Fixes 1 word
+:B0X*:was loathe to::f("was loath to") ; Fixes 1 word
+:B0X*:was loathed to::f("was loath to") ; Fixes 1 word
+:B0X*:was meet by::f("was met by") ; Fixes 1 word
+:B0X*:was meet with::f("was met with") ; Fixes 1 word
+:B0X*:was mislead::f("was misled") ; Fixes 1 word
+:B0X*:was rebuild::f("was rebuilt") ; Fixes 1 word
+:B0X*:was release by::f("was released by") ; Fixes 1 word
+:B0X*:was release on::f("was released on") ; Fixes 1 word
+:B0X*:was reran::f("was rerun") ; Fixes 1 word
+:B0X*:was sang::f("was sung") ; Fixes 1 word
+:B0X*:was schedule to::f("was scheduled to") ; Fixes 1 word
+:B0X*:was send::f("was sent") ; Fixes 1 word
+:B0X*:was sentence to::f("was sentenced to") ; Fixes 1 word
+:B0X*:was set-up::f("was set up") ; Fixes 1 word
+:B0X*:was setup::f("was set up") ; Fixes 1 word
+:B0X*:was shook::f("was shaken") ; Fixes 1 word
+:B0X*:was shoot::f("was shot") ; Fixes 1 word
+:B0X*:was show by::f("was shown by") ; Fixes 1 word
+:B0X*:was show on::f("was shown on") ; Fixes 1 word
+:B0X*:was showed::f("was shown") ; Fixes 1 word
+:B0X*:was shut-off::f("was shut off") ; Fixes 1 word
+:B0X*:was shutdown::f("was shut down") ; Fixes 1 word
+:B0X*:was shutoff::f("was shut off") ; Fixes 1 word
+:B0X*:was shutout::f("was shut out") ; Fixes 1 word
+:B0X*:was sold-out::f("was sold out") ; Fixes 1 word
+:B0X*:was spend::f("was spent") ; Fixes 1 word
+:B0X*:was succeed by::f("was succeeded by") ; Fixes 1 word
+:B0X*:was suppose to::f("was supposed to") ; Fixes 1 word
+:B0X*:was though that::f("was thought that") ; Fixes 1 word
+:B0X*:was use to::f("was used to") ; Fixes 1 word
+:B0X*:wasnt::f("wasn't") ; Fixes 1 word
+:B0X*:way side::f("wayside") ; Fixes 1 word
+:B0X*:wayword::f("wayward") ; Fixes 1 word
+:B0X*:we;d::f("we'd") ; Fixes 1 word
+:B0X*:weaponary::f("weaponry") ; Fixes 1 word
+:B0X*:weather or not::f("whether or not") ; Fixes 1 word
+:B0X*:well know::f("well known") ; Fixes 1 word
+:B0X*:wendsay::f("Wednesday") ; Fixes 1 word
+:B0X*:wensday::f("Wednesday") ; Fixes 1 word
+:B0X*:went rouge::f("went rogue") ; Fixes 1 word
+:B0X*:went threw::f("went through") ; Fixes 1 word
+:B0X*:were apart of::f("were a part of") ; Fixes 1 word
+:B0X*:were began::f("were begun") ; Fixes 1 word
+:B0X*:were cutoff::f("were cut off") ; Fixes 1 word
+:B0X*:were drew::f("were drawn") ; Fixes 1 word
+:B0X*:were he was::f("where he was") ; Fixes 1 word
+:B0X*:were it was::f("where it was") ; Fixes 1 word
+:B0X*:were it's::f("were its") ; Fixes 1 word
+:B0X*:were knew::f("were known") ; Fixes 1 word
+:B0X*:were know::f("were known") ; Fixes 1 word
+:B0X*:were lain::f("were laid") ; Fixes 1 word
+:B0X*:were lead by::f("were led by") ; Fixes 1 word
+:B0X*:were loathe to::f("were loath to") ; Fixes 1 word
+:B0X*:were meet by::f("were met by") ; Fixes 1 word
+:B0X*:were meet with::f("were met with") ; Fixes 1 word
+:B0X*:were overran::f("were overrun") ; Fixes 1 word
+:B0X*:were reran::f("were rerun") ; Fixes 1 word
+:B0X*:were sang::f("were sung") ; Fixes 1 word
+:B0X*:were set-up::f("were set up") ; Fixes 1 word
+:B0X*:were setup::f("were set up") ; Fixes 1 word
+:B0X*:were she was::f("where she was") ; Fixes 1 word
+:B0X*:were showed::f("were shown") ; Fixes 1 word
+:B0X*:were shut-out::f("were shut out") ; Fixes 1 word
+:B0X*:were shutdown::f("were shut down") ; Fixes 1 word
+:B0X*:were shutoff::f("were shut off") ; Fixes 1 word
+:B0X*:were shutout::f("were shut out") ; Fixes 1 word
+:B0X*:were suppose to::f("were supposed to") ; Fixes 1 word
+:B0X*:were took::f("were taken") ; Fixes 1 word
+:B0X*:were use to::f("were used to") ; Fixes 1 word
+:B0X*:wereabouts::f("whereabouts") ; Fixes 1 word
+:B0X*:wern't::f("weren't") ; Fixes 1 word
+:B0X*:wet your::f("whet your") ; Fixes 1 word
+:B0X*:wether or not::f("whether or not") ; Fixes 1 word
+:B0X*:what lead to::f("what led to") ; Fixes 1 word
+:B0X*:what lied::f("what lay") ; Fixes 1 word
+:B0X*:whent he::f("when the") ; Fixes 1 word
+:B0X*:wheras::f("whereas") ; Fixes 1 word
+:B0X*:where abouts::f("whereabouts") ; Fixes 1 word
+:B0X*:where being::f("were being") ; Fixes 1 word
+:B0X*:where by::f("whereby") ; Fixes 1 word
+:B0X*:where him::f("where he") ; Fixes 1 word
+:B0X*:where made::f("were made") ; Fixes 1 word
+:B0X*:where taken::f("were taken") ; Fixes 1 word
+:B0X*:where upon::f("whereupon") ; Fixes 1 word
+:B0X*:where won::f("were won") ; Fixes 1 word
+:B0X*:wherease::f("whereas") ; Fixes 1 word
+:B0X*:whereever::f("wherever") ; Fixes 1 word
+:B0X*:which had lead::f("which had led") ; Fixes 1 word
+:B0X*:which has lead::f("which has led") ; Fixes 1 word
+:B0X*:which have lead::f("which have led") ; Fixes 1 word
+:B0X*:which where::f("which were") ; Fixes 1 word
+:B0X*:whicht he::f("which the") ; Fixes 1 word
+:B0X*:while him::f("while he") ; Fixes 1 word
+:B0X*:whn::f("when") ; Fixes 5 words
+:B0X*:who had lead::f("who had led") ; Fixes 1 word
+:B0X*:who has lead::f("who has led") ; Fixes 1 word
+:B0X*:who have lead::f("who have led") ; Fixes 1 word
+:B0X*:who setup::f("who set up") ; Fixes 1 word
+:B0X*:who use to::f("who used to") ; Fixes 1 word
+:B0X*:who where::f("who were") ; Fixes 1 word
+:B0X*:who's actual::f("whose actual") ; Fixes 1 word
+:B0X*:who's brother::f("whose brother") ; Fixes 1 word
+:B0X*:who's father::f("whose father") ; Fixes 1 word
+:B0X*:who's mother::f("whose mother") ; Fixes 1 word
+:B0X*:who's name::f("whose name") ; Fixes 1 word
+:B0X*:who's opinion::f("whose opinion") ; Fixes 1 word
+:B0X*:who's own::f("whose own") ; Fixes 1 word
+:B0X*:who's parents::f("whose parents") ; Fixes 1 word
+:B0X*:who's previous::f("whose previous") ; Fixes 1 word
+:B0X*:who's team::f("whose team") ; Fixes 1 word
+:B0X*:wholey::f("wholly") ; Fixes 1 word
+:B0X*:wholy::f("wholly") ; Fixes 1 word
+:B0X*:whould::f("would") ; Fixes 5 words
+:B0X*:whther::f("whether") ; Fixes 1 word
+:B0X*:widesread::f("widespread") ; Fixes 3 words
+:B0X*:wih::f("whi") ; Fixes 310 words
+:B0X*:will backup::f("will back up") ; Fixes 1 word
+:B0X*:will buyout::f("will buy out") ; Fixes 1 word
+:B0X*:will shutdown::f("will shut down") ; Fixes 1 word
+:B0X*:will shutoff::f("will shut off") ; Fixes 1 word
+:B0X*:willbe::f("will be") ; Fixes 1 word
+:B0X*:winther::f("winter") ; Fixes 33 words
+:B0X*:with be::f("will be") ; Fixes 1 word
+:B0X*:with in::f("within") ; Fixes 1 word
+:B0X*:with it's::f("with its") ; Fixes 1 word
+:B0X*:with out::f("without") ; Fixes 1 word
+:B0X*:with regards to::f("with regard to") ; Fixes 1 word
+:B0X*:withdrawl::f("withdrawal") ; Fixes 2 words
+:B0X*:witheld::f("withheld") ; Fixes 1 word
+:B0X*:withi t::f("with it") ; Fixes 1 word
+:B0X*:within it's::f("within its") ; Fixes 1 word
+:B0X*:within site of::f("within sight of") ; Fixes 1 word
+:B0X*:withold::f("withhold") ; Fixes 6 words
+:B0X*:witht he::f("with the") ; Fixes 1 word
+:B0X*:won it's::f("won its") ; Fixes 1 word
+:B0X*:wordlwide::f("worldwide") ; Fixes 1 word
+:B0X*:working progress::f("work in progress") ; Fixes 1 word
+:B0X*:world wide::f("worldwide") ; Fixes 1 word
+:B0X*:worse comes to worse::f("worse comes to worst") ; Fixes 1 word
+:B0X*:worse then::f("worse than") ; Fixes 1 word
+:B0X*:worse-case scenario::f("worst-case scenario") ; Fixes 1 word
+:B0X*:worst comes to worst::f("worse comes to worst") ; Fixes 1 word
+:B0X*:worst than::f("worse than") ; Fixes 1 word
+:B0X*:worsten::f("worsen") ; Fixes 5 words
+:B0X*:worth it's::f("worth its") ; Fixes 1 word
+:B0X*:worth while::f("worthwhile") ; Fixes 1 word
+:B0X*:woudl::f("would") ; Fixes 5 words
+:B0X*:would backup::f("would back up") ; Fixes 1 word
+:B0X*:would comeback::f("would come back") ; Fixes 1 word
+:B0X*:would fair::f("would fare") ; Fixes 1 word
+:B0X*:would forego::f("would forgo") ; Fixes 1 word
+:B0X*:would setup::f("would set up") ; Fixes 1 word
+:B0X*:wouldbe::f("would be") ; Fixes 1 word
+:B0X*:wreck havoc::f("wreak havoc") ; Fixes 1 word
+:B0X*:wreckless::f("reckless") ; Fixes 3 words 
+:B0X*:writers block::f("writer's block") ; Fixes 1 word
+:B0X*:xoom::f("zoom") ; Fixes 15 words
+:B0X*:yatch::f("yacht") ; Fixes 9 words
+:B0X*:year old::f("year-old") ; Fixes 1 word
+:B0X*:yelow::f("yellow") ; Fixes 28 words
+:B0X*:yera::f("year") ; Fixes 17 words
+:B0X*:yotube::f("youtube") ; Fixes 4 words
+:B0X*:you're own::f("your own") ; Fixes 1 word
+:B0X*:you;d::f("you'd") ; Fixes 1 word
+:B0X*:youare::f("you are") ; Fixes 1 word
+:B0X*:your their::f("you're their") ; Fixes 1 word
+:B0X*:your your::f("you're your") ; Fixes 1 word
+:B0X*:youseff::f("yousef") ; Fixes 1 word
+:B0X*:youself::f("yourself") ; Fixes 1 word
+:B0X*:youv'e::f("you'v") ; Fixes 1 worde 
+:B0X*:youve::f("you've") ; Fixes 1 word
+:B0X*:yrea::f("year") ; Fixes 17 words
+:B0X*C:aquit::f("acquit") ; Fixes 10 words.  Case-sensitive to not misspell Aquitaine (A region of southwestern France between Bordeaux and the Pyrenees)
+:B0X*C:carmel::f("caramel") ; Fixes 12 words.  Case-sensitive to not misspell Carmelite (Roman Catholic friar)
+:B0X*C:carrer::f("career") ; Fixes 8 words.  Case-sensitive to not misspell Carrere (A famous architect) 
+:B0X*C:daed::f("dead") ; Fixes 46 words, Case-sensitive to not misspell Daedal ([Greek mythology] an Athenian inventor who built the labyrinth of Minos)
+:B0X*C:ehr::f("her") ; Fixes 233 words, Made case sensitive so not to misspell Ehrenberg (a Russian novelist) or Ehrlich (a German scientist)
+:B0X*C:english::f("English") ; Fixes 8 words
+:B0X*C:herat::f("heart") ; Fixes 63 words, Case-sensitive to not misspell Herat (a city in Afganistan).
+:B0X*C:hsi::f("his") ; Fixes 95 words, Case-sensitive to not misspell Hsian (a city in China)
+:B0X*C:ime::f("imme") ; Fixes 35 words, Case-sensitive to not misspell IMEI (International Mobile Equipment Identity)
+:B0X*C:wich::f("which") ; Fixes 3 words, Case-sensitive to not misspell Wichita.
+:B0X*C:yoru::f("your") ; Fixes 4 words, case sensitive to not misspell Yoruba (A Nigerian langue) 
+:B0X:*more that::f("more than") ; Fixes 1 word
+:B0X:*more then::f("more than") ; Fixes 1 word
+:B0X:*moreso::f("more so") ; Fixes 1 word
+:B0X:*their has::f("there has") ; Fixes 1 word
+:B0X:*their have::f("there have") ; Fixes 1 word
+:B0X:;ils::f("Intensive Learning Services (ILS)")
+:B0X:EDB::f("EBD") ; Fixes 1 word
+:B0X:Parri::f("Patti") ; Fixes 1 word
+:B0X:a dominate::f("a dominant") ; Fixes 1 word
+:B0X:a lose::f("a loss") ; Fixes 1 word
+:B0X:a manufacture::f("a manufacturer") ; Fixes 1 word
+:B0X:a only a::f("only a") ; Fixes 1 word
+:B0X:a phenomena::f("a phenomenon") ; Fixes 1 word
+:B0X:a protozoa::f("a protozoon") ; Fixes 1 word
+:B0X:a renown::f("a renowned") ; Fixes 1 word
+:B0X:a strata::f("a stratum") ; Fixes 1 word
+:B0X:a taxa::f("a taxon") ; Fixes 1 word
+:B0X:adres::f("address") ; Fixes 1 word
+:B0X:affect on::f("effect on") ; Fixes 1 word
+:B0X:affects of::f("effects of") ; Fixes 1 word
+:B0X:agains::f("against") ; Fixes 1 word
+:B0X:against who::f("against whom") ; Fixes 1 word
+:B0X:agre::f("agree") ; Fixes 1 word
+:B0X:aircrafts'::f("aircraft's") ; Fixes 1 word
+:B0X:aircrafts::f("aircraft") ; Fixes 1 word
+:B0X:all for not::f("all for naught") ; Fixes 1 word
+:B0X:alot::f("a lot") ; Fixes 1 word
+:B0X:also know as::f("also known as") ; Fixes 1 word
+:B0X:also know by::f("also known by") ; Fixes 1 word
+:B0X:also know for::f("also known for") ; Fixes 1 word
+:B0X:alway::f("always") ; Fixes 1 word
+:B0X:amin::f("main") ; Fixes 1 word
+:B0X:an affect::f("an effect") ; Fixes 1 word
+:B0X:andt he::f("and the") ; Fixes 1 word
+:B0X:anothe::f("another") ; Fixes 1 word
+:B0X:another criteria::f("another criterion") ; Fixes 1 word
+:B0X:another words::f("in other words") ; Fixes 1 word
+:B0X:apon::f("upon") ; Fixes 1 word
+:B0X:are dominate::f("are dominant") ; Fixes 1 word
+:B0X:are meet::f("are met") ; Fixes 1 word
+:B0X:are renown::f("are renowned") ; Fixes 1 word
+:B0X:are the dominate::f("are the dominant") ; Fixes 1 word
+:B0X:aslo::f("also") ; Fixes 1 word
+:B0X:atmospher::f("atmosphere") ; Fixes 1 word
+:B0X:averag::f("average") ; Fixes 1 word
+:B0X:be ran::f("be run") ; Fixes 1 word
+:B0X:be rode::f("be ridden") ; Fixes 1 word
+:B0X:be send::f("be sent") ; Fixes 1 word
+:B0X:became know::f("became known") ; Fixes 1 word
+:B0X:becames::f("became") ; Fixes 1 word
+:B0X:becaus::f("because") ; Fixes 1 word
+:B0X:been know::f("been known") ; Fixes 1 word
+:B0X:been ran::f("been run") ; Fixes 1 word
+:B0X:been rode::f("been ridden") ; Fixes 1 word
+:B0X:been send::f("been sent") ; Fixes 1 word
+:B0X:beggin::f("begin") ; Fixes 1 word
+:B0X:being ran::f("being run") ; Fixes 1 word
+:B0X:being rode::f("being ridden") ; Fixes 1 word
+:B0X:bicep::f("biceps") ; Fixes 1 word
+:B0X:both of who::f("both of whom") ; Fixes 1 word
+:B0X:cafe::f("café") ; Fixes 1 word
+:B0X:cafes::f("cafés") ; Fixes 1 word
+:B0X:can breath::f("can breathe") ; Fixes 1 word
+:B0X:can't breath::f("can't breathe") ; Fixes 1 word
+:B0X:can't of::f("can't have") ; Fixes 1 word
+:B0X:cant::f("can't") ; Fixes 1 word
+:B0X:carcas::f("carcass") ; Fixes 1 word
+:B0X:certain extend::f("certain extent") ; Fixes 1 word
+:B0X:cliant::f("client") ; Fixes 1 word
+:B0X:colum::f("column") ; Fixes 1 word
+:B0X:could breath::f("could breathe") ; Fixes 1 word
+:B0X:couldn't breath::f("couldn't breathe") ; Fixes 1 word
+:B0X:daily regiment::f("daily regimen") ; Fixes 1 word
+:B0X:depending of::f("depending on") ; Fixes 1 word
+:B0X:depends of::f("depends on") ; Fixes 1 word
+:B0X:devels::f("delves") ; Fixes 1 word
+:B0X:dispell::f("dispel") ; Fixes 1 word
+:B0X:dispells::f("dispels") ; Fixes 1 word
+:B0X:do to::f("due to") ; Fixes 1 word
+:B0X:dolka::f("folks") ; Fixes 1 word 
+:B0X:doub::f("doubt") ; Fixes 1 word
+:B0X:dum::f("dumb") ; Fixes 1 word
+:B0X:earlies::f("earliest") ; Fixes 1 word
+:B0X:eath::f("each") ; Fixes 1 word
+:B0X:ect::f("etc") ; Fixes 1 word
+:B0X:elast::f("least") ; Fixes 1 word
+:B0X:embarras::f("embarrass") ; Fixes 1 word
+:B0X:en mass::f("en masse") ; Fixes 1 word
+:B0X:excell::f("excel") ; Fixes 1 word
+:B0X:experienc::f("experience") ; Fixes 1 word
+:B0X:facia::f("fascia") ; Fixes 1 word
+:B0X:fo::f("of") ; Fixes 1 word
+:B0X:for he and::f("for him and") ; Fixes 1 word
+:B0X:fora::f("for a") ; Fixes 1 word
+:B0X:forbad::f("forbade") ; Fixes 1 word
+:B0X:fro::f("for") ; Fixes 1 word
+:B0X:frome::f("from") ; Fixes 1 word
+:B0X:fulfil::f("fulfill") ; Fixes 1 word
+:B0X:gae::f("game") ; Fixes 1 word
+:B0X:grat::f("great") ; Fixes 1 word
+:B0X:had awoke::f("had awoken") ; Fixes 1 word
+:B0X:had broke::f("had broken") ; Fixes 1 word
+:B0X:had chose::f("had chosen") ; Fixes 1 word
+:B0X:had fell::f("had fallen") ; Fixes 1 word
+:B0X:had forbad::f("had forbidden") ; Fixes 1 word
+:B0X:had forbade::f("had forbidden") ; Fixes 1 word
+:B0X:had know::f("had known") ; Fixes 1 word
+:B0X:had plead::f("had pleaded") ; Fixes 1 word
+:B0X:had ran::f("had run") ; Fixes 1 word
+:B0X:had rang::f("had rung") ; Fixes 1 word
+:B0X:had rode::f("had ridden") ; Fixes 1 word
+:B0X:had spoke::f("had spoken") ; Fixes 1 word
+:B0X:had swam::f("had swum") ; Fixes 1 word
+:B0X:had throve::f("had thriven") ; Fixes 1 word
+:B0X:had woke::f("had woken") ; Fixes 1 word
+:B0X:happend::f("happened") ; Fixes 1 word
+:B0X:happended::f("happened") ; Fixes 1 word
+:B0X:happenned::f("happened") ; Fixes 1 word
+:B0X:has arose::f("has arisen") ; Fixes 1 word
+:B0X:has awoke::f("has awoken") ; Fixes 1 word
+:B0X:has bore::f("has borne") ; Fixes 1 word
+:B0X:has broke::f("has broken") ; Fixes 1 word
+:B0X:has build::f("has built") ; Fixes 1 word
+:B0X:has chose::f("has chosen") ; Fixes 1 word
+:B0X:has drove::f("has driven") ; Fixes 1 word
+:B0X:has fell::f("has fallen") ; Fixes 1 word
+:B0X:has flew::f("has flown") ; Fixes 1 word
+:B0X:has forbad::f("has forbidden") ; Fixes 1 word
+:B0X:has forbade::f("has forbidden") ; Fixes 1 word
+:B0X:has plead::f("has pleaded") ; Fixes 1 word
+:B0X:has ran::f("has run") ; Fixes 1 word
+:B0X:has spoke::f("has spoken") ; Fixes 1 word
+:B0X:has swam::f("has swum") ; Fixes 1 word
+:B0X:has trod::f("has trodden") ; Fixes 1 word
+:B0X:has woke::f("has woken") ; Fixes 1 word
+:B0X:have ran::f("have run") ; Fixes 1 word
+:B0X:have swam::f("have swum") ; Fixes 1 word
+:B0X:having ran::f("having run") ; Fixes 1 word
+:B0X:having swam::f("having swum") ; Fixes 1 word
+:B0X:he plead::f("he pleaded") ; Fixes 1 word
+:B0X:hier::f("heir") ; Fixes 1 word
+:B0X:how ever::f("however") ; Fixes 1 word
+:B0X:howver::f("however") ; Fixes 1 word
+:B0X:humer::f("humor") ; Fixes 1 word
+:B0X:husban::f("husband") ; Fixes 1 word
+:B0X:hypocrit::f("hypocrite") ; Fixes 1 word
+:B0X:imagin::f("imagine") ; Fixes 1 word
+:B0X:internation::f("international") ; Fixes 1 word
+:B0X:is also know::f("is also known") ; Fixes 1 word
+:B0X:is consider::f("is considered") ; Fixes 1 word
+:B0X:is know::f("is known") ; Fixes 1 word
+:B0X:it self::f("itself") ; Fixes 1 word
+:B0X:japanes::f("Japanese") ; Fixes 1 word
+:B0X:larg::f("large") ; Fixes 1 word
+:B0X:lot's of::f("lots of") ; Fixes 1 word
+:B0X:maltesian::f("Maltese") ; Fixes 1 word
+:B0X:mear::f("mere") ; Fixes 1 word
+:B0X:might of::f("might have") ; Fixes 1 word
+:B0X:more resent::f("more recent") ; Fixes 1 word
+:B0X:most resent::f("most recent") ; Fixes 1 word
+:B0X:must of::f("must have") ; Fixes 1 word
+:B0X:mysef::f("myself") ; Fixes 1 word
+:B0X:mysefl::f("myself") ; Fixes 1 word
+:B0X:neither criteria::f("neither criterion") ; Fixes 1 word
+:B0X:neither phenomena::f("neither phenomenon") ; Fixes 1 word
+:B0X:nestin::f("nesting") ; Fixes 1 word
+:B0X:noth::f("north") ; Fixes 1 word
+:B0X:ocur::f("occur") ; Fixes 1 word
+:B0X:one criteria::f("one criterion") ; Fixes 1 word
+:B0X:one phenomena::f("one phenomenon") ; Fixes 1 word
+:B0X:opposit::f("opposite") ; Fixes 1 word
+:B0X:our of::f("out of") ; Fixes 1 word
+:B0X:per say::f("per se") ; Fixes 1 word
+:B0X:perhasp::f("perhaps") ; Fixes 1 word
+:B0X:perphas::f("perhaps") ; Fixes 1 word
+:B0X:personel::f("personnel") ; Fixes 1 word
+:B0X:poisin::f("poison") ; Fixes 1 word
+:B0X:protem::f("pro tem") ; Fixes 1 word
+:B0X:recal::f("recall") ; Fixes 1 word
+:B0X:rela::f("real") ; Fixes 1 word
+:B0X:republi::f("republic") ; Fixes 1 word
+:B0X:scientis::f("scientist") ; Fixes 1 word
+:B0X:sherif::f("sheriff") ; Fixes 1 word
+:B0X:should not of::f("should not have") ; Fixes 1 word
+:B0X:should of::f("should have") ; Fixes 1 word
+:B0X:show resent::f("show recent") ; Fixes 1 word
+:B0X:some how::f("somehow") ; Fixes 1 word
+:B0X:some one::f("someone") ; Fixes 1 word
+:B0X:sq mi::f("mi²") ; Fixes 1 word
+:B0X:t he::f("the") ; Fixes 1 word
+:B0X:tast::f("taste") ; Fixes 1 word
+:B0X:tath::f("that") ; Fixes 1 word
+:B0X:thanks@!::f("thanks!") ; Fixes 1 word
+:B0X:thanks@::f("thanks!") ; Fixes 1 word
+:B0X:the advise of::f("the advice of") ; Fixes 1 word
+:B0X:the dominate::f("the dominant") ; Fixes 1 word
+:B0X:the extend of::f("the extent of") ; Fixes 1 word
+:B0X:their is::f("there is") ; Fixes 1 word
+:B0X:ther::f("there") ; Fixes 1 word
+:B0X:there of::f("thereof") ; Fixes 1 word
+:B0X:theri::f("their") ; Fixes 1 word
+:B0X:they;l::f("they'll") ; Fixes 1 word
+:B0X:they;r::f("they're") ; Fixes 1 word
+:B0X:they;v::f("they've") ; Fixes 1 word
+:B0X:this lead to::f("this led to") ; Fixes 1 word
+:B0X:thr::f("the") ; Fixes 1 word 
+:B0X:thru::f("through") ; Fixes 1 word
+:B0X:to bath::f("to bathe") ; Fixes 1 word
+:B0X:to be build::f("to be built") ; Fixes 1 word
+:B0X:to breath::f("to breathe") ; Fixes 1 word
+:B0X:to chose::f("to choose") ; Fixes 1 word
+:B0X:to cut of::f("to cut off") ; Fixes 1 word
+:B0X:to loath::f("to loathe") ; Fixes 1 word
+:B0X:to some extend::f("to some extent") ; Fixes 1 word
+:B0X:to try and::f("to try to") ; Fixes 1 word
+:B0X:tou::f("you") ; Fixes 1 word
+:B0X:troup::f("troupe") ; Fixes 1 word
+:B0X:was cable of::f("was capable of") ; Fixes 1 word
+:B0X:was establish::f("was established") ; Fixes 1 word
+:B0X:was extend::f("was extended") ; Fixes 1 word
+:B0X:was know::f("was known") ; Fixes 1 word
+:B0X:was ran::f("was run") ; Fixes 1 word
+:B0X:was rode::f("was ridden") ; Fixes 1 word
+:B0X:was the dominate::f("was the dominant") ; Fixes 1 word
+:B0X:was tore::f("was torn") ; Fixes 1 word
+:B0X:was wrote::f("was written") ; Fixes 1 word
+:B0X:wat::f("way") ; Fixes 1 word
+:B0X:were build::f("were built") ; Fixes 1 word
+:B0X:were ran::f("were run") ; Fixes 1 word
+:B0X:were rebuild::f("were rebuilt") ; Fixes 1 word
+:B0X:were rode::f("were ridden") ; Fixes 1 word
+:B0X:were spend::f("were spent") ; Fixes 1 word
+:B0X:were the dominate::f("were the dominant") ; Fixes 1 word
+:B0X:were tore::f("were torn") ; Fixes 1 word
+:B0X:were wrote::f("were written") ; Fixes 1 word
+:B0X:when ever::f("whenever") ; Fixes 1 word
+:B0X:where as::f("whereas") ; Fixes 1 word
+:B0X:whereas as::f("whereas") ; Fixes 1 word
+:B0X:whic::f("which") ; Fixes 1 word
+:B0X:will of::f("will have") ; Fixes 1 word
+:B0X:with on of::f("with one of") ; Fixes 1 word
+:B0X:with who::f("with whom") ; Fixes 1 word
+:B0X:witha::f("with a") ; Fixes 1 word
+:B0X:withing::f("within") ; Fixes 1 word
+:B0X:wonderfull::f("wonderful") ; Fixes 1 word
+:B0X:would of::f("would have") ; Fixes 1 word
+:B0X:your a::f("you're a") ; Fixes 1 word
+:B0X:your an::f("you're an") ; Fixes 1 word
+:B0X:your her::f("you're her") ; Fixes 1 word
+:B0X:your here::f("you're here") ; Fixes 1 word
+:B0X:your his::f("you're his") ; Fixes 1 word
+:B0X:your my::f("you're my") ; Fixes 1 word
+:B0X:your the::f("you're the") ; Fixes 1 word
+:B0X?*:0n0::f("-n-") ; For this-n-that
+:B0X?*:a;;::f("all") ; Fixes 5025 words 
+:B0X?*:aall::f("all") ; Fixes 4186 words
+:B0X?*:abaptiv::f("adaptiv") ; Fixes 8 words
+:B0X?*:abberr::f("aberr") ; Fixes 21 words
+:B0X?*:abbout::f("about") ; Fixes 37 words
+:B0X?*:abck::f("back") ; Fixes 410 words
+:B0X?*:abilt::f("abilit") ; Fixes 1110 words
+:B0X?*:ablit::f("abilit") ; Fixes 1110 words
+:B0X?*:abrit::f("arbit") ; Fixes 53 words
+:B0X?*:abuda::f("abunda") ; Fixes 15 words
+:B0X?*:acadm::f("academ") ; Fixes 32 words
+:B0X?*:accadem::f("academ") ; Fixes 32 words
+:B0X?*:acccus::f("accus") ; Fixes 37 words
+:B0X?*:acceller::f("acceler") ; Fixes 23 words
+:B0X?*:accensi::f("ascensi") ; Fixes 7 words
+:B0X?*:acceptib::f("acceptab") ; Fixes 10 words
+:B0X?*:accessab::f("accessib") ; Fixes 14 words
+:B0X?*:accomadat::f("accommodat") ; Fixes 23 words
+:B0X?*:accomo::f("accommo") ; Fixes 23 words
+:B0X?*:accoring::f("according") ; Fixes 3 words
+:B0X?*:accous::f("acous") ; Fixes 10 words
+:B0X?*:accqu::f("acqu") ; Fixes 89 words
+:B0X?*:accro::f("acro") ; Fixes 145 words, but misspells accroides (An alcohol-soluble resin from Australian trees; used in varnishes and in manufacturing paper) 
+:B0X?*:accuss::f("accus") ; Fixes 37 words
+:B0X?*:acede::f("acade") ; Fixes 36 words
+:B0X?*:acocu::f("accou") ; Fixes 40 words
+:B0X?*:acom::f("accom") ; Fixes 49 words
+:B0X?*:acquaintence::f("acquaintance") ; Fixes 6 words
+:B0X?*:acquiantence::f("acquaintance") ; Fixes 6 words
+:B0X?*:actial::f("actical") ; Fixes 29 words
+:B0X?*:acurac::f("accurac") ; Fixes 4 words
+:B0X?*:acustom::f("accustom") ; Fixes 17 words
+:B0X?*:acys::f("acies") ; Fixes 101 words
+:B0X?*:adantag::f("advantag") ; Fixes 15 words
+:B0X?*:adaption::f("adaptation") ; Fixes 8 words
+:B0X?*:adavan::f("advan") ; Fixes 30 words
+:B0X?*:addion::f("addition") ; Fixes 7 words
+:B0X?*:additon::f("addition") ; Fixes 7 words
+:B0X?*:addm::f("adm") ; Fixes 144 words
+:B0X?*:addop::f("adop") ; Fixes 35 words
+:B0X?*:addow::f("adow") ; Fixes 43 words
+:B0X?*:adequite::f("adequate") ; Fixes 6 words
+:B0X?*:adif::f("atif") ; Fixes 50 words, but misspells Gadiformes (Cods, haddocks, grenadiers; in some classifications considered equivalent to the order Anacanthini)
+:B0X?*:adiquate::f("adequate") ; Fixes 6 words
+:B0X?*:admend::f("amend") ; Fixes 15 words
+:B0X?*:admissab::f("admissib") ; Fixes 9 words
+:B0X?*:admited::f("admitted") ; Fixes 3 words
+:B0X?*:adquate::f("adequate") ; Fixes 6 words
+:B0X?*:adquir::f("acquir") ; Fixes 16 words
+:B0X?*:advanag::f("advantag") ; Fixes 15 words
+:B0X?*:adventr::f("adventur") ; Fixes 29 words
+:B0X?*:advertant::f("advertent") ; Fixes 4 words
+:B0X?*:adviced::f("advised") ; Fixes 8 words
+:B0X?*:aelog::f("aeolog") ; Fixes 12 words
+:B0X?*:aeriel::f("aerial") ; Fixes 9 words
+:B0X?*:affilat::f("affiliat") ; Fixes 16 words
+:B0X?*:affilliat::f("affiliat") ; Fixes 16 words
+:B0X?*:affort::f("afford") ; Fixes 13 words
+:B0X?*:affraid::f("afraid") ; Fixes 4 words
+:B0X?*:aggree::f("agree") ; Fixes 28 words
+:B0X?*:agrava::f("aggrava") ; Fixes 9 words
+:B0X?*:agreg::f("aggreg") ; Fixes 19 words
+:B0X?*:agress::f("aggress") ; Fixes 25 words
+:B0X?*:ahev::f("have") ; Fixes 47 words
+:B0X?*:ahpp::f("happ") ; Fixes 34 words
+:B0X?*:ahve::f("have") ; Fixes 47 words, but misspells Ahvenanmaa, Jahvey, Wahvey, Yahve, Yahveh (All are different Hebrew names for God.) 
+:B0X?*:aible::f("able") ; Fixes 2387 words
+:B0X?*:aicraft::f("aircraft") ; Fixes 7 words
+:B0X?*:ailabe::f("ailable") ; Fixes 12 words
+:B0X?*:ailiab::f("ailab") ; Fixes 23 words
+:B0X?*:ailib::f("ailab") ; Fixes 23 words
+:B0X?*:ainity::f("ainty") ; Fixes 4 words
+:B0X?*:aisian::f("Asian") ; Fixes 16 words
+:B0X?*:aiton::f("ation") ; Fixes 5205 words
+:B0X?*:alchohol::f("alcohol") ; Fixes 28 words
+:B0X?*:alchol::f("alcohol") ;fixes 28 words
+:B0X?*:alcohal::f("alcohol") ; Fixes 28 words
+:B0X?*:alell::f("allel") ; Fixes 57 words
+:B0X?*:aliab::f("ailab") ; Fixes 23 words
+:B0X?*:alibit::f("abilit") ; Fixes 1110 words
+:B0X?*:alitv::f("lativ") ; Fixes 97 words
+:B0X?*:allth::f("alth") ; Fixes 56 words
+:B0X?*:allto::f("alto") ; Fixes 32 words
+:B0X?*:alochol::f("alcohol") ; Fixes 28 words
+:B0X?*:alott::f("allott") ; Fixes 8 words
+:B0X?*:alowe::f("allowe") ; Fixes 24 words
+:B0X?*:alsitic::f("alistic") ; Fixes 98 words
+:B0X?*:altion::f("lation") ; Fixes 448 words
+:B0X?*:ameria::f("America") ; Fixes 28 words
+:B0X?*:amerli::f("ameli") ; Fixes 41 words
+:B0X?*:ametal::f("amental") ; Fixes 31 words
+:B0X?*:aminter::f("aminer") ; Fixes 5 words
+:B0X?*:amke::f("make") ; Fixes 122 words
+:B0X?*:amking::f("making") ; Fixes 45 words
+:B0X?*:ammou::f("amou") ; Fixes 99 words
+:B0X?*:amny::f("many") ; Fixes 8 words
+:B0X?*:analitic::f("analytic") ; Fixes 15 words
+:B0X?*:anbd::f("and") ; Fixes 2083 words
+:B0X?*:angabl::f("angeabl") ; Fixes 16 words
+:B0X?*:angeing::f("anging") ; Fixes 38 words
+:B0X?*:anmd::f("and") ; Fixes 2083 words
+:B0X?*:annn::f("ann") ; Fixes 650 words
+:B0X?*:annoi::f("anoi") ; Fixes 40 words
+:B0X?*:annuled::f("annulled") ; Fixes 2 words
+:B0X?*:anomo::f("anoma") ; Fixes 19 words
+:B0X?*:anounc::f("announc") ; Fixes 9 words
+:B0X?*:antaine::f("antine") ; Fixes 31 words
+:B0X?*:anwser::f("answer") ; Fixes 20 words
+:B0X?*:aost::f("oast") ; Fixes 75 words
+:B0X?*:aparen::f("apparen") ; Fixes 8 words
+:B0X?*:apear::f("appear") ; Fixes 22 words
+:B0X?*:aplic::f("applic") ; Fixes 23 words
+:B0X?*:aplie::f("applie") ; Fixes 11 words
+:B0X?*:apoint::f("appoint") ; Fixes 30 words ; Misspells username Datapoint.
+:B0X?*:apparan::f("apparen") ; Fixes 8 words
+:B0X?*:appart::f("apart") ; Fixes 12 words
+:B0X?*:appeares::f("appears") ; Fixes 3 words
+:B0X?*:apperance::f("appearance") ; Fixes 8 words
+:B0X?*:appol::f("apol") ; Fixes 64 words
+:B0X?*:apprearance::f("appearance") ; Fixes 8 words
+:B0X?*:apreh::f("appreh") ; Fixes 26 words
+:B0X?*:apropri::f("appropri") ; Fixes 34 words
+:B0X?*:aprov::f("approv") ; Fixes 23 words
+:B0X?*:aptue::f("apture") ; Fixes 15 words
+:B0X?*:aquain::f("acquain") ; Fixes 22 words
+:B0X?*:aquiant::f("acquaint") ; Fixes 22 words
+:B0X?*:aquisi::f("acquisi") ; Fixes 10 words
+:B0X?*:arange::f("arrange") ; Fixes 27 words
+:B0X?*:arbitar::f("arbitrar") ; Fixes 7 words
+:B0X?*:archao::f("archeo") ; Fixes 12 words
+:B0X?*:archetect::f("architect") ; Fixes 20 words
+:B0X?*:architectual::f("architectural") ; Fixes 4 words
+:B0X?*:areat::f("arat") ; Fixes 136 words
+:B0X?*:arhip::f("arship") ; Fixes 10 words
+:B0X?*:ariage::f("arriage") ; Fixes 24 words
+:B0X?*:ariman::f("airman") ; Fixes 10 words
+:B0X?*:arogen::f("arrogan") ; Fixes 6 words
+:B0X?*:arrri::f("arri") ; Fixes 159 words
+:B0X?*:artdridge::f("artridge") ; Fixes 6 words
+:B0X?*:articel::f("article") ; Fixes 11 words
+:B0X?*:artrige::f("artridge") ; Fixes 6 words
+:B0X?*:asdver::f("adver") ; Fixes 67 words
+:B0X?*:asnd::f("and") ; Fixes 2083 words
+:B0X?*:asociat::f("associat") ; Fixes 34 words
+:B0X?*:asorb::f("absorb") ; Fixes 31 words
+:B0X?*:asr::f("ase") ; Fixes 698 words, but misspells Basra (An oil city in Iraq) 
+:B0X?*:assempl::f("assembl") ; Fixes 33 words
+:B0X?*:assertation::f("assertion") ; Fixes 4 words
+:B0X?*:assoca::f("associa") ; Fixes 38 words
+:B0X?*:asss::f("as") ; Fixes 9311 words
+:B0X?*:assym::f("asym") ; Fixes 17 words
+:B0X?*:asthet::f("aesthet") ; Fixes 48 words
+:B0X?*:asuing::f("ausing") ; Fixes 2 words
+:B0X?*:atain::f("attain") ; Fixes 28 words
+:B0X?*:ateing::f("ating") ; Fixes 1117 words
+:B0X?*:atempt::f("attempt") ; Fixes 11 words
+:B0X?*:atention::f("attention") ; Fixes 5 words
+:B0X?*:athori::f("authori") ; Fixes 45 words
+:B0X?*:aticula::f("articula") ; Fixes 69 words
+:B0X?*:atoin::f("ation") ; Fixes 5229 words
+:B0X?*:atribut::f("attribut") ; Fixes 31 words
+:B0X?*:attachement::f("attachment") ; Fixes 4 words
+:B0X?*:attemt::f("attempt") ; Fixes 11 words
+:B0X?*:attenden::f("attendan") ; Fixes 7 words
+:B0X?*:attensi::f("attenti") ; Fixes 16 words
+:B0X?*:attentioin::f("attention") ; Fixes 5 words
+:B0X?*:auclar::f("acular") ; Fixes 32 words
+:B0X?*:audiance::f("audience") ; Fixes 4 words
+:B0X?*:auther::f("author") ; Fixes 56 words
+:B0X?*:authobiograph::f("autobiograph") ; Fixes 8 words
+:B0X?*:authror::f("author") ; Fixes 56 words
+:B0X?*:automonom::f("autonom") ; Fixes 13 words
+:B0X?*:avaialb::f("availab") ; Fixes 13 words
+:B0X?*:availb::f("availab") ; Fixes 13 words
+:B0X?*:avalab::f("availab") ; Fixes 13 words
+:B0X?*:avalib::f("availab") ; Fixes 13 words
+:B0X?*:aveing::f("aving") ; Fixes 60 words
+:B0X?*:avila::f("availa") ; Fixes 13 words
+:B0X?*:awess::f("awless") ; Fixes 12 words
+:B0X?*:awya::f("away") ; Fixes 46 words
+:B0X?*:babilat::f("babilit") ; Fixes 19 words
+:B0X?*:ballan::f("balan") ; Fixes 45 words
+:B0X?*:baout::f("about") ; Fixes 37 words
+:B0X?*:bateabl::f("batabl") ; Fixes 5 words
+:B0X?*:bcak::f("back") ; Fixes 410 words
+:B0X?*:beahv::f("behav") ; Fixes 33 words
+:B0X?*:beatiful::f("beautiful") ; Fixes 5 words
+:B0X?*:beaurocra::f("bureaucra") ; Fixes 22 words
+:B0X?*:becoe::f("become") ; Fixes 4 words
+:B0X?*:becomm::f("becom") ; Fixes 11 words
+:B0X?*:bedore::f("before") ; Fixes 4 words
+:B0X?*:beei::f("bei") ; Fixes 40 words
+:B0X?*:behaio::f("behavio") ; Fixes 25 words
+:B0X?*:belan::f("blan") ; Fixes 60 words
+:B0X?*:belei::f("belie") ; Fixes 49 words
+:B0X?*:belligeran::f("belligeren") ; Fixes 9 words
+:B0X?*:benif::f("benef") ; Fixes 41 words
+:B0X?*:bilsh::f("blish") ; Fixes 56 words
+:B0X?*:biul::f("buil") ; Fixes 46 words
+:B0X?*:blence::f("blance") ; Fixes 7 words
+:B0X?*:bliah::f("blish") ; Fixes 56 words
+:B0X?*:blich::f("blish") ; Fixes 56 words
+:B0X?*:blisg::f("blish") ; Fixes 56 words
+:B0X?*:bllish::f("blish") ; Fixes 56 words
+:B0X?*:boaut::f("about") ; Fixes 37 words
+:B0X?*:bombardement::f("bombardment") ; Fixes 4 words
+:B0X?*:bombarment::f("bombardment") ; Fixes 4 words
+:B0X?*:bondary::f("boundary") ; Fixes 2 words
+:B0X?*:borrom::f("bottom") ; Fixes 14 words
+:B0X?*:boundr::f("boundar") ; Fixes 3 words
+:B0X?*:bouth::f("bout") ; Fixes 53 words
+:B0X?*:boxs::f("boxes") ; Fixes 44 words
+:B0X?*:bradcast::f("broadcast") ; Fixes 13 words
+:B0X?*:breif::f("brief") ; Fixes 22 words.
+:B0X?*:brenc::f("branc") ; Fixes 70 words
+:B0X?*:broadacast::f("broadcast") ; Fixes 13 words
+:B0X?*:brod::f("broad") ; Fixes 55 words. Misspells brodiaea (a type of plant)
+:B0X?*:buisn::f("busin") ; Fixes 17 words
+:B0X?*:buring::f("burying") ; Fixes 4 words
+:B0X?*:burrie::f("burie") ; Fixes 7 words
+:B0X?*:busness::f("business") ; Fixes 14 words
+:B0X?*:bussiness::f("business") ; Fixes 14 words
+:B0X?*:caculater::f("calculator") ; Fixes 3 words
+:B0X?*:caffin::f("caffein") ; Fixes 12 words
+:B0X?*:caharcter::f("character") ; Fixes 38 words
+:B0X?*:cahrac::f("charac") ; Fixes 45 words
+:B0X?*:calculater::f("calculator") ; Fixes 3 words
+:B0X?*:calculla::f("calcula") ; Fixes 41 words
+:B0X?*:calculs::f("calculus") ; Fixes 3 words
+:B0X?*:caluclat::f("calculat") ; Fixes 31 words
+:B0X?*:caluculat::f("calculat") ; Fixes 31 words
+:B0X?*:calulat::f("calculat") ; Fixes 31 words
+:B0X?*:camae::f("came") ; Fixes 57 words
+:B0X?*:campagin::f("campaign") ; Fixes 6 words
+:B0X?*:campain::f("campaign") ; Fixes 6 words
+:B0X?*:candad::f("candid") ; Fixes 15 words
+:B0X?*:candiat::f("candidat") ; Fixes 6 words
+:B0X?*:candidta::f("candidat") ; Fixes 6 words
+:B0X?*:cannonic::f("canonic") ; Fixes 8 words
+:B0X?*:caperbi::f("capabi") ; Fixes 5 words
+:B0X?*:capibl::f("capabl") ; Fixes 10 words
+:B0X?*:captia::f("capita") ; Fixes 69 words
+:B0X?*:caracht::f("charact") ; Fixes 38 words
+:B0X?*:caract::f("charact") ; Fixes 38 words
+:B0X?*:carcirat::f("carcerat") ; Fixes 14 words
+:B0X?*:carism::f("charism") ; Fixes 7 words
+:B0X?*:cartileg::f("cartilag") ; Fixes 7 words
+:B0X?*:cartilidg::f("cartilag") ; Fixes 7 words
+:B0X?*:casette::f("cassette") ; Fixes 6 words
+:B0X?*:casue::f("cause") ; Fixes 18 words
+:B0X?*:catagor::f("categor") ; Fixes 52 words
+:B0X?*:catergor::f("categor") ; Fixes 52 words
+:B0X?*:cathlic::f("catholic") ; Fixes 28 words
+:B0X?*:catholoc::f("catholic") ; Fixes 28 words
+:B0X?*:catre::f("cater") ; Fixes 23 words.  Misspells fornicatress
+:B0X?*:ccce::f("cce") ; Fixes 175 words
+:B0X?*:ccesi::f("ccessi") ; Fixes 31 words
+:B0X?*:ceiev::f("ceiv") ; Fixes 82 words
+:B0X?*:ceing::f("cing") ; Fixes 275 words
+:B0X?*:cencu::f("censu") ; Fixes 18 words
+:B0X?*:centente::f("centen") ; Fixes 35 words
+:B0X?*:cerimo::f("ceremo") ; Fixes 18 words
+:B0X?*:ceromo::f("ceremo") ; Fixes 18 words
+:B0X?*:certian::f("certain") ; Fixes 25 words
+:B0X?*:cesion::f("cession") ; Fixes 51 words
+:B0X?*:cesor::f("cessor") ; Fixes 33 words
+:B0X?*:cesser::f("cessor") ; Fixes 33 words
+:B0X?*:cev::f("ceiv") ; Fixes 82 words, but misspells ceviche (South American seafood dish)
+:B0X?*:chagne::f("change") ; Fixes 58 words
+:B0X?*:chaleng::f("challeng") ; Fixes 17 words
+:B0X?*:challang::f("challeng") ; Fixes 17 words
+:B0X?*:challengabl::f("challengeabl") ; Fixes 4 words
+:B0X?*:changab::f("changeab") ; Fixes 25 words
+:B0X?*:charasma::f("charisma") ; Fixes 6 words
+:B0X?*:charater::f("character") ; Fixes 38 words
+:B0X?*:charector::f("character") ; Fixes 38 words
+:B0X?*:chargab::f("chargeab") ; Fixes 7 words
+:B0X?*:chartiab::f("charitab") ; Fixes 6 words
+:B0X?*:cheif::f("chief") ; Fixes 24 words
+:B0X?*:chemcial::f("chemical") ; Fixes 34 words
+:B0X?*:chemestr::f("chemistr") ; Fixes 31 words
+:B0X?*:chict::f("chit") ; Fixes 72 words
+:B0X?*:childen::f("children") ; Fixes 6 words
+:B0X?*:chracter::f("character") ; Fixes 38 words
+:B0X?*:chter::f("cter") ; Fixes 221 words
+:B0X?*:cidan::f("ciden") ; Fixes 46 words
+:B0X?*:ciencio::f("cientio") ; Fixes 8 words
+:B0X?*:ciepen::f("cipien") ; Fixes 18 words
+:B0X?*:ciev::f("ceiv") ; Fixes 82 words
+:B0X?*:cigic::f("cific") ; Fixes 44 words
+:B0X?*:cilation::f("ciliation") ; Fixes 8 words
+:B0X?*:cilliar::f("cillar") ; Fixes 8 words
+:B0X?*:circut::f("circuit") ; Fixes 14 words
+:B0X?*:ciricu::f("circu") ; Fixes 168 words
+:B0X?*:cirp::f("crip") ; Fixes 126 words, but misspells Scirpus (Rhizomatous perennial grasslike herbs)
+:B0X?*:cison::f("cision") ; Fixes 22 words
+:B0X?*:citment::f("citement") ; Fixes 5 words
+:B0X?*:civilli::f("civili") ; Fixes 44 words
+:B0X?*:clae::f("clea") ; Fixes 151 words
+:B0X?*:clasic::f("classic") ; Fixes 38 words
+:B0X?*:clincial::f("clinical") ; Fixes 7 words
+:B0X?*:clomation::f("clamation") ; Fixes 10 words
+:B0X?*:cment::f("cement") ; Fixes 88 words 
+:B0X?*:cmo::f("com") ; Fixes 1749 words
+:B0X?*:cna::f("can") ; Fixes 1019 words.  Misspells Pycnanthemum (mint), and Tridacna (giant clam).+
+:B0X?*:coform::f("conform") ; Fixes 46 words
+:B0X?*:cogis::f("cognis") ; Fixes 36 words
+:B0X?*:cogiz::f("cogniz") ; Fixes 42 words
+:B0X?*:cogntivie::f("cognitive") ; Fixes 4 words
+:B0X?*:colaborat::f("collaborat") ; Fixes 15 words
+:B0X?*:colecti::f("collecti") ; Fixes 49 words
+:B0X?*:colelct::f("collect") ; Fixes 69 words
+:B0X?*:collon::f("colon") ; Fixes 89 words
+:B0X?*:comanie::f("companie") ; Fixes 5 words
+:B0X?*:comany::f("company") ; Fixes 6 words
+:B0X?*:comapan::f("compan") ; Fixes 39 words
+:B0X?*:comapn::f("compan") ; Fixes 39 words
+:B0X?*:comban::f("combin") ; Fixes 40 words
+:B0X?*:combatent::f("combatant") ; Fixes 4 words
+:B0X?*:combinatin::f("combination") ; Fixes 5 words
+:B0X?*:combon::f("combin") ; Fixes 46 words 
+:B0X?*:combusi::f("combusti") ; Fixes 17 words
+:B0X?*:comemorat::f("commemorat") ; Fixes 12 words
+:B0X?*:comiss::f("commiss") ; Fixes 33 words
+:B0X?*:comitt::f("committ") ; Fixes 27 words
+:B0X?*:commed::f("comed") ; Fixes 18 words
+:B0X?*:commerical::f("commercial") ; Fixes 33 words
+:B0X?*:commericial::f("commercial") ; Fixes 33 words
+:B0X?*:commini::f("communi") ; Fixes 117 words
+:B0X?*:commite::f("committe") ; Fixes 16 words
+:B0X?*:commongly::f("commonly") ; Fixes 2 words
+:B0X?*:commuica::f("communica") ; Fixes 72 words
+:B0X?*:commuinica::f("communica") ; Fixes 72 words
+:B0X?*:communcia::f("communica") ; Fixes 72 words
+:B0X?*:communia::f("communica") ; Fixes 72 words
+:B0X?*:compatiab::f("compatib") ; Fixes 16 words
+:B0X?*:compeit::f("competit") ; Fixes 17 words
+:B0X?*:compenc::f("compens") ; Fixes 29 words
+:B0X?*:competan::f("competen") ; Fixes 21 words
+:B0X?*:competati::f("competiti") ; Fixes 14 words
+:B0X?*:competens::f("competenc") ; Fixes 12 words
+:B0X?*:comphr::f("compr") ; Fixes 106 words
+:B0X?*:compleate::f("complete") ; Fixes 17 words
+:B0X?*:compleatness::f("completeness") ; Fixes 3 words
+:B0X?*:comprab::f("comparab") ; Fixes 13 words
+:B0X?*:comprimis::f("compromis") ; Fixes 12 words
+:B0X?*:comun::f("commun") ; Fixes 140 words
+:B0X?*:concider::f("consider") ; Fixes 31 words
+:B0X?*:concious::f("conscious") ; Fixes 25 words
+:B0X?*:condidt::f("condit") ; Fixes 36 words
+:B0X?*:conect::f("connect") ; Fixes 52 words
+:B0X?*:conferanc::f("conferenc") ; Fixes 12 words
+:B0X?*:configurea::f("configura") ; Fixes 15 words
+:B0X?*:confort::f("comfort") ; Fixes 21 words
+:B0X?*:conqur::f("conquer") ; Fixes 16 words
+:B0X?*:conscen::f("consen") ; Fixes 17 words
+:B0X?*:consectu::f("consecu") ; Fixes 4 words
+:B0X?*:consentr::f("concentr") ; Fixes 32 words
+:B0X?*:consept::f("concept") ; Fixes 46 words
+:B0X?*:conservit::f("conservat") ; Fixes 41 words
+:B0X?*:consici::f("consci") ; Fixes 45 words
+:B0X?*:consico::f("conscio") ; Fixes 32 words
+:B0X?*:considerd::f("considered") ; Fixes 5 words
+:B0X?*:considerit::f("considerat") ; Fixes 12 words
+:B0X?*:consio::f("conscio") ; Fixes 32 words
+:B0X?*:consoloda::f("consolida") ; Fixes 18 words
+:B0X?*:constain::f("constrain") ; Fixes 15 words
+:B0X?*:constin::f("contin") ; Fixes 86 words
+:B0X?*:consumate::f("consummate") ; Fixes 6 words
+:B0X?*:consumbe::f("consume") ; Fixes 15 words
+:B0X?*:contian::f("contain") ; Fixes 28 words
+:B0X?*:contien::f("conscien") ; Fixes 13 words
+:B0X?*:contigen::f("contingen") ; Fixes 8 words
+:B0X?*:contined::f("continued") ; Fixes 4 words
+:B0X?*:continential::f("continental") ; Fixes 10 words
+:B0X?*:continetal::f("continental") ; Fixes 10 words
+:B0X?*:contino::f("continuo") ; Fixes 11 words
+:B0X?*:contitut::f("constitut") ; Fixes 40 words
+:B0X?*:contravers::f("controvers") ; Fixes 10 words
+:B0X?*:contributer::f("contributor") ; Fixes 4 words
+:B0X?*:controle::f("controlle") ; Fixes 10 words
+:B0X?*:controveri::f("controversi") ; Fixes 9 words
+:B0X?*:controversal::f("controversial") ; Fixes 8 words
+:B0X?*:controvertial::f("controversial") ; Fixes 8 words
+:B0X?*:contru::f("constru") ; Fixes 73 words
+:B0X?*:convenant::f("covenant") ; Fixes 10 words
+:B0X?*:convential::f("conventional") ; Fixes 23 words
+:B0X?*:convice::f("convince") ; Fixes 10 words
+:B0X?*:coopor::f("cooper") ; Fixes 26 words
+:B0X?*:coorper::f("cooper") ; Fixes 26 words
+:B0X?*:copm::f("comp") ; Fixes 729 words
+:B0X?*:copty::f("copy") ; Fixes 78 words
+:B0X?*:coput::f("comput") ; Fixes 46 words
+:B0X?*:copywrite::f("copyright") ; Fixes 6 words
+:B0X?*:coropor::f("corpor") ; Fixes 74 words
+:B0X?*:corpar::f("corpor") ; Fixes 74 words
+:B0X?*:corpera::f("corpora") ; Fixes 59 words
+:B0X?*:corporta::f("corporat") ; Fixes 53 words
+:B0X?*:corprat::f("corporat") ; Fixes 53 words
+:B0X?*:corpro::f("corpor") ; Fixes 74 words
+:B0X?*:corrispond::f("correspond") ; Fixes 12 words
+:B0X?*:costit::f("constit") ; Fixes 45 words
+:B0X?*:cotten::f("cotton") ; Fixes 21 words
+:B0X?*:countain::f("contain") ; Fixes 28 words
+:B0X?*:couraing::f("couraging") ; Fixes 7 words
+:B0X?*:couro::f("coro") ; Fixes 53 words
+:B0X?*:courur::f("cour") ; Fixes 144 words
+:B0X?*:cpom::f("com") ; Fixes 1749 words
+:B0X?*:cpoy::f("copy") ; Fixes 78 words
+:B0X?*:creaet::f("creat") ; Fixes 75 words
+:B0X?*:credia::f("credita") ; Fixes 13 words
+:B0X?*:credida::f("credita") ; Fixes 13 words
+:B0X?*:criib::f("crib") ; Fixes 119 words
+:B0X?*:crti::f("criti") ; Fixes 59 words
+:B0X?*:crusie::f("cruise") ; Fixes 9 words
+:B0X?*:crutia::f("crucia") ; Fixes 22 words
+:B0X?*:crystalisa::f("crystallisa") ; Fixes 5 words
+:B0X?*:ctaegor::f("categor") ; Fixes 52 words
+:B0X?*:ctail::f("cktail") ; Fixes 6 words
+:B0X?*:ctent::f("ctant") ; Fixes 30 words
+:B0X?*:ctinos::f("ctions") ; Fixes 214 words
+:B0X?*:ctoin::f("ction") ; Fixes 717 words
+:B0X?*:cualr::f("cular") ; Fixes 256 words
+:B0X?*:cuas::f("caus") ; Fixes 55 words
+:B0X?*:cultral::f("cultural") ; Fixes 43 words
+:B0X?*:cultue::f("culture") ; Fixes 48 words
+:B0X?*:culure::f("culture") ; Fixes 48 words
+:B0X?*:curcuit::f("circuit") ; Fixes 14 words
+:B0X?*:cusotm::f("custom") ; Fixes 43 words
+:B0X?*:cutsom::f("custom") ; Fixes 43 words
+:B0X?*:cuture::f("culture") ; Fixes 48 words
+:B0X?*:cxan::f("can") ; Fixes 1015 words
+:B0X?*:damenor::f("demeanor") ; Fixes 4 words
+:B0X?*:damenour::f("demeanour") ; Fixes 4 words
+:B0X?*:dammag::f("damag") ; Fixes 11 words
+:B0X?*:damy::f("demy") ; Fixes 28 words
+:B0X?*:daugher::f("daughter") ; Fixes 12 words
+:B0X?*:dcument::f("document") ; Fixes 26 words
+:B0X?*:ddti::f("dditi") ; Fixes 14 words
+:B0X?*:deatil::f("detail") ; Fixes 11 words
+:B0X?*:decend::f("descend") ; Fixes 26 words
+:B0X?*:decideab::f("decidab") ; Fixes 4 words
+:B0X?*:decrib::f("describ") ; Fixes 19 words
+:B0X?*:dectect::f("detect") ; Fixes 20 words
+:B0X?*:defendent::f("defendant") ; Fixes 4 words
+:B0X?*:deffens::f("defens") ; Fixes 26 words
+:B0X?*:deffin::f("defin") ; Fixes 54 words
+:B0X?*:defintion::f("definition") ; Fixes 5 words
+:B0X?*:degrat::f("degrad") ; Fixes 31 words
+:B0X?*:deinc::f("dienc") ; Fixes 20 words
+:B0X?*:delag::f("deleg") ; Fixes 42 words
+:B0X?*:delevop::f("develop") ; Fixes 44 words
+:B0X?*:demeno::f("demeano") ; Fixes 8 words
+:B0X?*:demmin::f("demin") ; Fixes 21 words 
+:B0X?*:demorcr::f("democr") ; Fixes 27 words
+:B0X?*:denegrat::f("denigrat") ; Fixes 10 words
+:B0X?*:denpen::f("depen") ; Fixes 50 words
+:B0X?*:dentational::f("dental") ; Fixes 46 words
+:B0X?*:depedant::f("dependent") ; Fixes 11 words
+:B0X?*:depeden::f("dependen") ; Fixes 29 words
+:B0X?*:dependan::f("dependen") ; Fixes 29 words
+:B0X?*:deptart::f("depart") ; Fixes 27 words
+:B0X?*:deram::f("dream") ; Fixes 40 words
+:B0X?*:deriviate::f("derive") ; Fixes 9 words
+:B0X?*:derivit::f("derivat") ; Fixes 13 words
+:B0X?*:descib::f("describ") ; Fixes 19 words
+:B0X?*:descision::f("decision") ; Fixes 5 words
+:B0X?*:descus::f("discus") ; Fixes 14 words.
+:B0X?*:desided::f("decided") ; Fixes 7 words.
+:B0X?*:desinat::f("destinat") ; Fixes 11 words.
+:B0X?*:desireab::f("desirab") ; Fixes 11 words
+:B0X?*:desision::f("decision") ; Fixes 5 words.
+:B0X?*:desitn::f("destin") ; Fixes 30 words
+:B0X?*:despatch::f("dispatch") ; Fixes 7 words.
+:B0X?*:despensib::f("dispensab") ; Fixes 10 words
+:B0X?*:despict::f("depict") ; Fixes 10 words.
+:B0X?*:despira::f("despera") ; Fixes 9 words.
+:B0X?*:destory::f("destroy") ; Fixes 8 words.
+:B0X?*:detecab::f("detectab") ; Fixes 7 words
+:B0X?*:develeopr::f("developer") ; Fixes 6 words.
+:B0X?*:devellop::f("develop") ; Fixes 44 words.
+:B0X?*:developor::f("developer") ; Fixes 6 words
+:B0X?*:developpe::f("develope") ; Fixes 13 words
+:B0X?*:develp::f("develop") ; Fixes 44 words.
+:B0X?*:devid::f("divid") ; Fixes 61 words.
+:B0X?*:devolop::f("develop") ; Fixes 44 words.
+:B0X?*:dgeing::f("dging") ; Fixes 50 words
+:B0X?*:dgement::f("dgment") ; Fixes 20 words
+:B0X?*:diapl::f("displ") ; Fixes 33 words.
+:B0X?*:diarhe::f("diarrhoe") ; Fixes 7 words
+:B0X?*:dicatb::f("dictab") ; Fixes 14 words
+:B0X?*:diciplin::f("disciplin") ; Fixes 22 words
+:B0X?*:dicover::f("discover") ; Fixes 26 words
+:B0X?*:dicus::f("discus") ; Fixes 14 words
+:B0X?*:difef::f("diffe") ; Fixes 48 words
+:B0X?*:diferre::f("differe") ; Fixes 41 words
+:B0X?*:differan::f("differen") ; Fixes 40 words
+:B0X?*:diffren::f("differen") ; Fixes 40 words
+:B0X?*:dimenion::f("dimension") ; Fixes 17 words
+:B0X?*:dimention::f("dimension") ; Fixes 17 words
+:B0X?*:dimesnion::f("dimension") ; Fixes 17 words
+:B0X?*:diosese::f("diocese") ; Fixes 4 words
+:B0X?*:dipend::f("depend") ; Fixes 50 words
+:B0X?*:diriv::f("deriv") ; Fixes 26 words
+:B0X?*:discrib::f("describ") ; Fixes 19 words
+:B0X?*:disipl::f("discipl") ; Fixes 26 words
+:B0X?*:disolved::f("dissolved") ; Fixes 19 words
+:B0X?*:dispaly::f("display") ; Fixes 11 words
+:B0X?*:dispenc::f("dispens") ; Fixes 23 words
+:B0X?*:dispensib::f("dispensab") ; Fixes 10 words
+:B0X?*:disrict::f("district") ; Fixes 10 words
+:B0X?*:distruct::f("destruct") ; Fixes 21 words
+:B0X?*:ditonal::f("ditional") ; Fixes 25 words
+:B0X?*:ditribut::f("distribut") ; Fixes 37 words
+:B0X?*:divice::f("device") ; Fixes 4 words
+:B0X?*:divsi::f("divisi") ; Fixes 24 words
+:B0X?*:dmant::f("dment") ; Fixes 28 words
+:B0X?*:dminst::f("dminist") ; Fixes 27 words
+:B0X?*:doccu::f("docu") ; Fixes 32 words
+:B0X?*:doctin::f("doctrin") ; Fixes 14 words
+:B0X?*:docuement::f("document") ; Fixes 26 words
+:B0X?*:doind::f("doing") ; Fixes 21 words
+:B0X?*:dolan::f("dolen") ; Fixes 12 words
+:B0X?*:doller::f("dollar") ; Fixes 14 words
+:B0X?*:dominent::f("dominant") ; Fixes 9 words
+:B0X?*:dowloads::f("download") ; Fixes 9 words
+:B0X?*:dpend::f("depend") ; Fixes 50 words
+:B0X?*:dramtic::f("dramatic") ; Fixes 11 words
+:B0X?*:driect::f("direct") ; Fixes 71 words
+:B0X?*:drnik::f("drink") ; Fixes 23 words
+:B0X?*:dulgue::f("dulge") ; Fixes 23 words
+:B0X?*:dupicat::f("duplicat") ; Fixes 26 words
+:B0X?*:durig::f("during") ; Fixes 5 words
+:B0X?*:durring::f("during") ; Fixes 5 words
+:B0X?*:duting::f("during") ; Fixes 5 words
+:B0X?*:eacll::f("ecall") ; Fixes 8 words
+:B0X?*:eanr::f("earn") ; Fixes 60 words
+:B0X?*:eaolog::f("eolog") ; Fixes 134 words
+:B0X?*:eareance::f("earance") ; Fixes 12 words
+:B0X?*:earence::f("earance") ; Fixes 12 words
+:B0X?*:easen::f("easan") ; Fixes 33 words
+:B0X?*:ecco::f("eco") ; Fixes 994 words, but misspells Prosecco (Italian wine) and recco (abbrev. for Reconnaissance)
+:B0X?*:eccu::f("ecu") ; Fixes 353 words
+:B0X?*:eceed::f("ecede") ; Fixes 35 words
+:B0X?*:eceonom::f("econom") ; Fixes 50 words
+:B0X?*:ecepi::f("ecipi") ; Fixes 28 words
+:B0X?*:ecuat::f("equat") ; Fixes 22 words
+:B0X?*:ecyl::f("ecycl") ; Fixes 15 words
+:B0X?*:edabl::f("edibl") ; Fixes 11 words
+:B0X?*:eearl::f("earl") ; Fixes 66 words
+:B0X?*:eeen::f("een") ; Fixes 452 words
+:B0X?*:eeep::f("eep") ; Fixes 316 words
+:B0X?*:eferan::f("eferen") ; Fixes 35 words 
+:B0X?*:efered::f("eferred") ; Fixes 5 words
+:B0X?*:efering::f("eferring") ; Fixes 3 words
+:B0X?*:efern::f("eferen") ; Fixes 35 words
+:B0X?*:effecien::f("efficien") ; Fixes 10 words
+:B0X?*:egth::f("ength") ; Fixes 33 words
+:B0X?*:ehter::f("ether") ; Fixes 84 words
+:B0X?*:eild::f("ield") ; Fixes 147 words
+:B0X?*:elavan::f("elevan") ; Fixes 16 words
+:B0X?*:elction::f("election") ; Fixes 20 words
+:B0X?*:electic::f("electric") ; Fixes 40 words
+:B0X?*:electrial::f("electrical") ; Fixes 13 words
+:B0X?*:elemin::f("elimin") ; Fixes 14 words
+:B0X?*:eletric::f("electric") ; Fixes 40 words
+:B0X?*:elien::f("elian") ; Fixes 27 words
+:B0X?*:eligab::f("eligib") ; Fixes 10 words
+:B0X?*:eligo::f("eligio") ; Fixes 30 words
+:B0X?*:eliment::f("element") ; Fixes 12 words
+:B0X?*:ellected::f("elected") ; Fixes 11 words
+:B0X?*:elyhood::f("elihood") ; Fixes 6 words
+:B0X?*:embarass::f("embarrass") ; Fixes 17 words
+:B0X?*:emce::f("ence") ; Fixes 775 words, but misspells emcee (host at formal occasion)
+:B0X?*:emiting::f("emitting") ; Fixes 6 words
+:B0X?*:emmediate::f("immediate") ; Fixes 3 words
+:B0X?*:emmigr::f("emigr") ; Fixes 21 words
+:B0X?*:emmis::f("emis") ; Fixes 214 words
+:B0X?*:emmit::f("emitt") ; Fixes 28 words
+:B0X?*:emostr::f("emonstr") ; Fixes 45 words
+:B0X?*:empahs::f("emphas") ; Fixes 42 words
+:B0X?*:emperic::f("empiric") ; Fixes 10 words
+:B0X?*:emphais::f("emphasis") ; Fixes 21 words
+:B0X?*:emphsis::f("emphasis") ; Fixes 21 words
+:B0X?*:emprison::f("imprison") ; Fixes 11 words
+:B0X?*:enchang::f("enchant") ; Fixes 27 words
+:B0X?*:encial::f("ential") ; Fixes 244 words
+:B0X?*:endand::f("endant") ; Fixes 19 words
+:B0X?*:endig::f("ending") ; Fixes 109 words
+:B0X?*:enduc::f("induc") ; Fixes 33 words
+:B0X?*:enece::f("ence") ; Fixes 775 words
+:B0X?*:enence::f("enance") ; Fixes 18 words
+:B0X?*:enflam::f("inflam") ; Fixes 22 words
+:B0X?*:engagment::f("engagement") ; Fixes 6 words
+:B0X?*:engeneer::f("engineer") ; Fixes 17 words
+:B0X?*:engieneer::f("engineer") ; Fixes 17 words
+:B0X?*:engten::f("engthen") ; Fixes 17 words
+:B0X?*:entagl::f("entangl") ; Fixes 19 words
+:B0X?*:entaly::f("entally") ; Fixes 46 words
+:B0X?*:entatr::f("entar") ; Fixes 81 words
+:B0X?*:entce::f("ence") ; Fixes 775 words
+:B0X?*:entgh::f("ength") ; Fixes 33 words
+:B0X?*:enthusiatic::f("enthusiastic") ; Fixes 6 words
+:B0X?*:entiatiation::f("entiation") ; Fixes 8 words
+:B0X?*:entily::f("ently") ; Fixes 261 wordsuently
+:B0X?*:envolu::f("evolu") ; Fixes 50 words
+:B0X?*:enxt::f("next") ; Fixes 23 words
+:B0X?*:eperat::f("eparat") ; Fixes 33 words
+:B0X?*:equalibr::f("equilibr") ; Fixes 20 words
+:B0X?*:equelibr::f("equilibr") ; Fixes 20 words
+:B0X?*:equialent::f("equivalent") ; Fixes 8 words
+:B0X?*:equilibium::f("equilibrium") ; Fixes 4 words
+:B0X?*:equilibrum::f("equilibrium") ; Fixes 4 words
+:B0X?*:equivilant::f("equivalent") ; Fixes 8 words
+:B0X?*:equivilent::f("equivalent") ; Fixes 8 words
+:B0X?*:erchen::f("erchan") ; Fixes 42 words
+:B0X?*:ereance::f("earance") ; Fixes 12 words
+:B0X?*:eremt::f("erent") ; Fixes 96 words
+:B0X?*:ernece::f("erence") ; Fixes 54 words
+:B0X?*:ernt::f("erent") ; Fixes 8 words
+:B0X?*:erruped::f("errupted") ; Fixes 6 words
+:B0X?*:esab::f("essab") ; Fixes 9 words
+:B0X?*:esential::f("essential") ; Fixes 8 words
+:B0X?*:esisten::f("esistan") ; Fixes 11 words
+:B0X?*:esitmat::f("estimat") ; Fixes 15 words
+:B0X?*:esnt::f("esent") ; Fixes 103 words
+:B0X?*:essense::f("essence") ; Fixes 4 words
+:B0X?*:essentail::f("essential") ; Fixes 18 words
+:B0X?*:essentual::f("essential") ; Fixes 18 words
+:B0X?*:estabish::f("establish") ; Fixes 34 words
+:B0X?*:esxual::f("sexual") ; Fixes 91 words
+:B0X?*:etanc::f("etenc") ; Fixes 20 words
+:B0X?*:etead::f("eated") ; Fixes 50 words
+:B0X?*:ethime::f("etime") ; Fixes 20 words 
+:B0X?*:exagerat::f("exaggerat") ; Fixes 15 words
+:B0X?*:exagerrat::f("exaggerat") ; Fixes 15 words
+:B0X?*:exampt::f("exempt") ; Fixes 7 words
+:B0X?*:exapan::f("expan") ; Fixes 42 words
+:B0X?*:excact::f("exact") ; Fixes 25 words
+:B0X?*:excang::f("exchang") ; Fixes 13 words
+:B0X?*:excecut::f("execut") ; Fixes 27 words
+:B0X?*:excedd::f("exceed") ; Fixes 9 words
+:B0X?*:excercis::f("exercis") ; Fixes 15 words
+:B0X?*:exchanch::f("exchang") ; Fixes 12 words
+:B0X?*:excist::f("exist") ; Fixes 38 words
+:B0X?*:execis::f("exercis") ; Fixes 15 words
+:B0X?*:exeed::f("exceed") ; Fixes 9 words
+:B0X?*:exept::f("except") ; Fixes 25 words
+:B0X?*:exersize::f("exercise") ; Fixes 11 words
+:B0X?*:exict::f("excit") ; Fixes 39 words
+:B0X?*:exinct::f("extinct") ; Fixes 4 words
+:B0X?*:exisit::f("exist") ; Fixes 38 words
+:B0X?*:existan::f("existen") ; Fixes 22 words
+:B0X?*:exlile::f("exile") ; Fixes 5 words
+:B0X?*:exmapl::f("exampl") ; Fixes 7 words
+:B0X?*:expalin::f("explain") ; Fixes 20 words
+:B0X?*:expeced::f("expected") ; Fixes 6 words
+:B0X?*:expecial::f("especial") ; Fixes 5 words
+:B0X?*:experianc::f("experienc") ; Fixes 11 words
+:B0X?*:expidi::f("expedi") ; Fixes 32 words
+:B0X?*:expierenc::f("experienc") ; Fixes 11 words
+:B0X?*:expirien::f("experien") ; Fixes 15 words
+:B0X?*:explanit::f("explanat") ; Fixes 8 words 
+:B0X?*:explict::f("explicit") ; Fixes 7 words
+:B0X?*:exploitit::f("exploitat") ; Fixes 9 words
+:B0X?*:explotat::f("exploitat") ; Fixes 9 words
+:B0X?*:exprienc::f("experienc") ; Fixes 11 words
+:B0X?*:exressed::f("expressed") ; Fixes 52 words
+:B0X?*:exsis::f("exis") ; Fixes 48 words
+:B0X?*:extention::f("extension") ; Fixes 10 words
+:B0X?*:extint::f("extinct") ; Fixes 4 words
+:B0X?*:facist::f("fascist") ; Fixes 7 words
+:B0X?*:fagia::f("phagia") ; Fixes 18 words
+:B0X?*:falab::f("fallib") ; Fixes 10 words
+:B0X?*:fallab::f("fallib") ; Fixes 10 words
+:B0X?*:familar::f("familiar") ; Fixes 36 words
+:B0X?*:familli::f("famili") ; Fixes 37 words
+:B0X?*:fammi::f("fami") ; Fixes 57 words
+:B0X?*:fascit::f("facet") ; Fixes 14 words
+:B0X?*:fasia::f("phasia") ; Fixes 10 words
+:B0X?*:fatc::f("fact") ; Fixes 200 words
+:B0X?*:fature::f("facture") ; Fixes 10 words
+:B0X?*:faught::f("fought") ; Fixes 7 words
+:B0X?*:feasable::f("feasible") ; Fixes 11 words, but misspells unfeasable (archaic, no longer used)
+:B0X?*:fedre::f("feder") ; Fixes 45 words
+:B0X?*:femmi::f("femi") ; Fixes 82 words 
+:B0X?*:fencive::f("fensive") ; Fixes 15 words
+:B0X?*:ferec::f("ferenc") ; Fixes 45 words
+:B0X?*:feriang::f("ferring") ; Fixes 6 words
+:B0X?*:ferren::f("feren") ; Fixes 113 words
+:B0X?*:fertily::f("fertility") ; Fixes 7 words
+:B0X?*:fesion::f("fession") ; Fixes 40 words
+:B0X?*:fesser::f("fessor") ; Fixes 12 words
+:B0X?*:festion::f("festation") ; Fixes 8 words
+:B0X?*:ffese::f("fesse") ; Fixes 10 words
+:B0X?*:fficen::f("fficien") ; Fixes 20 words
+:B0X?*:fianit::f("finit") ; Fixes 79 words
+:B0X?*:fictious::f("fictitious") ; Fixes 4 words
+:B0X?*:fidn::f("find") ; Fixes 22 words
+:B0X?*:fiet::f("feit") ; Fixes 23 words
+:B0X?*:filiament::f("filament") ; Fixes 16 words
+:B0X?*:filitrat::f("filtrat") ; Fixes 21 words
+:B0X?*:fimil::f("famil") ; Fixes 43 words
+:B0X?*:finac::f("financ") ; Fixes 14 words
+:B0X?*:finat::f("finit") ; Fixes 43 words
+:B0X?*:finet::f("finit") ; Fixes 43 words
+:B0X?*:finining::f("fining") ; Fixes 12 words
+:B0X?*:firc::f("furc") ; Fixes 33 words, Case-sensitive to not misspell FIRCA (sustainable funding mechanism for agricultural development)
+:B0X?*:firend::f("friend") ; Fixes 30 words
+:B0X?*:firmm::f("firm") ; Fixes 85 words
+:B0X?*:fisi::f("fissi") ; Fixes 35 words
+:B0X?*:flama::f("flamma") ; Fixes 17 words
+:B0X?*:flourid::f("fluorid") ; Fixes 25 words
+:B0X?*:flourin::f("fluorin") ; Fixes 5 words
+:B0X?*:fluan::f("fluen") ; Fixes 48 words
+:B0X?*:fluorish::f("flourish") ; Fixes 13 words
+:B0X?*:focuss::f("focus") ; Fixes 6 words 
+:B0X?*:foer::f("fore") ; Fixes 340 words
+:B0X?*:follwo::f("follow") ; Fixes 10 words
+:B0X?*:folow::f("follow") ; Fixes 10 words
+:B0X?*:fomat::f("format") ; Fixes 72 words
+:B0X?*:fomed::f("formed") ; Fixes 37 words
+:B0X?*:fomr::f("form") ; Fixes 1269 words
+:B0X?*:foneti::f("phoneti") ; Fixes 24 words
+:B0X?*:fontrier::f("frontier") ; Fixes 6 words
+:B0X?*:fooot::f("foot") ; Fixes 176 words
+:B0X?*:forbiden::f("forbidden") ; Fixes 7 words
+:B0X?*:foretun::f("fortun") ; Fixes 18 words
+:B0X?*:forgetab::f("forgettab") ; Fixes 7 words
+:B0X?*:forgiveabl::f("forgivabl") ; Fixes 6 words
+:B0X?*:formidible::f("formidable") ; Fixes 5 words
+:B0X?*:formost::f("foremost") ; Fixes 5 words
+:B0X?*:forsee::f("foresee") ; Fixes 16 words
+:B0X?*:forwrd::f("forward") ; Fixes 16 words
+:B0X?*:foucs::f("focus") ; Fixes 28 words
+:B0X?*:foudn::f("found") ; Fixes 62 words
+:B0X?*:fourti::f("forti") ; Fixes 31 words
+:B0X?*:fourtun::f("fortun") ; Fixes 18 words
+:B0X?*:foward::f("forward") ; Fixes 16 words
+:B0X?*:freind::f("friend") ; Fixes 44 words
+:B0X?*:frence::f("ference") ; Fixes 37 words
+:B0X?*:fromed::f("formed") ; Fixes 34 words
+:B0X?*:fromi::f("formi") ; Fixes 84 words
+:B0X?*:fucnt::f("funct") ; Fixes 60 words
+:B0X?*:fufill::f("fulfill") ; Fixes 16 words
+:B0X?*:fugure::f("figure") ; Fixes 36 words
+:B0X?*:fulen::f("fluen") ; Fixes 64 words
+:B0X?*:fullfill::f("fulfill") ; Fixes 16 words
+:B0X?*:furut::f("furt") ; Fixes 16 words
+:B0X?*:gallax::f("galax") ; Fixes 4 words
+:B0X?*:galvin::f("galvan") ; Fixes 27 words
+:B0X?*:ganaly::f("ginally") ; Fixes 8 words
+:B0X?*:ganera::f("genera") ; Fixes 124 words
+:B0X?*:garant::f("guarant") ; Fixes 9 words
+:B0X?*:garav::f("grav") ; Fixes 128 words
+:B0X?*:garnison::f("garrison") ; Fixes 5 words
+:B0X?*:gaurant::f("guarant") ; Fixes 9 words
+:B0X?*:gaurd::f("guard") ; Fixes 57 words
+:B0X?*:gemer::f("gener") ; Fixes 151 words
+:B0X?*:generatt::f("generat") ; Fixes 58 words
+:B0X?*:gestab::f("gestib") ; Fixes 19 words
+:B0X?*:giid::f("good") ; Fixes 31 words, but misspells Phalangiidae (typoe of Huntsman spider)
+:B0X?*:glight::f("flight") ; Fixes 16 words
+:B0X?*:glph::f("glyph") ; Fixes 27 words
+:B0X?*:glua::f("gula") ; Fixes 174 words
+:B0X?*:gnficia::f("gnifica") ; Fixes 29 words
+:B0X?*:gnizen::f("gnizan") ; Fixes 9 words
+:B0X?*:godess::f("goddess") ; Fixes 5 words
+:B0X?*:gorund::f("ground") ; Fixes 80 words
+:B0X?*:gourp::f("group") ; Fixes 28 words 
+:B0X?*:govement::f("government") ; Fixes 10 words
+:B0X?*:govenment::f("government") ; Fixes 10 words
+:B0X?*:govenrment::f("government") ; Fixes 10 words
+:B0X?*:govera::f("governa") ; Fixes 11 words
+:B0X?*:goverment::f("government") ; Fixes 10 words
+:B0X?*:govor::f("govern") ; Fixes 46 words
+:B0X?*:gradded::f("graded") ; Fixes 13 words
+:B0X?*:graffitti::f("graffiti") ; Fixes 6 words
+:B0X?*:grama::f("gramma") ; Fixes 72 words, but misspells grama (Pasture grass of plains of South America and western North America)
+:B0X?*:grammma::f("gramma") ; Fixes 72 words
+:B0X?*:greatful::f("grateful") ; Fixes 8 words
+:B0X?*:greee::f("gree") ; Fixes 185 words
+:B0X?*:gresion::f("gression") ; Fixes 27 words
+:B0X?*:gropu::f("group") ; Fixes 28 words
+:B0X?*:gruop::f("group") ; Fixes 28 words
+:B0X?*:grwo::f("grow") ; Fixes 67 words
+:B0X?*:gsit::f("gist") ; Fixes 585 words
+:B0X?*:gubl::f("guabl") ; Fixes 8 words
+:B0X?*:guement::f("gument") ; Fixes 21 words
+:B0X?*:guidence::f("guidance") ; Fixes 4 words
+:B0X?*:gurantee::f("guarantee") ; Fixes 5 words
+:B0X?*:habitans::f("habitants") ; Fixes 3 words
+:B0X?*:habition::f("hibition") ; Fixes 21 words
+:B0X?*:haneg::f("hange") ; Fixes 69 words
+:B0X?*:harased::f("harassed") ; Fixes 3 words
+:B0X?*:havour::f("havior") ; Fixes 13 words
+:B0X?*:hcange::f("change") ; Fixes 58 words
+:B0X?*:hcih::f("hich") ; Fixes 15 words
+:B0X?*:heirarch::f("hierarch") ; Fixes 14 words
+:B0X?*:heiroglyph::f("hieroglyph") ; Fixes 6 words
+:B0X?*:heiv::f("hiev") ; Fixes 49 words
+:B0X?*:herant::f("herent") ; Fixes 10 words
+:B0X?*:heridit::f("heredit") ; Fixes 19 words
+:B0X?*:hertia::f("herita") ; Fixes 23 words
+:B0X?*:hertzs::f("hertz") ; Fixes 12 words
+:B0X?*:hicial::f("hical") ; Fixes 170 words
+:B0X?*:hierach::f("hierarch") ; Fixes 14 words
+:B0X?*:hierarcic::f("hierarchic") ; Fixes 6 words
+:B0X?*:higway::f("highway") ; Fixes 6 words
+:B0X?*:hnag::f("hang") ; Fixes 150 words
+:B0X?*:holf::f("hold") ; Fixes 120 words
+:B0X?*:hospiti::f("hospita") ; Fixes 27 words
+:B0X?*:houno::f("hono") ; Fixes 99 words
+:B0X?*:hstor::f("histor") ; Fixes 56 words
+:B0X?*:http:\\::f("http://") ; Fixes 1 word
+:B0X?*:httpL::f("http:") ; Fixes 1 word
+:B0X?*:humerous::f("humorous") ; Fixes 6 words
+:B0X?*:humur::f("humour") ; Fixes 12 words
+:B0X?*:hvae::f("have") ; Fixes 47 words
+:B0X?*:hvai::f("havi") ; Fixes 37 words
+:B0X?*:hvea::f("have") ; Fixes 47 words
+:B0X?*:hwere::f("where") ; Fixes 27 words
+:B0X?*:hydog::f("hydrog") ; Fixes 50 words
+:B0X?*:hymm::f("hym") ; Fixes 125 words
+:B0X?*:ibile::f("ible") ; Fixes 367 words
+:B0X?*:ibilt::f("ibilit") ; Fixes 281 words
+:B0X?*:iblit::f("ibilit") ; Fixes 281 words
+:B0X?*:icibl::f("iceabl") ; Fixes 14 words
+:B0X?*:iciton::f("iction") ; Fixes 89 words
+:B0X?*:idenital::f("idential") ; Fixes 18 words
+:B0X?*:iegh::f("eigh") ; Fixes 186 words
+:B0X?*:iegn::f("eign") ; Fixes 83 words
+:B0X?*:ievn::f("iven") ; Fixes 440 words
+:B0X?*:igeou::f("igiou") ; Fixes 23 words
+:B0X?*:igini::f("igni") ; Fixes 127 words
+:B0X?*:ignf::f("ignif") ; Fixes 50 words
+:B0X?*:igous::f("igious") ; Fixes 23 words, but misspells pemphigous (a skin disease)
+:B0X?*:igth::f("ight") ; Jack's fixes 315 words
+:B0X?*:ihs::f("his") ; Fixes 618 words
+:B0X?*:iht::f("ith") ; Fixes 560 words
+:B0X?*:ijng::f("ing") ; Fixes 15158 words
+:B0X?*:ilair::f("iliar") ; Fixes 46 words
+:B0X?*:illution::f("illusion") ; Fixes 16 words
+:B0X?*:imagen::f("imagin") ; Fixes 40 words
+:B0X?*:immita::f("imita") ; Fixes 41 words
+:B0X?*:impliment::f("implement") ; Fixes 17 words
+:B0X?*:imploy::f("employ") ; Fixes 38 words
+:B0X?*:importen::f("importan") ; Fixes 10 words
+:B0X?*:imprion::f("imprison") ; Fixes 11 words
+:B0X?*:incede::f("incide") ; Fixes 21 words
+:B0X?*:incidential::f("incidental") ; Fixes 6 words
+:B0X?*:incra::f("incre") ; Fixes 28 words
+:B0X?*:inctro::f("intro") ; Fixes 68 words
+:B0X?*:indeca::f("indica") ; Fixes 40 words
+:B0X?*:indite::f("indict") ; Fixes 22 words, but misspells indite (Produce a literaryÂ work)
+:B0X?*:indutr::f("industr") ; Fixes 59 words
+:B0X?*:indvidua::f("individua") ; Fixes 32 words
+:B0X?*:inece::f("ience") ; Fixes 101 words
+:B0X?*:ineing::f("ining") ; Fixes 193 words
+:B0X?*:infectuo::f("infectio") ; Fixes 15 words
+:B0X?*:infrant::f("infant") ; Fixes 31 words
+:B0X?*:infrige::f("infringe") ; Fixes 7 words
+:B0X?*:ingenius::f("ingenious") ; Fixes 4 words
+:B0X?*:inheritage::f("inheritance") ; Fixes 4 words
+:B0X?*:inheritence::f("inheritance") ; Fixes 4 words
+:B0X?*:inially::f("inally") ; Fixes 46 words
+:B0X?*:ininis::f("inis") ; Fixes 388 words
+:B0X?*:inital::f("initial") ; Fixes 25 words
+:B0X?*:inng::f("ing") ; Fixes 15158 words
+:B0X?*:innocula::f("inocula") ; Fixes 16 words
+:B0X?*:inpeach::f("impeach") ; Fixes 15 words
+:B0X?*:inpolit::f("impolit") ; Fixes 7 words
+:B0X?*:inprison::f("imprison") ; Fixes 11 words
+:B0X?*:inprov::f("improv") ; Fixes 41 words
+:B0X?*:institue::f("institute") ; Fixes 8 words
+:B0X?*:instu::f("instru") ; Fixes 44 words
+:B0X?*:intelect::f("intellect") ; Fixes 42 words
+:B0X?*:intelig::f("intellig") ; Fixes 27 words
+:B0X?*:intenational::f("international") ; Fixes 27 words
+:B0X?*:intented::f("intended") ; Fixes 7 words
+:B0X?*:intepret::f("interpret") ; Fixes 39 words
+:B0X?*:interational::f("international") ; Fixes 27 words
+:B0X?*:interferance::f("interference") ; Fixes 4 words
+:B0X?*:intergrat::f("integrat") ; Fixes 35 words
+:B0X?*:interpet::f("interpret") ; Fixes 39 words
+:B0X?*:interupt::f("interrupt") ; Fixes 15 words
+:B0X?*:inteven::f("interven") ; Fixes 20 words
+:B0X?*:intrduc::f("introduc") ; Fixes 16 words
+:B0X?*:intrest::f("interest") ; Fixes 19 words
+:B0X?*:intruduc::f("introduc") ; Fixes 16 words
+:B0X?*:intut::f("intuit") ; Fixes 19 words
+:B0X?*:inudstr::f("industr") ; Fixes 59 words
+:B0X?*:investingat::f("investigat") ; Fixes 17 words
+:B0X?*:iopn::f("ion") ; Fixes 8515 words
+:B0X?*:iouness::f("iousness") ; Fixes 220 words
+:B0X?*:iousit::f("iosit") ; Fixes 15 words
+:B0X?*:irts::f("irst") ; Fixes 41 words
+:B0X?*:isherr::f("isher") ; Fixes 71 words
+:B0X?*:ishor::f("isher") ; Fixes 71 words
+:B0X?*:ishre::f("isher") ; Fixes 71 words
+:B0X?*:isile::f("issile") ; Fixes 6 words
+:B0X?*:issence::f("issance") ; Fixes 11 words
+:B0X?*:iticing::f("iticising") ; Fixes 3 words
+:B0X?*:itina::f("itiona") ; Fixes 79 words, misspells Mephitinae (skunk), neritina (snail)
+:B0X?*:ititia::f("initia") ; Fixes 41 words
+:B0X?*:itition::f("ition") ; Fixes 389 words
+:B0X?*:itnere::f("intere") ; Fixes 25 words
+:B0X?*:itnroduc::f("introduc") ; Fixes 16 words
+:B0X?*:itoin::f("ition") ; Fixes 389 words
+:B0X?*:itttle::f("ittle") ; Fixes 49 words
+:B0X?*:iveing::f("iving") ; Fixes 75 words
+:B0X?*:iverous::f("ivorous") ; Fixes 17 words
+:B0X?*:ivle::f("ivel") ; Fixes 589 words, but misspells braaivleis (Type of S. Affrican BBQ)
+:B0X?*:iwll::f("will") ; Fixes 64 words
+:B0X?*:iwth::f("with") ; Fixes 56 words
+:B0X?*:jecutr::f("jectur") ; Fixes 8 words
+:B0X?*:jist::f("gist") ; Fixes 587 words
+:B0X?*:jstu::f("just") ; Fixes 83 words
+:B0X?*:jsut::f("just") ; Fixes 83 words
+:B0X?*:juct::f("junct") ; Fixes 58 words
+:B0X?*:judgment::f("judgement") ; Fixes 11 words
+:B0X?*:judical::f("judicial") ; Fixes 9 words
+:B0X?*:judisua::f("judicia") ; Fixes 11 words
+:B0X?*:juduci::f("judici") ; Fixes 20 words
+:B0X?*:jugment::f("judgment") ; Fixes 12 words
+:B0X?*:kindergarden::f("kindergarten") ; Fixes 4 words
+:B0X?*:knowldeg::f("knowledg") ; Fixes 32 words
+:B0X?*:knowldg::f("knowledg") ; Fixes 32 words
+:B0X?*:knowleg::f("knowledg") ; Fixes 32 words
+:B0X?*:knwo::f("know") ; Fixes 66 words
+:B0X?*:kwno::f("know") ; Fixes 66 words
+:B0X?*:labat::f("laborat") ; Fixes 39 words
+:B0X?*:laeg::f("leag") ; Fixes 21 words
+:B0X?*:laguage::f("language") ; Fixes 12 words
+:B0X?*:laimation::f("lamation") ; Fixes 10 words
+:B0X?*:laion::f("lation") ; Fixes 448 words
+:B0X?*:lalbe::f("lable") ; Fixes 122 words
+:B0X?*:laraty::f("larity") ; Fixes 41 words
+:B0X?*:lastes::f("lates") ; Fixes 212 words
+:B0X?*:lateab::f("latab") ; Fixes 29 words
+:B0X?*:latrea::f("latera") ; Fixes 70 words
+:B0X?*:lattitude::f("latitude") ; Fixes 5 words
+:B0X?*:launhe::f("launche") ; Fixes 6 words
+:B0X?*:lcud::f("clud") ; Fixes 33 words
+:B0X?*:leagur::f("leaguer") ; Fixes 8 words
+:B0X?*:leathal::f("lethal") ; Fixes 7 words
+:B0X?*:lece::f("lesce") ; Fixes 52 words, but misspells Illecebrum (contains the single species Illecebrum verticillatum, which is a trailing annual plant native to Europe)
+:B0X?*:lecton::f("lection") ; Fixes 52 words
+:B0X?*:legitamat::f("legitimat") ; Fixes 35 words
+:B0X?*:legitm::f("legitim") ; Fixes 67 words
+:B0X?*:legue::f("league") ; Fixes 13 words
+:B0X?*:leiv::f("liev") ; Fixes 52 words
+:B0X?*:libgui::f("lingui") ; Fixes 34 words
+:B0X?*:liek::f("like") ; Fixes 405 words
+:B0X?*:liement::f("lement") ; Fixes 128 words
+:B0X?*:lieuenan::f("lieutenan") ; Fixes 6 words
+:B0X?*:lieutenen::f("lieutenan") ; Fixes 6 words
+:B0X?*:likl::f("likel") ; Fixes 14 words
+:B0X?*:lility::f("ility") ; Fixes 956 words
+:B0X?*:liscen::f("licen") ; Fixes 34 words
+:B0X?*:lisehr::f("lisher") ; Fixes 14 words
+:B0X?*:lisen::f("licen") ; Fixes 34 words, but misspells lisente (100 lisente equal 1 loti in Lesotho, S. Afterica)
+:B0X?*:lisheed::f("lished") ; Fixes 27 words
+:B0X?*:lishh::f("lish") ; Fixes 211 words
+:B0X?*:lissh::f("lish") ; Fixes 211 words
+:B0X?*:listn::f("listen") ; Fixes 19 words
+:B0X?*:litav::f("lativ") ; Fixes 97 words
+:B0X?*:litert::f("literat") ; Fixes 49 words
+:B0X?*:littel::f("little") ; Fixes 15 words
+:B0X?*:litteral::f("literal") ; Fixes 27 words
+:B0X?*:littoe::f("little") ; Fixes 15 words
+:B0X?*:liuke::f("like") ; Fixes 405 words
+:B0X?*:llarious::f("larious") ; Fixes 6 words
+:B0X?*:llegen::f("llegian") ; Fixes 7 words
+:B0X?*:llegien::f("llegian") ; Fixes 7 words
+:B0X?*:lmits::f("limits") ; Fixes 3 words
+:B0X?*:loev::f("love") ; Fixes 111 words
+:B0X?*:lonle::f("lonel") ; Fixes 9 words
+:B0X?*:lpp::f("lp") ; Fixes 509 words
+:B0X?*:lsih::f("lish") ; Fixes 211 words
+:B0X?*:lsot::f("lso") ; Fixes 42 words
+:B0X?*:lutly::f("lutely") ; Fixes 7 words
+:B0X?*:lyed::f("lied") ; Fixes 50 words
+:B0X?*:machne::f("machine") ; Fixes 8 words
+:B0X?*:maintina::f("maintain") ; Fixes 14 words
+:B0X?*:maintion::f("mention") ; Fixes 15 words
+:B0X?*:majorot::f("majorit") ; Fixes 7 words
+:B0X?*:makeing::f("making") ; Fixes 45 words
+:B0X?*:making it's::f("making its") 
+:B0X?*:makse::f("makes") ; Fixes 7 words
+:B0X?*:mallise::f("malize") ; Fixes 17 words ; Ambiguous
+:B0X?*:mallize::f("malize") ; Fixes 17 words
+:B0X?*:mamal::f("mammal") ; Fixes 13 words
+:B0X?*:mamant::f("mament") ; Fixes 11 words
+:B0X?*:managab::f("manageab") ; Fixes 9 words
+:B0X?*:managment::f("management") ; Fixes 6 words
+:B0X?*:mandito::f("mandato") ; Fixes 7 words
+:B0X?*:maneouv::f("manoeuv") ; Fixes 17 words
+:B0X?*:manoeuver::f("maneuver") ; Fixes 13 words
+:B0X?*:manouver::f("maneuver") ; Fixes 13 words
+:B0X?*:mantain::f("maintain") ; Fixes 14 words
+:B0X?*:manuever::f("maneuver") ; Fixes 13 words
+:B0X?*:manuver::f("maneuver") ; Fixes 13 words
+:B0X?*:marjorit::f("majorit") ; Fixes 7 words
+:B0X?*:markes::f("marks") ; Fixes 32 words
+:B0X?*:markett::f("market") ; Fixes 49 words
+:B0X?*:marrage::f("marriage") ; Fixes 13 words
+:B0X?*:mathamati::f("mathemati") ; Fixes 17 words
+:B0X?*:mathmati::f("mathemati") ; Fixes 17 words
+:B0X?*:mberan::f("mbran") ; Fixes 26 words
+:B0X?*:mbintat::f("mbinat") ; Fixes 18 words
+:B0X?*:mchan::f("mechan") ; Fixes 54 words
+:B0X?*:meber::f("member") ; Fixes 32 words
+:B0X?*:medac::f("medic") ; Fixes 76 words
+:B0X?*:medeival::f("medieval") ; Fixes 6 words
+:B0X?*:medevial::f("medieval") ; Fixes 6 words
+:B0X?*:meent::f("ment") ; Fixes 1763 words
+:B0X?*:meing::f("ming") ; Fixes 410 words
+:B0X?*:melad::f("malad") ; Fixes 21 words
+:B0X?*:memmor::f("memor") ; Fixes 70 words
+:B0X?*:memt::f("ment") ; Fixes 1763 words
+:B0X?*:menat::f("menta") ; Fixes 434 words , but misspells catechumenate (A new convert being taught the principles of Christianity by a catechist). 
+:B0X?*:metalic::f("metallic") ; Fixes 9 words
+:B0X?*:metn::f("ment") ; Fixes 1763 words
+:B0X?*:mialr::f("milar") ; Fixes 14 words
+:B0X?*:mibil::f("mobil") ; Fixes 78 words
+:B0X?*:mileau::f("milieu") ; Fixes 3 words
+:B0X?*:milen::f("millen") ; Fixes 33 words
+:B0X?*:mileu::f("milieu") ; Fixes 3 words
+:B0X?*:milirat::f("militar") ; Fixes 54 words
+:B0X?*:millit::f("milit") ; Fixes 85 words
+:B0X?*:millon::f("million") ; Fixes 13 words
+:B0X?*:milta::f("milita") ; Fixes 70 words
+:B0X?*:minatur::f("miniatur") ; Fixes 27 words
+:B0X?*:minining::f("mining") ; Fixes 15 words.
+:B0X?*:miscelane::f("miscellane") ; Fixes 4 words
+:B0X?*:mision::f("mission") ; Fixes 63 words
+:B0X?*:missabi::f("missibi") ; Fixes 13 words
+:B0X?*:misson::f("mission") ; Fixes 63 words
+:B0X?*:mition::f("mission") ; Fixes 63 words
+:B0X?*:mittm::f("mitm") ; Fixes 8 words
+:B0X?*:mitty::f("mittee") ; Fixes 12 words
+:B0X?*:mkae::f("make") ; Fixes 122 words
+:B0X?*:mkaing::f("making") ; Fixes 45 words
+:B0X?*:mkea::f("make") ; Fixes 122 words
+:B0X?*:mnet::f("ment") ; Fixes 1763 words
+:B0X?*:modle::f("model") ; Fixes 29 words
+:B0X?*:moent::f("moment") ; Fixes 15 words
+:B0X?*:moleclue::f("molecule") ; Fixes 7 words
+:B0X?*:morgag::f("mortgag") ; Fixes 18 words
+:B0X?*:mornal::f("normal") ; Fixes 66 words 
+:B0X?*:morot::f("motor") ; Fixes 72 words  
+:B0X?*:morow::f("morrow") ; Fixes 4 words
+:B0X?*:mortag::f("mortgag") ; Fixes 18 words
+:B0X?*:mostur::f("moistur") ; Fixes 16 words
+:B0X?*:moung::f("mong") ; Fixes 89 words
+:B0X?*:mounth::f("month") ; Fixes 13 words
+:B0X?*:mpossa::f("mpossi") ; Fixes 7 words
+:B0X?*:mrak::f("mark") ; Fixes 175 words
+:B0X?*:mroe::f("more") ; Fixes 72 words
+:B0X?*:msot::f("most") ; Fixes 73 words
+:B0X?*:mtion::f("mation") ; Fixes 119 words
+:B0X?*:mucuous::f("mucous") ; Fixes 3 words
+:B0X?*:muder::f("murder") ; Fixes 13 words
+:B0X?*:mulatat::f("mulat") ; Fixes 110 words
+:B0X?*:munber::f("number") ; Fixes 28 words
+:B0X?*:munites::f("munities") ; Fixes 3 words
+:B0X?*:muscel::f("muscle") ; Fixes 11 words
+:B0X?*:muscial::f("musical") ; Fixes 15 words
+:B0X?*:mutiliat::f("mutilat") ; Fixes 9 words
+:B0X?*:myu::f("my") ; Fixes 950 words
+:B0X?*:naisance::f("naissance") ; Fixes 5 words
+:B0X?*:natly::f("nately") ; Fixes 42 words
+:B0X?*:naton::f("nation") ; Fixes 451 words but misspells Akhenaton (Early ruler of Egypt who regected old gods and replaced with sun worship, died 1358 BC).
+:B0X?*:naturely::f("naturally") ; Fixes 6 words
+:B0X?*:naturual::f("natural") ; Fixes 54 words
+:B0X?*:nclr::f("ncr") ; Fixes 193 words
+:B0X?*:ndunt::f("ndant") ; Fixes 34 words
+:B0X?*:necass::f("necess") ; Fixes 24 words
+:B0X?*:neccesar::f("necessar") ; Fixes 9 words
+:B0X?*:neccessar::f("necessar") ; Fixes 9 words
+:B0X?*:necesar::f("necessar") ; Fixes 9 words
+:B0X?*:nefica::f("neficia") ; Fixes 12 words
+:B0X?*:negociat::f("negotiat") ; Fixes 19 words
+:B0X?*:negota::f("negotia") ; Fixes 26 words
+:B0X?*:neice::f("niece") ; Fixes 4 words
+:B0X?*:neigbor::f("neighbor") ; Fixes 11 words
+:B0X?*:neigbour::f("neighbor") ; Fixes 11 words
+:B0X?*:neize::f("nize") ; Fixes 475 words
+:B0X?*:neolitic::f("neolithic") ; Fixes 5 words
+:B0X?*:nerial::f("neral") ; Fixes 103 words
+:B0X?*:neribl::f("nerabl") ; Fixes 11 words
+:B0X?*:nervious::f("nervous") ; Fixes 3 words
+:B0X?*:nessasar::f("necessar") ; Fixes 9 words
+:B0X?*:nessec::f("necess") ; Fixes 24 words
+:B0X?*:nght::f("ngth") ; Jack's fixes 33 words
+:B0X?*:ngng::f("nging") ; Fixes 126 words
+:B0X?*:nht::f("nth") ; Jack's fixes 769 words
+:B0X?*:niant::f("nant") ; Fixes 147 words
+:B0X?*:niare::f("naire") ; Fixes 30 words
+:B0X?*:nickle::f("nickel") ; Fixes 14 words
+:B0X?*:nifiga::f("nifica") ; Fixes 55 words
+:B0X?*:nihgt::f("night") ; Fixes 103 words
+:B0X?*:nilog::f("nolog") ; Fixes 223 words
+:B0X?*:nisator::f("niser") ; Fixes 43 words
+:B0X?*:nisb::f("nsib") ; Fixes 88 words
+:B0X?*:nistion::f("nisation") ; Fixes 140 words
+:B0X?*:nitian::f("nician") ; Fixes 8 words
+:B0X?*:niton::f("nition") ; Fixes 37 words
+:B0X?*:nizator::f("nizer") ; Fixes 44 words
+:B0X?*:niztion::f("nization") ; Fixes 154 words
+:B0X?*:nkow::f("know") ; Fixes 66 words, but misspells Minkowski (German mathematician)
+:B0X?*:nlcu::f("nclu") ; Fixes 34 words
+:B0X?*:nlees::f("nless") ; Fixes 89 words
+:B0X?*:nmae::f("name") ; Fixes 100 words
+:B0X?*:nnst::f("nst") ; Fixes 729 words, misspells Dennstaedtia (fern), Hoffmannsthal, (poet)
+:B0X?*:nnung::f("nning") ; Fixes 107 words
+:B0X?*:nominclat::f("nomenclat") ; Fixes 8 words 
+:B0X?*:nonom::f("nonym") ; Fixes 40 words
+:B0X?*:nouce::f("nounce") ; Fixes 47 words
+:B0X?*:nounch::f("nounc") ; Fixes 54 words
+:B0X?*:nouncia::f("nuncia") ; Fixes 47 words
+:B0X?*:nsern::f("ncern") ; Fixes 17 words
+:B0X?*:nsistan::f("nsisten") ; Fixes 17 words
+:B0X?*:nsitu::f("nstitu") ; Fixes 87 words
+:B0X?*:nsnet::f("nsent") ; Fixes 19 words
+:B0X?*:nstade::f("nstead") ; Fixes 6 words
+:B0X?*:nstatan::f("nstan") ; Fixes 44 words
+:B0X?*:nsted::f("nstead") ; Fixes 6 words
+:B0X?*:nstiv::f("nsitiv") ; Fixes 62 words
+:B0X?*:ntaines::f("ntains") ; Fixes 9 words
+:B0X?*:ntamp::f("ntemp") ; Fixes 52 words
+:B0X?*:ntfic::f("ntific") ; Fixes 28 words
+:B0X?*:ntifc::f("ntific") ; Fixes 28 words
+:B0X?*:ntrui::f("nturi") ; Fixes 21 words
+:B0X?*:nucular::f("nuclear") ; Fixes 17 words
+:B0X?*:nuculear::f("nuclear") ; Fixes 17 words
+:B0X?*:nuei::f("nui") ; Fixes 37 words
+:B0X?*:nuptual::f("nuptial") ; Fixes 7 words
+:B0X?*:nvien::f("nven") ; Fixes 101 words
+:B0X?*:obedian::f("obedien") ; Fixes 11 words
+:B0X?*:obelm::f("oblem") ; Fixes 28 words
+:B0X?*:occassi::f("occasi") ; Fixes 14 words
+:B0X?*:occasti::f("occasi") ; Fixes 14 words
+:B0X?*:occour::f("occur") ; Fixes 20 words
+:B0X?*:occuran::f("occurren") ; Fixes 8 words
+:B0X?*:occurran::f("occurren") ; Fixes 8 words
+:B0X?*:ocup::f("occup") ; Fixes 39 words
+:B0X?*:ocurran::f("occurren") ; Fixes 8 words
+:B0X?*:odouriferous::f("odoriferous") ; Fixes 3 words
+:B0X?*:odourous::f("odorous") ; Fixes 9 words
+:B0X?*:oducab::f("oducib") ; Fixes 13 words
+:B0X?*:oeny::f("oney") ; Fixes 83 words
+:B0X?*:oeopl::f("eopl") ; Fixes 53 words
+:B0X?*:oeprat::f("operat") ; Fixes 58 words
+:B0X?*:offesi::f("ofessi") ; Fixes 34 words
+:B0X?*:offical::f("official") ; Fixes 24 words
+:B0X?*:offred::f("offered") ; Fixes 4 words
+:B0X?*:ogeous::f("ogous") ; Fixes 13 words
+:B0X?*:ogess::f("ogress") ; Fixes 38 words
+:B0X?*:ohter::f("other") ; Fixes 229 words
+:B0X?*:ointiment::f("ointment") ; Fixes 10 words
+:B0X?*:olgist::f("ologist") ; Fixes 445 words
+:B0X?*:olision::f("olition") ; Fixes 16 words
+:B0X?*:ollum::f("olum") ; Fixes 69 words
+:B0X?*:olpe::f("ople") ; Fixes 62 words
+:B0X?*:olther::f("other") ; Fixes 229 words
+:B0X?*:omenom::f("omenon") ; Fixes 7 words
+:B0X?*:ommm::f("omm") ; Fixes 606 words
+:B0X?*:omnio::f("omino") ; Fixes 18 words
+:B0X?*:omptabl::f("ompatibl") ; Fixes 7 words
+:B0X?*:omre::f("more") ; Fixes 72 words
+:B0X?*:omse::f("onse") ; Fixes 159 words
+:B0X?*:ongraph::f("onograph") ; Fixes 31 words
+:B0X?*:onnal::f("onal") ; Fixes 1038 words
+:B0X?*:ononent::f("onent") ; Fixes 18 words
+:B0X?*:ononym::f("onym") ; Fixes 137 words
+:B0X?*:onsenc::f("onsens") ; Fixes 19 words
+:B0X?*:ontruc::f("onstruc") ; Fixes 63 words
+:B0X?*:ontstr::f("onstr") ; Fixes 165 words
+:B0X?*:onvertab::f("onvertib") ; Fixes 18 words
+:B0X?*:onyic::f("onic") ; Fixes 353 words
+:B0X?*:onymn::f("onym") ; Fixes 137 words
+:B0X?*:oook::f("ook") ; Fixes 427 words
+:B0X?*:oparate::f("operate") ; Fixes 10 words
+:B0X?*:oportun::f("opportun") ; Fixes 14 words
+:B0X?*:opperat::f("operat") ; Fixes 58 words
+:B0X?*:oppertun::f("opportun") ; Fixes 14 words
+:B0X?*:oppini::f("opini") ; Fixes 12 words
+:B0X?*:opprotun::f("opportun") ; Fixes 14 words
+:B0X?*:opth::f("ophth") ; Fixes 47 words
+:B0X?*:ordianti::f("ordinati") ; Fixes 21 words
+:B0X?*:orginis::f("organiz") ; Fixes 34 words
+:B0X?*:orginiz::f("organiz") ; Fixes 34 words
+:B0X?*:orht::f("orth") ; Fixes 275 words
+:B0X?*:oridal::f("ordial") ; Fixes 15 words
+:B0X?*:oridina::f("ordina") ; Fixes 63 words
+:B0X?*:origion::f("origin") ; Fixes 37 words
+:B0X?*:ormenc::f("ormanc") ; Fixes 11 words
+:B0X?*:osible::f("osable") ; Fixes 23 words
+:B0X?*:oteab::f("otab") ; Fixes 22 words
+:B0X?*:ouevre::f("oeuvre") ; Fixes 10 words
+:B0X?*:ougnble::f("ouble") ; Fixes 48 words
+:B0X?*:ouhg::f("ough") ; Fixes 230 words
+:B0X?*:oulb::f("oubl") ; Fixes 63 words
+:B0X?*:ouldnt::f("ouldn't") ; Fixes 3 words
+:B0X?*:ountian::f("ountain") ; Fixes 25 words
+:B0X?*:ourious::f("orious") ; Fixes 30 words
+:B0X?*:owinf::f("owing") ; Fixes 133 words
+:B0X?*:owrk::f("work") ; Fixes 338 words
+:B0X?*:oxident::f("oxidant") ; Fixes 4 words
+:B0X?*:oxigen::f("oxygen") ; Fixes 40 words
+:B0X?*:paiti::f("pati") ; Fixes 157 words
+:B0X?*:palce::f("place") ; Fixes 94 words
+:B0X?*:paliament::f("parliament") ; Fixes 11 words
+:B0X?*:papaer::f("paper") ; Fixes 69 words
+:B0X?*:paralel::f("parallel") ; Fixes 41 words
+:B0X?*:parellel::f("parallel") ; Fixes 41 words
+:B0X?*:parision::f("parison") ; Fixes 6 words
+:B0X?*:parisit::f("parasit") ; Fixes 57 words
+:B0X?*:paritucla::f("particula") ; Fixes 29 words
+:B0X?*:parliment::f("parliament") ; Fixes 11 words
+:B0X?*:parment::f("partment") ; Fixes 41 words
+:B0X?*:parralel::f("parallel") ; Fixes 41 words
+:B0X?*:parrall::f("parall") ; Fixes 44 words
+:B0X?*:parren::f("paren") ; Fixes 65 words
+:B0X?*:pased::f("passed") ; Fixes 10 words
+:B0X?*:patab::f("patib") ; Fixes 16 words
+:B0X?*:pattent::f("patent") ; Fixes 16 words
+:B0X?*:pbli::f("publi") ; Fixes 67 words
+:B0X?*:pbuli::f("publi") ; Fixes 67 words
+:B0X?*:pcial::f("pical") ; Fixes 102 words
+:B0X?*:pcitur::f("pictur") ; Fixes 25 words
+:B0X?*:peall::f("peal") ; Fixes 31 words
+:B0X?*:peapl::f("peopl") ; Fixes 38 words
+:B0X?*:pefor::f("perfor") ; Fixes 43 words
+:B0X?*:peice::f("piece") ; Fixes 60 words
+:B0X?*:peiti::f("petiti") ; Fixes 34 words
+:B0X?*:pendece::f("pendence") ; Fixes 12 words
+:B0X?*:pendendet::f("pendent") ; Fixes 17 words
+:B0X?*:penerat::f("penetrat") ; Fixes 19 words
+:B0X?*:penisula::f("peninsula") ; Fixes 3 words
+:B0X?*:penninsula::f("peninsula") ; Fixes 3 words
+:B0X?*:pennisula::f("peninsula") ; Fixes 3 words
+:B0X?*:pensanti::f("pensati") ; Fixes 13 words
+:B0X?*:pensinula::f("peninsula") ; Fixes 3 words
+:B0X?*:penten::f("pentan") ; Fixes 12 words
+:B0X?*:pention::f("pension") ; Fixes 15 words
+:B0X?*:peopel::f("people") ; Fixes 32 words
+:B0X?*:percepted::f("perceived") ; Fixes 7 words
+:B0X?*:perfom::f("perform") ; Fixes 31 words
+:B0X?*:performes::f("performs") ; Fixes 3 words
+:B0X?*:permenan::f("permanen") ; Fixes 17 words
+:B0X?*:perminen::f("permanen") ; Fixes 17 words
+:B0X?*:permissab::f("permissib") ; Fixes 9 words
+:B0X?*:peronal::f("personal") ; Fixes 49 words
+:B0X?*:perosn::f("person") ; Fixes 130 words
+:B0X?*:persistan::f("persisten") ; Fixes 6 words
+:B0X?*:persud::f("persuad") ; Fixes 20 words
+:B0X?*:pertrat::f("petrat") ; Fixes 14 words
+:B0X?*:pertuba::f("perturba") ; Fixes 12 words
+:B0X?*:peteti::f("petiti") ; Fixes 34 words
+:B0X?*:petion::f("petition") ; Fixes 11 words
+:B0X?*:petive::f("petitive") ; Fixes 19 words
+:B0X?*:phenomenonal::f("phenomenal") ; Fixes 11 words
+:B0X?*:phenomon::f("phenomen") ; Fixes 21 words
+:B0X?*:phenonmen::f("phenomen") ; Fixes 21 words
+:B0X?*:philisoph::f("philosoph") ; Fixes 28 words
+:B0X?*:phillipi::f("Philippi") ; Fixes 7 words
+:B0X?*:phillo::f("philo") ; Fixes 61 words
+:B0X?*:philosph::f("philosoph") ; Fixes 28 words
+:B0X?*:phoricial::f("phorical") ; Fixes 6 words
+:B0X?*:phyllis::f("philis") ; Fixes 33 words
+:B0X?*:phylosoph::f("philosoph") ; Fixes 28 words
+:B0X?*:piant::f("pient") ; Fixes 16 words
+:B0X?*:piblish::f("publish") ; Fixes 17 words
+:B0X?*:pinon::f("pion") ; Fixes 44 words
+:B0X?*:piten::f("peten") ; Fixes 29 words
+:B0X?*:plament::f("plement") ; Fixes 42 words
+:B0X?*:plausab::f("plausib") ; Fixes 10 words
+:B0X?*:pld::f("ple") ; Fixes 843 words
+:B0X?*:plesan::f("pleasan") ; Fixes 14 words
+:B0X?*:pleseant::f("pleasant") ; Fixes 11 words
+:B0X?*:pletetion::f("pletion") ; Fixes 8 words
+:B0X?*:pmant::f("pment") ; Fixes 38 words
+:B0X?*:poenis::f("penis") ; Fixes 4 words
+:B0X?*:poepl::f("peopl") ; Fixes 38 words
+:B0X?*:poleg::f("polog") ; Fixes 59 words
+:B0X?*:polina::f("pollina") ; Fixes 11 words
+:B0X?*:politican::f("politician") ; Fixes 4 words
+:B0X?*:polti::f("politi") ; Fixes 61 words
+:B0X?*:polut::f("pollut") ; Fixes 20 words
+:B0X?*:pomd::f("pond") ; Fixes 109 words
+:B0X?*:ponan::f("ponen") ; Fixes 17 words
+:B0X?*:ponsab::f("ponsib") ; Fixes 10 words
+:B0X?*:poportion::f("proportion") ; Fixes 25 words
+:B0X?*:popoul::f("popul") ; Fixes 71 words
+:B0X?*:porblem::f("problem") ; Fixes 22 words
+:B0X?*:portad::f("ported") ; Fixes 26 words
+:B0X?*:porv::f("prov") ; Fixes 213 words
+:B0X?*:posat::f("posit") ; Fixes 215 words
+:B0X?*:posess::f("possess") ; Fixes 41 words
+:B0X?*:posion::f("poison") ; Fixes 17 words
+:B0X?*:possab::f("possib") ; Fixes 13 words
+:B0X?*:postion::f("position") ; Fixes 103 words
+:B0X?*:postit::f("posit") ; Fixes 215 words
+:B0X?*:postiv::f("positiv") ; Fixes 36 words
+:B0X?*:potunit::f("portunit") ; Fixes 4 words
+:B0X?*:poulat::f("populat") ; Fixes 29 words
+:B0X?*:poverful::f("powerful") ; Fixes 5 words
+:B0X?*:poweful::f("powerful") ; Fixes 5 words
+:B0X?*:ppment::f("pment") ; Fixes 38 words
+:B0X?*:pposs::f("ppos") ; Fixes 90 words
+:B0X?*:ppub::f("pub") ; Fixes 96 words
+:B0X?*:prait::f("priat") ; Fixes 39 words
+:B0X?*:pratic::f("practic") ; Fixes 42 words
+:B0X?*:precendent::f("precedent") ; Fixes 11 words
+:B0X?*:precic::f("precis") ; Fixes 20 words
+:B0X?*:precid::f("preced") ; Fixes 18 words
+:B0X?*:prega::f("pregna") ; Fixes 25 words
+:B0X?*:pregne::f("pregna") ; Fixes 25 words
+:B0X?*:preiod::f("period") ; Fixes 30 words
+:B0X?*:prelifer::f("prolifer") ; Fixes 13 words
+:B0X?*:prepair::f("prepare") ; Fixes 10 words
+:B0X?*:prerio::f("perio") ; Fixes 46 words
+:B0X?*:presan::f("presen") ; Fixes 90 words
+:B0X?*:presp::f("persp") ; Fixes 33 words
+:B0X?*:pretect::f("protect") ; Fixes 43 words
+:B0X?*:pricip::f("princip") ; Fixes 20 words
+:B0X?*:priestood::f("priesthood") ; Fixes 3 words
+:B0X?*:prisonn::f("prison") ; Fixes 21 words
+:B0X?*:privale::f("privile") ; Fixes 7 words
+:B0X?*:privele::f("privile") ; Fixes 7 words
+:B0X?*:privelig::f("privileg") ; Fixes 7 words
+:B0X?*:privelle::f("privile") ; Fixes 7 words
+:B0X?*:privilag::f("privileg") ; Fixes 7 words
+:B0X?*:priviledg::f("privileg") ; Fixes 7 words
+:B0X?*:probabli::f("probabili") ; Fixes 12 words
+:B0X?*:probal::f("probabl") ; Fixes 9 words
+:B0X?*:procce::f("proce") ; Fixes 49 words
+:B0X?*:proclame::f("proclaime") ; Fixes 4 words
+:B0X?*:proffession::f("profession") ; Fixes 33 words
+:B0X?*:progrom::f("program") ; Fixes 46 words
+:B0X?*:prohabit::f("prohibit") ; Fixes 17 words
+:B0X?*:prominan::f("prominen") ; Fixes 8 words
+:B0X?*:prominate::f("prominent")  ; Fixes 4 words
+:B0X?*:promona::f("promine") ; Fixes 12 words 
+:B0X?*:proov::f("prov") ; Fixes 213 words
+:B0X?*:propiet::f("propriet") ; Fixes 17 words
+:B0X?*:propmt::f("prompt") ; Fixes 19 words
+:B0X?*:propotion::f("proportion")  ; Fixes 25 words
+:B0X?*:propper::f("proper") ; Fixes 15 words
+:B0X?*:propro::f("pro") ; Fixes 2311 words
+:B0X?*:prorp::f("propr") ; Fixes 68 words
+:B0X?*:protie::f("protei") ; Fixes 44 words
+:B0X?*:protray::f("portray") ; Fixes 14 words
+:B0X?*:prounc::f("pronounc") ; Fixes 24 words
+:B0X?*:provd::f("provid") ; Fixes 21 words
+:B0X?*:provicial::f("provincial") ; Fixes 10 words
+:B0X?*:provinicial::f("provincial") ; Fixes 10 words
+:B0X?*:proxia::f("proxima") ; Fixes 22 words
+:B0X?*:psect::f("spect") ; Fixes 177 words
+:B0X?*:psoiti::f("positi") ; Fixes 155 words
+:B0X?*:psuedo::f("pseudo") ; Fixes 70 words
+:B0X?*:psyco::f("psycho") ; Fixes 161 words
+:B0X?*:psyh::f("psych") ; Fixes 192 words, but misspells gypsyhood.
+:B0X?*:ptenc::f("ptanc") ; Fixes 9 words
+:B0X?*:ptete::f("pete") ; Fixes 61 words
+:B0X?*:ptition::f("petition") ; Fixes 11 words
+:B0X?*:ptogress::f("progress") ; Fixes 24 words
+:B0X?*:ptoin::f("ption") ; Fixes 183 words
+:B0X?*:pturd::f("ptured") ; Fixes 6 words
+:B0X?*:pubish::f("publish") ; Fixes 17 words
+:B0X?*:publian::f("publican") ; Fixes 9 words
+:B0X?*:publise::f("publishe") ; Fixes 7 words
+:B0X?*:publush::f("publish") ; Fixes 17 words
+:B0X?*:pulare::f("pular") ; Fixes 40 words
+:B0X?*:puler::f("pular") ; Fixes 40 words
+:B0X?*:pulishe::f("publishe") ; Fixes 7 words
+:B0X?*:puplish::f("publish") ; Fixes 17 words
+:B0X?*:pursuad::f("persuad") ; Fixes 20 words
+:B0X?*:purtun::f("portun") ; Fixes 25 words
+:B0X?*:pususad::f("persuad") ; Fixes 20 words
+:B0X?*:putar::f("puter") ; Fixes 24 words
+:B0X?*:putib::f("putab") ; Fixes 34 words
+:B0X?*:pwoer::f("power") ; Fixes 67 words
+:B0X?*:pysch::f("psych") ; Fixes 192 words
+:B0X?*:qtuie::f("quite") ; Fixes 11 words
+:B0X?*:quesece::f("quence") ; Fixes 21 words
+:B0X?*:quesion::f("question") ; Fixes 26 words
+:B0X?*:questiom::f("question") ; Fixes 26 words
+:B0X?*:queston::f("question") ; Fixes 26 words
+:B0X?*:quetion::f("question") ; Fixes 26 words
+:B0X?*:quirment::f("quirement") ; Fixes 4 words
+:B0X?*:qush::f("quish") ; Fixes 27 words
+:B0X?*:quti::f("quit") ; Fixes 86 words
+:B0X?*:rabinn::f("rabbin") ; Fixes 9 words
+:B0X?*:radiactiv::f("radioactiv") ; Fixes 5 words
+:B0X?*:raell::f("reall") ; Fixes 24 words
+:B0X?*:rafic::f("rific") ; Fixes 85 words
+:B0X?*:ranie::f("rannie") ; Fixes 8 words
+:B0X?*:ratly::f("rately") ; Fixes 30 words
+:B0X?*:raverci::f("roversi") ; Fixes 19 words
+:B0X?*:rcaft::f("rcraft") ; Fixes 11 words
+:B0X?*:reaccurr::f("recurr") ; Fixes 8 words
+:B0X?*:reaci::f("reachi") ; Fixes 18 words
+:B0X?*:rebll::f("rebell") ; Fixes 17 words
+:B0X?*:recide::f("reside") ; Fixes 34 words
+:B0X?*:recomment::f("recommend") ; Fixes 13 words 
+:B0X?*:recqu::f("requ") ; Fixes 96 words
+:B0X?*:recration::f("recreation") ; Fixes 5 words
+:B0X?*:recrod::f("record") ; Fixes 26 words
+:B0X?*:recter::f("rector") ; Fixes 26 words
+:B0X?*:recuring::f("recurring") ; Fixes 3 words
+:B0X?*:reedem::f("redeem") ; Fixes 22 words
+:B0X?*:reenfo::f("reinfo") ; Fixes 9 words
+:B0X?*:referal::f("referral") ; Fixes 2 words
+:B0X?*:reffer::f("refer") ; Fixes 58 words
+:B0X?*:refrer::f("refer") ; Fixes 58 words
+:B0X?*:reigin::f("reign") ; Fixes 25 words
+:B0X?*:reing::f("ring") ; Fixes 1481 words
+:B0X?*:reiv::f("riev") ; Fixes 44 words
+:B0X?*:relese::f("release") ; Fixes 13 words
+:B0X?*:releven::f("relevan") ; Fixes 12 words
+:B0X?*:remmi::f("remi") ; Fixes 222 words , but misspells gremmie (Alt of gremmy [“a young or inexperienced surfer or skateboarder”]). 
+:B0X?*:renial::f("rennial") ; Fixes 6 words
+:B0X?*:renno::f("reno") ; Fixes 85 words
+:B0X?*:rentee::f("rantee") ; Fixes 9 words
+:B0X?*:rentor::f("renter") ; Fixes 4 words
+:B0X?*:reomm::f("recomm") ; Fixes 31 words
+:B0X?*:repatiti::f("repetiti") ; Fixes 10 words
+:B0X?*:repb::f("repub") ; Fixes 23 words
+:B0X?*:repetant::f("repentant") ; Fixes 5 words
+:B0X?*:repetent::f("repentant") ; Fixes 5 words
+:B0X?*:replacab::f("replaceab") ; Fixes 8 words
+:B0X?*:reposd::f("respond") ; Fixes 22 words
+:B0X?*:resense::f("resence") ; Fixes 6 words
+:B0X?*:resistab::f("resistib") ; Fixes 10 words
+:B0X?*:resiv::f("ressiv") ; Fixes 80 words
+:B0X?*:responc::f("respons") ; Fixes 25 words
+:B0X?*:respondan::f("responden") ; Fixes 11 words
+:B0X?*:restict::f("restrict") ; Fixes 25 words
+:B0X?*:revelan::f("relevan") ; Fixes 12 words 
+:B0X?*:reversab::f("reversib") ; Fixes 15 words
+:B0X?*:rhitm::f("rithm") ; Fixes 20 words
+:B0X?*:rhythem::f("rhythm") ; Fixes 34 words
+:B0X?*:rhytm::f("rhythm") ; Fixes 34 words
+:B0X?*:ributred::f("ributed") ; Fixes 10 words
+:B0X?*:ridgid::f("rigid") ; Fixes 25 words 
+:B0X?*:rieciat::f("reciat") ; Fixes 32 words
+:B0X?*:rifing::f("rifying") ; Fixes 31 words
+:B0X?*:rigeur::f("rigor") ; Fixes 13 words
+:B0X?*:rigourous::f("rigorous") ; Fixes 6 words
+:B0X?*:rilia::f("rillia") ; Fixes 11 words
+:B0X?*:rimetal::f("rimental") ; Fixes 9 words
+:B0X?*:rininging::f("ringing") ; Fixes 21 words
+:B0X?*:riodal::f("roidal") ; Fixes 14 words
+:B0X?*:ritent::f("rient") ; Fixes 74 words
+:B0X?*:ritm::f("rithm") ; Fixes 20 words
+:B0X?*:rixon::f("rison") ; Fixes 39 words
+:B0X?*:rmaly::f("rmally") ; Fixes 11 words
+:B0X?*:rmaton::f("rmation") ; Fixes 46 words
+:B0X?*:rocord::f("record") ; Fixes 26 words
+:B0X?*:ropiat::f("ropriat") ; Fixes 39 words
+:B0X?*:rowm::f("rown") ; Fixes 85 words
+:B0X?*:roximite::f("roximate") ; Fixes 8 words
+:B0X?*:rraige::f("rriage") ; Fixes 26 words
+:B0X?*:rshan::f("rtion") ; Fixes 84 words, but misspells darshan (Hinduism)
+:B0X?*:rshon::f("rtion") ; Fixes 84 words
+:B0X?*:rshun::f("rtion") ; Fixes 84 words
+:B0X?*:rtaure::f("rature") ; Fixes 8 words
+:B0X?*:rtnat::f("rtant") ; Fixes 7 words
+:B0X?*:ruming::f("rumming") ; Fixes 5 words
+:B0X?*:ruptab::f("ruptib") ; Fixes 11 words
+:B0X?*:rwit::f("writ") ; Fixes 88 words
+:B0X?*:ryed::f("ried") ; Fixes 98 words
+:B0X?*:rythym::f("rhythm") ; Fixes 34 words
+:B0X?*:saccari::f("sacchari") ; Fixes 31 words
+:B0X?*:safte::f("safet") ; Fixes 5 words
+:B0X?*:saidit::f("said it") ; Fixes 0 words
+:B0X?*:saidth::f("said th") ; Fixes 1 words
+:B0X?*:sampel::f("sample") ; Fixes 20 words 
+:B0X?*:santion::f("sanction") ; Fixes 7 words
+:B0X?*:sassan::f("sassin") ; Fixes 12 words
+:B0X?*:satelite::f("satellite") ; Fixes 4 words
+:B0X?*:satric::f("satiric") ; Fixes 4 words
+:B0X?*:sattelite::f("satellite") ; Fixes 4 words
+:B0X?*:scaleable::f("scalable") ; Fixes 4 words
+:B0X?*:scedul::f("schedul") ; Fixes 12 words
+:B0X?*:schedual::f("schedule") ; Fixes 9 words
+:B0X?*:scholarstic::f("scholastic") ; Fixes 9 words
+:B0X?*:scince::f("science") ; Fixes 25 words, but misspells Scincella (A reptile genus of Scincidae)
+:B0X?*:scipt::f("script") ; Fixes 113 words
+:B0X?*:scje::f("sche") ; Fixes 108 words
+:B0X?*:scripton::f("scription") ; Fixes 32 words
+:B0X?*:sctruct::f("struct") ; Fixes 171 words
+:B0X?*:sdide::f("side") ; Fixes 317 words
+:B0X?*:sdier::f("sider") ; Fixes 74 words
+:B0X?*:seach::f("search") ; Fixes 25 words, but misspells Taoiseach (The prime minister of the Irish Republic)
+:B0X?*:secretery::f("secretary") ; Fixes 4 words
+:B0X?*:sedere::f("sidere") ; Fixes 7 words
+:B0X?*:seeked::f("sought") ; Fixes 3 words
+:B0X?*:segement::f("segment") ; Fixes 14 words
+:B0X?*:seige::f("siege") ; Fixes 10 words
+:B0X?*:semm::f("sem") ; Fixes 715 words 
+:B0X?*:senqu::f("sequ") ; Fixes 91 words
+:B0X?*:sensativ::f("sensitiv") ; Fixes 32 words
+:B0X?*:sentive::f("sentative") ; Fixes 15 words
+:B0X?*:seper::f("separ") ; Fixes 36 words
+:B0X?*:sepulchure::f("sepulcher") ; Fixes 7 words
+:B0X?*:sepulcre::f("sepulcher") ; Fixes 7 words
+:B0X?*:sequentually::f("sequently") ; Fixes 4 words
+:B0X?*:serach::f("search") ; Fixes 25 words
+:B0X?*:sercu::f("circu") ; Fixes 168 words
+:B0X?*:sesi::f("sessi") ; Fixes 41 words
+:B0X?*:sevic::f("servic") ; Fixes 25 words, but misspells seviche (South American dish of raw fish)
+:B0X?*:sgin::f("sign") ; Fixes 243 words.
+:B0X?*:shco::f("scho") ; Fixes 117 words
+:B0X?*:siad::f("said") ; Fixes 9 words
+:B0X?*:sicion::f("cision") ; Fixes 22 words
+:B0X?*:sicne::f("since") ; Fixes 22 words
+:B0X?*:sidenta::f("sidentia") ; Fixes 9 words
+:B0X?*:signifa::f("significa") ; Fixes 20 words
+:B0X?*:significe::f("significa") ; Fixes 20 words
+:B0X?*:signit::f("signat") ; Fixes 35 words
+:B0X?*:simala::f("simila") ; Fixes 38 words
+:B0X?*:similia::f("simila") ; Fixes 38 words
+:B0X?*:simmi::f("simi") ; Fixes 64 words
+:B0X?*:simpt::f("sympt") ; Fixes 15 words
+:B0X?*:sincerley::f("sincerely") ; Fixes 2 words
+:B0X?*:sincerly::f("sincerely") ; Fixes 2 words
+:B0X?*:sinse::f("since") ; Fixes 22 words
+:B0X?*:sistend::f("sistent") ; Fixes 10 words
+:B0X?*:sistion::f("sition") ; Fixes 135 words
+:B0X?*:sitll::f("still") ; Fixes 62 words
+:B0X?*:siton::f("sition") ; Fixes 135 words
+:B0X?*:skelaton::f("skeleton") ; Fixes 19 words
+:B0X?*:slowy::f("slowly") ; Fixes 2 words
+:B0X?*:smae::f("same") ; Fixes 19 words
+:B0X?*:smealt::f("smelt") ; Fixes 10 words
+:B0X?*:smoe::f("some") ; Fixes 260 words
+:B0X?*:snese::f("sense") ; Fixes 17 words
+:B0X?*:socal::f("social") ; Fixes 47 words
+:B0X?*:socre::f("score") ; Fixes 34 words 
+:B0X?*:soem::f("some") ; Fixes 260 words
+:B0X?*:sohw::f("show") ; Fixes 79 words
+:B0X?*:soica::f("socia") ; Fixes 115 words
+:B0X?*:sollut::f("solut") ; Fixes 42 words
+:B0X?*:soluab::f("solub") ; Fixes 26 words
+:B0X?*:sonent::f("sonant") ; Fixes 20 words
+:B0X?*:sophicat::f("sophisticat") ; Fixes 13 words
+:B0X?*:sorbsi::f("sorpti") ; Fixes 32 words
+:B0X?*:sorbti::f("sorpti") ; Fixes 32 words
+:B0X?*:sosica::f("socia") ; Fixes 115 words
+:B0X?*:sotry::f("story") ; Fixes 23 words
+:B0X?*:soudn::f("sound") ; Fixes 51 words
+:B0X?*:sourse::f("source") ; Fixes 24 words
+:B0X?*:specal::f("special") ; Fixes 24 words
+:B0X?*:specfic::f("specific") ; Fixes 20 words
+:B0X?*:specialliz::f("specializ") ; Fixes 15 words
+:B0X?*:specifiy::f("specify") ; Fixes 8 words
+:B0X?*:spectaular::f("spectacular") ; Fixes 5 words
+:B0X?*:spectum::f("spectrum") ; Fixes 4 words
+:B0X?*:speling::f("spelling") ; Fixes 9 words
+:B0X?*:spesial::f("special") ; Fixes 48 words
+:B0X?*:spiria::f("spira") ; Fixes 70 words
+:B0X?*:spoac::f("spac") ; Fixes 83 words
+:B0X?*:sponib::f("sponsib") ; Fixes 10 words
+:B0X?*:sponser::f("sponsor") ; Fixes 12 words
+:B0X?*:spred::f("spread") ; Fixes 37 words
+:B0X?*:spririt::f("spirit") ; Fixes 70 words
+:B0X?*:spritual::f("spiritual") ; Fixes 31 words, but misspells spritual (A light spar that crosses a fore-and-aft sail diagonally) 
+:B0X?*:spyc::f("psyc") ; Fixes 192 words, but misspells spycatcher (secret spy stuff) 
+:B0X?*:sqaur::f("squar") ; Fixes 22 words
+:B0X?*:ssanger::f("ssenger") ; Fixes 6 words
+:B0X?*:ssese::f("ssesse") ; Fixes 17 words
+:B0X?*:ssition::f("sition") ; Fixes 135 words
+:B0X?*:stablise::f("stabilise") ; Fixes 10 words
+:B0X?*:staleld::f("stalled") ; Fixes 6 words
+:B0X?*:stancial::f("stantial") ; Fixes 40 words
+:B0X?*:stange::f("strange") ; Fixes 12 words
+:B0X?*:starna::f("sterna") ; Fixes 13 words
+:B0X?*:starteg::f("strateg") ; Fixes 21 words
+:B0X?*:stateman::f("statesman") ; Fixes 6 words
+:B0X?*:statment::f("statement") ; Fixes 14 words
+:B0X?*:sterotype::f("stereotype") ; Fixes 5 words
+:B0X?*:stingent::f("stringent") ; Fixes 9 words
+:B0X?*:stiring::f("stirring") ; Fixes 4 words
+:B0X?*:stirrs::f("stirs") ; Fixes 2 words
+:B0X?*:stituan::f("stituen") ; Fixes 7 words
+:B0X?*:stnad::f("stand") ; Fixes 119 words
+:B0X?*:stoin::f("stion") ; Fixes 53 words, but misspells histoincompatibility.
+:B0X?*:stong::f("strong") ; Fixes 22 words
+:B0X?*:stradeg::f("strateg") ; Fixes 21 words
+:B0X?*:stratagic::f("strategic") ; Fixes 5 words
+:B0X?*:streem::f("stream") ; Fixes 45 words
+:B0X?*:strengh::f("strength") ; Fixes 15 words
+:B0X?*:structual::f("structural") ; Fixes 12 words
+:B0X?*:sttr::f("str") ; Fixes 2295 words
+:B0X?*:stuct::f("struct") ; Fixes 171 words
+:B0X?*:studdy::f("study") ; Fixes 8 words
+:B0X?*:studing::f("studying") ; Fixes 4 words
+:B0X?*:sturctur::f("structur") ; Fixes 39 words
+:B0X?*:stutionaliz::f("stitutionaliz") ; Fixes 16 words
+:B0X?*:substancia::f("substantia") ; Fixes 55 words
+:B0X?*:succesful::f("successful") ; Fixes 6 words
+:B0X?*:succsess::f("success") ; Fixes 19 words
+:B0X?*:sucess::f("success") ; Fixes 19 words
+:B0X?*:sueing::f("suing") ; Fixes 9 words
+:B0X?*:suffc::f("suffic") ; Fixes 14 words
+:B0X?*:sufferr::f("suffer") ; Fixes 19 words
+:B0X?*:suffician::f("sufficien") ; Fixes 10 words
+:B0X?*:superintendan::f("superintenden") ; Fixes 6 words
+:B0X?*:suph::f("soph") ; Fixes 153 words
+:B0X?*:supos::f("suppos") ; Fixes 30 words
+:B0X?*:suppoed::f("supposed") ; Fixes 3 words
+:B0X?*:suppy::f("supply") ; Fixes 8 words
+:B0X?*:suprass::f("surpass") ; Fixes 14 words
+:B0X?*:supress::f("suppress") ; Fixes 31 words
+:B0X?*:supris::f("surpris") ; Fixes 16 words
+:B0X?*:supriz::f("surpris") ; Fixes 16 words
+:B0X?*:surect::f("surrect") ; Fixes 15 words
+:B0X?*:surence::f("surance") ; Fixes 12 words
+:B0X?*:surfce::f("surface") ; Fixes 15 words
+:B0X?*:surle::f("surel") ; Fixes 11 words
+:B0X?*:suro::f("surro") ; Fixes 13 words
+:B0X?*:surpress::f("suppress") ; Fixes 31 words
+:B0X?*:surpriz::f("surpris") ; Fixes 16 words
+:B0X?*:susept::f("suscept") ; Fixes 21 words
+:B0X?*:svae::f("save") ; Fixes 15 words
+:B0X?*:swepth::f("swept") ; Fixes 7 words
+:B0X?*:symetr::f("symmetr") ; Fixes 36 words
+:B0X?*:symettr::f("symmetr") ; Fixes 36 words
+:B0X?*:symmetral::f("symmetric") ; Fixes 16 words
+:B0X?*:syncro::f("synchro") ; Fixes 72 words
+:B0X?*:sypmtom::f("symptom") ; Fixes 11 words
+:B0X?*:sysmatic::f("systematic") ; Fixes 11 words
+:B0X?*:sytem::f("system") ; Fixes 62 words
+:B0X?*:sytl::f("styl") ; Fixes 100 words
+:B0X?*:tagan::f("tagon") ; Fixes 40 words
+:B0X?*:tahn::f("than") ; Fixes 135 words
+:B0X?*:taht::f("that") ; Fixes 26 words
+:B0X?*:tailled::f("tailed") ; Fixes 16 words.
+:B0X?*:taimina::f("tamina") ; Fixes 26 words
+:B0X?*:tainence::f("tenance") ; Fixes 12 words
+:B0X?*:taion::f("tation") ; Fixes 490 words
+:B0X?*:tait::f("trait") ; Fixes 32 words
+:B0X?*:tamt::f("tant") ; Fixes 330 words
+:B0X?*:tanous::f("taneous") ; Fixes 29 words
+:B0X?*:taral::f("tural") ; Fixes 140 words
+:B0X?*:tarey::f("tary") ; Fixes 86 words
+:B0X?*:tatch::f("tach") ; Fixes 105 words
+:B0X?*:taxan::f("taxon") ; Fixes 10 words
+:B0X?*:techic::f("technic") ; Fixes 39 words
+:B0X?*:techini::f("techni") ; Fixes 44 words
+:B0X?*:techt::f("tect") ; Fixes 102 words
+:B0X?*:tecn::f("techn") ; Fixes 87 words
+:B0X?*:telpho::f("telepho") ; Fixes 23 words
+:B0X?*:tempalt::f("templat") ; Fixes 14 words
+:B0X?*:tempara::f("tempera") ; Fixes 22 words
+:B0X?*:temperar::f("temporar") ; Fixes 11 words
+:B0X?*:tempoa::f("tempora") ; Fixes 35 words
+:B0X?*:temporaneus::f("temporaneous") ; Fixes 6 words
+:B0X?*:tendac::f("tendenc") ; Fixes 7 words
+:B0X?*:tendor::f("tender") ; Fixes 54 words
+:B0X?*:tepmor::f("tempor") ; Fixes 73 words
+:B0X?*:teriod::f("teroid") ; Fixes 21 words
+:B0X?*:terranian::f("terranean") ; Fixes 4 words
+:B0X?*:terrestial::f("terrestrial") ; Fixes 9 words
+:B0X?*:terrior::f("territor") ; Fixes 28 words
+:B0X?*:territorist::f("terrorist") ; Fixes 11 words
+:B0X?*:terroist::f("terrorist") ; Fixes 11 words
+:B0X?*:tghe::f("the") ; Fixes 2176 words
+:B0X?*:tghi::f("thi") ; Fixes 827 words
+:B0X?*:thaph::f("taph") ; Fixes 60 words
+:B0X?*:theather::f("theater") ; Fixes 7 words
+:B0X?*:theese::f("these") ; Fixes 13 words
+:B0X?*:thgat::f("that") ; Fixes 26 words
+:B0X?*:thiun::f("thin") ; Fixes 212 words
+:B0X?*:thsoe::f("those") ; Fixes 8 words
+:B0X?*:thyat::f("that") ; Fixes 26 words
+:B0X?*:tiait::f("tiat") ; Fixes 139 words
+:B0X?*:tibut::f("tribut") ; Fixes 92 words
+:B0X?*:ticial::f("tical") ; Fixes 863 words
+:B0X?*:ticio::f("titio") ; Fixes 68 words
+:B0X?*:ticlular::f("ticular") ; Fixes 36 words
+:B0X?*:tiction::f("tinction") ; Fixes 8 words
+:B0X?*:tiget::f("tiger") ; Fixes 11 words
+:B0X?*:tiion::f("tion") ; Fixes 7052 words
+:B0X?*:tingish::f("tinguish") ; Fixes 38 words
+:B0X?*:tioge::f("toge") ; Fixes 74 words
+:B0X?*:tiojn::f("tion") ; Fixes 7052 words
+:B0X?*:tionnab::f("tionab") ; Fixes 42 words
+:B0X?*:tionne::f("tione") ; Fixes 108 words
+:B0X?*:tionni::f("tioni") ; Fixes 265 words
+:B0X?*:tisment::f("tisement") ; Fixes 4 words
+:B0X?*:titid::f("titud") ; Fixes 88 words
+:B0X?*:titity::f("tity") ; Fixes 14 words
+:B0X?*:titui::f("tituti") ; Fixes 83 words
+:B0X?*:tiviat::f("tivat") ; Fixes 100 words
+:B0X?*:tje::f("the") ; Fixes 2176 words, but misspells Ondaatje (Canadian writer (born in Sri Lanka in 1943)) 
+:B0X?*:tjhe::f("the") ; Fixes 2176 words
+:B0X?*:tkae::f("take") ; Fixes 83 words
+:B0X?*:tkaing::f("taking") ; Fixes 23 words
+:B0X?*:tlak::f("talk") ; Fixes 74 words
+:B0X?*:tlied::f("tled") ; Fixes 18 words
+:B0X?*:tlme::f("tleme") ; Fixes 21 words
+:B0X?*:tlye::f("tyle") ; Fixes 81 words
+:B0X?*:tned::f("nted") ; Fixes 288 words
+:B0X?*:tofy::f("tify") ; Fixes 73 words
+:B0X?*:togani::f("tagoni") ; Fixes 25 words
+:B0X?*:toghether::f("together") ; Fixes 4 words
+:B0X?*:toleren::f("toleran") ; Fixes 11 words
+:B0X?*:tority::f("torily") ; Fixes 15 words
+:B0X?*:touble::f("trouble") ; Fixes 25 words
+:B0X?*:tounge::f("tongue") ; Fixes 15 words
+:B0X?*:tourch::f("torch") ; Fixes 20 words
+:B0X?*:toword::f("toward") ; Fixes 5 words
+:B0X?*:towrad::f("toward") ; Fixes 5 words
+:B0X?*:tradion::f("tradition") ; Fixes 19 words
+:B0X?*:tradtion::f("tradition") ; Fixes 19 words
+:B0X?*:tranf::f("transf") ; Fixes 72 words
+:B0X?*:transmissab::f("transmissib") ; Fixes 5 words
+:B0X?*:tribusion::f("tribution") ; Fixes 20 words
+:B0X?*:triger::f("trigger") ; Fixes 10 words
+:B0X?*:tritian::f("trician") ; Fixes 27 words
+:B0X?*:tritut::f("tribut") ; Fixes 92 words
+:B0X?*:troling::f("trolling") ; Fixes 8 words
+:B0X?*:troverci::f("troversi") ; Fixes 19 words
+:B0X?*:trubution::f("tribution") ; Fixes 20 words
+:B0X?*:tstion::f("tation") ; Fixes 490 words
+:B0X?*:ttele::f("ttle") ; Fixes 237 words
+:B0X?*:tuara::f("taura") ; Fixes 12 words
+:B0X?*:tudonal::f("tudinal") ; Fixes 12 words
+:B0X?*:tuer::f("teur") ; Fixes 53 words
+:B0X?*:twpo::f("two") ; Fixes 92 words
+:B0X?*:tyfull::f("tiful") ; Fixes 20 words
+:B0X?*:tyha::f("tha") ; Fixes 512 words
+:B0X?*:udner::f("under") ; Fixes 803 words
+:B0X?*:udnet::f("udent") ; Fixes 23 words
+:B0X?*:ugth::f("ught") ; Jack's fixes 146 words
+:B0X?*:uitious::f("uitous") ; Fixes 15 words
+:B0X?*:ulaton::f("ulation") ; Fixes 192 words
+:B0X?*:umetal::f("umental") ; Fixes 27 words
+:B0X?*:understoon::f("understood") ; Fixes 4 words
+:B0X?*:untion::f("unction") ; Fixes 79 words
+:B0X?*:unviers::f("univers") ; Fixes 26 words
+:B0X?*:uoul::f("oul") ; Fixes 207 words
+:B0X?*:uraunt::f("urant") ; Fixes 34 words
+:B0X?*:uredd::f("ured") ; Fixes 196 words
+:B0X?*:urgan::f("urgen") ; Fixes 21 words
+:B0X?*:urveyer::f("urveyor") ; Fixes 4 words
+:B0X?*:useage::f("usage") ; Fixes 9 words
+:B0X?*:useing::f("using") ; Fixes 78 words
+:B0X?*:usuab::f("usab") ; Fixes 31 words
+:B0X?*:ususal::f("usual") ; Fixes 7 words
+:B0X?*:utrab::f("urab") ; Fixes 138 words
+:B0X?*:vacative::f("vocative") ; Fixes 12 words
+:B0X?*:valant::f("valent") ; Fixes 31 words
+:B0X?*:valubl::f("valuabl") ; Fixes 7 words
+:B0X?*:valueabl::f("valuabl") ; Fixes 7 words
+:B0X?*:varation::f("variation") ; Fixes 5 words
+:B0X?*:varien::f("varian") ; Fixes 17 words
+:B0X?*:varing::f("varying") ; Fixes 5 words
+:B0X?*:varous::f("various") ; Fixes 3 words
+:B0X?*:vegat::f("veget") ; Fixes 31 words
+:B0X?*:vegit::f("veget") ; Fixes 31 words
+:B0X?*:vegt::f("veget") ; Fixes 31 words
+:B0X?*:veinen::f("venien") ; Fixes 19 words
+:B0X?*:veiw::f("view") ; Fixes 52 words
+:B0X?*:velant::f("valent") ; Fixes 31 words
+:B0X?*:velent::f("valent") ; Fixes 31 words
+:B0X?*:venem::f("venom") ; Fixes 15 words
+:B0X?*:vereal::f("veral") ; Fixes 20 words
+:B0X?*:verison::f("version") ; Fixes 52 words
+:B0X?*:vertibrat::f("vertebrat") ; Fixes 6 words
+:B0X?*:vertion::f("version") ; Fixes 52 words
+:B0X?*:vetat::f("vitat") ; Fixes 27 words
+:B0X?*:veyr::f("very") ; Fixes 42 words
+:B0X?*:vigeur::f("vigor") ; Fixes 26 words
+:B0X?*:vigilen::f("vigilan") ; Fixes 13 words
+:B0X?*:vison::f("vision") ; Fixes 51 words
+:B0X?*:visting::f("visiting") ; Fixes 3 words
+:B0X?*:vivous::f("vious") ; Fixes 28 words
+:B0X?*:vlalent::f("valent") ; Fixes 31 words
+:B0X?*:vment::f("vement") ; Fixes 26 words
+:B0X?*:voiu::f("viou") ; Fixes 45 words 
+:B0X?*:volont::f("volunt") ; Fixes 26 words
+:B0X?*:volount::f("volunt") ; Fixes 26 words
+:B0X?*:volumn::f("volum") ; Fixes 13 words
+:B0X?*:vrey::f("very") ; Fixes 42 words
+:B0X?*:vyer::f("very") ; Fixes 42 words
+:B0X?*:vyre::f("very") ; Fixes 42 words
+:B0X?*:waer::f("wear") ; Fixes 99 words
+:B0X?*:waht::f("what") ; Fixes 34 words
+:B0X?*:warrent::f("warrant") ; Fixes 24 words
+:B0X?*:wehn::f("when") ; Fixes 6 words
+:B0X?*:werre::f("were") ; Fixes 31 words
+:B0X?*:whant::f("want") ; Fixes 20 words
+:B0X?*:wherre::f("where") ; Fixes 27 words
+:B0X?*:whta::f("what") ; Fixes 34 words
+:B0X?*:wief::f("wife") ; Fixes 28 words
+:B0X?*:wieldl::f("wield") ; Fixes 15 words
+:B0X?*:wierd::f("weird") ; Fixes 16 words
+:B0X?*:wiew::f("view") ; Fixes 52 words
+:B0X?*:willk::f("will") ; Fixes 64 words
+:B0X?*:windoes::f("windows") ; Fixes 5 words
+:B0X?*:wirt::f("writ") ; Fixes 88 words
+:B0X?*:witten::f("written") ; Fixes 9 words
+:B0X?*:wiull::f("will") ; Fixes 64 words
+:B0X?*:wnat::f("want") ; Fixes 20 words
+:B0X?*:woh::f("who") ; Fixes 92 words
+:B0X?*:wokr::f("work") ; Fixes 338 words
+:B0X?*:worls::f("world") ; Fixes 31 words
+:B0X?*:wriet::f("write") ; Fixes 48 words
+:B0X?*:wrighter::f("writer") ; Fixes 31 words
+:B0X?*:writen::f("written") ; Fixes 9 words
+:B0X?*:writting::f("writing") ; Fixes 18 words
+:B0X?*:wrod::f("word") ; Fixes 92 words
+:B0X?*:wrok::f("work") ; Fixes 338 words
+:B0X?*:wtih::f("with") ; Fixes 56 words
+:B0X?*:wupp::f("supp") ; Fixes 168 words
+:B0X?*:yaer::f("year") ; Fixes 24 words
+:B0X?*:yearm::f("year") ; Fixes 24 words
+:B0X?*:yoiu::f("you") ; Fixes 51 words
+:B0X?*:ythim::f("ythm") ; Fixes 38 words
+:B0X?*:ytou::f("you") ; Fixes 51 words
+:B0X?*:yuo::f("you") ; Fixes 51 words
+:B0X?*:zyne::f("zine") ; Fixes 89 words
+:B0X?*C:Amercia::f("America") ; Fixes 28 words, Case sensitive to not misspell amerciable (Of a crime or misdemeanor) 
+:B0X?*C:balen::f("balan") ; Fixes 45 words.  Case-sensitive to not misspell Balenciaga (Spanish fashion designer). 
+:B0X?*C:beng::f("being") ; Fixes 7 words. Case-sensitive to not misspell, Bengali. 
+:B0X?*C:bouy::f("buoy") ; Fixes 13 words.  Case-sensitive to not misspell Bouyie (a branch of Tai language).
+:B0X?*C:comt::f("cont") ; Fixes 587 words.  Misspells vicomte (French nobleman), Case sensitive so not misspell Comte (founder of Positivism and type of cheese)
+:B0X?*C:doimg::f("doing") ; Fixes 21 words but might be a variable name(??)
+:B0X?*C:elicid::f("elicit") ; Fixes 26 words, :C: so not to misspell Lelicidae (snail).
+:B0X?*C:elpa::f("epla") ; Fixes 92 words.  Case sensitive to not misspell CELPA.
+:B0X?*C:hiesm::f("theism") ; Fixes 19 words
+:B0X?*C:manan::f("manen") ; Fixes 27 words.  Case sensitive, so not to misspell Manannan (Celtic god of the sea; son of Ler)
+:B0X?*C:mnt::f("ment") ; Fixes 1763 words.  Case-sensitive, to not misspell TMNT (Teenage Mutant Ninja Turtles)
+:B0X?*C:moust::f("mous") ; Fixes 445 words, Case-sensitive to not Mousterian (archaeological culture, Neanderthal, before 70,000â€“32,000 BC)
+:B0X?*C:oppen::f("open") ; Fixes 91 words.  Case-sensitive so not to misspell "Oppenheimer."
+:B0X?*C:origen::f("origin") ; Fixes 37 words, Case sensitive to not misspell Origen (Greek philosopher and theologian).
+:B0X?*C:pulic::f("public") ; Fixes 50 words, Case-sensitive to not misspell Pulicaria (Genus of temperate Old World herbs: fleabane)
+:B0X?*C:sigin::f("sign") ; Fixes 243 words. Case-sensitive to not misspell SIGINT "Info from electronics telemetry intel."
+:B0X?*C:tehr::f("ther") ; Fixes 921 words. Case sesnsitive to not misspell Tehran (capital and largest city of Iran).
+:B0X?*C:tempra::f("tempora") ; Fixes 35 words. Case sensitive to not misspell Tempra (type of medicine).
+:B0X?:'nt::f("n't") ; Fixes 24 words
+:B0X?:;ll::f("'ll") ; Fixes 1 word
+:B0X?:;re::f("'re") ; Fixes 1 word
+:B0X?:;s::f("'s") ; Fixes 1 word
+:B0X?:;ve::f("'ve") ; Fixes 1 word
+:B0X?:Spet::f("Sept") ; Fixes 2 words 
+:B0X?:abely::f("ably") ; Fixes 568 words
+:B0X?:abley::f("ably") ; Fixes 568 words
+:B0X?:acn::f("can") ; Fixes 64 words
+:B0X?:addres::f("address") ; Fixes 4 words
+:B0X?:aelly::f("eally") ; Fixes 23 words
+:B0X?:aindre::f("ained") ; Fixes 81 words
+:B0X?:alekd::f("alked") ; Fixes 16 words
+:B0X?:allly::f("ally") ; Fixes 2436 words
+:B0X?:alowing::f("allowing") ; Fixes 8 words
+:B0X?:alyl::f("ally") ; Fixes 2436 words
+:B0X?:amde::f("made") ; Fixes 6 words
+:B0X?:ancestory::f("ancestry") 
+:B0X?:ancles::f("acles") ; Fixes 21 words
+:B0X?:andd::f("and") ; Fixes 251 words
+:B0X?:anim::f("anism") ; Fixes 123 words, but misspells minyanim (The quorum required by Jewish law to be present for public worship)
+:B0X?:aotrs::f("ators") ; Fixes 414 words
+:B0X?:appearred::f("appeared") ; Fixes 3 words
+:B0X?:artice::f("article") ; Fixes 5 words
+:B0X?:arund::f("around") ; Fixes 1 word
+:B0X?:aticly::f("atically") ; Fixes 113 words
+:B0X?:ativs::f("atives") ; Fixes 63 words
+:B0X?:atley::f("ately") ; Fixes 162 words, but misspells Wheatley (a fictional artificial intelligence from the Portal franchise)
+:B0X?:atn::f("ant") ; Fixes 506 words
+:B0X?:attemp::f("attempt") ; Fixes 2 words
+:B0X?:aunchs::f("aunches") ; Fixes 9 words
+:B0X?:autor::f("author") ; Fixes 2 words
+:B0X?:ayd::f("ady") ; Fixes 24 words
+:B0X?:aywa::f("away") ; Fixes 24 words
+:B0X?:bilites::f("bilities") ; Fixes 487 words
+:B0X?:bilties::f("bilities") ; Fixes 487 words
+:B0X?:bilty::f("bility") ; Fixes 915 words
+:B0X?:blities::f("bilities") ; Fixes 487 words
+:B0X?:blity::f("bility") ; Fixes 915 words
+:B0X?:blly::f("bly") ; Fixes 735 words
+:B0X?:boared::f("board") ; Fixes 1 word
+:B0X?:borke::f("broke") ; Fixes 5 words
+:B0X?:bthe::f("b the") ; Fixes 1 word
+:B0X?:busines::f("business") ; Fixes 3 words
+:B0X?:busineses::f("businesses") ; Fixes 2 words
+:B0X?:bve::f("be") ; Fixes 127 words
+:B0X?:caht::f("chat") ; Fixes 8 words
+:B0X?:certaintly::f("certainly") ; Fixes 3 words
+:B0X?:cisly::f("cisely") ; Fixes 4 words
+:B0X?:claimes::f("claims") ; Fixes 10 words
+:B0X?:claming::f("claiming") ; Fixes 9 words
+:B0X?:clud::f("clude") ; Fixes 6 words
+:B0X?:comit::f("commit") ; Fixes 3 words
+:B0X?:comming::f("coming") ; Fixes 14 words
+:B0X?:commiting::f("committing") ; Fixes 3 words
+:B0X?:committe::f("committee") ; Fixes 2 words
+:B0X?:comon::f("common") ; Fixes 33 words
+:B0X?:compability::f("compatibility") ; Fixes 5 words
+:B0X?:competely::f("completely") ; Fixes 3 words
+:B0X?:controll::f("control") ; Fixes 3 words
+:B0X?:controlls::f("controls") ; Fixes 3 words
+:B0X?:criticists::f("critics") ; Fixes 2 words
+:B0X?:cthe::f("c the") ; Fixes 1 word
+:B0X?:cticly::f("ctically") ; Fixes 23 words
+:B0X?:ctino::f("ction") ; Fixes 226 words
+:B0X?:ctoty::f("ctory") ; Fixes 23 words
+:B0X?:cually::f("cularly") ; Fixes 38 words
+:B0X?:culem::f("culum") ; Fixes 19 words
+:B0X?:currenly::f("currently") ; Fixes 5 words
+:B0X?:daty::f("day") ; Fixes 48 words 
+:B0X?:decidely::f("decidedly") ; Fixes 2 words
+:B0X?:develope::f("develop") ; Fixes 5 words
+:B0X?:developes::f("develops") ; Fixes 5 words
+:B0X?:dfull::f("dful") ; Fixes 14 words
+:B0X?:difere::f("differe") ; Fixes 41 words
+:B0X?:disctinct::f("distinct") ; Fixes 18 words
+:B0X?:dng::f("ding") ; Fixes 618 words
+:B0X?:doens::f("does") ; Fixes 23 words
+:B0X?:doese::f("does") ; Fixes 23 words
+:B0X?:dquater::f("dquarter") ; Fixes 2 words 
+:B0X?:dreasm::f("dreams") ; Fixes 2 words
+:B0X?:dtae::f("date") ; Fixes 59 words
+:B0X?:dthe::f("d the") ; Fixes 1 word
+:B0X?:eamil::f("email") ; Fixes 6 words
+:B0X?:ecclectic::f("eclectic") ; Fixes 6 words
+:B0X?:eclisp::f("eclips") ; Fixes 6 words
+:B0X?:ed form the ::f("ed from the")
+:B0X?:edely::f("edly") ; Fixes 674 words
+:B0X?:efel::f("feel") ; Fixes 8 words
+:B0X?:efort::f("effort") ; Fixes 8 words
+:B0X?:efulls::f("efuls") ; Fixes 18 words
+:B0X?:elyl::f("ely") ; Fixes 1076 words
+:B0X?:encs::f("ences") ; Fixes 301 words
+:B0X?:equiped::f("equipped") ; Fixes 4 words
+:B0X?:essery::f("essary") ; Fixes 4 words Fixes 9
+:B0X?:essess::f("esses") ; Fixes 200 words
+:B0X?:establising::f("establishing") ; Fixes 4 words
+:B0X?:examinated::f("examined") ; Fixes 3 words
+:B0X?:expell::f("expel") ; Fixes 2 words
+:B0X?:ferrs::f("fers") ; Fixes 72 words
+:B0X?:fiel::f("file") ; Fixes 9 words
+:B0X?:finit::f("finite") ; Fixes 6 words
+:B0X?:finitly::f("finitely") ; Fixes 4 words
+:B0X?:frmo::f("from") ; Fixes 3 words
+:B0X?:frp,::f("from") ; Fixes 3 words
+:B0X?:fthe::f("f the") ; Fixes 1 word
+:B0X?:fuly::f("fully") ; Fixes 191 words
+:B0X?:gardes::f("gards") ; Fixes 5 words
+:B0X?:getted::f("geted") ; Fixes 8 words
+:B0X?:gettin::f("getting") ; Fixes 4 words
+:B0X?:gfulls::f("gfuls") ; Fixes 4 words
+:B0X?:ginaly::f("ginally") ; Fixes 8 words
+:B0X?:giory::f("gory") ; Fixes 7 words
+:B0X?:glases::f("glasses") ; Fixes 11 words
+:B0X?:gratefull::f("grateful") ; Fixes 3 words
+:B0X?:gred::f("greed") ; Fixes 6 words
+:B0X?:gthe::f("g the") ; Fixes 1 word
+:B0X?:hace::f("hare") ; Fixes 9 words
+:B0X?:herad::f("heard") ; Fixes 5 words
+:B0X?:herefor::f("herefore") ; Fixes 2 words
+:B0X?:hfull::f("hful") ; Fixes 30 words
+:B0X?:hge::f("he") ; Fixes 147 words
+:B0X?:higns::f("hings") ; Fixes 79 words
+:B0X?:higsn::f("hings") ; Fixes 79 words
+:B0X?:hsa::f("has") ; Fixes 62 words
+:B0X?:hsi::f("his") ; Fixes 59 words
+:B0X?:hte::f("the") ; Fixes 44 words
+:B0X?:hthe::f("h the") ; Fixes 1 word
+:B0X?:iaing::f("iating") ; Fixes 84 words
+:B0X?:ialy::f("ially") ; Fixes 244 words, but misspells bialy (Flat crusty-bottomed onion roll) 
+:B0X?:iatly::f("iately") ; Fixes 12 words
+:B0X?:iblilty::f("ibility") ; Fixes 168 words
+:B0X?:icaly::f("ically") ; Fixes 1432 words
+:B0X?:icm::f("ism") ; Fixes 1075 words
+:B0X?:icms::f("isms") ; Fixes 717 words
+:B0X?:idty::f("dity") ; Fixes 67 words
+:B0X?:ienty::f("iently") ; Fixes 36 words
+:B0X?:ign::f("ing") ; Fixes 11384 words, but misspells a bunch (which are nullified above)
+:B0X?:ilarily::f("ilarly") ; Fixes 5 words
+:B0X?:ilny::f("inly") ; Fixes 18 words
+:B0X?:inm::f("in") ; Fixes 1 word
+:B0X?:iosn::f("ions") ; Fixes 3055 words
+:B0X?:isio::f("ision") ; Fixes 27 words
+:B0X?:itino::f("ition") ; Fixes 113 words
+:B0X?:itiy::f("ity") ; Fixes 1890 words
+:B0X?:itoy::f("itory") ; Fixes 23 words
+:B0X?:itr::f("it") ; Fixes 366 words, but misspells Savitr (Important Hindu god) 
+:B0X?:ityes::f("ities") ; Fixes 1347 words
+:B0X?:ivites::f("ivities") ; Fixes 73 words
+:B0X?:kc::f("ck") ; Fixes 610 words.  Misspells kc (thousand per second).
+:B0X?:kfulls::f("kfuls") ; Fixes 7 words
+:B0X?:kn::f("nk") ; Fixes 168 words
+:B0X?:kthe::f("k the") ; Fixes 1 word
+:B0X?:l;y::f("ly") ; Fixes 10464 words
+:B0X?:laly::f("ally") ; Fixes 2436 words
+:B0X?:letness::f("leteness") ; Fixes 5 words
+:B0X?:lfull::f("lful") ; Fixes 13 words
+:B0X?:lieing::f("lying") ; Fixes 46 words
+:B0X?:lighly::f("lightly") ; Fixes 3 words
+:B0X?:ligy::f("lify") ; ixes 15 words
+:B0X?:likey::f("likely") ; Fixes 4 words
+:B0X?:llete::f("lette") ; Fixes 17 words
+:B0X?:lsit::f("list") ; Fixes 244 words
+:B0X?:lthe::f("l the") ; Fixes 1 word
+:B0X?:lwats::f("lways") ; Fixes 6 words
+:B0X?:lyu::f("ly") ; Fixes 9123 words
+:B0X?:maked::f("marked") ; Fixes 15 words
+:B0X?:maticas::f("matics") ; Fixes 26 words
+:B0X?:miantly::f("minately") ; Fixes 6 words
+:B0X?:mibly::f("mably") ; Fixes 16 words
+:B0X?:miliary::f("military") ; Fixes 4 words, but misspells miliary ()
+:B0X?:morphysis::f("morphosis") ; Fixes 4 words
+:B0X?:motted::f("moted") ; Fixes 5 words
+:B0X?:mpley::f("mply") ; Fixes 13 words
+:B0X?:mpyl::f("mply") ; Fixes 13 words
+:B0X?:mthe::f("m the") ; Fixes 1 word
+:B0X?:n;t::f("n't") 
+:B0X?:narys::f("naries") ; Fixes 47 words
+:B0X?:ndacies::f("ndances") ; Fixes 8 words
+:B0X?:nfull::f("nful") ; Fixes 36 words
+:B0X?:nfulls::f("nfuls") ; Fixes 17 words
+:B0X?:ngment::f("ngement") ; Fixes 18 words
+:B0X?:nicly::f("nically") ; Fixes 136 words
+:B0X?:nig::f("ing") ; Fixes 11414 words.  Misspells pfennig (100 pfennigs formerly equaled 1 DeutscheÂ Mark in Germany).
+:B0X?:nision::f("nisation") ; Fixes 93 words
+:B0X?:nnally::f("nally") ; Fixes 249 words
+:B0X?:nnology::f("nology") ; Fixes 43 words
+:B0X?:ns't::f("sn't") ; Fixes 4 words
+:B0X?:nsly::f("nsely") ; Fixes 6 words
+:B0X?:nsof::f("ns of") ; Fixes 1 word
+:B0X?:nsur::f("nsure") ; Fixes 10 words
+:B0X?:ntay::f("ntary") ; Fixes 34 words
+:B0X?:nyed::f("nied") ; Fixes 15 words
+:B0X?:oachs::f("oaches") ; Fixes 13 words
+:B0X?:occure::f("occur") ; Fixes 3 words
+:B0X?:occured::f("occurred") ; Fixes 3 words
+:B0X?:occurr::f("occur") ; Fixes 3 words
+:B0X?:olgy::f("ology") ; Fixes 316 words
+:B0X?:omst::f("most") ; Fixes 39 words
+:B0X?:onaly::f("onally") ; Fixes 174 words
+:B0X?:onw::f("one") ; Fixes 341 words
+:B0X?:otaly::f("otally") ; Fixes 6 words
+:B0X?:otherw::f("others") ; Fixes 16 words
+:B0X?:otino::f("otion") ; Fixes 12 words
+:B0X?:otu::f("out") ; Fixes 97 words
+:B0X?:ougly::f("oughly") ; Fixes 3 words
+:B0X?:ouldent::f("ouldn't") ; Fixes 3 words
+:B0X?:ourary::f("orary") ; Fixes 6 words
+:B0X?:paide::f("paid") ; Fixes 7 words
+:B0X?:pich::f("pitch") ; Fixes 3 words
+:B0X?:pleatly::f("pletely") ; Fixes 4 words
+:B0X?:pletly::f("pletely") ; Fixes 4 words
+:B0X?:polical::f("political") ; Fixes 7 words
+:B0X?:proces::f("process") ; Fixes 3 words
+:B0X?:proprietory::f("proprietary") ; Fixes 2 words
+:B0X?:pthe::f("p the") ; Fixes 1 word
+:B0X?:publis::f("publics") ; Fixes 2 words
+:B0X?:puertorrican::f("Puerto Rican") ; Fixes 2 words
+:B0X?:quater::f("quarter") ; Fixes 4 words
+:B0X?:quaters::f("quarters") ; Fixes 4 words
+:B0X?:querd::f("quered") ; Fixes 5 words
+:B0X?:raly::f("rally") ; Fixes 120 words
+:B0X?:rarry::f("rary") ; Fixes 23 words
+:B0X?:realy::f("really") ; Fixes 12 words
+:B0X?:reched::f("reached") ; Fixes 6 words
+:B0X?:reciding::f("residing") ; Fixes 2 words
+:B0X?:reday::f("ready") ; Fixes 7 words
+:B0X?:resed::f("ressed") ; Fixes 50 words
+:B0X?:resing::f("ressing") ; Fixes 40 words
+:B0X?:returnd::f("returned") ; Fixes 2 words
+:B0X?:riey::f("riety") ; Fixes 8 words
+:B0X?:rithy::f("rity") ; Fixes 120 words
+:B0X?:ritiers::f("rities") ; Fixes 105 words
+:B0X?:rthe::f("r the") ; Fixes 1 word
+:B0X?:ruley::f("ruly") ; Fixes 4 words
+:B0X?:ryied::f("ried") ; Fixes 70 words
+:B0X?:saccharid::f("saccharide") ; Fixes 8 words
+:B0X?:safty::f("safety") ; Fixes 2 words
+:B0X?:sasy::f("says") ; Fixes 12 words
+:B0X?:saught::f("sought") ; Fixes 3 words
+:B0X?:schol::f("school") ; Fixes 5 words
+:B0X?:scoll::f("scroll") ; Fixes 2 words
+:B0X?:seses::f("sesses") ; Fixes 8 words
+:B0X?:sfull::f("sful") ; Fixes 7 words
+:B0X?:sfulyl::f("sfully") ; Fixes 5 words
+:B0X?:shiping::f("shipping") ; Fixes 8 words
+:B0X?:shorly::f("shortly") ; Fixes 2 words
+:B0X?:siary::f("sary") ; Fixes 16 words
+:B0X?:sice::f("sive") ; Fixes 166 words, but misspells sice (The number six at dice)
+:B0X?:sicly::f("sically") ; Fixes 24 words
+:B0X?:smoothe::f("smooth") ; Fixes 2 words
+:B0X?:sorce::f("source") ; Fixes 5 words
+:B0X?:specif::f("specify") ; Fixes 4 words
+:B0X?:ssully::f("ssfully") ; Fixes 5 words
+:B0X?:stanly::f("stantly") ; Fixes 8 words
+:B0X?:sthe::f("s the") ; Fixes 1 word
+:B0X?:stino::f("stion") ; Fixes 14 words
+:B0X?:storicians::f("storians") ; Fixes 4 words
+:B0X?:stpo::f("stop") ; Fixes 8 words
+:B0X?:strat::f("start") ; Fixes 5 words
+:B0X?:struced::f("structed") ; Fixes 11 words
+:B0X?:stuls::f("sults") ; Fixes 4 words
+:B0X?:syas::f("says") ; Fixes 12 words, but misspells Vaisyas (A member of the mercantile and professional Hindu caste.) 
+:B0X?:t eh::f("the") ; Fixes 44 words ; Made case sensitive for 'at EH.'
+:B0X?:targetting::f("targeting") ; Fixes 3 words
+:B0X?:teh::f("the") ; Fixes 44 words
+:B0X?:tempory::f("temporary") ; Fixes 3 words
+:B0X?:tfull::f("tful") ; Fixes 64 words
+:B0X?:theh::f("the") ; Fixes 44 words
+:B0X?:thh::f("th") ; Fixes 408 words
+:B0X?:thn::f("then") ; Fixes 15 words 
+:B0X?:thne::f("then") ; Fixes 11 words
+:B0X?:throught::f("through") ; Fixes 3 words
+:B0X?:tht::f("th") ; Fixes 408 words
+:B0X?:thw::f("the") ; Fixes 44 words
+:B0X?:thyness::f("thiness") ; Fixes 32 words
+:B0X?:tiem::f("time") ; Fixes 44 words
+:B0X?:timne::f("time") ; Fixes 44 words
+:B0X?:tioj::f("tion") ; Fixes 3671 words
+:B0X?:tionar::f("tionary") ; Fixes 68 words
+:B0X?:tooes::f("toos") ; Fixes 4 words
+:B0X?:topry::f("tory") ; Fixes 317 words
+:B0X?:toreis::f("tories") ; Fixes 62 words
+:B0X?:toyr::f("tory") ; Fixes 317 words
+:B0X?:traing::f("traying") ; Fixes 4 words
+:B0X?:tricly::f("trically") ; Fixes 72 words
+:B0X?:tricty::f("tricity") ; Fixes 13 words
+:B0X?:truely::f("truly") ; Fixes 2 words
+:B0X?:tthe::f("the") ; Fixes 66 words 
+:B0X?:tust::f("trust") ; Fixes 7 words
+:B0X?:tust::f("trust") ; Fixes 8 words 
+:B0X?:twon::f("town") ; Fixes 32 words
+:B0X?:tyo::f("to") ; Fixes 185 words
+:B0X?:ualy::f("ually") ; Fixes 72 words
+:B0X?:uarly::f("ularly") ; Fixes 66 words
+:B0X?:ularily::f("ularly") ; Fixes 66 words
+:B0X?:ultimely::f("ultimately") ; Fixes 2 words
+:B0X?:urchs::f("urches") ; Fixes 4 words
+:B0X?:urnk::f("runk") ; Fixes 8 words
+:B0X?:utino::f("ution") ; Fixes 55 words
+:B0X?:veill::f("veil") ; Fixes 3 words
+:B0X?:verd::f("vered") ; Fixes 39 words
+:B0X?:videntally::f("vidently") ; Fixes 3 words
+:B0X?:vly::f("vely") ; Fixes 547 words
+:B0X?:wass::f("was") ; Fixes 13 words
+:B0X?:wasy::f("ways") ; Fixes 106 words
+:B0X?:weas::f("was") ; Fixes 13 words
+:B0X?:weath::f("wealth") ; Fixes 3 words
+:B0X?:wifes::f("wives") ; Fixes 7 words
+:B0X?:wille::f("will") ; Fixes 10 words
+:B0X?:willingless::f("willingness") ; Fixes 2 words
+:B0X?:wordly::f("worldly") ; Fixes 3 words
+:B0X?:wroet::f("wrote") ; Fixes 7 words
+:B0X?:wthe::f("w the") ; Fixes 1 word
+:B0X?:wya::f("way") ; Fixes 113 words
+:B0X?:wyas::f("ways") ; Fixes 106 words
+:B0X?:xthe::f("x the") ; Fixes 1 word
+:B0X?:yng::f("ying") ; Fixes 514 words
+:B0X?:ywat::f("yway") ; Fixes 6 words
+:B0X?C:btu::f("but") ; Fixes 1 word ; Not just replacing "btu", as that is a unit of heat.
+:B0X?C:hc::f("ch") ; Fixes 446 words ; :C: so not to break THC or LHC
+:B0X?C:itn::f("ith") ; Fixes 70 words, Case sensitive, to not misspell ITN (Independent Television News) 
+:B0XC:ASS::f("ADD") ; Case-sensitive to fix acronym, but not word.
+:B0XC:Im::f("I'm") ; Fixes 1 word
+:B0XC:may of::f("may have") ; Fixes 1 word
+:B0XC:nad::f("and") ; Fixes 1 word, Case-sensitive to not misspell NAD (A coenzyme present in most living cells)
 
 ;------------------------------------------------------------------------------
 ; Accented English words, from, amongst others,
 ; http://en.wikipedia.org/wiki/List_of_English_words_with_diacritics
 ; Most of the definitions are from https://www.easydefine.com/ or from the WordWeb application.
 ;------------------------------------------------------------------------------
-::aesop::Æsop ; noun Greek author of fables (circa 620-560 BC)
-::a bas::à bas ; French: Down with -- To the bottom.  A type of clothing.
-::a la::à la ; In the manner of...
-::ancien regime::Ancien Régime ; noun a political and social system that no longer governs (especially the system that existed in France before the French Revolution)
 :*:angstrom::Ångström ; noun a metric unit of length equal to one ten billionth of a meter (or 0.0001 micron); used to specify wavelengths of electromagnetic radiation
 :*:anime::animé ; noun any of various resins or oleoresins; a hard copal derived from an African tree
-::ao dai::ào dái  ; noun the traditional dress of Vietnamese women consisting of a tunic with long sleeves and panels front and back; the tunic is worn over trousers
 :*:apertif::apértif ; noun an alcoholic drink that is taken as an appetizer before a meal
 :*:applique::appliqué ; noun a decorative design made of one material sewn over another; verb sew on as a decoration
+:*:boite::boîte ; French: "Box."  a small restaurant or nightclub.
+:*:canape::canapé  ; noun an appetizer consisting usually of a thin slice of bread or toast spread with caviar or cheese or other savory food
+:*:celebre::célèbre ; Cause célèbre An incident that attracts great public attention.
+:*:chaine::chaîné ; / (ballet) noun A series of small fast turns, often with the arms extended, used to cross a floor or stage.
+:*:chateau::château ; noun an impressive country house (or castle) in France
+:*:cinema verite::cinéma vérité ; noun a movie that shows ordinary people in actual activities without being controlled by a director
+:*:cliche::cliché ; noun a trite or obvious remark; clichéd adj. repeated regularly without thought or originality
+:*:communique::communiqué ; noun an official report (usually sent in haste)
+:*:confrere::confrère ; noun a person who is member of your class or profession
+:*:consomme::consommé ; noun clear soup usually of beef or veal or chicken
+:*:cortege::cortège ; noun the group following and attending to some important person; a funeral procession
+:*:coulee::coulée ; A stream of lava.  A deep gulch or ravine, frequently dry in summer.
+:*:coup d'etat::coup d'état ; noun a sudden and decisive change of government illegally or by force
+:*:coup de grace::coup de grâce ; noun the blow that kills (usually mercifully)
+:*:coup de tat::coup d'état ; noun a sudden and decisive change of government illegally or by force
+:*:creche::crèche ; noun a hospital where foundlings (infant children of unknown parents) are taken in and cared for; a representation of Christ's nativity in the stable at Bethlehem
+:*:creme caramel::crème caramel ; noun baked custard topped with caramel
+:*:crepe::crêpe ; noun a soft thin light fabric with a crinkled surface; paper with a crinkled texture; usually colored and used for decorations; small very thin pancake; verb cover or drape with crape
+:*:crouton::croûton ; noun a small piece of toasted or fried bread; served in soup or salads
+:*:dais::daïs ; noun a platform raised above the surrounding level to give prominence to the person on it
+:*:debacle::débâcle ; noun a sudden and violent collapse; flooding caused by a tumultuous breakup of ice in a river during the spring or summer; a sound defeat
+:*:debutante::débutant ; noun a sudden and violent collapse; flooding caused by a tumultuous breakup of ice in a river during the spring or summer; a sound defeat
+:*:decor::décor ; noun decoration consisting of the layout and furnishings of a livable interior
+:*:derriere::derrière ; noun the fleshy part of the human body that you sit on
+:*:discotheque::discothèque ; noun a public dance hall for dancing to recorded popular music
+:*:divorcee::divorcée ; noun a divorced woman or a woman who is separated from her husband
+:*:doppelganger::doppelgänger ; noun a ghostly double of a living person that haunts its living counterpart
+:*:eclair::éclair ; noun oblong cream puff
+:*:emigre::émigré ; noun someone who leaves one country to settle in another
+:*:entree::entrée ; noun the act of entering; the right to enter; the principal dish of a meal; something that provides access (to get in or get out)
+:*:epee::épée ; noun a fencing sword similar to a foil but with a heavier blade
+:*:facade::façade ; noun the face or front of a building; a showy misrepresentation intended to conceal something unpleasant
+:*:fete::fête ; noun an elaborate party (often outdoors); an organized series of acts and performances (usually in one place); verb have a celebration
+:*:fiance::fiancé ; noun a man who is engaged to be married. fiancee ; noun a woman who is engaged to be married
+:*:flambe::flambé ; verb pour liquor over and ignite (a dish)
+:*:frappe::frappé ; noun thick milkshake containing ice cream; liqueur poured over shaved ice; a frozen dessert with fruit flavoring (especially one containing no milk)
+:*:fraulein::fräulein ; noun a German courtesy title or form of address for an unmarried woman
+:*:garcon::garçon ; A waiter, esp. at a French restaurant
+:*:gateau::gâteau ; noun any of various rich and elaborate cakes
+:*:habitue::habitué ; noun a regular patron
+:*:jalapeno::jalapeño ; noun hot green or red pepper of southwestern United States and Mexico; plant bearing very hot and finely tapering long peppers; usually red
+:*:matinee::matinée ; noun a theatrical performance held during the daytime (especially in the afternoon)
+:*:melee::mêlée ; noun a noisy riotous fight
+:*:moireing::moiré ; A textile technique that creates a wavy or "watered" effect in fabric.
+:*:naif::naïf ; adj. marked by or showing unaffected simplicity and lack of guile or worldly experience; noun a naive or inexperienced person
+:*:negligee::negligée ; noun a loose dressing gown for women
+:*:noel::Noël ; French:  Christmas.
+:*:ombre::ombré ;  (literally "shaded" in French) is the blending of one color hue to another.  A card game.
+:*:pina colada::Piña Colada ; noun a mixed drink made of pineapple juice and coconut cream and rum
+:*:pinata::piñata ; noun plaything consisting of a container filled with toys and candy; suspended from a height for blindfolded children to break with sticks
+:*:pinon::piñon ; noun any of several low-growing pines of western North America
+:*:protege::protégé ; noun a person who receives support and protection from an influential patron who furthers the protege's career.  protegee ; noun a woman protege
+:*:puree::purée ; noun food prepared by cooking and straining or processed in a blender; verb rub through a strainer or process in an electric blender
+:*:saute::sauté ; adj. fried quickly in a little fat; noun a dish of sauteed food; verb fry briefly over high heat
+:*:seance::séance ; noun a meeting of spiritualists
+:*:senor::señor ; noun a Spanish title or form of address for a man; similar to the English `Mr' or `sir'. senora/señorita ; noun a Spanish title or form of address for a married woman; similar to the English `Mrs' or `madam'
+:*:smorgasbord::smörgåsbord ; noun served as a buffet meal; a collection containing a variety of sorts of things
+:*:soiree::soirée ; noun a party of people assembled in the evening (usually at a private house)
+:*:souffle::soufflé ; noun light fluffy dish of egg yolks and stiffly beaten egg whites mixed with e.g. cheese or fish or fruit
+:*:soupcon::soupçon ; noun a slight but appreciable addition
+:*:tete-a-tete::tête-à-tête ; adj. involving two persons; intimately private; noun a private conversation between two people; small sofa that seats two people
+:*:ubermensch::Übermensch ; noun a person with great powers and abilities
+::Bjorn::Bjørn ; An old norse name.  Means "Bear."
+::Fohn wind::Föhn wind ; A type of dry, relatively warm, downslope wind that occurs in the lee (downwind side) of a mountain range.
+::Quebecois::Québécois ; adj. of or relating to Quebec
+::a bas::à bas ; French: Down with -- To the bottom.  A type of clothing.
+::a la::à la ; In the manner of...
+::aesop::Æsop ; noun Greek author of fables (circa 620-560 BC)
+::ancien regime::Ancien Régime ; noun a political and social system that no longer governs (especially the system that existed in France before the French Revolution)
+::ao dai::ào dái  ; noun the traditional dress of Vietnamese women consisting of a tunic with long sleeves and panels front and back; the tunic is worn over trousers
 ::apres::après ; French:  Too late.  After the event.
 ::arete::arête ; noun a sharp narrow ridge found in rugged mountains
 ::attache::attaché ; noun a specialist assigned to the staff of a diplomatic mission; a shallow and rectangular briefcase
@@ -5736,102 +6642,59 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 ::belle epoque::belle époque ; French: Fine period.   noun the period of settled and comfortable life preceding World War I
 ::bete noire::bête noire ; noun a detested person
 ::betise::bêtise ; noun a stupid mistake
-::Bjorn::Bjørn ; An old norse name.  Means "Bear."
 ::blase::blasé ; adj. nonchalantly unconcerned; uninterested because of frequent exposure or indulgence; very sophisticated especially because of surfeit; versed in the ways of the world
-:*:boite::boîte ; French: "Box."  a small restaurant or nightclub.
 ::boutonniere::boutonnière ; noun a flower that is worn in a buttonhole.
-:*:canape::canapé  ; noun an appetizer consisting usually of a thin slice of bread or toast spread with caviar or cheese or other savory food
-:*:celebre::célèbre ; Cause célèbre An incident that attracts great public attention.
-:*:chaine::chaîné ; / (ballet) noun A series of small fast turns, often with the arms extended, used to cross a floor or stage.
-:*:cinema verite::cinéma vérité ; noun a movie that shows ordinary people in actual activities without being controlled by a director
-::cinemas verite::cinémas vérit ; noun a movie that shows ordinary people in actual activities without being controlled by a directoré
 ::champs-elysees::Champs-Élysées ; noun a major avenue in Paris famous for elegant shops and cafes
 ::charge d'affaires::chargé d'affaires ; noun the official temporarily in charge of a diplomatic mission in the absence of the ambassador
-:*:chateau::château ; noun an impressive country house (or castle) in France
-:*:cliche::cliché ; noun a trite or obvious remark; clichéd adj. repeated regularly without thought or originality
+::cinemas verite::cinémas vérit ; noun a movie that shows ordinary people in actual activities without being controlled by a directoré
 ::cloisonne::cloisonné ; adj. (for metals) having areas separated by metal and filled with colored enamel and fired; noun enamelware in which colored areas are separated by thin metal strips
-:*:consomme::consommé ; noun clear soup usually of beef or veal or chicken
-:*:communique::communiqué ; noun an official report (usually sent in haste)
-:*:confrere::confrère ; noun a person who is member of your class or profession
-:*:cortege::cortège ; noun the group following and attending to some important person; a funeral procession
-:*:coup d'etat::coup d'état ; noun a sudden and decisive change of government illegally or by force
-:*:coup de tat::coup d'état ; noun a sudden and decisive change of government illegally or by force
-:*:coup de grace::coup de grâce ; noun the blow that kills (usually mercifully)
-:*:creche::crèche ; noun a hospital where foundlings (infant children of unknown parents) are taken in and cared for; a representation of Christ's nativity in the stable at Bethlehem
-:*:coulee::coulée ; A stream of lava.  A deep gulch or ravine, frequently dry in summer.
 ::creme brulee::crème brûlée ; noun custard sprinkled with sugar and broiled
-:*:crepe::crêpe ; noun a soft thin light fabric with a crinkled surface; paper with a crinkled texture; usually colored and used for decorations; small very thin pancake; verb cover or drape with crape
-:*:creme caramel::crème caramel ; noun baked custard topped with caramel
 ::creme de cacao::crème de cacao ; noun sweet liqueur flavored with vanilla and cacao beans
 ::creme de menthe::crème de menthe ; noun sweet green or white mint-flavored liqueur
-:*:crouton::croûton ; noun a small piece of toasted or fried bread; served in soup or salads
 ::creusa::Creüsa ; In Greek mythology, Creusa was the daughter of Priam and Hecuba.
 ::crudites::crudités ; noun raw vegetables cut into bite-sized strips and served with a dip
 ::curacao::curaçao ; noun flavored with sour orange peel; a popular island resort in the Netherlands Antilles
-:*:dais::daïs ; noun a platform raised above the surrounding level to give prominence to the person on it
-:*:debacle::débâcle ; noun a sudden and violent collapse; flooding caused by a tumultuous breakup of ice in a river during the spring or summer; a sound defeat
-:*:debutante::débutant ; noun a sudden and violent collapse; flooding caused by a tumultuous breakup of ice in a river during the spring or summer; a sound defeat
 ::declasse::déclassé ; Fallen or lowered in class, rank, or social position; lacking high station or birth; of inferior status
 ::decolletage::décolletage ; noun a low-cut neckline on a woman's dress
 ::decollete::décolleté ; adj. (of a garment) having a low-cut neckline
-:*:decor::décor ; noun decoration consisting of the layout and furnishings of a livable interior
 ::decoupage::découpage ; noun the art of decorating a surface with shapes or pictures and then coating it with vanish or lacquer; art produced by decorating a surface with cutouts and then coating it with several layers of varnish or lacquer
 ::degage::dégagé ; adj. showing lack of emotional involvement; free and relaxed in manner
 ::deja vu::déjà vu ; noun the experience of thinking that a new situation had occurred before
 ::demode::démodé ; adj. out of fashion
 ::denoument::dénoument ; Narrative structure.  (Not in most dictionaries)
 ::derailleur::dérailleur ; (cycling) the mechanism on a bicycle used to move the chain from one sprocket (gear) to another
-:*:derriere::derrière ; noun the fleshy part of the human body that you sit on
 ::deshabille::déshabillé ; noun the state of being carelessly or partially dressed
 ::detente::détente ; noun the easing of tensions or strained relations (especially between nations)
 ::diamante::diamanté ; noun adornment consisting of a small piece of shiny material used to decorate clothing
-:*:discotheque::discothèque ; noun a public dance hall for dancing to recorded popular music
-:*:divorcee::divorcée ; noun a divorced woman or a woman who is separated from her husband
-:*:doppelganger::doppelgänger ; noun a ghostly double of a living person that haunts its living counterpart
-:*:eclair::éclair ; noun oblong cream puff
 ::eclat::éclat ; noun brilliant or conspicuous success or effect; ceremonial elegance and splendor; enthusiastic approval
 ::el nino::El Niño ; noun the Christ child; (oceanography) a warm ocean current that flows along the equator from the date line and south off the coast of Ecuador at Christmas time
 ::elan::élan ; noun enthusiastic and assured vigor and liveliness; distinctive and stylish elegance; a feeling of strong eagerness (usually in favor of a person or cause)
-:*:emigre::émigré ; noun someone who leaves one country to settle in another
-:*:entree::entrée ; noun the act of entering; the right to enter; the principal dish of a meal; something that provides access (to get in or get out)
-::entrepot::entrepôt ; noun a port where merchandise can be imported and then exported without paying import duties; a depository for goods
 ::entrecote::entrecôte ; Cut of meat taken from between the ribs
-:*:epee::épée ; noun a fencing sword similar to a foil but with a heavier blade
+::entrepot::entrepôt ; noun a port where merchandise can be imported and then exported without paying import duties; a depository for goods
 ::etouffee::étouffée ; A Cajun shellfish dish.
-:*:facade::façade ; noun the face or front of a building; a showy misrepresentation intended to conceal something unpleasant
-:*:fete::fête ; noun an elaborate party (often outdoors); an organized series of acts and performances (usually in one place); verb have a celebration
 ::faience::faïence ; noun an elaborate party (often outdoors); an organized series of acts and performances (usually in one place); verb have a celebration
-:*:fiance::fiancé ; noun a man who is engaged to be married. fiancee ; noun a woman who is engaged to be married
 ::filmjolk::filmjölk ; Nordic milk product.
 ::fin de siecle::fin de siècle ; adj. relating to or characteristic of the end of a century (especially the end of the 19th century)
-:*:flambe::flambé ; verb pour liquor over and ignite (a dish)
 ::fleche::flèche ; a type of church spire; a team cycling competition; an aggressive offensive fencing technique; a defensive fortification; ships of the Royal Navy
-::Fohn wind::Föhn wind ; A type of dry, relatively warm, downslope wind that occurs in the lee (downwind side) of a mountain range.
 ::folie a deux::folie à deux ; noun the simultaneous occurrence of symptoms of a mental disorder (as delusions) in two persons who are closely related (as siblings or man and wife)
 ::folies a deux::folies à deux
 ::fouette::fouetté ; From Ballet: The working leg is extended and whipped around
-:*:frappe::frappé ; noun thick milkshake containing ice cream; liqueur poured over shaved ice; a frozen dessert with fruit flavoring (especially one containing no milk)
-:*:fraulein::fräulein ; noun a German courtesy title or form of address for an unmarried woman
-:*:garcon::garçon ; A waiter, esp. at a French restaurant
 ::gardai::gardaí ; Policeman or policewoman
-:*:gateau::gâteau ; noun any of various rich and elaborate cakes
 ::gemutlichkeit::gemütlichkeit ; Friendliness.
+::gewurztraminer::Gewürztraminer ; An aromatic white wine grape variety that grows best in cooler climates
 ::glace::glacé ; adj. (used especially of fruits) preserved by coating with or allowing to absorb sugar
 ::glogg::glögg ; noun Scandinavian punch made of claret and aquavit with spices and raisins and orange peel and sugar
-::gewurztraminer::Gewürztraminer ; An aromatic white wine grape variety that grows best in cooler climates
 ::gotterdammerung::Götterdämmerung ; noun myth about the ultimate destruction of the gods in a battle with evil
 ::grafenberg spot::Gräfenberg spot ;  An erogenous area of the vagina.
-:*:habitue::habitué ; noun a regular patron
 ::ingenue::ingénue ; noun an actress who specializes in playing the role of an artless innocent young girl
 ::jager::jäger ; A German or Austrian hunter, rifleman, or sharpshooter
-:*:jalapeno::jalapeño ; noun hot green or red pepper of southwestern United States and Mexico; plant bearing very hot and finely tapering long peppers; usually red
 ::jardiniere::jardinière ; A preparation of mixed vegetables stewed in a sauce.  An arrangement of flowers.
+::kaldolmar::kåldolmar ; Swedish cabbage rolls filled with rice and minced meat.
 ::krouzek::kroužek ; A ring-shaped diacritical mark (°), whose use is largely restricted to Å, å and U, u.
 ::kummel::kümmel ; noun liqueur flavored with caraway seed or cumin
-::kaldolmar::kåldolmar ; Swedish cabbage rolls filled with rice and minced meat.
+::la nina::La Niña ; Spanish:'The Girl' is an oceanic and atmospheric phenomenon that is the colder counterpart of El Niño.
 ::landler::ländler ; noun a moderately slow Austrian country dance in triple time; involves spinning and clapping; music in triple time for dancing the landler
 ::langue d'oil::langue d'oïl ; noun medieval provincial dialects of French spoken in central and northern France
-::la nina::La Niña ; Spanish:'The Girl' is an oceanic and atmospheric phenomenon that is the colder counterpart of El Niño.
 ::litterateur::littérateur ; noun a writer of literary works
 ::lycee::lycée ; noun a school for students intermediate between elementary school and college; usually grades 9 to 12
 ::macedoine::macédoine ; noun mixed diced fruits or vegetables; hot or cold
@@ -5842,9 +6705,7 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 ::manege::manège ; The art of horsemanship or of training horses.
 ::manque::manqué ; adj. unfulfilled or frustrated in realizing an ambition
 ::materiel::matériel ; noun equipment and supplies of a military force
-:*:matinee::matinée ; noun a theatrical performance held during the daytime (especially in the afternoon)
 ::melange::mélange ; noun a motley assortment of things
-:*:melee::mêlée ; noun a noisy riotous fight
 ::menage a trois::ménage à trois ; noun household for three; an arrangement where a married couple and a lover of one of them live together while sharing sexual relations
 ::menages a trois::ménages à trois
 ::mesalliance::mésalliance ; noun a marriage with a person of inferior social status
@@ -5852,48 +6713,37 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 ::minaudiere::minaudière ; A small, decorative handbag without handles or a strap.
 ::mobius::Möbius ; noun a continuous closed surface with only one side; formed from a rectangular strip by rotating one end 180 degrees and joining it with the other end
 ::moire::moiré ; adj. (of silk fabric) having a wavelike pattern; noun silk fabric with a wavy surface pattern
-:*:moireing::moiré ; A textile technique that creates a wavy or "watered" effect in fabric.
 ::motley crue::Mötley Crüe ; American heavy metal band formed in Hollywood, California in 1981.
 ::motorhead::Motörhead ; English rock band formed in London in 1975.
-:*:naif::naïf ; adj. marked by or showing unaffected simplicity and lack of guile or worldly experience; noun a naive or inexperienced person
 ::naive::naïve ; adj. inexperienced; marked by or showing unaffected simplicity and lack of guile or worldly experience
 ::naiver::naïver ; See above.
 ::naives::naïves ; See above.
 ::naivete::naïveté ; See above.
 ::nee::née ; adj. (meaning literally `born') used to indicate the maiden or family name of a married woman
-:*:negligee::negligée ; noun a loose dressing gown for women
 ::neufchatel::Neufchâtel ; a cheese
 ::nez perce::Nez Percé ; noun the Shahaptian language spoken by the Nez Perce; a member of a tribe of the Shahaptian people living on the pacific coast
-:*:noel::Noël ; French:  Christmas.
 ::número uno::número uno ; Number one
 ::objet trouve::objet trouvé ; An object found or picked up at random and considered aesthetically pleasing.
 ::objets trouve::objets trouvé ; See above.
-:*:ombre::ombré ;  (literally "shaded" in French) is the blending of one color hue to another.  A card game.
 ::omerta::omertà ; noun a code of silence practiced by the Mafia; a refusal to give evidence to the police about criminal activities
 ::opera bouffe::opéra bouffe ; noun opera with a happy ending and in which some of the text is spoken
-::operas bouffe::opéras bouffe ; see above.
 ::opera comique::opéra comique ; noun opera with a happy ending and in which some of the text is spoken
+::operas bouffe::opéras bouffe ; see above.
 ::operas comique::opéras comique ; See above.
 ::outre::outré ; adj. conspicuously or grossly unconventional or unusual
 ::papier-mache::papier-mâché ; noun a substance made from paper pulp that can be molded when wet and painted when dry
 ::passe::passé ; adj. out of fashion
 ::piece de resistance::pièce de résistance ; noun the most important dish of a meal; the outstanding item (the prize piece or main exhibit) in a collection
 ::pied-a-terre::pied-à-terre ; noun lodging for occasional or secondary use
-::plisse::plissé ; (Of a fabric) chemically treated to produce a shirred or puckered effect.
-:*:pina colada::Piña Colada ; noun a mixed drink made of pineapple juice and coconut cream and rum
-:*:pinata::piñata ; noun plaything consisting of a container filled with toys and candy; suspended from a height for blindfolded children to break with sticks
-:*:pinon::piñon ; noun any of several low-growing pines of western North America
-::pirana::piraña ; noun small voraciously carnivorous freshwater fishes of South America that attack and destroy living animals
 ::pique::piqué ; noun tightly woven fabric with raised cords; a sudden outburst of anger; verb cause to feel resentment or indignation
 ::piqued::piquéd ;noun Animosity or ill-feeling, Offence taken. transitive verb To wound the pride of To arouse, stir, provoke.
+::pirana::piraña ; noun small voraciously carnivorous freshwater fishes of South America that attack and destroy living animals
 ::più::più ; Move.
 ::plie::plié ; A movement in ballet, in which the knees are bent while the body remains upright
-::precis::précis ; noun a sketchy summary of the main points of an argument or theory; verb make a summary (of)
-:*:protege::protégé ; noun a person who receives support and protection from an influential patron who furthers the protege's career.  protegee ; noun a woman protege
-:*:puree::purée ; noun food prepared by cooking and straining or processed in a blender; verb rub through a strainer or process in an electric blender
+::plisse::plissé ; (Of a fabric) chemically treated to produce a shirred or puckered effect.
 ::polsa::pölsa ; A traditional northern Swedish dish which has been compared to hash
+::precis::précis ; noun a sketchy summary of the main points of an argument or theory; verb make a summary (of)
 ::pret-a-porter::prêt-à-porter ; Ready-to-wear / Off-the-rack.
-::Quebecois::Québécois ; adj. of or relating to Quebec
 ::raison d'etre::raison d'être ; noun the purpose that justifies a thing's existence; reason for being
 ::recherche::recherché ; adj. lavishly elegant and refined
 ::retrousse::retroussé ; adjective (of a person's nose) turned up at the tip in an attractive way.
@@ -5901,22 +6751,13 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 ::riviere::rivière ; noun a necklace of gems that increase in size toward a large central stone, typically consisting of more than one string.
 ::roman a clef::roman à clef ; noun a novel in which actual persons and events are disguised as fictional characters
 ::roue::roué ; noun a dissolute man in fashionable society
-:*:saute::sauté ; adj. fried quickly in a little fat; noun a dish of sauteed food; verb fry briefly over high heat
-:*:seance::séance ; noun a meeting of spiritualists
-:*:senor::señor ; noun a Spanish title or form of address for a man; similar to the English `Mr' or `sir'. senora/señorita ; noun a Spanish title or form of address for a married woman; similar to the English `Mrs' or `madam'
-:*:smorgasbord::smörgåsbord ; noun served as a buffet meal; a collection containing a variety of sorts of things
-:*:soiree::soirée ; noun a party of people assembled in the evening (usually at a private house)
-:*:souffle::soufflé ; noun light fluffy dish of egg yolks and stiffly beaten egg whites mixed with e.g. cheese or fish or fruit
 ::sinn fein::Sinn Féin ; noun an Irish republican political movement founded in 1905 to promote independence from England
 ::smorgastarta::smörgåstårta ; "sandwich-cake" or "sandwich-torte" is a dish of Swedish origin
 ::soigne::soigné ; adj. polished and well-groomed; showing sophisticated elegance
 ::sprachgefühl::sprachgefuhl ; The essential character of a language.
-:*:soupcon::soupçon ; noun a slight but appreciable addition
 ::surstromming::surströmming ; Lightly salted fermented Baltic Sea herring.
-:*:tete-a-tete::tête-à-tête ; adj. involving two persons; intimately private; noun a private conversation between two people; small sofa that seats two people
 ::touche::touché ; Acknowledgement of a hit in fencing or a point made at one's expense.
 ::tourtiere::tourtière ; A meat pie that is usually eaten at Christmas in Québec
-:*:ubermensch::Übermensch ; noun a person with great powers and abilities
 ::ventre a terre::ventre à terre ; (French) At high speed (literally, belly to the ground.)
 ::vicuna::vicuña ; noun small wild cud-chewing Andean animal similar to the guanaco but smaller; valued for its fleecy undercoat; a soft wool fabric made from the fleece of the vicuna; the wool of the vicuna
 ::vin rose::vin rosé ; White wine.
@@ -5928,32 +6769,171 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 ;-------------------------------------------------------------------------------
 ;  Capitalize dates
 ;-------------------------------------------------------------------------------
-:XB0C:monday::f("Monday", A_ThisHotkey, A_EndChar) 
-:XB0C:tuesday::f("Tuesday", A_ThisHotkey, A_EndChar) 
-:XB0C:wednesday::f("Wednesday", A_ThisHotkey, A_EndChar) 
-:XB0C:thursday::f("Thursday", A_ThisHotkey, A_EndChar) 
-:XB0C:friday::f("Friday", A_ThisHotkey, A_EndChar) 
-:XB0C:saturday::f("Saturday", A_ThisHotkey, A_EndChar) 
-:XB0C:sunday::f("Sunday", A_ThisHotkey, A_EndChar) 
 
-:XB0C:january::f("January", A_ThisHotkey, A_EndChar) 
-:XB0C:february::f("February", A_ThisHotkey, A_EndChar) 
-:XB0C:april::f("April", A_ThisHotkey, A_EndChar) 
-:XB0C:june::f("June", A_ThisHotkey, A_EndChar) 
-:XB0C:july::f("July", A_ThisHotkey, A_EndChar) 
-:XB0C:august::f("August", A_ThisHotkey, A_EndChar) 
-:XB0C:september::f("September", A_ThisHotkey, A_EndChar) 
-:XB0C:october::f("October", A_ThisHotkey, A_EndChar) 
-:XB0C:november::f("November", A_ThisHotkey, A_EndChar) 
-:XB0C:december::f("December", A_ThisHotkey, A_EndChar) 
+:C:april::April
+:C:august::August
+:C:december::December
+:C:february::February
+:C:friday::Friday
+:C:january::January
+:C:july::July
+:C:june::June
+:C:monday::Monday
+:C:november::November
+:C:october::October
+:C:saturday::Saturday
+:C:september::September
+:C:sunday::Sunday
+:C:thursday::Thursday
+:C:tuesday::Tuesday
+:C:wednesday::Wednesday
+
+:*XC:;on::
+:*XC:;On::
+{	Send StrReplace(A_ThisHotkey,":*XC:;") FormatTime(A_NOW, " dddd, M-d-yyyy, 'at' h:mm") StrLower(FormatTime(A_NOW, "tt"))
+}
+
+:*:;resume::résumé ; use prefix character so not to replace common word "resume."
+
+::;longwords::
+(
+14 of the longest words in English
+1 Pneumonoultramicroscopicsilicovolcanoconiosis (forty-five letters)
+A lung disease caused by the inhalation of silica or quartz dust.
+
+2 Pseudopseudohypoparathyroidism (thirty letters)
+A mild form of inherited pseudohypoparathyroidism that simulates the symptoms of the disorder but isn't associated with abnormal levels of calcium and phosphorus in the blood.
+
+3 Floccinaucinihilipilification (twenty-nine letters)
+The estimation of something as valueless. Ironically, floccinaucinihilipilification is a pretty valueless word itself; it's almost never used except as an example of a long word.
+
+4 Antidisestablishmentarianism (twenty-eight letters)
+Originally described opposition to the disestablishment of the Church of England, but now it may refer to any opposition to withdrawing government support of a particular church or religion.
+
+5 Supercalifragilisticexpialidocious (thirty-four letters)
+Mary Poppins described it as the word to use “when you have nothing to say.” It appears in some (but not all) dictionaries.
+
+6 Incomprehensibilities (twenty-one-letters)
+This word set the record in the 1990s as the longest word “in common usage.”
+
+7 Strengths
+Strengths has only nine letters, but all except one of them are consonants! This earns the word a Guinness World Record. It is also one of the longest monosyllabic words of the English language.
+
+8 Euouae
+Euouae is six letters long, but all of the letters are vowels. It holds two Guinness World Records. it's the longest English word composed exclusively of vowels, and it has the most consecutive vowels of any word. If you are wondering about its meaning, it's a musical term from medieval times.
+
+9  Unimaginatively
+Unimaginatively has lots of vowels—eight in total, if you count the final y. What's neat about this word is that its vowels and consonants alternate. it's not the longest word with alternating consonants and vowels, though.
+
+10 Honorificabilitudinitatibus
+That position is held by honorificabilitudinitatibus, a twenty-seven-letter way of saying “with honorableness.”
+
+11 Tsktsk
+If you tsktsk someone, you indicate your disapproval by the tsktsk sound or by some other means. Tsktsks is the longest word that doesn't contain a vowel.
+
+12 and 13 Uncopyrightable and subdermatoglyphic
+Isograms are words that do not repeat letters. The longest examples are uncopyrightable and subdermatoglyphic. An uncopyrightable song, for example, would not be eligible for copyright. This word has fifteen letters, but one other word without repeated letters is longer—subdermatoglyphic. it's seventeen letters, but you'll not have much opportunity to use it outside the realm of dermatology.
+
+14 Sesquipedalianism
+The fourteenth word on our list describes the tendency to use long words—sesquipedalianism. If you possess this trait, you will enjoy trying to use the words in this article in your next conversation. If you are a true sesquipedalian, it shouldn't be too hard. Except, of course, for that 189,819-letter protein name . . . it's doubtful that your friends will wait three hours for you to finish saying it!
+)
+::;olf::The first hundred or so characters of this email are generic (non-student) filler to occupy your Outlook notification popup window.
+::;tq::The five boxing wizards jump quickly and the quick brown fox jumps over the lazy dog, so pack my box with five dozen liquor jugs.
+::;rand::Lorem ipsum dolor sit amet, consectetur adipiscing elit stevano kunkoleti. Donec euismod odio sit amet maximus posuere. Nullam eu mi turpis. Aliquam placerat enim at erat sodales consectetur. Curabitur porta pulvinar est, quis condimentum nunc tristique ac. Maecenas malesuada maximus scholaru et psycholica turpis at assessmo. Pellentesque ac sapien egestas verbalo comprohendo, posuere risus sed, porta erat. Mauris pharetra lobortis massa vel tristique. Fusce hendrerit ligula vitae sem lobortis dapibus. Fontono lobototo donec eget ornare velit, in mattis felis. Fusce eros libero, vehicula eget pulvinar id, posuere et Woodcolus Johnseni lando Whechsler lectus es intelligencio.  Nulla in magna a odio venenatis till et finito.
+
+::;fruits::
+(
+Apple
+Banana
+Carrot
+Date
+Eggplant
+Fig
+Grape
+Honeydew
+Iceberg lettuce
+Jalapeno
+Kiwi
+Lemon
+Mango
+Nectarine
+Orange
+Papaya
+Quince
+Radish
+Strawberry
+Tomato
+Ugli fruit
+Vanilla bean
+Watermelon
+Xigua (Chinese watermelon)
+Yellow pepper
+Zucchini
+)
+
+::;animals::
+(
+Aardvark
+Butterfly
+Cheetah
+Dolphin
+Elephant
+Frog
+Giraffe
+Hippo
+Iguana
+Jaguar
+Kangaroo
+Lion
+Monkey
+Narwhal
+Owl
+Penguin
+Quail
+Rabbit
+Snake
+Tiger
+Umbrellabird
+Vulture
+Wolf
+X-ray fish
+Yak
+Zebra
+)
+
+::;colors::
+(
+Amber
+Blue
+Crimson
+Denim
+Emerald
+Fuchsia
+Gold
+Harlequin
+Indigo
+Jade
+Khaki
+Lavender
+Magenta
+Navy
+Olive
+Pink
+Quartz
+Red
+Scarlet
+Turquoise
+Ultramarine
+Violet
+White
+Xanadu
+Yellow
+Zaffre
+)
+;################################################
 
 ;-------------------------------------------------------------------------------
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
-
-
-
-::thousend::thousand
-:XB0:sampTrig::f("sampRepl", A_ThisHotkey, A_EndChar) ; just a comment
 
 
