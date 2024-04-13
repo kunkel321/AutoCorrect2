@@ -1230,6 +1230,15 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 }
 #HotIf
 
+^+e::
+EditThisScript(*)
+{	Try
+		Run MyAhkEditorPath " "  NameOfThisFile
+	Catch
+		msgbox 'cannot run ' NameOfThisFile
+}
+
+
 ;------------------------------------------------------------------------------
 ;   Get/Set my default printer
 ; A tool to allow user to check and/or change default printer.
