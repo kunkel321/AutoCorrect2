@@ -2,24 +2,53 @@
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
-#Include "DateTool.ahk"
+#Include "MasterDateTool.ahk"
+
 ; AutoCorrect for v2 thread:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ;===============================================================================
 ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
-NameOfThisFile := "AutoCorrect for v2.ahk"
+NameOfThisFile := "AutoCorrectv2.ahk"
+
+MyAhkEditorPath := SubStr(A_Temp, 1, -4) "\Programs\Microsoft VS Code\Code.exe" 
+; Make sure AHK editor is assigned.  Use Notepad otherwise.
+If not FileExist(MyAhkEditorPath) {
+	MsgBox("This error means that the variable 'MyAhkEditorPath' has"
+	"`nnot been assigned a valid path for an editor."
+	"`nTherefore Notepad will be used as a substite.")
+	MyAhkEditorPath := "Notepad.exe"
+}
 
 ;===============================================================================
-; TraySetIcon(A_ScriptDir . "/SubFolder/IconFileName.ico")
-TraySetIcon('imageres.dll', 281) ; Blue right-pointing triangle (aka 'Play' icon).
+TraySetIcon(A_ScriptDir . "\Icons\Psicon.ico")
+; TraySetIcon('imageres.dll', 281) ; Blue right-pointing triangle (aka 'Play' icon).
 
+;===============================================================================
+acMenu := A_TrayMenu ; For convenience.
+acMenu.Delete
+acMenu.Add("Edit This Script", EditThisScript)
+acMenu.SetIcon("Edit This Script", "Icons\edit-Blue.ico")
+acMenu.Add("Run Printer Tool", PrinterTool)
+acMenu.SetIcon("Run Printer Tool", "Icons\printer-Blue.ico")
+; acMenu.Add("DateTool - H", MCRemake)
+; acMenu.SetIcon("DateTool - H", "Icons\calendar-Blue.ico")
+acMenu.Add("System Up Time", UpTime)
+acMenu.SetIcon("System Up Time", "Icons\clock-Blue.ico")
+acMenu.Add("Reload Script", (*) => Reload())
+acMenu.SetIcon("Reload Script", "icons/repeat-Blue.ico")
+acMenu.Add("Exit Script", (*) => ExitApp())
+acMenu.SetIcon("Exit Script", "icons/exit-Blue.ico")
+acMenu.SetColor("Silver")
+
+
+;===============================================================================
 ; Startup anouncement.  Also beeps whenever HotString Helper appends an item.
-SoundBeep(900, 200)
-SoundBeep(1200, 100)
+SoundBeep(900, 250)
+SoundBeep(1100, 200)
 
 ;===============================================================================
 ;            			Hotstring Helper 2.0
-;          Hotkey: Win + H | By: Kunkel321 | Version: 2-19-2024
+;          Hotkey: Win + H | By: Kunkel321 | Version: 2-28-2024
 ; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=114688
 ; A version of Hotstring Helper that will support block multi-line replacements and 
 ; allow user to examine hotstring for multi-word matches. The "Examine/Analyze" 
@@ -33,6 +62,7 @@ SoundBeep(1200, 100)
 ; script at the bottom. Shift+Append saves to clipboard instead of appending. 
 ; This tool is intended to be embedded in your AutoCorrect list.
 ;===============================================================================
+; WARNING:  findInScript() function uses VSCode shortcut keys ^f and ^g. 
 
 ;==Change=color=of=Hotstring=Helper=form=as=desired===========================
 GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
@@ -78,6 +108,8 @@ WordListFile := 'GitHubComboList249k.txt' ; Mostly from github: Copyright (c) 20
 ; Add "Fixes X words, but misspells Y" to the end of autocorrect items. 
 ; 1 = Yes, 0 = No. Multi-line Continuation Section items are never auto-commented.
 AutoCommentFixesAndMisspells := 1
+; Automatically enter the new replacement of a 'whole-word' autocorrect entry into the active edit field?
+AutoEnterNewEntry := 1 ; 1 = yes, add. 0 = no, I'll manually type it. 
 
 ;====Window=specific=hotkeys====================================================
 ; These can be edited... Cautiously. 
@@ -115,12 +147,14 @@ Esc::
 }
 #HotIf ; Turn off window-specific behavior.
 
+
 ; Make sure word list is there. Change name of word list subfolder, if desired. 
 WordListPath := A_ScriptDir '\WordListsForHH\' WordListFile
 If not FileExist(WordListPath)
 	MsgBox("This error means that the big list of comparison words at:`n" . WordListPath . 
 	"`nwas not found.`n`nTherefore the 'Exam' button of the Hotstring Helper tool won't work.")
 SplitPath WordListPath, &WordListName ; Extract just the name of the file.
+
 
 ;===== Main Graphical User Interface (GUI) is built here =======================
 hh := Gui('', hhFormName)
@@ -132,26 +166,28 @@ hFactor := 0, wFactor := 0 ; Don't change size here.
 ; -----  Trigger string parts ----
 hh.AddText('y4 w30', 'Options')
 (TrigLbl := hh.AddText('x+40 w250', 'Trigger String'))
-(MyDefaultOpts := hh.AddEdit('yp+20 xm+2 w70 h24'))
-(TriggerString := hh.AddEdit('x+18 w' . wFactor + 280, '')).OnEvent('Change', TriggerChanged)
+(MyDefaultOpts := hh.AddEdit('cDefault yp+20 xm+2 w70 h24'))
+(TriggerString := hh.AddEdit('cDefault x+18 w' . wFactor + 280, '')).OnEvent('Change', TriggerChanged)
 ; ----- Replacement string parts ----
 hh.AddText('xm', 'Replacement')
 hh.SetFont('s9')
 hh.AddButton('vSizeTog x+75 yp-5 h8 +notab', 'Make Bigger').OnEvent("Click", TogSize)
 hh.AddButton('vSymTog x+5 h8 +notab', '+ Symbols').OnEvent("Click", TogSym)
 hh.SetFont('s11')
-(ReplaceString := hh.AddEdit('vReplaceString +Wrap y+1 xs h' . hFactor + 100 . ' w' . wFactor + 370, '')).OnEvent('Change', GoFilter)
+(ReplaceString := hh.AddEdit('cDefault vReplaceString +Wrap y+1 xs h' . hFactor + 100 . ' w' . wFactor + 370, '')).OnEvent('Change', GoFilter)
 ; ---- Below Replacement ----
 ComLbl := hh.AddText('xm y' . hFactor + 182, 'Comment')
 (ChkFunc := hh.AddCheckbox('vFunc, x+70 y' . hFactor + 182, 'Make Function')).onEvent('click', FormAsFunc)
-ChkFunc.Value := 1 ; 'Make Function' box checked by default?  1 = checked.  
-hh.SetFont("s11 cGreen")
-ComStr := hh.AddEdit('vComStr xs y' . hFactor + 200 . ' w' . wFactor + 370)
-hh.SetFont("s11 " . FontColor)
+ChkFunc.Value := 1 ; 'Make Function' box checked by default?  1 = checked.  NOTE: If HH detects a multiline item, this gets unchecked. 
+;hh.SetFont("s11 cGreen")
+ComStr := hh.AddEdit('cGreen vComStr xs y' . hFactor + 200 . ' w' . wFactor + 370)
+;hh.SetFont("s11 " . FontColor)
 ; ---- Buttons ----
 (ButApp := hh.AddButton('xm y' . hFactor + 234, 'Append')).OnEvent("Click", hhButtonAppend)
 (ButCheck := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Check')).OnEvent("Click", hhButtonCheck)
-(ButExam := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Exam')).OnEvent("Click", hhButtonExam)
+(ButExam := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Exam'))
+ButExam.OnEvent("Click", hhButtonExam)
+ButExam.OnEvent("ContextMenu", subFuncExamControl)
 (ButSpell := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Spell')).OnEvent("Click", hhButtonSpell)
 (ButOpen := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Open')).OnEvent("Click", hhButtonOpen)
 (ButCancel := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Cancel')).OnEvent("Click", hhButtonCancel)
@@ -176,19 +212,55 @@ ButUndo.Enabled := false
 hh.SetFont('s12')
 (TxtTLable := hh.AddText('vTrigLabel center y+4 h25 xm w' . wFactor+182, 'Misspells'))
 (TxtRLable := hh.AddText('vReplLabel center h25 x+5 w' . wFactor+182, 'Fixes'))
-(EdtTMatches := hh.AddEdit('vTrigMatches y+1 xm h' . hFactor+300 . ' w' . wFactor+182,))
-(EdtRMatches := hh.AddEdit('vReplMatches x+5 h' . hFactor+300 . ' w' . wFactor+182,))
+(EdtTMatches := hh.AddEdit('cDefault vTrigMatches y+1 xm h' . hFactor+300 . ' w' . wFactor+182,))
+(EdtRMatches := hh.AddEdit('cDefault vReplMatches x+5 h' . hFactor+300 . ' w' . wFactor+182,))
 ; ---- word list file ----
 hh.SetFont('bold s10')
 (TxtWordList := hh.AddText('vWordList center xm y+1 h14 w' . wFactor*2+364 , WordListName)).OnEvent('DoubleClick', ChangeWordList)
+ShowHideButtonExam(Visibility := False) ; Hides bottom part of GUI as default. 
+; ============== Bottom (toggling) "Control Pane" part of GUI =====================
+(TxtCtrlLbl1 := hh.AddText(' center cBlue ym+270 h25 xm w' . wFactor+370, 'Secret Control Panel!'))
+hh.SetFont('s10')
+(butRunAcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open AutoCorrection Log'))
+butRunAcLog.OnEvent("click", (*) => ControlPaneRuns("butRunAcLog"))
+(butRunMcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open Manual Correction Log'))
+butRunMcLog.OnEvent("click", (*) => ControlPaneRuns("butRunMcLog"))
+(butFixRep := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Count HotStrings and Potential Fixes'))
+butFixRep.OnEvent('Click', StringAndFixReport)
 
-SubButtonExam(Visibility := False) ; Hides bottom part of GUI as default. 
+ShowHideButtonsControl(Visibility := False) ; Hides bottom part of GUI as default. 
+
+ControlPaneRuns(buttonIdentifier)
+{
+	if (buttonIdentifier = "butRunAcLog")
+		Run MyAhkEditorPath " AutoCorrectsLog.ahk" ; Note space before file name.
+	else if (buttonIdentifier = "butRunMcLog")
+		Run MyAhkEditorPath " ManualCorrectionLogger.ahk" ; Note space before file name.
+}
+
+ShowHideButtonsControl(Visibility := False) ; Shows/Hides bottom, Exam Pane, part of GUI.
+{	ControlCmds := [TxtCtrlLbl1,butRunAcLog,butRunMcLog,butFixRep]
+	for ctrl in ControlCmds {
+		ctrl.Visible := Visibility
+	}
+}
+
+ShowHideButtonExam(Visibility := False) ; Shows/Hides bottom, Exam Pane, part of GUI.
+{	examCmds := [ButLTrim, TxtTypo, ButRTrim, RadBeg, RadMid, RadEnd, ButUndo, TxtTLable, TxtRLable, EdtTMatches, EdtRMatches, TxtWordList]
+	for ctrl in examCmds {
+		ctrl.Visible := Visibility
+	}
+}
 
 ExamPaneOpen := 0
+ControlPaneOpen := 0
+
 OrigTrigger := "" ; Used to restore original content.
 OrigReplacment := ""
 tArrStep := [] ; array for trigger undos
 rArrStep := [] ; array for replacement undos
+
+origTriggerTypo := "" ; Used to determine is trigger has been changed, to potentially type new replacement at runtime.
 
 ;===The=main=function=for=showing=the=Hotstring=Helper=Tool=====================
 ; This code block copies the selected text, then determines if a hotstring is present.
@@ -203,7 +275,7 @@ CheckClipboard(*)
 	A_Clipboard := ""  ; Must start off blank for detection to work.
 	Send("^c") ; Copy selected text.
 	Errorlevel := !ClipWait(0.3) ; Wait for clipboard to contain text.
-
+	
 	Global Opts:= "", Trig := "", Repl := "", Opts := ""
 	hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<fCom>\h*;\h*(?:\bFIXES\h*\d+\h*WORDS?\b)?(?:\h;)?\h*(?<mCom>.*))?$" ; Jim 156
 	; Awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
@@ -217,13 +289,13 @@ CheckClipboard(*)
 		Global OrigTrigger := hotstr.Trig
 		hotstr.Repl := Trim(hotstr.Repl, '"')
 		ReplaceString.text := hotstr.Repl
-		ComStr.text := hotstr.mCom ; Removes autmated part of comment, leaves manual part. 
+		ComStr.text := hotstr.mCom ; Removes automated part of comment, leaves manual part. 
 		Global OrigReplacement := hotstr.Repl
 		; ---- For parse text label ----
 		Global strT := hotstr.Trig
 		Global TrigNeedle_Orig := hotstr.Trig  ; used for TriggerChnged function below.
 		Global strR := hotstr.Repl
-		hh.origHotStr := hotstr.Repl ; Used if Rarify checkbox undone. 
+		;hh.origHotStr := hotstr.Repl ; Used if Rarify checkbox undone. 
 		; set radio buttons, based on options of copied hotstring... 
 		If InStr(hotstr.Opts, "*") && InStr(hotstr.Opts, "?")
 			RadMid.Value := 1 ; Set Radio to "middle"
@@ -239,7 +311,7 @@ CheckClipboard(*)
 		Global strT := A_Clipboard
 		Global TrigNeedle_Orig := strT ; used for TriggerChnged function below.
 		Global strR := A_Clipboard	
-		hh.origHotStr := A_Clipboard ; Used if Rarify checkbox undone. 
+		;hh.origHotStr := A_Clipboard ; Used if Rarify checkbox undone. 
 		NormalStartup(strT, strR)
 	}
 
@@ -256,11 +328,14 @@ CheckClipboard(*)
 ; This function tries to determine if the content of the clipboard is an AutoCorrect
 ; item, or a selection of boilerplate text.  If boilerplate text, an acronym is
 ; generated from the first letters.  (e.g. ::ttyl::talk to you later)
+IsMultiLine := 0
 NormalStartup(strT, strR)
 {	; If multiple spaces or `n present, probably not an Autocorrect entry, so make acronym.
 	If ((StrLen(A_Clipboard) - StrLen(StrReplace(A_Clipboard," ")) > 2) || InStr(A_Clipboard, "`n"))
 	{	DefaultOpts := DefaultBoilerPlateOpts 
 		ReplaceString.value := A_Clipboard
+		Global IsMultiLine := 1
+		ChkFunc.Value := 0 ; Multi-line item, so don't make into function. 
 		If (addFirstLetters > 0)
 		{ ;LBLhotstring := "Edit trigger string as needed"
 			initials := "" ; Initials will be the first letter of each word as a hotstring suggestion.
@@ -291,6 +366,10 @@ NormalStartup(strT, strR)
 	}
 	else
 	{ ;LBLhotstring := "Add misspelled word"
+		If (AutoEnterNewEntry = 1)
+		{	Global targetWindow := WinActive("A")  ; Get the handle of the currently active window
+			Global origTriggerTypo  := A_Clipboard ; Used to determine if we can type new replacement into current edit field.
+		}
 		; NOTE:  Do we want the copied word to be lower-cased and trimmed of white space?  Methinks, yes. 
 		DefaultHotStr := Trim(StrLower(A_Clipboard)) ; No `n found so assume it's a mispelling autocorrect entry: no pre/suffix.
 		ReplaceString.value := Trim(StrLower(A_Clipboard)) 
@@ -356,11 +435,11 @@ ExamineWords(strT, strR)
 		If (strLen(beginning) + strLen(ending)) > LoopNum { ; Overlap means repeated chars in trig or replacement.
 			If (LenT > LenR) { ; Trig is longer, so use T-R for str len.
 				delta := subStr(ending, 1, (LenT - LenR)) ; Left part of ending.  Right part of beginning would also work.
-				delta := " [ " . delta . " ||  ] "
+				delta := " [ " . delta . " |  ] "
 			}
 			If (LenR > LenT) { ; Replacement is longer, so use R-T for str len.
 				delta := subStr(ending, 1, (LenR - LenT))
-				delta := " [  ||  " . delta . " ] "
+				delta := " [  |  " . delta . " ] "
 			}
 		}
 		Else {
@@ -376,7 +455,7 @@ ExamineWords(strT, strR)
 				fix := StrReplace(ostrR, ending, "")
 				fix := StrReplace(fix, beginning, "")
 			}
-			delta := " [ " . typo . " || " . fix . " ] "
+			delta := " [ " . typo . " | " . fix . " ] "
 		}
 		deltaString := beginning . delta . ending
 
@@ -394,7 +473,7 @@ ExamineWords(strT, strR)
 			SoundBeep
 			SubTogSize(0, 0) ; Make replacement edit box small again.
 		}
-	SubButtonExam(True)	
+	ShowHideButtonExam(True)	
 	}	
 	hh.Show('Autosize yCenter') 
 }
@@ -406,7 +485,10 @@ TogSize(*)
 { 	If (hh['SizeTog'].text = "Make Bigger") { ; Means current state is 'Small'
 		hh['SizeTog'].text := "Make Smaller"
 		If (ButExam.text = "Done") {
-			SubButtonExam(Visibility := False)
+			ShowHideButtonExam(Visibility := False)
+			ExamPaneOpen := 0
+			ShowHideButtonsControl(Visibility := False)
+			ControlPaneOpen := 0
 			ButExam.text := "Exam"
 		}
 		Global hFactor := HeightSizeIncrease
@@ -440,33 +522,59 @@ SubTogSize(hFactor, wFactor) ; Actually re-draws the form.
 	ButCancel.Move(, hFactor + 234, ,)
 }
 
-hhButtonExam(*)
-{	;MsgBox("Examfunc`nhFactor is:`n`n" . hFactor)
-	If (ButExam.text = "Exam") { ; or if this gui cmd = Make Bigger ??
+; This function gets called from hhButtonExam (below) or ButExam's onEvent.
+; It shows the Control Pane.
+subFuncExamControl(*)
+{	Global ControlPaneOpen
+	If ControlPaneOpen = 1 {
+		ButExam.text := "Exam"
+		ShowHideButtonsControl(False)
+		ShowHideButtonExam(False)	
+		ControlPaneOpen := 0
+	}
+	Else {
 		ButExam.text := "Done"
-		If(hFactor != 0) {
-			hh['SizeTog'].text := "Make Bigger"
+			;msgbox 'hFactor is ' hFactor 
+		If(hFactor = HeightSizeIncrease) { 
 			TogSize() ; Make replacement edit box small again.
+			hh['SizeTog'].text := "Make Bigger"
+		}
+		ShowHideButtonsControl(True)
+		ShowHideButtonExam(False)	
+		ControlPaneOpen := 1
+	}
+	hh.Show('Autosize yCenter') 
+}
+
+hhButtonExam(*) ; Tripple state, but button text is only dual state (exam/done)
+{	Global ExamPaneOpen
+	Global ControlPaneOpen
+	If ((ExamPaneOpen = 0) and (ControlPaneOpen = 0) and GetKeyState("Shift")) 
+	|| ((ExamPaneOpen = 1) and (ControlPaneOpen = 0) and GetKeyState("Shift")) { ; Both closed, so open Control Pane.
+	subFuncExamControl() ; subFunction shows control pane. 
+	}
+	Else If (ExamPaneOpen = 0) and (ControlPaneOpen = 0) { ; Both closed, so open Exam Pane.
+		ButExam.text := "Done"
+		If(hFactor = HeightSizeIncrease) {
+			TogSize() ; Make replacement edit box small again.
+			hh['SizeTog'].text := "Make Bigger"
 		}
 		Global OrigTrigger := TriggerString.text
 		Global OrigReplacement := ReplaceString.text
-		SubButtonExam(True)
-		Global ExamPaneOpen := 1
-		ExamineWords(TriggerString.text, ReplaceString.text)
-		GoFilter()
+		ExamineWords(OrigTrigger, OrigReplacement) 
+		goFilter()
+		ShowHideButtonsControl(False)
+		ShowHideButtonExam(True)	
+		ExamPaneOpen := 1
 	}
-	Else {
+	Else { ; Close either whatever pane is open..
 		ButExam.text := "Exam"
-		Global ExamPaneOpen := 0
-		SubButtonExam(False)	
+		ShowHideButtonsControl(False)
+		ShowHideButtonExam(False)
+		ExamPaneOpen := 0
+		ControlPaneOpen := 0	
 	}	
 	hh.Show('Autosize yCenter') 	
-}
-SubButtonExam(Visibility := False) ; Shows/Hides bottom, Exam Pane, part of GUI.
-{	examCmds := [ButLTrim, TxtTypo, ButRTrim, RadBeg, RadMid, RadEnd, ButUndo, TxtTLable, TxtRLable, EdtTMatches, EdtRMatches, TxtWordList]
-	for ctrl in examCmds {
-		ctrl.Visible := Visibility
-	}
 }
 
 ; This functions toggles on/off whether the Pilcrow and other symbols are shown.
@@ -501,6 +609,7 @@ TogSym(*)
 ; The function is called whenever the trigger(hotstring) edit box is changed.  
 ; It assesses whether a letter has beem manually added to the beginning/ending
 ; of the trigger, and adds the same letter to the replacement edit box.  
+; BUGGY...  Doesn't always do anything.  :(
 TriggerChanged(*)
 {	TrigNeedle_New := TriggerString.text 
 	If TrigNeedle_New != TrigNeedle_Orig && ExamPaneOpen = 1 { ; If trigger has changed and pane open.
@@ -558,11 +667,15 @@ hhButtonCheck(*)
 }
 
 ; An easy-to-see large dialog to show Validity report/warning. 
+; Selecting text from the trigger report box copies it when releasing the mouse button.
+; Selected text is sent to find box in VSCode.  If digits, sent to go-to-line. 
+bb := ''
 biggerMsgBox(thisMess, secondButt)
-{	bb := Gui(,'Validity Report')
+{	Global bb := Gui(,'Validity Report')
 	bb.SetFont('s11 ' FontColor)
-	bb.BackColor := GuiColor
-	bb.Add('Text',, 'For proposed new item:')
+	bb.BackColor := GuiColor, GuiColor
+	global mbTitle := ""
+	(mbTitle := bb.Add('Text',, 'For proposed new item:')).Focus() ; Focusing this prevents the three "edit" boxes from being focus by default.
 	bb.SetFont(myBigFont )
 	proposedHS := ':' tMyDefaultOpts ':' tTriggerString '::' tReplaceString
 	bb.Add('Text', (strLen(proposedHS)>90? 'w600 ':'') 'xs yp+22', proposedHS)
@@ -571,10 +684,12 @@ biggerMsgBox(thisMess, secondButt)
 	
 	bb.SetFont(myBigFont )
 	bbItem := StrSplit(thisMess, "*|*") 
-	bb.Add('Text', 										   (inStr(bbItem[1],'-Okay.')? myGreen : myRed) , bbItem[1]) 
-	bb.Add('Text', (strLen(bbItem[2])>104? ' w600 ' : ' ') (inStr(bbItem[2],'-Okay.')? myGreen : myRed) , bbItem[2]) 
-	bb.Add('Text', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3],'-Okay.')? myGreen : myRed) , bbItem[3]) 
-
+	; Use "edit" rather than "text" because it allows us to select the text. 
+	edtSharedSettings := ' -VScroll ReadOnly -E0x200 Background'
+	bb.Add('Edit', (inStr(bbItem[1],'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem[1]) 
+	trigEdtBox := bb.Add('Edit', (strLen(bbItem[2])>104? ' w600 ' : ' ') (inStr(bbItem[2],'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem[2]) 
+	bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3],'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem[3]) 
+	trigEdtBox.OnEvent('Focus', findInScript) 
 	bb.SetFont('s11 ' FontColor)
 	secondButt=1? bb.Add('Text',,"==============================`nAppend HotString Anyway?"):''
 	bbAppend := bb.Add('Button', , 'Append Anyway')
@@ -582,11 +697,39 @@ biggerMsgBox(thisMess, secondButt)
 	bbAppend.OnEvent 'Click', (*) => bb.Destroy()
 	if secondButt != 1
 		bbAppend.Visible := False
-	bbClose := bb.Add('Button', 'x+5 ', 'Close')
+	bbClose := bb.Add('Button', 'x+5 Default', 'Close')
 	bbClose.OnEvent 'Click', (*) => bb.Destroy()
 	bb.Show('yCenter x' (A_ScreenWidth/2))
 	WinSetAlwaysontop(1, "A")
 	bb.OnEvent 'Escape', (*) => bb.Destroy()
+}
+
+; Find the text that is selected in the GUI. 
+findInScript(*)
+{	SoundBeep
+	if (GetKeyState("LButton", "P"))
+		KeyWait "LButton", "U"
+	A_Clipboard := ""
+	SendInput "^c"
+	If !ClipWait( 1, 0)
+		Return	
+	;msgbox A_Clipboard
+	if WinExist(NameOfThisFile)
+		WinActivate NameOfThisFile
+	else 
+	{	Run MyAhkEditorPath " " NameOfThisFile
+		While !WinExist(NameOfThisFile)
+			Sleep 50
+		WinActivate NameOfThisFile
+	}
+	If RegExMatch(A_Clipboard, "^\d{2,}") ; two or more digits? 
+		SendInput "^g" A_Clipboard
+	else 
+	{	SendInput "^f"
+		sleep 200
+		SendInput "^v"
+	}
+	mbTitle.Focus() ; Focus title again so text doesn't stay selected. 
 }
 
 ; This function runs several validity checks. 
@@ -714,7 +857,7 @@ Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
 	}
 
 	fopen := '' , fclose := ''
-	If (chkFunc.Value = 1) ; add function part if needed
+	If (chkFunc.Value = 1) and (IsMultiLine = 0) ; add function part if needed
 		{
 			tMyDefaultOpts := "B0X" . StrReplace(tMyDefaultOpts, "B0X", "")
 			fopen := 'f("'
@@ -739,9 +882,30 @@ Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
 	}
 	else
 	{ 	FileAppend("`n" WholeStr, A_ScriptFullPath) ; 'n makes sure it goes on a new line.
-		Reload() ; relaod the script so the new hotstring will be ready for use.
+		If (AutoEnterNewEntry = 1) ; If this user setting (at the top) is set, then call function
+			ChangeActiveEditField()
+		If not getKeyState("Ctrl")
+			Reload() ; relaod the script so the new hotstring will be ready for use; but not if ctrl pressed.
 	}
 }  ; Newly added hotstrings will be way at the bottom of the ahk file.
+
+; This function only gets called if the new AC item is a single-word fix.
+; It assesses whether the text in the target document is still selected, and if trigger is unchanged,
+; and if so, corrects the item in the target document. 
+ChangeActiveEditField(*)
+{	Send("^c") ; Copy selected text.
+	Errorlevel := !ClipWait(0.3) ; Wait for clipboard to contain text.
+	Global origTriggerTypo := trim(origTriggerTypo) ; Remove any whitespace.
+	hasSpace := (subStr(A_Clipboard, -1) = " ")? " " : ""
+	A_Clipboard := trim(A_Clipboard) ; Remove any whitespace.
+	If (origTriggerTypo = A_Clipboard) and (origTriggerTypo = TriggerString.text) ; Make sure nothing has changed. 
+	{	If (bb != '') ; If the big validity message box is showing.. 
+			bb.Hide() ; Hide it.
+		hh.Hide() ; hide main HotStrHelper form.
+		WinWaitActive(targetWindow)
+		Send(ReplaceString.text hasSpace)
+	}
+}
 
 ; Calls the Google "Did you mean..." function below. 
 hhButtonSpell(*) ; Called it "Spell" because "Spell Check" is too long.
@@ -1010,44 +1174,6 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 	TxtRLable.Text := "Fixes [" . rMatches . "]"
 }
 
-
-; ################ END of HH2 ###########################################################
-; ...............................QQQ.....................QQQQQQ.....QQQ.........QQQ......
-; ...............................QQQ.....................QQQQQ......QQQ.........QQQ......
-; ...............................QQQ....................QQQQ........QQQ.........QQQ......
-; ...............................QQQ....................QQQQ........QQQ.........QQQ......
-; ...............................QQQ....................QQQQ........QQQ.........QQQ......
-; ..QQQQQQ....QQQQQQQQQ....QQQQQQQQQ..........QQQQQQ..QQQQQQQQ......QQQQQQQQQ...QQQQQQQQQ
-; .QQQQQQQQ...QQQQQQQQQQ..QQQQQQQQQQ.........QQQQQQQQ.QQQQQQQQ......QQQQQQQQQQ..QQQQQQQQQ
-; QQQQ.QQQQQ..QQQQQ.QQQQ..QQQQ.QQQQQ........QQQQ.QQQQQ..QQQQ........QQQQQ.QQQQ..QQQQQ.QQQ
-; QQQ....QQQ..QQQQ...QQQ.QQQQ...QQQQ.......QQQQ....QQQ..QQQQ........QQQQ...QQQ..QQQQ...QQ
-; QQQ....QQQ..QQQ....QQQ.QQQQ...QQQQ.......QQQQ....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
-; QQQ....QQQQ.QQQ....QQQ.QQQ.....QQQ.......QQQ.....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
-; QQQQQQQQQQQ.QQQ....QQQ.QQQ.....QQQ.......QQQ.....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
-; QQQQQQQQQQQ.QQQ....QQQ.QQQ.....QQQ.......QQQ.....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
-; QQ..........QQQ....QQQ.QQQ.....QQQ.......QQQ.....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
-; QQQ.........QQQ....QQQ.QQQQ...QQQQ.......QQQQ....QQQQ.QQQQ........QQQ....QQQ..QQQ....QQ
-; QQQ....QQQ..QQQ....QQQ.QQQQ...QQQQ.......QQQQ....QQQ..QQQQ........QQQ....QQQ..QQQ....QQ
-; QQQQ..QQQQ..QQQ....QQQ..QQQQ.QQQQQ........QQQQ.QQQQQ..QQQQ........QQQ....QQQ..QQQ....QQ
-; .QQQQQQQQ...QQQ....QQQ...QQQQQQQQQ.........QQQQQQQQ...QQQQ........QQQ....QQQ..QQQ....QQ
-; ..QQQQQQ....QQQ....QQQ....QQQQQQQQ..........QQQQQQ....QQQQ........QQQ....QQQ..QQQ....QQ
-; #######################################################################################
-
-;#################### PIN WINDOW TO TOP #########################
-
-!^SPACE:: ; Alt+Ctrl+Space to toggle pin.
-{	Title := StrReplace(WinGetTitle("A"), " [Pinned]") ; Remove flag, if present.
-	ExStyle := WinGetExStyle("ahk_id " WinExist("A"))
-	If (ExStyle & 0x8)  ; ExStyle = AlwaysOnTop
-	{	WinSetAlwaysontop(0, "A")
-		WinSetTitle(Title)
-	}
-	Else 
-	{	WinSetAlwaysontop(1, "A")
-		WinSetTitle(Title . " [Pinned]") ; Add this flag to the title bar caption.
-	}
-} 
-
 #HotIf WinActive(NameOfThisFile,) ; Can't use A_Var here.
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.
 {
@@ -1059,8 +1185,96 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 }
 #HotIf
 
+;  Open this script in defined editor.
+^+e::
+EditThisScript(*)
+{	Try
+		Run MyAhkEditorPath " "  NameOfThisFile
+	Catch
+		msgbox 'cannot run ' NameOfThisFile
+}
+;------------------------------------------------------------------------------
+;   Get/Set my default printer
+; A tool to allow user to check and/or change default printer.
+; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=118596&p=526363#p526363
+; By Kunkel321 with help from Garry. Partly auto-converted from v1, partly rewritten.
+;------------------------------------------------------------------------------
++!p:: ; Shift+Alt+P
+PrinterTool(*)
+{	; TraySetIcon("shell32.dll","107") ; Icon of a printer with a green checkmark.
+	pfontColor := fontColor
+
+	;guiColor := "F0F8FF" ; "F0F8FF" is light blue
+	;pfontColor := "003366" ; "003366" is dark blue
+	Global df := ""
+
+	; ===== Get default printer name. ======
+	defaultPrinter := RegRead("HKCU\Software\Microsoft\Windows NT\CurrentVersion\Windows", "Device")
+
+	; ==== Get list of installed printers ======
+	Global printerlist := ""
+	Loop Reg, "HKCU\Software\Microsoft\Windows NT\CurrentVersion\devices"
+		printerlist := printerlist . "" . A_loopRegName . "`n"
+	printerlist := SubStr(printerlist, 1, strlen(printerlist) - 2)
+
+	df := Gui()
+	df.Title := "Default Printer Changer"
+	df.OnEvent("Close", ButtonCancel)
+	df.OnEvent("Escape", ButtonCancel)
+	df.BackColor := guiColor
+	df.SetFont("s12 bold c" . pFontColor)
+	df.Add("Text", , "Set A Default Printer ...")
+	df.SetFont("s11")
+	Loop Parse, printerlist, "`n"
+		If InStr(defaultPrinter, A_LoopField)
+			df.AddRadio("checked vRadio" . a_index, a_loopfield)
+		Else
+			df.AddRadio("vRadio" . a_index, a_loopfield)
+	df.AddButton("default", "Set Printer").OnEvent("Click", ButtonSet)
+	df.AddButton("x+10", "Print &Queue").OnEvent("Click", ButtonQue)
+	df.AddButton("x+10", "Control Panel").OnEvent("Click", ButtonCtrlPanel)
+	df.AddButton("x+10", "Cancel").OnEvent("Click", ButtonCancel)
+	df.Show()
+}
+
+ButtonSet(*)
+{ Loop Parse, printerlist, "`n" {
+	thisRadioVal := df["Radio" . a_index].value
+	If thisRadioVal != 0
+		newDefault := a_loopfield
+}
+; ==== Set new default printer =====
+RunWait("C:\Windows\System32\RUNDLL32.exe PRINTUI.DLL, PrintUIEntry /y /n `"" newDefault "`"") ; sets the printer
+df.Destroy()
+}
+
+ButtonQue(*)
+{ viewThis := ""
+	Loop Parse, printerlist, "`n" {
+		thisRadioVal := df["Radio" . a_index].value
+		If thisRadioVal != 0
+			viewThis := a_loopfield
+	}
+	; ==== View print queue for selected =====
+	RunWait("rundll32 printui.dll, PrintUIEntry /o /n `"" viewThis "`"")  ;- display printer queue view -User Garry
+	df.Destroy()
+}
+
+ButtonCtrlPanel(*)
+{ Run("control printers")
+	df.Destroy()
+	printerlist := ""
+}  
+
+ButtonCancel(*)
+{ df.Destroy()
+	printerlist := ""
+}
+
+;#############################################################
 ;################ UPTIME #####################################
 !+u::
+UpTime(*)
 { MsgBox("UpTime is:`n" . Uptime(A_TickCount))
 	Uptime(ms) {
 		VarSetStrCapacity(&b, 256) ; V1toV2: if 'b' is NOT a UTF-16 string, use 'b := Buffer(256)'
@@ -1076,139 +1290,6 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 		return b
 	}
 }
-
-;############################################################################
-; Up Down Left Right Drag Actions Tool
-; Author: Kunkel321, Version: 9-1-2023
-; Inspired by the excellent MouseGesureL.ahk
-; https://hp.vector.co.jp/authors/VA018351/en/mglahk.html
-
-IgnoreDuration := 100  ; Ignore if right mouse button down shorter than this many milliseconds.
-IgnoreLength := 100  ; Ignore drags less than this many pixels long.
-
-RButton::
-{ 	Global VarXb, VarYb ; i.e. variable Xpos, Ypos "beginning"
-	MouseGetPos &VarXb, &VarYb
-}
-
-$RButton Up::
-{	IF (A_TimeSincePriorHotkey > IgnoreDuration) {
-		Global VarXe, VarYe ; i.e. variable Xpos, Ypos "ending"
-		MouseGetPos &VarXe, &VarYe
-		DoMath()
-	}
-	else
-		Send "{RButton}" ; just do default mouse r-click.
-}
-
-DoMath()
-{ abX := Abs(VarXb - VarXe) ; get begin-end differences
-	abY := Abs(VarYb - VarYe)
-	If abX > (abY * 3) and (abX > IgnoreLength) { ; is horizontal -and- drag was long enough?
-		If VarXb > VarXe
-			DragDirection("Left")
-		Else
-			DragDirection("Right")
-	}
-	Else If abY > (abX * 3) and (abY > IgnoreLength) {  ; is vertical -and- drag was long enough?
-		If VarYb > VarYe
-			DragDirection("Up")
-		Else
-			DragDirection("Down")
-	}
-	Else
-		Send "{RButton}" ; just do default mouse r-click.
-}
-
-DragDirection(dragWay)
-{  If InStr(WinGetTitle("ahk_id " WinActive("A")), "PDF-XChange")
-	{ switch dragWay
-		{
-		case "Left": Send "{Home}" ; Back
-		case "Right": Send "{End}" ; Forward
-		case "Up": Send "{PgUp}" ; Top
-		case "Down": Send "{PgDn}" ; Bottom
-	}
-	}
-	else
-	{ switch dragWay
-		{
-		case "Left": Send "!{Left}" ; Back
-		case "Right": Send "!{Right}" ; Forward
-		case "Up": Send "^{Home}" ; Top
-		case "Down": Send "^{End}" ; Bottom
-	}
-	}
-}
-
-;##############################################################
-;------------------------------------------------------------------------------
-;   AutoHotkey Documentation Lookup Tool
-; Idea based on: Jack Dunning's @ ComputerEdge.com
-; Help from hisrRB57 and Just Me.
-; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=119887&p=532430#p532430
-; Looks up selected word in AHK Documentation.
-; If no word is selected, double-clicks to select word under cursor.
-; If still nothihg selected, open documentation main page.
-; But... If clipboard has a URL, just open that.
-; Feel free to delete these comments.  :- )	; Is v2 code.
-;------------------------------------------------------------------------------
-
-!+1:: ; Alt+Shift+1 ---> look up in v1 ahk docs.
-!+2:: ; Alt+Shift+2 ---> look up in v2 ahk docs.
-{
-	ver := SubStr(A_ThisHotkey, -1)
-	A_Clipboard := "" ; WARNING: Previous clipboard contents are lost.
-	Send("^c") ; copies selected text
-	If !ClipWait(1)
-	{
-		MouseClick() ; If nothing was selected, double-click to select word.
-		Sleep(200)
-		MouseClick()
-		Sleep(200)
-		Send("^c") ;copies selected text
-		If !ClipWait(1) { ; If still nothing on clipbrd, just launch main page.
-			Run("https://www.autohotkey.com/docs/v" ver)
-			return
-		}
-	}
-	If RegExMatch(A_Clipboard, "^(https?://|www\.)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(/\S*)?$")
-		Run(A_Clipboard) ; If clipbrd content = URL, just launch the URL.
-	Else {
-		A_Clipboard := StrReplace(A_Clipboard, "#")
-		Run("https://autohotkey.com/docs/v" ver "/" A_Clipboard)
-	}
-	Return
-}
-
-;##################### WINDOW MOVERS ##########################
-
-^!Lbutton:: ; Ctrl+Alt+Left Mouse Click
-{
-	SetWinDelay(-1) ; Sets time between moves. -1 = no time
-	CoordMode("Mouse", "Screen")
-	WinGetPos(&BwX, &BwY, , , "A") ; Begin window X Y coord.
-	WinRestore("A") ; Unmaximizes window.
-	MouseGetPos(&BmX, &BmY) ; Begin mouse X Y coord
-	while GetKeyState("Lbutton", "P") ; While left mouse button is held down.
-	{	MouseGetPos(&CmX, &CmY) ; Keep getting current mouse X Y
-		WinMove((BwX+CmX-BmX), (BwY+CmY-BmY), , , "A")
-	} 
-	SetWinDelay 100
-	CoordMode("Mouse", "Window") ; Put back, because window is mostly the default.
-Return
-}
-
-!+m:: ; Move active window to position of cursor.
-; From Joe G and Isaias B at https://www.the-automator.com/
-{	CoordMode("Mouse", "Screen")
-	MouseGetPos(&mox, &moy)
-	WinMove(mox, moy, , , "A")
-	CoordMode("Mouse", "Window")
-Return
-}
-
-^!+v::MsgBox("My ahk version: " A_AhkVersion)
 
 ; ==============================================================================
 ;       AUto-COrrect TWo COnsecutive CApitals
@@ -1300,7 +1381,7 @@ fix_consecutive_caps() {
 ;  AutoCorrect entries
 ;  Accented non English Items (with definitions)
 ;  Capatalize Dates
-;  A few miscaleneous boilerplate things
+;  A few misceleneous boilerplate things
 ;  Items appennded via Hotstring Helper at the very bottom.
 ;------------------------------------------------------------------------------
 ;  Multi-fix items are commented with " ; Fixes N misspellings"
@@ -1310,8 +1391,8 @@ fix_consecutive_caps() {
 ;  Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
 ;------------------------------------------------------------------------------
 
-!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger. 
-!+l::Run("AutoCorrectsLog.ahk") ; Shift+Alt+L: View/Run log of all autocorrections.  
+;!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger. (Disabled because I never use it.)
+;!+l::Run("AutoCorrectsLog.ahk") ; Shift+Alt+L: View/Run log of all autocorrections. (Disabled because I never use it.) 
 
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
@@ -1329,7 +1410,7 @@ f(replace := "") ; All the one-line autocorrects call this f(unction).
 	replL := StrSplit(replace)
 	Global ignorLen := 0
 	Loop Min(trigL.Length, replL.Length) ; find matching left substring.
-	{	If (trigL[A_Index] = replL[A_Index])
+	{	If (trigL[A_Index] == replL[A_Index])
 			ignorLen++
 		else break
 	}
@@ -1352,8 +1433,9 @@ GoLogger(addToLog) ; Automatically logs if an autocorrect happens, and if I pres
 }
 #MaxThreadsPerHotkey 1
 
+
 /* InputBuffer Class by Descolada https://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865
- * Note:  The mouse-relevant parts were removed via ChatGPT4.
+ * Note:  The mouse-relevant parts were removed by kunkel321, via ChatGPT4.
  * InputBuffer can be used to buffer user input for keyboard, mouse, or both at once. 
  * The default InputBuffer (via the main class name) is keyboard only, but new instances
  * can be created via InputBuffer().
@@ -1452,6 +1534,7 @@ class InputBuffer {
 ;###############################################
 ; Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
 ^F3:: ; Ctrl+F3: Report information about the autocorrect items.
+StringAndFixReport(*)
 {	ThisFile := FileRead(A_ScriptFullPath)
 	thisOptions := '', regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0
 	Loop Parse ThisFile, '`n'
@@ -1459,7 +1542,7 @@ class InputBuffer {
 			continue
 		entries++
 		thisOptions := SubStr(Trim(A_LoopField), 1, InStr(A_LoopField, ':',,,2)) ; get options part of hotstring
-		If InStr(thisOptions, '*') and InStr(A_LoopField, '?')
+		If InStr(thisOptions, '*') and InStr(thisOptions, '?')
 			middles++
 		Else If InStr(thisOptions, '*')
 			begins++
@@ -1476,7 +1559,7 @@ class InputBuffer {
 	'`n    Word Ends:`t`t   ' numberFormat(ends) ; this is a smaller number, so push over with '  ', simulates right justification.
 	'`n===========================`n   Total Entries:`t`t' numberFormat(entries)
 	'`n   Potential Fixes:`t`t' numberFormat(fixes) 
-	, 'Report for ' A_ScriptName, 64
+	, 'Report for ' A_ScriptName, 64 + 4096  ; Icon Asterisk (info)	64; System Modal (always on top) 4096
 	)
 	numberFormat(num) ; Function to format a number with commas (by ChatGPT4)
 	{	global
@@ -1585,7 +1668,7 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 getStartLineNumber(*)
 {	For idx, line in StrSplit(FileRead(A_ScriptName), "`n")
 		If inStr(line, "AUTOCORRECT START POINT MARKER") { ; <--- Sees itself..  LOL 
-			Global ACitemsStartAt := idx + 9 ; Should equal line number where autocorrect list starts. 
+			Global ACitemsStartAt := idx + 8 ; Should equal line number where autocorrect list starts. 
 			Break ; We found it, so no need to keep looping.  
 		}
 	Return ACitemsStartAt
@@ -1593,6 +1676,7 @@ getStartLineNumber(*)
 ;===============================================================================
 
 ; ===== Beginning of Don't Sort items ==========
+:B0X*:eyte::f("eye") ; Fixes 109 words
 :B0X*:inteh::f("in the") ; Fixes 1 word
 :B0X*:ireleven::f("irrelevan") ; Fixes 6 words
 :B0X*:managerial reign::f("managerial rein") ; Fixes 2 word
@@ -1611,6 +1695,7 @@ getStartLineNumber(*)
 :B0X?*:allign::f("align") ; Fixes 41 words
 :B0X?*:arign::f("aring") ; Fixes 140 words
 :B0X?*:asign::f("assign") ; Fixes 27
+:B0X?*:awya::f("away") ; Fixes 46 words
 :B0X?*:bakc::f("back") ; Fixes 410 words
 :B0X?*:blihs::f("blish") ; Fixes 56 words
 :B0X?*:charecter::f("character") ; Fixes 38 words
@@ -1618,7 +1703,7 @@ getStartLineNumber(*)
 :B0X?*:degred::f("degrad") ; Fixes 31 words
 :B0X?*:dessign::f("design") ; Fixes 51 words.
 :B0X?*:disign::f("design") ; Fixes 51 words
-:B0X?*:docuemnt::f("document") ; Fixes 26 words
+:B0X?*:dquater::f("dquarter") ; Fixes 6 words 
 :B0X?*:easr::f("ears") ; Fixes 102 words
 :B0X?*:ecomon::f("econom") ; Fixes 50 words
 :B0X?*:esorce::f("esource") ; Fixes 11 words
@@ -2384,6 +2469,7 @@ getStartLineNumber(*)
 :B0X*:eles::f("eels") ; Fixes 1 word
 :B0X*:elphant::f("elephant") ; Fixes 6 words
 :B0X*:eluded to::f("alluded to") ; Fixes 1 word
+:B0X*:emane::f("ename") ; Fixes 15 words 
 :B0X*:embargos::f("embargoes") ; Fixes 1 word
 :B0X*:embezell::f("embezzl") ; Fixes 8 words
 :B0X*:emblamatic::f("emblematic") ; Fixes 4 words
@@ -2805,8 +2891,6 @@ getStartLineNumber(*)
 :B0X*:ideosyncratic::f("idiosyncratic") ; Fixes 1 word
 :B0X*:idesa::f("ideas") ; Fixes 1 word
 :B0X*:idiosyncracy::f("idiosyncrasy") ; Fixes 1 word
-:B0X*:if is::f("it is") ; Fixes 1 word
-:B0X*:if was::f("it was") ; Fixes 1 word
 :B0X*:ifb y::f("if by") ; Fixes 1 word
 :B0X*:ifi t::f("if it") ; Fixes 1 word
 :B0X*:ift he::f("if the") ; Fixes 1 word
@@ -2897,7 +2981,6 @@ getStartLineNumber(*)
 :B0X*:invision::f("envision") ; Fixes 4 words 
 :B0X*:inwhich::f("in which") ; Fixes 1 word
 :B0X*:iresis::f("irresis") ; Fixes 9 words 
-:B0X*:iresistib::f("irresistib") ; Fixes 5 words
 :B0X*:iritab::f("irritab") ; Fixes 5 words
 :B0X*:iritat::f("irritat") ; Fixes 12 words
 :B0X*:irregardless::f("regardless") ; Fixes 1 word
@@ -3712,7 +3795,6 @@ getStartLineNumber(*)
 :B0X*:thoughout::f("throughout") ; Fixes 1 word
 :B0X*:thousend::f("thousand") ; Fixes 5 words 
 :B0X*:threatend::f("threatened") ; Fixes 1 word
-:B0X*:threee::f("three") ; Fixes 17 words
 :B0X*:threshhold::f("threshold") ; Fixes 4 words
 :B0X*:thrid::f("third") ; Fixes 5 words
 :B0X*:thror::f("thor") ; Fixes 57 words
@@ -4060,7 +4142,9 @@ getStartLineNumber(*)
 :B0X*:whould::f("would") ; Fixes 5 words
 :B0X*:whther::f("whether") ; Fixes 1 word
 :B0X*:widesread::f("widespread") ; Fixes 3 words
-:B0X*:wih::f("whi") ; Fixes 310 words
+:B0X*:wihh::f("withh") ; Fixes 7 words 
+:B0X*:wihtd::f("withd") ; Fixes 12 words 
+:B0X*:wihts::f("withs") ; Fixes 6 words 
 :B0X*:will backup::f("will back up") ; Fixes 1 word
 :B0X*:will buyout::f("will buy out") ; Fixes 1 word
 :B0X*:will shutdown::f("will shut down") ; Fixes 1 word
@@ -4068,7 +4152,6 @@ getStartLineNumber(*)
 :B0X*:willbe::f("will be") ; Fixes 1 word
 :B0X*:winther::f("winter") ; Fixes 33 words
 :B0X*:with be::f("will be") ; Fixes 1 word
-:B0X*:with in::f("within") ; Fixes 1 word
 :B0X*:with it's::f("with its") ; Fixes 1 word
 :B0X*:with out::f("without") ; Fixes 1 word
 :B0X*:with regards to::f("with regard to") ; Fixes 1 word
@@ -4079,6 +4162,7 @@ getStartLineNumber(*)
 :B0X*:within site of::f("within sight of") ; Fixes 1 word
 :B0X*:withold::f("withhold") ; Fixes 6 words
 :B0X*:witht he::f("with the") ; Fixes 1 word
+:B0X*:wno::f("sno") ; Fixes 241 words 
 :B0X*:won it's::f("won its") ; Fixes 1 word
 :B0X*:wordlwide::f("worldwide") ; Fixes 1 word
 :B0X*:working progress::f("work in progress") ; Fixes 1 word
@@ -4114,9 +4198,22 @@ getStartLineNumber(*)
 :B0X*:your your::f("you're your") ; Fixes 1 word
 :B0X*:youseff::f("yousef") ; Fixes 1 word
 :B0X*:youself::f("yourself") ; Fixes 1 word
-:B0X*:youv'e::f("you'v") ; Fixes 1 worde 
-:B0X*:youve::f("you've") ; Fixes 1 word
 :B0X*:yrea::f("year") ; Fixes 17 words
+:B0X*?:arrern::f("attern") ; Fixes 21 words 
+:B0X*?:boder-line::f("border-line")
+:B0X*?:duec::f("duce") ; Fixes 118 words, but misspells duecento (Literally "two hundred." Word for the Italian culture of the 13th century).
+:B0X*?:eckk::f("eck") ; Fixes 443 words 
+:B0X*?:heee::f("hee") ; Fixes 494 words 
+:B0X*?:leee::f("lee") ; Fixes 309 words 
+:B0X*?:oloo::f("ollo") ; Fixes 135 words 
+:B0X*?:reee::f("ree") ; Fixes 1327 words 
+:B0X*?:seee::f("see") ; Fixes 309 words 
+:B0X*?:uttoo::f("utto") ; Fixes 83 words 
+:B0X*?:uyt::f("ut") ; Fixes 6440 words , but misspells Nuytsia (A genus containing the species Nuytsia floribunda, also known as the Western Australian Christmas tree).
+:B0X*?:vition::f("vision") ; Fixes 76 words 
+:B0X*?:waty::f("way") ; Fixes 372 words 
+:B0X*?:weee::f("wee") ; Fixes 524 words 
+:B0X*?:ytion::f("tion") ; Fixes 8455 words 
 :B0X*C:aquit::f("acquit") ; Fixes 10 words.  Case-sensitive to not misspell Aquitaine (A region of southwestern France between Bordeaux and the Pyrenees)
 :B0X*C:carmel::f("caramel") ; Fixes 12 words.  Case-sensitive to not misspell Carmelite (Roman Catholic friar)
 :B0X*C:carrer::f("career") ; Fixes 8 words.  Case-sensitive to not misspell Carrere (A famous architect) 
@@ -4274,6 +4371,8 @@ getStartLineNumber(*)
 :B0X:humer::f("humor") ; Fixes 1 word
 :B0X:husban::f("husband") ; Fixes 1 word
 :B0X:hypocrit::f("hypocrite") ; Fixes 1 word
+:B0X:if is::f("it is") ; Fixes 1 word
+:B0X:if was::f("it was") ; Fixes 1 word
 :B0X:imagin::f("imagine") ; Fixes 1 word
 :B0X:internation::f("international") ; Fixes 1 word
 :B0X:is also know::f("is also known") ; Fixes 1 word
@@ -4326,7 +4425,6 @@ getStartLineNumber(*)
 :B0X:the dominate::f("the dominant") ; Fixes 1 word
 :B0X:the extend of::f("the extent of") ; Fixes 1 word
 :B0X:their is::f("there is") ; Fixes 1 word
-:B0X:ther::f("there") ; Fixes 1 word
 :B0X:there of::f("thereof") ; Fixes 1 word
 :B0X:theri::f("their") ; Fixes 1 word
 :B0X:they;l::f("they'll") ; Fixes 1 word
@@ -4354,7 +4452,6 @@ getStartLineNumber(*)
 :B0X:was the dominate::f("was the dominant") ; Fixes 1 word
 :B0X:was tore::f("was torn") ; Fixes 1 word
 :B0X:was wrote::f("was written") ; Fixes 1 word
-:B0X:wat::f("way") ; Fixes 1 word
 :B0X:were build::f("were built") ; Fixes 1 word
 :B0X:were ran::f("were run") ; Fixes 1 word
 :B0X:were rebuild::f("were rebuilt") ; Fixes 1 word
@@ -4366,8 +4463,8 @@ getStartLineNumber(*)
 :B0X:when ever::f("whenever") ; Fixes 1 word
 :B0X:where as::f("whereas") ; Fixes 1 word
 :B0X:whereas as::f("whereas") ; Fixes 1 word
-:B0X:whic::f("which") ; Fixes 1 word
 :B0X:will of::f("will have") ; Fixes 1 word
+:B0X:with in::f("within") ; Fixes 1 word
 :B0X:with on of::f("with one of") ; Fixes 1 word
 :B0X:with who::f("with whom") ; Fixes 1 word
 :B0X:witha::f("with a") ; Fixes 1 word
@@ -4381,6 +4478,8 @@ getStartLineNumber(*)
 :B0X:your his::f("you're his") ; Fixes 1 word
 :B0X:your my::f("you're my") ; Fixes 1 word
 :B0X:your the::f("you're the") ; Fixes 1 word
+:B0X:youv'e::f("you've") ; Fixes 1 word 
+:B0X:youve::f("you've") ; Fixes 1 word
 :B0X?*:0n0::f("-n-") ; For this-n-that
 :B0X?*:a;;::f("all") ; Fixes 5025 words 
 :B0X?*:aall::f("all") ; Fixes 4186 words
@@ -4561,7 +4660,6 @@ getStartLineNumber(*)
 :B0X?*:aveing::f("aving") ; Fixes 60 words
 :B0X?*:avila::f("availa") ; Fixes 13 words
 :B0X?*:awess::f("awless") ; Fixes 12 words
-:B0X?*:awya::f("away") ; Fixes 46 words
 :B0X?*:babilat::f("babilit") ; Fixes 19 words
 :B0X?*:ballan::f("balan") ; Fixes 45 words
 :B0X?*:baout::f("about") ; Fixes 37 words
@@ -4961,6 +5059,7 @@ getStartLineNumber(*)
 :B0X?*:emmigr::f("emigr") ; Fixes 21 words
 :B0X?*:emmis::f("emis") ; Fixes 214 words
 :B0X?*:emmit::f("emitt") ; Fixes 28 words
+:B0X?*:emnt::f("ment") ; Fixes 2167 words 
 :B0X?*:emostr::f("emonstr") ; Fixes 45 words
 :B0X?*:empahs::f("emphas") ; Fixes 42 words
 :B0X?*:emperic::f("empiric") ; Fixes 10 words
@@ -5196,8 +5295,6 @@ getStartLineNumber(*)
 :B0X?*:hospiti::f("hospita") ; Fixes 27 words
 :B0X?*:houno::f("hono") ; Fixes 99 words
 :B0X?*:hstor::f("histor") ; Fixes 56 words
-:B0X?*:http:\\::f("http://") ; Fixes 1 word
-:B0X?*:httpL::f("http:") ; Fixes 1 word
 :B0X?*:humerous::f("humorous") ; Fixes 6 words
 :B0X?*:humur::f("humour") ; Fixes 12 words
 :B0X?*:hvae::f("have") ; Fixes 47 words
@@ -5853,6 +5950,7 @@ getStartLineNumber(*)
 :B0X?*:rshon::f("rtion") ; Fixes 84 words
 :B0X?*:rshun::f("rtion") ; Fixes 84 words
 :B0X?*:rtaure::f("rature") ; Fixes 8 words
+:B0X?*:rtiing::f("riting") ; Fixes 46 words 
 :B0X?*:rtnat::f("rtant") ; Fixes 7 words
 :B0X?*:ruming::f("rumming") ; Fixes 5 words
 :B0X?*:ruptab::f("ruptib") ; Fixes 11 words
@@ -5861,8 +5959,8 @@ getStartLineNumber(*)
 :B0X?*:rythym::f("rhythm") ; Fixes 34 words
 :B0X?*:saccari::f("sacchari") ; Fixes 31 words
 :B0X?*:safte::f("safet") ; Fixes 5 words
-:B0X?*:saidit::f("said it") ; Fixes 0 words
-:B0X?*:saidth::f("said th") ; Fixes 1 words
+:B0X?*:saidit::f("said it") ; Fixes 1 word
+:B0X?*:saidth::f("said th") ; Fixes 1 word
 :B0X?*:sampel::f("sample") ; Fixes 20 words 
 :B0X?*:santion::f("sanction") ; Fixes 7 words
 :B0X?*:sassan::f("sassin") ; Fixes 12 words
@@ -6073,7 +6171,6 @@ getStartLineNumber(*)
 :B0X?*:tiion::f("tion") ; Fixes 7052 words
 :B0X?*:tingish::f("tinguish") ; Fixes 38 words
 :B0X?*:tioge::f("toge") ; Fixes 74 words
-:B0X?*:tiojn::f("tion") ; Fixes 7052 words
 :B0X?*:tionnab::f("tionab") ; Fixes 42 words
 :B0X?*:tionne::f("tione") ; Fixes 108 words
 :B0X?*:tionni::f("tioni") ; Fixes 265 words
@@ -6262,6 +6359,7 @@ getStartLineNumber(*)
 :B0X?:aunchs::f("aunches") ; Fixes 9 words
 :B0X?:autor::f("author") ; Fixes 2 words
 :B0X?:ayd::f("ady") ; Fixes 24 words
+:B0X?:ayt::f("ay") ; Fixes 429 words
 :B0X?:aywa::f("away") ; Fixes 24 words
 :B0X?:bilites::f("bilities") ; Fixes 487 words
 :B0X?:bilties::f("bilities") ; Fixes 487 words
@@ -6308,7 +6406,6 @@ getStartLineNumber(*)
 :B0X?:dng::f("ding") ; Fixes 618 words
 :B0X?:doens::f("does") ; Fixes 23 words
 :B0X?:doese::f("does") ; Fixes 23 words
-:B0X?:dquater::f("dquarter") ; Fixes 2 words 
 :B0X?:dreasm::f("dreams") ; Fixes 2 words
 :B0X?:dtae::f("date") ; Fixes 59 words
 :B0X?:dthe::f("d the") ; Fixes 1 word
@@ -6332,6 +6429,7 @@ getStartLineNumber(*)
 :B0X?:fiel::f("file") ; Fixes 9 words
 :B0X?:finit::f("finite") ; Fixes 6 words
 :B0X?:finitly::f("finitely") ; Fixes 4 words
+:B0X?:fng::f("fing") ; Fixes 141 words 
 :B0X?:frmo::f("from") ; Fixes 3 words
 :B0X?:frp,::f("from") ; Fixes 3 words
 :B0X?:fthe::f("f the") ; Fixes 1 word
@@ -6357,6 +6455,8 @@ getStartLineNumber(*)
 :B0X?:hsi::f("his") ; Fixes 59 words
 :B0X?:hte::f("the") ; Fixes 44 words
 :B0X?:hthe::f("h the") ; Fixes 1 word
+:B0X?:http:\\::f("http://") ; Fixes 1 word
+:B0X?:httpL::f("http:") ; Fixes 1 word
 :B0X?:iaing::f("iating") ; Fixes 84 words
 :B0X?:ialy::f("ially") ; Fixes 244 words, but misspells bialy (Flat crusty-bottomed onion roll) 
 :B0X?:iatly::f("iately") ; Fixes 12 words
@@ -6381,6 +6481,7 @@ getStartLineNumber(*)
 :B0X?:kc::f("ck") ; Fixes 610 words.  Misspells kc (thousand per second).
 :B0X?:kfulls::f("kfuls") ; Fixes 7 words
 :B0X?:kn::f("nk") ; Fixes 168 words
+:B0X?:kng::f("king") ; Fixes 798 words 
 :B0X?:kthe::f("k the") ; Fixes 1 word
 :B0X?:l;y::f("ly") ; Fixes 10464 words
 :B0X?:laly::f("ally") ; Fixes 2436 words
@@ -6509,6 +6610,7 @@ getStartLineNumber(*)
 :B0X?:timne::f("time") ; Fixes 44 words
 :B0X?:tioj::f("tion") ; Fixes 3671 words
 :B0X?:tionar::f("tionary") ; Fixes 68 words
+:B0X?:tng::f("ting") ; Fixes 3023 words 
 :B0X?:tooes::f("toos") ; Fixes 4 words
 :B0X?:topry::f("tory") ; Fixes 317 words
 :B0X?:toreis::f("tories") ; Fixes 62 words
@@ -6518,7 +6620,6 @@ getStartLineNumber(*)
 :B0X?:tricty::f("tricity") ; Fixes 13 words
 :B0X?:truely::f("truly") ; Fixes 2 words
 :B0X?:tthe::f("the") ; Fixes 66 words 
-:B0X?:tust::f("trust") ; Fixes 7 words
 :B0X?:tust::f("trust") ; Fixes 8 words 
 :B0X?:twon::f("town") ; Fixes 32 words
 :B0X?:tyo::f("to") ; Fixes 185 words
@@ -6551,11 +6652,13 @@ getStartLineNumber(*)
 :B0X?C:btu::f("but") ; Fixes 1 word ; Not just replacing "btu", as that is a unit of heat.
 :B0X?C:hc::f("ch") ; Fixes 446 words ; :C: so not to break THC or LHC
 :B0X?C:itn::f("ith") ; Fixes 70 words, Case sensitive, to not misspell ITN (Independent Television News) 
+:B0XC*:i'd::f("I'd")
 :B0XC:ASS::f("ADD") ; Case-sensitive to fix acronym, but not word.
 :B0XC:Im::f("I'm") ; Fixes 1 word
 :B0XC:may of::f("may have") ; Fixes 1 word
 :B0XC:nad::f("and") ; Fixes 1 word, Case-sensitive to not misspell NAD (A coenzyme present in most living cells)
 
+; ===== End of Main List ==========================
 ;------------------------------------------------------------------------------
 ; Accented English words, from, amongst others,
 ; http://en.wikipedia.org/wiki/List_of_English_words_with_diacritics
@@ -6788,13 +6891,7 @@ getStartLineNumber(*)
 :C:tuesday::Tuesday
 :C:wednesday::Wednesday
 
-:*XC:;on::
-:*XC:;On::
-{	Send StrReplace(A_ThisHotkey,":*XC:;") FormatTime(A_NOW, " dddd, M-d-yyyy, 'at' h:mm") StrLower(FormatTime(A_NOW, "tt"))
-}
-
-:*:;resume::résumé ; use prefix character so not to replace common word "resume."
-
+; ========= Other Stuff ==================
 ::;longwords::
 (
 14 of the longest words in English
@@ -6936,4 +7033,5 @@ Zaffre
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
 
-
+:B0X*?:schg::f("sch") ; Fixes 744 words 
+:B0X*:rre::f("re") ; Fixes 8199 words 
