@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ;===============================================================================
 ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
-NameOfThisFile := "MasterScript.ahk"
+NameOfThisFile := "AutoCorrect2.ahk"
 MyAhkEditorPath := "C:\Users\steve\AppData\Local\Programs\Microsoft VS Code\Code.exe"  ; <--- specific to Steve's setup.
 
 ;===============================================================================
