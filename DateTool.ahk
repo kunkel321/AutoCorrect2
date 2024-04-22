@@ -1,7 +1,7 @@
 ﻿;#SingleInstance
 ;#Requires AutoHotkey v2+
 
-;  Gets included with MasterScript via #Include.
+;  Gets included with AutoCorrect2 via #Include.
 
 ;======== DatePicker-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
@@ -17,6 +17,7 @@
 ; https://www.autohotkey.com/boards/viewtopic.php?f=76&t=117399&p
 ; Entire code converted to AHK v2 by Just Me.  
 ; https://www.autohotkey.com/boards/viewtopic.php?f=82&t=123895
+; ToolTipOptions Class (also by Just Me) added later, see below.
 
 ;======== Directions for Use: Date HotStrings===================================
 ; For today, type ";d0" (semicolon dee zero) into edit field.
@@ -36,22 +37,28 @@
 ; ===================================================================
 ;^Esc::ExitApp ; Ctrl+Esc to just kill the whole ding dang script.
 
-#HotIf WinActive("MasterDateTool.ahk",) ; Can't use A_Var here.
-^s:: ; Because this tool is #Included in AtuoCorrect, reload AC upon save.
+#HotIf WinActive("DateTool.ahk",) ; Can't use A_Var here.
+^s:: ; Because this tool is #Included in AutoCorrect2, reload ac2 upon save.
 {	Send("^s") ; Save me.
 	MsgBox("Reloading...", "", "T0.3")
 	Sleep(250)
-	Run "AutoCorrectv2.exe"
-	MsgBox("MasterScript reloaded.") ; Pops up then disappears super-quickly because of the reload.
+	Run "AutoCorrect2.exe" ; <------------------------------------------------------- CHANGE To NAME of your AutoCorrect script? 
+	MsgBox("AutoCorrect2 reloaded.") ; Pops up then disappears super-quickly because of the reload.
 }  
 #HotIf
+
+; ===================================================================
+SettingsFile := A_ScriptDir '\WayText\wtFiles\Settings.ini'  ; <--- Specific to Steve's setup... Remove.
+gColor := iniread(SettingsFile, "MainSettings", "GUIcolor", "Default")  ; <--- Specific to Steve's setup... Remove.
+;-----------------
+BorderColor := (strLen(gColor) > 8) ? subStr(gColor, strLen(gColor) - 5, 6) : gColor  ; <--- Specific to Steve's setup... Remove.
 
 ;======== Calendar User Options ===========================================
 guiTitle := "DateTool-H"         ; change title if desired 
 TypeOutFormat := "M-d-yyyy"      ; preferred date format for typing date in edit field
 HolidayListFormat := "MMM-dd"    ; preferred date format for popup list
 ShowSingleHoliday := 1          ; show holiday when click on day (1 = yes / 0 = no)
-BorderColor := "Default" ;"FF9966"          ; GUI background color
+;BorderColor := "FF9966"          ; GUI background color
 MonthCount := 2                  ; default number of months to display vertically
 
 ;======== ToolTip User Options ===========================================
@@ -91,17 +98,15 @@ toggle := false  ; Variable to keep track of tooltip state
 :?*:;d7::
 :?*:;d8::
 :?*:;d9::
-{  Global nOffset := StrReplace(StrReplace(A_ThisHotkey, ":?*:;d", ""), "d", "-")
-   Global DatePicked := DateAdd(A_Now, nOffset, "D") ; Puts offset into date format.
+{  nOffset := StrReplace(StrReplace(A_ThisHotkey, ":?*:;d", ""), "d", "-")
+   DatePicked := DateAdd(A_Now, nOffset, "D") ; Puts offset into date format.
    MyDate := FormatTime(DatePicked, TypeOutFormat)
-   ShowToolTip()
+   ShowToolTip(nOffset, DatePicked)
    SendInput(MyDate)   ; This types out the date.
 }
 ;======= Date HotString ToolTip =======================================
-ShowToolTip(*) 
-{  Global nOffset
-   Global DatePicked
-   dateOffset := DatePicked
+ShowToolTip(nOffset, DatePicked)
+{  dateOffset := DatePicked
    vNow := SubStr(A_Now, 1, 8)
    dateOffset := DateDiff(dateOffset, vNow, "days")
    WdayArr := [6,5,4,3,2,1,0] ; Determine days until Saturday, for suffixes below.
@@ -366,7 +371,10 @@ IsHoliday(YYYYMMDDHHMISS := "", BusinessOnly := 0, StopAtFirst := 0) {
                   ["03 17", "St. Patrick's Day", 0],
                   ["03 14", "Pi Day", 0],
                   ["03 14  2025", "Lunar Eclipse", 0], ; <---------- Temp for one year only.
+                  ["04 08  2024", "Solar Eclipse", 0], ; <---------- Temp for one year only.
                   ["04 01-05  2024", "Spring Break", 0], ; <---------- Temp for one year only.
+                  ["04 22", "Earth Day", 0],
+                  ["06 18  2024", "Last Day of School", 0], ; <---------- Temp for one year only.
                   ["06 20  2024", "Summer Solstice", 0], ; <---------- Temp for one year only.
                   ["09 22  2024", "Autumn Equinox", 0], ; <---------- Temp for one year only.
                   ["12 21  2024", "Winter Solstice", 0], ; <---------- Temp for one year only.
@@ -392,6 +400,7 @@ IsHoliday(YYYYMMDDHHMISS := "", BusinessOnly := 0, StopAtFirst := 0) {
                   ["06 18 Friday", "Juneteenth", 1],
                   ["06 15-21 Sunday", "Father's Day", 0],
                   ["07 04", "Independence Day", 1],
+                  ["08 25", "Anniversary", 0],
                   ["09 01-07 Monday", "Labor Day", 1],
                   ["10 08-15 Monday", "Indigenous Peoples Day", 0],
                   ["10 31", "Halloween", 0],
@@ -558,10 +567,10 @@ Class ToolTipOptions {
       This.TxtColor := TxtColor = "" ? "" : BGR(TxtColor)
       BGR(Color, Default := "") { ; converts colors to BGR
          ; HTML Colors (BGR)
-         Static HTML := {AQUA:   0xFFFF00, BLACK: 0x000000, BLUE:   0xFF0000, FUCHSIA: 0xFF00FF, GRAY:  0x808080,
-                         GREEN:  0x008000, LIME:  0x00FF00, MAROON: 0x000080, NAVY:    0x800000, OLIVE: 0x008080,
-                         PURPLE: 0x800080, RED:   0x0000FF, SILVER: 0xC0C0C0, TEAL:    0x808000, WHITE: 0xFFFFFF,
-                         YELLOW: 0x00FFFF}
+         Static HTML := {AQUA:   0x00FFFF, BLACK: 0x000000, BLUE:   0x0000FF, FUCHSIA: 0xFF00FF, GRAY:  0x808080,
+                         GREEN:  0x008000, LIME:  0x00FF00, MAROON: 0x800000, NAVY:    0x000080, OLIVE: 0x808000,
+                         PURPLE: 0x800080, RED:   0xFF0000, SILVER: 0xC0C0C0, TEAL:    0x008080, WHITE: 0xFFFFFF,
+                         YELLOW: 0xFFFF00 }
          If IsInteger(Color)
             Return ((Color >> 16) & 0xFF) | (Color & 0x00FF00) | ((Color & 0xFF) << 16)
          Return HTML.HasProp(Color) ? HTML.%Color% : Default
