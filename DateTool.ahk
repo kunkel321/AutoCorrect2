@@ -13,6 +13,7 @@
 ; IsHoliday function (v1) by TidBit.
 ; https://www.autohotkey.com/boards/viewtopic.php?t=77312
 
+; The two were integrated (v1) by Just Me.
 ; https://www.autohotkey.com/boards/viewtopic.php?f=76&t=117399&p
 ; Entire code converted to AHK v2 by Just Me.  
 ; https://www.autohotkey.com/boards/viewtopic.php?f=82&t=123895
