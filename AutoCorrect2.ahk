@@ -2,10 +2,13 @@
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
-#Include "MasterDateTool.ahk"
+#Include "DateTool.ahk"
 
-; AutoCorrect for v2 thread:
+; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
+; Project location on GitHub (new versions will be on GitHub)
+; https://github.com/kunkel321/AutoCorrect2
+
 ;===============================================================================
 ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
 NameOfThisFile := "AutoCorrect2.ahk"
@@ -34,15 +37,14 @@ acMenu.Add("Exit Script", (*) => ExitApp())
 acMenu.SetIcon("Exit Script", "icons/exit-Blue.ico")
 acMenu.SetColor("Silver")
 
-
 ;===============================================================================
 ; Startup anouncement.  Also beeps whenever HotString Helper appends an item.
 SoundBeep(900, 250)
 SoundBeep(1100, 200)
 
 ;===============================================================================
-;            			Hotstring Helper 2.0
-;          Hotkey: Win + H | By: Kunkel321 | Version: 2-28-2024
+;            			Hotstring Helper 2
+;          Hotkey: Win + H | By: Kunkel321 | Version: 4-22-2024
 ; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=114688
 ; A version of Hotstring Helper that will support block multi-line replacements and 
 ; allow user to examine hotstring for multi-word matches. The "Examine/Analyze" 
@@ -57,7 +59,7 @@ SoundBeep(1100, 200)
 ; This tool is intended to be embedded in your AutoCorrect list.
 ;===============================================================================
 
-; ;==Change=color=of=Hotstring=Helper=form=as=desired===========================
+;==Change=color=of=Hotstring=Helper=form=as=desired===========================
 GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
 FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
 
@@ -73,7 +75,7 @@ AutoLookupFromValidityCheck := 0 ; Sets default for auto-lookup of selected text
 hh_Hotkey := "#h" ; The activation hotkey-combo (not string) is Win+h. 
 
 ;==Change=title=of=Hotstring=Helper=form=as=desired=============================
-hhFormName := "HotString Helper 2.0" ; The name at the top of the form. Change here, if desired.
+hhFormName := "HotString Helper 2" ; The name at the top of the form. Change here, if desired.
 
 ; ======Change=size=of=GUI=when="Make Bigger"=is=invoked========================
 HeightSizeIncrease := 300 ; Numbers, not 'strings,' so no quotation marks. 
@@ -672,13 +674,17 @@ hhButtonCheck(*)
 ; An easy-to-see large dialog to show Validity report/warning. 
 ; Selecting text from the trigger report box copies it when releasing the mouse button.
 ; Selected text is sent to find box in VSCode.  If digits, sent to go-to-line. 
-bb := ''
+bb := 0
 biggerMsgBox(thisMess, secondButt)
-{	Global bb := Gui(,'Validity Report')
+{	A_Clipboard := thisMess
+	global bb
+	if (IsObject(bb)) ; Ensures we don't have multiple instances. 
+		bb.Destroy()
+	Global bb := Gui(,'Validity Report')
 	bb.SetFont('s11 ' FontColor)
 	bb.BackColor := GuiColor, GuiColor
 	global mbTitle := ""
-	(mbTitle := bb.Add('Text',, 'For proposed new item:')).Focus() ; Focusing this prevents the three "edit" boxes from being focus by default.
+	(mbTitle := bb.Add('Text',, 'For proposed new item:')).Focus() ; Focusing this prevents the three "edit" boxes from being focussed by default.
 	bb.SetFont(myBigFont )
 	proposedHS := ':' tMyDefaultOpts ':' tTriggerString '::' tReplaceString
 	bb.Add('Text', (strLen(proposedHS)>90? 'w600 ':'') 'xs yp+22', proposedHS)
@@ -686,10 +692,14 @@ biggerMsgBox(thisMess, secondButt)
 	secondButt=0? bb.Add('Text', ,"===Validation Check Results==="):''
 	bb.SetFont(myBigFont )
 	bbItem := StrSplit(thisMess, "*|*") 
+	If InStr(bbItem[2],"`n",,,10)  ; 2 lines per conflict, if more than 5 conflicts, truncate, and add message.
+		bbItem2 :=  subStr(bbItem[2], 1, inStr(bbItem[2], "`n",,,10)) "`n## Too many conflicts to show in form ##"
+	Else  ; There are 10 or fewer conflicts found, so show full substring.
+		bbItem2 := bbItem[2]
 	; Use "edit" rather than "text" because it allows us to select the text. 
 	edtSharedSettings := ' -VScroll ReadOnly -E0x200 Background'
 	bb.Add('Edit', (inStr(bbItem[1],'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem[1]) 
-	trigEdtBox := bb.Add('Edit', (strLen(bbItem[2])>104? ' w600 ' : ' ') (inStr(bbItem[2],'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem[2]) 
+	trigEdtBox := bb.Add('Edit', (strLen(bbItem2)>104? ' w600 ' : ' ') (inStr(bbItem2,'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem2) 
 	bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3],'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem[3])
 	trigEdtBox.OnEvent('Focus', findInScript) 
 	bb.SetFont('s11 ' FontColor)
@@ -701,7 +711,7 @@ biggerMsgBox(thisMess, secondButt)
 		bbAppend.Visible := False
 	bbClose := bb.Add('Button', 'x+5 Default', 'Close')
 	bbClose.OnEvent 'Click', (*) => bb.Destroy()
-	If not inStr(bbItem[2],'-Okay.') ; It no trigger concerns, don't need checkbox.
+	If not inStr(bbItem2,'-Okay.') ; It no trigger concerns, don't need checkbox.
 		global bbAuto := bb.Add('Checkbox', 'x+5 Checked' AutoLookupFromValidityCheck, 'Auto Lookup`nin editor')
 	bb.Show('yCenter x' (A_ScreenWidth/2))
 	WinSetAlwaysontop(1, "A")
@@ -741,7 +751,7 @@ findInScript(*)
 ; This function runs several validity checks. 
 ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 { 	GoFilter() ; This ensures that "rMatches" has been populated. <--- had it commented out for a while, then put back. 
-	Global CombinedValidMsg := "", validHotDupes := "", validHotMisspells := ""
+	Global CombinedValidMsg := "", validHotDupes := "", validHotMisspells := "", ACitemsStartAt
 	ThisFile := Fileread(A_ScriptName) ; Save these contents to variable 'ThisFile'.
 	If (tMyDefaultOpts = "") ; If options box is empty, skip regxex check.
 		validOpts := "Okay."
@@ -783,33 +793,35 @@ ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 				continue ; Will skip non-hotstring lines, so the regex isn't used as much.
 			If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &loo) { ; loo is "current loopfield"
 				If (tTriggerString = loo.Trig) and (tMyDefaultOpts = loo.Opts) { ; full duplicate triggers
-					validHotDupes := "Duplicate trigger string found at line " A_Index ".`n---> " A_LoopField
-					break
+					validHotDupes := "`nDuplicate trigger string found at line " A_Index ".`n---> " A_LoopField
+					Continue
 				} ; No duplicates.  Look for conflicts... 
-				Else If (InStr(loo.Trig, tTriggerString) and inStr(tMyDefaultOpts, "*") and inStr(tMyDefaultOpts, "?"))
+				If (InStr(loo.Trig, tTriggerString) and inStr(tMyDefaultOpts, "*") and inStr(tMyDefaultOpts, "?"))
 				|| (InStr(tTriggerString, loo.Trig) and inStr(loo.Opts, "*") and  inStr(loo.Opts, "?")) { ; Word-Middle Matches
-					validHotDupes := "Word-Middle conflict found at line " A_Index ", where one of the strings will be nullified by the other.`n---> " A_LoopField 
-					break
+					validHotDupes .= "`nWord-Middle conflict found at line " A_Index ", where one of the strings will be nullified by the other.`n---> " A_LoopField 
+					Continue
 				}
-				Else If ((loo.Trig = tTriggerString) and inStr(loo.Opts, "*") and inStr(tMyDefaultOpts, "?"))
-				|| ((tTriggerString = loo.Trig) and inStr(loo.Opts, "?") and inStr(tMyDefaultOpts, "*")) { ; Rule out: Same word, but beginning and end opts
-					validHotDupes := "Duplicate trigger found at line " A_Index ", but maybe okay, because one is word-beginning and other is word-ending.`n---> " A_LoopField 
-					Break
+				If ((loo.Trig = tTriggerString) and inStr(loo.Opts, "*") and  not inStr(loo.Opts, "?") and inStr(tMyDefaultOpts, "?") and not inStr(tMyDefaultOpts, "*"))
+				|| ((loo.Trig = tTriggerString) and inStr(loo.Opts, "?") and  not inStr(loo.Opts, "*") and inStr(tMyDefaultOpts, "*") and not inStr(tMyDefaultOpts, "?")) { ; Rule out: Same word, but beginning and end opts
+					validHotDupes .= "`nDuplicate trigger found at line " A_Index ", but maybe okay, because one is word-beginning and other is word-ending.`n---> " A_LoopField 
+					Continue
 				}
 				If (inStr(loo.Opts, "*") and loo.Trig = subStr(tTriggerString, 1, strLen(loo.Trig)))
 				|| (inStr(tMyDefaultOpts, "*") and tTriggerString = subStr(loo.Trig, 1, strLen(tTriggerString))) { ; Word-Beginning Matches
-					validHotDupes := "Word Beginning conflict found at line " A_Index ", where one of the strings is a subset of the other.  Whichever appears last will never be expanded.`n---> " A_LoopField
-					break
+					validHotDupes .= "`nWord Beginning conflict found at line " A_Index ", where one of the strings is a subset of the other.  Whichever appears last will never be expanded.`n---> " A_LoopField					
+					Continue
 				}
-				Else If (inStr(loo.Opts, "?") and loo.Trig = subStr(tTriggerString, -strLen(loo.Trig)))
+				If (inStr(loo.Opts, "?") and loo.Trig = subStr(tTriggerString, -strLen(loo.Trig)))
 				|| (inStr(tMyDefaultOpts, "?") and tTriggerString = subStr(loo.Trig, -strLen(tTriggerString))) { ; Word-Ending Matches
-					validHotDupes := "Word Ending conflict found at line " A_Index ", where one of the strings is a superset of the other.  The longer of the strings should appear before the other, in your code.`n---> " A_LoopField
-					break
+					validHotDupes .= "`nWord Ending conflict found at line " A_Index ", where one of the strings is a superset of the other.  The longer of the strings should appear before the other, in your code.`n---> " A_LoopField					
+					Continue
 				}
 			}
 			Else ; not a regex match, so go to next loop.
 				continue 
 		}	
+		If validHotDupes != ""
+			validHotDupes := SubStr(validHotDupes, 2)
 		If (tMatches > 0){ ; This error message is collected separately from the loop, so both can potentially be reported. 
 			validHotMisspells := "This trigger string will misspell [" tMatches "] words."
 		}
@@ -904,7 +916,7 @@ ChangeActiveEditField(*)
 	hasSpace := (subStr(A_Clipboard, -1) = " ")? " " : ""
 	A_Clipboard := trim(A_Clipboard) ; Remove any whitespace.
 	If (origTriggerTypo = A_Clipboard) and (origTriggerTypo = TriggerString.text) ; Make sure nothing has changed. 
-	{	If (bb != '') ; If the big validity message box is showing.. 
+	{	If (bb != 0) ; If the big validity message box is showing.. 
 			bb.Hide() ; Hide it.
 		hh.Hide() ; hide main HotStrHelper form.
 		WinWaitActive(targetWindow)
@@ -950,9 +962,13 @@ GoogleAutoCorrect(word)
 hhButtonOpen(*)
 {  	hh.Hide()
 	A_Clipboard := ClipboardOld  ; Restore previous contents of clipboard.
-	Edit()
-	WinWaitActive(A_ScriptName) ; Wait for the script to be open in text editor.
-	Sleep(250)
+	;Edit()
+	Try
+		Run MyAhkEditorPath " "  NameOfThisFile
+	Catch
+		msgbox 'cannot run ' NameOfThisFile
+	WinWaitActive(NameOfThisFile) ; Wait for the script to be open in text editor.
+	Sleep(1000)
 	Send("{Ctrl Down}{End}{Ctrl Up}{Home}") ; Navigate to the bottom.
 }
 
@@ -962,9 +978,13 @@ hhButtonOpen(*)
 ChangeWordList(*)
 {	hh.Hide()
 	A_Clipboard := ClipboardOld  ; Restore previous contents of clipboard.
-	Edit()
-	WinWaitActive(A_ScriptName) ; Wait for the script to be open in text editor.
-	Sleep(250)
+	;Edit()
+	Try
+		Run MyAhkEditorPath " "  NameOfThisFile
+	Catch
+		msgbox 'cannot run ' NameOfThisFile
+	WinWaitActive(NameOfThisFile) ; Wait for the script to be open in text editor.
+	Sleep(1000)
 	SendInput "^f"
 	Sleep(100)
 	SendInput WordListFile ; Enters file name into search box.
@@ -1202,23 +1222,6 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 ; ..QQQQQQ....QQQ....QQQ....QQQQQQQQ..........QQQQQQ....QQQQ........QQQ....QQQ..QQQ....QQ
 ; #######################################################################################
 
-;#################### PIN WINDOW TO TOP #########################
-
-!^SPACE:: ; Alt+Ctrl+Space to toggle pin.
-{	Title := StrReplace(WinGetTitle("A"), " [Pinned]") ; Remove flag, if present.
-	ExStyle := WinGetExStyle("ahk_id " WinExist("A"))
-	If (ExStyle & 0x8)  ; ExStyle = AlwaysOnTop
-	{	WinSetAlwaysontop(0, "A")
-		WinSetTitle(Title)
-	}
-	Else 
-	{	WinSetAlwaysontop(1, "A")
-		WinSetTitle(Title . " [Pinned]") ; Add this flag to the title bar caption.
-	}
-} 
-
-;==============================
-
 #HotIf WinActive(NameOfThisFile,) ; Can't use A_Var here.
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.
 {
@@ -1229,15 +1232,6 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 	MsgBox("I'm reloaded.") ; Pops up then disappears super-quickly because of the reload.
 }
 #HotIf
-
-^+e::
-EditThisScript(*)
-{	Try
-		Run MyAhkEditorPath " "  NameOfThisFile
-	Catch
-		msgbox 'cannot run ' NameOfThisFile
-}
-
 
 ;------------------------------------------------------------------------------
 ;   Get/Set my default printer
@@ -1338,98 +1332,6 @@ UpTime(*)
 	}
 }
 
-;############################################################################
-; Up Down Left Right RightClick and Drag Actions Tool
-; Author: Kunkel321, Version: 9-1-2023
-; Inspired by the excellent MouseGesureL.ahk
-; https://hp.vector.co.jp/authors/VA018351/en/mglahk.html
-
-IgnoreDuration := 100  ; Ignore if right mouse button down shorter than this many milliseconds.
-IgnoreLength := 100  ; Ignore drags less than this many pixels long.
-
-RButton::
-{ 	Global VarXb, VarYb ; i.e. variable Xpos, Ypos "beginning"
-	MouseGetPos &VarXb, &VarYb
-}
-
-$RButton Up::
-{	IF (A_TimeSincePriorHotkey > IgnoreDuration) {
-		Global VarXe, VarYe ; i.e. variable Xpos, Ypos "ending"
-		MouseGetPos &VarXe, &VarYe
-		DoMath()
-	}
-	else
-		Send "{RButton}" ; just do default mouse r-click.
-}
-
-DoMath()
-{ abX := Abs(VarXb - VarXe) ; get begin-end differences
-	abY := Abs(VarYb - VarYe)
-	If abX > (abY * 3) and (abX > IgnoreLength) { ; is horizontal -and- drag was long enough?
-		If VarXb > VarXe
-			DragDirection("Left")
-		Else
-			DragDirection("Right")
-	}
-	Else If abY > (abX * 3) and (abY > IgnoreLength) {  ; is vertical -and- drag was long enough?
-		If VarYb > VarYe
-			DragDirection("Up")
-		Else
-			DragDirection("Down")
-	}
-	Else
-		Send "{RButton}" ; just do default mouse r-click.
-}
-
-DragDirection(dragWay)
-{  If InStr(WinGetTitle("ahk_id " WinActive("A")), "PDF-XChange")
-	{ switch dragWay
-		{
-		case "Left": Send "{Home}" ; Back
-		case "Right": Send "{End}" ; Forward
-		case "Up": Send "{PgUp}" ; Top
-		case "Down": Send "{PgDn}" ; Bottom
-	}
-	}
-	else
-	{ switch dragWay
-		{
-		case "Left": Send "!{Left}" ; Back
-		case "Right": Send "!{Right}" ; Forward
-		case "Up": Send "^{Home}" ; Top
-		case "Down": Send "^{End}" ; Bottom
-	}
-	}
-}
-
-;##################### WINDOW MOVERS ##########################
-
-^!Lbutton:: ; Ctrl+Alt+Left Mouse Click
-{
-	SetWinDelay(-1) ; Sets time between moves. -1 = no time
-	CoordMode("Mouse", "Screen")
-	WinGetPos(&BwX, &BwY, , , "A") ; Begin window X Y coord.
-	WinRestore("A") ; Unmaximizes window.
-	MouseGetPos(&BmX, &BmY) ; Begin mouse X Y coord
-	while GetKeyState("Lbutton", "P") ; While left mouse button is held down.
-	{	MouseGetPos(&CmX, &CmY) ; Keep getting current mouse X Y
-		WinMove((BwX+CmX-BmX), (BwY+CmY-BmY), , , "A")
-	} 
-	SetWinDelay 100
-	CoordMode("Mouse", "Window") ; Put back, because window is mostly the default.
-Return
-}
-
-!+m:: ; Move active window to position of cursor.
-; From Joe G and Isaias B at https://www.the-automator.com/
-{	CoordMode("Mouse", "Screen")
-	MouseGetPos(&mox, &moy)
-	WinMove(mox, moy, , , "A")
-	CoordMode("Mouse", "Window")
-Return
-}
-
-^!+v::MsgBox("My ahk version: " A_AhkVersion)
 
 ; ==============================================================================
 ;       AUto-COrrect TWo COnsecutive CApitals
@@ -1509,7 +1411,7 @@ fix_consecutive_caps() {
 ; QQQQQQQ..QQQQQQ...QQQQQ...QQQQQ..QQQQQ......QQQQQ......QQQQQ....QQQQ..QQQQQ....QQQQ...QQQQ...
 ; .QQQQQQQQQQQQQQ...QQQQQQ.QQQQQQ..QQQQQ......QQQQQ......QQQQQQ..QQQQQ..QQQQQQ.QQQQQQ...QQQQQQQ
 ; ..QQQQQQQQQQQQ.....QQQQQQQQQQQ...QQQQQ......QQQQQ.......QQQQQQQQQQQ....QQQQQQQQQQQ....QQQQQQQ
-;  HotString Helper 2.0 QQQQQQQ....QQQQQ......QQQQQ..........QQQQQQQ.......QQQQQQQ......QQQQQQQ
+;  HotString Helper 2   QQQQQQQ....QQQQQ......QQQQQ..........QQQQQQQ.......QQQQQQQ......QQQQQQQ
 ;  AUto-COrrect TWo COnsecutive CApitals
 ;  Table of Contents (this)
 ;  f() AutoCorrect hotstring function
@@ -1531,8 +1433,8 @@ fix_consecutive_caps() {
 ;  Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
 ;------------------------------------------------------------------------------
 
-;!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger. (Disabled because I never use it.)
-;!+l::Run("AutoCorrectsLog.ahk") ; Shift+Alt+L: View/Run log of all autocorrections. (Disabled because I never use it.) 
+!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger. (Disabled because I never use it.)
+;!+l::Run("AutoCorrectsLog.ahk") ; Shift+Alt+L: View/Run log of all autocorrections. (Disabled hotkey because I never use it.) 
 
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
@@ -1804,7 +1706,7 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 {	return  ; This makes the above hotstrings do nothing so that they override the indicated rules below.
 } ; ===== End of nullifier strings ==================
 
-#Hotstring Z ; The Z causes the end char to be reset after each activation. 
+#Hotstring Z ; The Z causes the end char to be reset after each activation and helps prevent a zombie outbreak. 
 
 ;============== Determine start line of autocorrect items ======================
 ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until it gets to here. 
@@ -2616,7 +2518,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:emial::f("email") ; Fixes 6 words
 :B0X*:eminat::f("emanat") ; Fixes 6 words
 :B0X*:emite::f("emitte") ; Fixes 3 words
-:B0X*:emn::f("enm") ; Fixes 8 words
+:B0X*:emne::f("enme") ; Fixes 7 words
 :B0X*:emphysyma::f("emphysema") ; Fixes 3 words
 :B0X*:empirial::f("imperial") ; Fixes 18 words
 :B0X*:emporer::f("emperor") ; Fixes 4 words
@@ -2697,7 +2599,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:eye lid::f("eyelid") ; Fixes 1 word
 :B0X*:eye sight::f("eyesight") ; Fixes 1 word
 :B0X*:eye sore::f("eyesore") ; Fixes 1 word
-:B0X*:eyt::f("yet") ; Fixes 1 word
+:B0X:eyt::f("yet") ; Fixes 1 word
 :B0X*:faciliat::f("facilitat") ; Fixes 10 words
 :B0X*:facilites::f("facilities") ; Fixes 1 word
 :B0X*:facillitat::f("facilitat") ; Fixes 10 words
@@ -7024,55 +6926,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :C:tuesday::Tuesday
 :C:wednesday::Wednesday
 
-;-------------------------------------------------------------------------------
-; Others
-;-------------------------------------------------------------------------------
-::;longwords::
-(
-14 of the longest words in English
-1 Pneumonoultramicroscopicsilicovolcanoconiosis (forty-five letters)
-A lung disease caused by the inhalation of silica or quartz dust.
-
-2 Pseudopseudohypoparathyroidism (thirty letters)
-A mild form of inherited pseudohypoparathyroidism that simulates the symptoms of the disorder but isn't associated with abnormal levels of calcium and phosphorus in the blood.
-
-3 Floccinaucinihilipilification (twenty-nine letters)
-The estimation of something as valueless. Ironically, floccinaucinihilipilification is a pretty valueless word itself; it's almost never used except as an example of a long word.
-
-4 Antidisestablishmentarianism (twenty-eight letters)
-Originally described opposition to the disestablishment of the Church of England, but now it may refer to any opposition to withdrawing government support of a particular church or religion.
-
-5 Supercalifragilisticexpialidocious (thirty-four letters)
-Mary Poppins described it as the word to use “when you have nothing to say.” It appears in some (but not all) dictionaries.
-
-6 Incomprehensibilities (twenty-one-letters)
-This word set the record in the 1990s as the longest word “in common usage.”
-
-7 Strengths
-Strengths has only nine letters, but all except one of them are consonants! This earns the word a Guinness World Record. It is also one of the longest monosyllabic words of the English language.
-
-8 Euouae
-Euouae is six letters long, but all of the letters are vowels. It holds two Guinness World Records. it's the longest English word composed exclusively of vowels, and it has the most consecutive vowels of any word. If you are wondering about its meaning, it's a musical term from medieval times.
-
-9  Unimaginatively
-Unimaginatively has lots of vowels—eight in total, if you count the final y. What's neat about this word is that its vowels and consonants alternate. It's not the longest word with alternating consonants and vowels, though.
-
-10 Honorificabilitudinitatibus
-That position is held by honorificabilitudinitatibus, a twenty-seven-letter way of saying “with honorableness.”
-
-11 Tsktsk
-If you tsktsk someone, you indicate your disapproval by the tsktsk sound or by some other means. Tsktsks is the longest word that doesn't contain a vowel.
-
-12 and 13 Uncopyrightable and subdermatoglyphic
-Isograms are words that do not repeat letters. The longest examples are uncopyrightable and subdermatoglyphic. An uncopyrightable song, for example, would not be eligible for copyright. This word has fifteen letters, but one other word without repeated letters is longer—subdermatoglyphic. it's seventeen letters, but you'll not have much opportunity to use it outside the realm of dermatology.
-
-14 Sesquipedalianism
-The fourteenth word on our list describes the tendency to use long words—sesquipedalianism. If you possess this trait, you will enjoy trying to use the words in this article in your next conversation. If you are a true sesquipedalian, it shouldn't be too hard. Except, of course, for that 189,819-letter protein name . . . it's doubtful that your friends will wait three hours for you to finish saying it!
-)
-::;olf::The first hundred or so characters of this email are generic (non-student) filler to occupy your Outlook notification popup window.
-::;tq::The five boxing wizards jump quickly and the quick brown fox jumps over the lazy dog, so pack my box with five dozen liquor jugs.
-::;rand::Lorem ipsum dolor sit amet, consectetur adipiscing elit stevano kunkoleti. Donec euismod odio sit amet maximus posuere. Nullam eu mi turpis. Aliquam placerat enim at erat sodales consectetur. Curabitur porta pulvinar est, quis condimentum nunc tristique ac. Maecenas malesuada maximus scholaru et psycholica turpis at assessmo. Pellentesque ac sapien egestas verbalo comprohendo, posuere risus sed, porta erat. Mauris pharetra lobortis massa vel tristique. Fusce hendrerit ligula vitae sem lobortis dapibus. Fontono lobototo donec eget ornare velit, in mattis felis. Fusce eros libero, vehicula eget pulvinar id, posuere et Woodcolus Johnseni lando Whechsler lectus es intelligencio.  Nulla in magna a odio venenatis till et finito.
-
 ::;fruits::
 (
 Apple
@@ -7188,4 +7041,8 @@ Zaffre
 :B0X:eash::f("each") ; Fixes 1 word 
 :B0X:tha::f("the") ; Fixes 1 word 
 :B0XC:i::f("I") ; Fixes 1 word 
-
+:B0X*?:visial::f("visual") ; Fixes 36 words 
+:B0X*:assignement::f("assignment") ; Fixes 2 words 
+;:B0X*:delima::f("dilemma") ; Fixes 3 words 
+:B0X?*:delimma::f("dilemma") ; Fixes 3 words 
+:B0XC:copt::f("copy") ; Fixes 1 word, Case-sensitive, to not misspell Copt, An ancient Egyptian descendent.
