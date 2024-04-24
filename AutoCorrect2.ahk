@@ -1377,11 +1377,6 @@ fix_consecutive_caps() {
 			|| (char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") ; <--- Remove this line to prevent correction of those 2-letter words.
 			{	SendInput("{BS 2}" StrLower(char2) char3)
 				SoundBeep(800, 80) ; Case fix announcent. 
-				ThisWinTitle := WinGetTitle("ahk_id " WinActive("A"))
-				If InStr(ThisWinTitle, " - ")
-					ThisWinTitle := StrSplit(WinGetTitle("ahk_id " WinActive("A"))," - ")[2] ; Get name of app.
-				addToLog := "Cap fix: " char1 char2 char3 " [in: " ThisWinTitle "]`n"
-				GoLogger(addToLog) ; Uses same log function as AutoCorrect's f() function, below.
 			}
 		}
 	}
@@ -1444,16 +1439,26 @@ fix_consecutive_caps() {
 ;  Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
 ;------------------------------------------------------------------------------
 
+;========= LOGGER OPTIONS ====================================================== 
+saveIntervalMinutes := 20     ; Collect the log items in RAM, then save to disc this often. 
+IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for this many intervals.
+; (Script will automatically restart the log intervals next time there's a match.)
+
 !+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger. (Disabled because I never use it.)
 ;!+l::Run("AutoCorrectsLog.ahk") ; Shift+Alt+L: View/Run log of all autocorrections. (Disabled hotkey because I never use it.) 
 
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
 lastTrigger := "none yet" ; in case no autocorrects have been made
-f(replace := "") ; All the one-line autocorrects call this f(unction).
+; lih := ''
+f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 {	static HSInputBuffer := InputBuffer()
 	HSInputBuffer.Start()
 	trigger := A_ThisHotkey, endchar := A_EndChar
+	; If IsObject(lih) and (lih.inProgress = 1) { ; Warning circumvents the logging process. 
+	; 	;msgbox 'yes lih is an obj ad in progress'
+	; 	lih.Stop()
+	; }
 	Global lastTrigger := StrReplace(trigger, "B0X", "") "::" replace ; set 'lastTrigger' before removing options and colons.
 	trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1) ; use everything to right of 2nd colon. 
 	TrigLen := StrLen(trigger) + StrLen(endchar) ; determine number of backspaces needed.
@@ -1472,20 +1477,49 @@ f(replace := "") ; All the one-line autocorrects call this f(unction).
 	replace := "" ; Reset to blank string.
 	HSInputBuffer.Stop()
 	SoundBeep(900, 60) ; Notification of replacement.
-	addToLog := LastTrigger  "`n"
-	GoLogger(addToLog) ; Uses same logger function as above CAse COrrector. 
+	KeepForLog := LastTrigger  "`n"
+	keepText(KeepForLog) ; Uses same logger function as above CAse COrrector. 
 }
 
+logIsRunning := 0
+savedUpText := ''
+intervalCounter := 0 ; Initialize the counter
+saveIntervalMinutes := saveIntervalMinutes*60*1000 ; convert to miliseconds.
+
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
-GoLogger(addToLog) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
+; There's no point running the logger if no text has been saved up...  
+; So don't run timer when script starts.  Run it when logging starts. 
+keepText(KeepForLog) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
 { 	EndKeys := "{Backspace}"
-	lih := InputHook("B V I1 E T1", EndKeys) ; "logger input hook." T is time-out. T1 = 1 second.
+	global lih := InputHook("B V I1 E T1", EndKeys) ; "logger input hook." T is time-out. T1 = 1 second.
 	lih.Start(), lih.Wait()
+	;msgbox lih.EndKey
 	hyphen := (lih.EndKey = "Backspace")?  " << " : " -- "
-	FileAppend(A_YYYY "-" A_MM "-" A_DD hyphen addToLog , "AutoCorrectsLog.ahk")
+	global savedUpText .= A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog
+	global intervalCounter := 0  	; Reset the counter since we're adding new text
+	If logIsRunning = 0  			; only start the timer it it is not already running.
+		setTimer Appender, saveIntervalMinutes  	; call function every X minutes.
 }
 #MaxThreadsPerHotkey 1
 
+; Gets called by timer, or by onExit.
+Appender(*) 
+{	FileAppend(savedUpText, "AutoCorrectsLog.ahk")
+	global savedUpText := ''  		; clear each time, since text has been logged.
+	global logIsRunning := 1  		; set to 1 so we don't keep resetting the timer.
+	global intervalCounter += 1 	; Increments here, but resets in other locations. 
+	If (intervalCounter >= IntervalsBeforeStopping) ; Check if no text has been kept for X intervals
+	{   setTimer Appender, 0  		; Turn off the timer
+		global logIsRunning := 0  	; Indicate that the timer is no longer running
+		global intervalCounter := 0 ; Reset the counter for safety
+	}
+	;soundBeep 800, 800 ; <----------------------------------- Announcement to ensure the log is logging.  Remove later. 
+	;soundBeep 600, 800
+}
+
+OnExit Appender 					; Also append one more time on exit. 
+
+;================================================================================================
 /* InputBuffer Class by Descolada https://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865
  * Note:  The mouse-relevant parts were removed by kunkel321, via ChatGPT4.
  * InputBuffer can be used to buffer user input for keyboard, mouse, or both at once. 
@@ -1609,7 +1643,7 @@ StringAndFixReport(*)
 	'`n    Regular Autocorrects:`t' numberFormat(regulars)
 	'`n    Word Beginnings:`t`t' numberFormat(begins)
 	'`n    Word Middles:`t`t' numberFormat(middles)
-	'`n    Word Ends:`t`t' numberFormat(ends) ; this is a smaller number, so push over with '  ', simulates right justification.
+	'`n    Word Ends:`t`t' numberFormat(ends)
 	'`n==========================='
 	'`n   Total Entries:`t`t' numberFormat(entries)
 	'`n   Potential Fixes:`t`t' numberFormat(fixes) 
@@ -1634,6 +1668,8 @@ StringAndFixReport(*)
 
 ;###############################################
 ; ; Two hotstrings for testing keyboard input buffering (or lack thereof).
+; :*?:zx::lllllllllllllllllllllllllllllllllllllllllllllllll
+; :*?:cv::ooooooooooooooooooooooooooooooooooooooooooooooooo
 ; :B0X*?:zx::f("lllllllllllllllllllllllllllllllllllllllllllllllll")
 ; :B0X*?:cv::f("ooooooooooooooooooooooooooooooooooooooooooooooooo")
 
