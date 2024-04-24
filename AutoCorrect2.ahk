@@ -4,15 +4,23 @@ SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
 #Include "DateTool.ahk"
 
+; Update date: 4-23-2024.
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
 ; https://github.com/kunkel321/AutoCorrect2
 
 ;===============================================================================
-; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
-NameOfThisFile := "AutoCorrect2.ahk"
-MyAhkEditorPath := "C:\Users\steve\AppData\Local\Programs\Microsoft VS Code\Code.exe"  ; <--- specific to Steve's setup.
+NameOfThisFile := "AutoCorrect2.ahk" ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
+
+MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"  ; <--- Only valid when VSCode is installed
+; MyAhkEditorPath := "C:\Program Files\AutoHotkey\SciTE\SciTE.exe" : <--- Optionally paste another path and uncomment. 
+If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Notepad otherwise.
+	MsgBox("This error means that the variable 'MyAhkEditorPath' has"
+	"`nnot been assigned a valid path for an editor."
+	"`nTherefore Notepad will be used as a substite.")
+	MyAhkEditorPath := "Notepad.exe"
+}
 
 ;===============================================================================
 TraySetIcon(A_ScriptDir . "\Icons\Psicon.ico")
@@ -42,9 +50,11 @@ acMenu.SetColor("Silver")
 SoundBeep(900, 250)
 SoundBeep(1100, 200)
 
+Run A_ScriptDir "\WayText\WayText2.exe" ; <--- specific to Steve's setup.
+
 ;===============================================================================
 ;            			Hotstring Helper 2
-;          Hotkey: Win + H | By: Kunkel321 | Version: 4-22-2024
+;          Hotkey: Win + H | By: Kunkel321 
 ; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=114688
 ; A version of Hotstring Helper that will support block multi-line replacements and 
 ; allow user to examine hotstring for multi-word matches. The "Examine/Analyze" 
@@ -101,6 +111,12 @@ DefaultAutoCorrectOpts := "*" ; An empty string "" means don't use feature.
 ;=====List=of=words=use=for=examination=lookup==================================
 WordListFile := 'GitHubComboList249k.txt' ; Mostly from github: Copyright (c) 2020 Wordnik
 ; WordListFile := 'wlist_match6.txt' ; From https://www.keithv.com/software/wlist/
+; Make sure word list is there. Change name of word list subfolder, if desired. 
+WordListPath := A_ScriptDir '\WordListsForHH\' WordListFile
+If not FileExist(WordListPath)
+	MsgBox("This error means that the big list of comparison words at:`n" . WordListPath . 
+	"`nwas not found.`n`nTherefore the 'Exam' button of the Hotstring Helper tool won't work.")
+SplitPath WordListPath, &WordListName ; Extract just the name of the file.
 
 ;=====Other=Settings============================================================
 ; Add "Fixes X words, but misspells Y" to the end of autocorrect items. 
@@ -144,22 +160,6 @@ Esc::
 	ReplaceString.SetFont('s11')
 }
 #HotIf ; Turn off window-specific behavior.
-
-
-; Make sure word list is there. Change name of word list subfolder, if desired. 
-WordListPath := A_ScriptDir '\WordListsForHH\' WordListFile
-If not FileExist(WordListPath)
-	MsgBox("This error means that the big list of comparison words at:`n" . WordListPath . 
-	"`nwas not found.`n`nTherefore the 'Exam' button of the Hotstring Helper tool won't work.")
-SplitPath WordListPath, &WordListName ; Extract just the name of the file.
-
-; Make sure AHK editor is assigned.  Use Notepad otherwise.
-If not FileExist(MyAhkEditorPath) {
-	MsgBox("This error means that the variable 'MyAhkEditorPath' has"
-	"`nnot been assigned a valid path for an editor."
-	"`nTherefore Notepad will be used as a substite.")
-	MyAhkEditorPath := "Notepad.exe"
-}
 
 ;===== Main Graphical User Interface (GUI) is built here =======================
 hh := Gui('', hhFormName)
@@ -1233,7 +1233,13 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 }
 #HotIf
 
-;==============================
+;------------------------------------------------------------------------------
+;   Get/Set my default printer
+; A tool to allow user to check and/or change default printer.
+; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=118596&p=526363#p526363
+; By Kunkel321 with help from Garry. Partly auto-converted from v1, partly rewritten.
+;------------------------------------------------------------------------------
+
 ; Open this script in VSCode.
 ^+e::
 EditThisScript(*)
@@ -1244,12 +1250,6 @@ EditThisScript(*)
 }
 
 
-;------------------------------------------------------------------------------
-;   Get/Set my default printer
-; A tool to allow user to check and/or change default printer.
-; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=118596&p=526363#p526363
-; By Kunkel321 with help from Garry. Partly auto-converted from v1, partly rewritten.
-;------------------------------------------------------------------------------
 
 +!p:: ; Shift+Alt+P
 PrinterTool(*)
@@ -7057,3 +7057,5 @@ Zaffre
 ;:B0X*:delima::f("dilemma") ; Fixes 3 words 
 :B0X?*:delimma::f("dilemma") ; Fixes 3 words 
 :B0XC:copt::f("copy") ; Fixes 1 word, Case-sensitive, to not misspell Copt, An ancient Egyptian descendent.
+:B0X*:delima::f("dilemma") ; Fixes 3 words 
+:B0X:I thing::f("I think")
