@@ -4,7 +4,7 @@ SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
 #Include "DateTool.ahk"
 
-; Update date: 4-23-2024.
+; Update date: 4-24-2024.
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -50,11 +50,9 @@ acMenu.SetColor("Silver")
 SoundBeep(900, 250)
 SoundBeep(1100, 200)
 
-Run A_ScriptDir "\WayText\WayText2.exe" ; <--- specific to Steve's setup.
-
 ;===============================================================================
 ;            			Hotstring Helper 2
-;          Hotkey: Win + H | By: Kunkel321 
+;                Hotkey: Win + H | By: Kunkel321
 ; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=114688
 ; A version of Hotstring Helper that will support block multi-line replacements and 
 ; allow user to examine hotstring for multi-word matches. The "Examine/Analyze" 
@@ -1450,19 +1448,13 @@ IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for t
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
 lastTrigger := "none yet" ; in case no autocorrects have been made
-; lih := ''
 f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 {	static HSInputBuffer := InputBuffer()
 	HSInputBuffer.Start()
 	trigger := A_ThisHotkey, endchar := A_EndChar
-	; If IsObject(lih) and (lih.inProgress = 1) { ; Warning circumvents the logging process. 
-	; 	;msgbox 'yes lih is an obj ad in progress'
-	; 	lih.Stop()
-	; }
 	Global lastTrigger := StrReplace(trigger, "B0X", "") "::" replace ; set 'lastTrigger' before removing options and colons.
 	trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1) ; use everything to right of 2nd colon. 
 	TrigLen := StrLen(trigger) + StrLen(endchar) ; determine number of backspaces needed.
-
 	; Rarify: Only remove and replace rightmost necessary chars.  
 	trigL := StrSplit(trigger)
 	replL := StrSplit(replace)
@@ -1477,8 +1469,8 @@ f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 	replace := "" ; Reset to blank string.
 	HSInputBuffer.Stop()
 	SoundBeep(900, 60) ; Notification of replacement.
-	KeepForLog := LastTrigger  "`n"
-	keepText(KeepForLog) ; Uses same logger function as above CAse COrrector. 
+	Global KeepForLog := LastTrigger  "`n"
+	SetTimer(keepText, -1)
 }
 
 logIsRunning := 0
@@ -1489,7 +1481,7 @@ saveIntervalMinutes := saveIntervalMinutes*60*1000 ; convert to miliseconds.
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
 ; There's no point running the logger if no text has been saved up...  
 ; So don't run timer when script starts.  Run it when logging starts. 
-keepText(KeepForLog) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
+keepText(*) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
 { 	EndKeys := "{Backspace}"
 	global lih := InputHook("B V I1 E T1", EndKeys) ; "logger input hook." T is time-out. T1 = 1 second.
 	lih.Start(), lih.Wait()
