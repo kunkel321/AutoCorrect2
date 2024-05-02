@@ -1,14 +1,19 @@
-﻿#SingleInstance
+#SingleInstance
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
 #Include "DateTool.ahk"
-
-; Update date: 4-24-2024.
+;===============================================================================
+; Update date: 5-2-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
 ; https://github.com/kunkel321/AutoCorrect2
+;===============================================================================
+
+;==Change=color=of=Hotstring=Helper=form=as=desired===========================
+GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
+FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
 
 ;===============================================================================
 NameOfThisFile := "AutoCorrect2.ahk" ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
@@ -21,34 +26,6 @@ If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Not
 	"`nTherefore Notepad will be used as a substite.")
 	MyAhkEditorPath := "Notepad.exe"
 }
-
-;===============================================================================
-TraySetIcon(A_ScriptDir . "\Icons\Psicon.ico")
-; TraySetIcon('imageres.dll', 281) ; Blue right-pointing triangle (aka 'Play' icon).
-
-;===============================================================================
-acMenu := A_TrayMenu ; For convenience.
-acMenu.Delete
-acMenu.Add("Edit This Script", EditThisScript)
-acMenu.SetIcon("Edit This Script", "Icons\edit-Blue.ico")
-acMenu.Add("Run Printer Tool", PrinterTool)
-acMenu.SetIcon("Run Printer Tool", "Icons\printer-Blue.ico")
-; acMenu.Add("DateTool - H", MCRemake)
-; acMenu.SetIcon("DateTool - H", "Icons\calendar-Blue.ico")
-acMenu.Add("System Up Time", UpTime)
-acMenu.SetIcon("System Up Time", "Icons\clock-Blue.ico")
-acMenu.Add("Reload Script", (*) => Reload())
-acMenu.SetIcon("Reload Script", "icons/repeat-Blue.ico")
-acMenu.Add("List Lines Debug", (*) => ListLines())
-acMenu.SetIcon("List Lines Debug", "icons/ListLines-Blue.ico")
-acMenu.Add("Exit Script", (*) => ExitApp())
-acMenu.SetIcon("Exit Script", "icons/exit-Blue.ico")
-acMenu.SetColor("Silver")
-
-;===============================================================================
-; Startup anouncement.  Also beeps whenever HotString Helper appends an item.
-SoundBeep(900, 250)
-SoundBeep(1100, 200)
 
 ;===============================================================================
 ;            			Hotstring Helper 2
@@ -66,10 +43,6 @@ SoundBeep(1100, 200)
 ; script at the bottom. Shift+Append saves to clipboard instead of appending. 
 ; This tool is intended to be embedded in your AutoCorrect list.
 ;===============================================================================
-
-;==Change=color=of=Hotstring=Helper=form=as=desired===========================
-GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
-FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
 
 ; ===Change=Settings=for=Big=Validity=Dialog=Message=Box========================
 myGreen := 'c1D7C08' ; light green 'cB5FFA4' (for use with dark backgrounds.)
@@ -162,9 +135,9 @@ Esc::
 ;===== Main Graphical User Interface (GUI) is built here =======================
 hh := Gui('', hhFormName)
 hh.Opt("-MinimizeBox +alwaysOnTop")
-hh.BackColor := GuiColor
+try hh.BackColor := GuiColor ; This variable gets set at the top of the HotString Helper section. 
 FontColor := FontColor != "" ? "c" . FontColor : ""
-hh.SetFont("s11 " . FontColor)
+hh.SetFont("s11 " . FontColor)  ; This variable gets set at the top of the HotString Helper section. 
 hFactor := 0, wFactor := 0 ; Don't change size here. 
 ; -----  Trigger string parts ----
 hh.AddText('y4 w30', 'Options')
@@ -1220,6 +1193,32 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 ; ..QQQQQQ....QQQ....QQQ....QQQQQQQQ..........QQQQQQ....QQQQ........QQQ....QQQ..QQQ....QQ
 ; #######################################################################################
 
+;====== Change icons here if desired ===========================================
+TraySetIcon(A_ScriptDir . "\Icons\Psicon.ico")
+acMenu := A_TrayMenu ; For convenience.
+acMenu.Delete
+acMenu.Add("Edit This Script", EditThisScript)
+acMenu.SetIcon("Edit This Script", "Icons\edit-Blue.ico")
+acMenu.Add("Run Printer Tool", PrinterTool)
+acMenu.SetIcon("Run Printer Tool", "Icons\printer-Blue.ico")
+; acMenu.Add("DateTool - H", MCRemake)
+; acMenu.SetIcon("DateTool - H", "Icons\calendar-Blue.ico")
+acMenu.Add("System Up Time", UpTime)
+acMenu.SetIcon("System Up Time", "Icons\clock-Blue.ico")
+acMenu.Add("Reload Script", (*) => Reload())
+acMenu.SetIcon("Reload Script", "icons/repeat-Blue.ico")
+acMenu.Add("List Lines Debug", (*) => ListLines())
+acMenu.SetIcon("List Lines Debug", "icons/ListLines-Blue.ico")
+acMenu.Add("Exit Script", (*) => ExitApp())
+acMenu.SetIcon("Exit Script", "icons/exit-Blue.ico")
+acMenu.SetColor("Silver")
+
+;===============================================================================
+; Startup anouncement.  Also beeps whenever HotString Helper appends an item.
+SoundBeep(900, 250)
+SoundBeep(1100, 200)
+
+;===============================================================================
 #HotIf WinActive(NameOfThisFile,) ; Can't use A_Var here.
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.
 {
@@ -1231,13 +1230,7 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 }
 #HotIf
 
-;------------------------------------------------------------------------------
-;   Get/Set my default printer
-; A tool to allow user to check and/or change default printer.
-; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=118596&p=526363#p526363
-; By Kunkel321 with help from Garry. Partly auto-converted from v1, partly rewritten.
-;------------------------------------------------------------------------------
-
+;===============================================================================
 ; Open this script in VSCode.
 ^+e::
 EditThisScript(*)
@@ -1247,8 +1240,12 @@ EditThisScript(*)
 		msgbox 'cannot run ' NameOfThisFile
 }
 
-
-
+;===============================================================================
+;   Get/Set my default printer
+; A tool to allow user to check and/or change default printer.
+; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=118596&p=526363#p526363
+; By Kunkel321 with help from Garry. Partly auto-converted from v1, partly rewritten.
+;===============================================================================
 +!p:: ; Shift+Alt+P
 PrinterTool(*)
 {	; TraySetIcon("shell32.dll","107") ; Icon of a printer with a green checkmark.
@@ -1321,8 +1318,8 @@ ButtonCancel(*)
 	printerlist := ""
 }
 
-;#############################################################
-;################ UPTIME #####################################
+; ==============================================================================
+; UPTIME 
 !+u::
 UpTime(*)
 { MsgBox("UpTime is:`n" . Uptime(A_TickCount))
@@ -1341,13 +1338,11 @@ UpTime(*)
 	}
 }
 
-
 ; ==============================================================================
 ;       AUto-COrrect TWo COnsecutive CApitals
 ; This version by forum user Ntepa. Updated 8-7-2023.
 ; https://www.autohotkey.com/boards/viewtopic.php?p=533067#p533067
-; Logging and a couple of things added by kunkel321 2-7-2024
-; ==============================================================================
+; Minor edits added by kunkel321 2-7-2024
 
 fix_consecutive_caps()
 fix_consecutive_caps() {
@@ -1419,6 +1414,7 @@ fix_consecutive_caps() {
 ;  AUto-COrrect TWo COnsecutive CApitals
 ;  Table of Contents (this)
 ;  f() AutoCorrect hotstring function
+;  KeepText() cacher function
 ;  Logger function
 ;  InputBuffer Class by Descolada
 ;  Mini report generator function
@@ -1436,6 +1432,8 @@ fix_consecutive_caps() {
 ;  As of Feb 2024, ~5k items, >328k potential fixes.  Ctrl+F3 for Fix counter
 ;  Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
 ;------------------------------------------------------------------------------
+
+;:B0XC:smith::f("Smith") ; Fixes 2 words , but misspells smi. 
 
 ;========= LOGGER OPTIONS ====================================================== 
 saveIntervalMinutes := 20     ; Collect the log items in RAM, then save to disc this often. 
@@ -1458,6 +1456,7 @@ f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 	; Rarify: Only remove and replace rightmost necessary chars.  
 	trigL := StrSplit(trigger)
 	replL := StrSplit(replace)
+	endCh := StrLen(endchar)
 	Global ignorLen := 0
 	Loop Min(trigL.Length, replL.Length) ; find matching left substring.
 	{	If (trigL[A_Index] == replL[A_Index]) ; The double equal (==) makes it case-sensitive. 
@@ -1465,7 +1464,7 @@ f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 		else break
 	}
 	replace := SubStr(replace, (ignorLen+1))
-	SendInput("{BS " . (TrigLen - ignorLen) . "}" replace endchar) ; Type replacemement and endchar. 
+	SendInput("{BS " . (TrigLen - ignorLen) . "}" replace StrReplace(endchar, "!", "{!}")) ; Type replacemement and endchar. 
 	replace := "" ; Reset to blank string.
 	HSInputBuffer.Stop()
 	SoundBeep(900, 60) ; Notification of replacement.
@@ -1473,9 +1472,7 @@ f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 	SetTimer(keepText, -1)
 }
 
-logIsRunning := 0
-savedUpText := ''
-intervalCounter := 0 ; Initialize the counter
+logIsRunning := 0, savedUpText := '', intervalCounter := 0 ; Initialize the counter
 saveIntervalMinutes := saveIntervalMinutes*60*1000 ; convert to miliseconds.
 
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
@@ -1509,7 +1506,7 @@ Appender(*)
 	;soundBeep 600, 800
 }
 
-OnExit Appender 					; Also append one more time on exit. 
+OnExit Appender ; Also append one more time on exit, incase we are in the middle of on interval. 
 
 ;================================================================================================
 /* InputBuffer Class by Descolada https://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865
@@ -1649,9 +1646,6 @@ StringAndFixReport(*)
 			if (num == oldnum) ; If the number doesn't change, exit the loop
 				break
 		}
-		; neededSpaces := ((6 - StrLen(num)) * 1.66) - .5 ; attempts to kludge "right spacing" of num col. 
-		; loop neededSpaces
-		; 	num := " " num
 		return num
 	}
 }
@@ -1662,8 +1656,8 @@ StringAndFixReport(*)
 ; ; Two hotstrings for testing keyboard input buffering (or lack thereof).
 ; :*?:zx::lllllllllllllllllllllllllllllllllllllllllllllllll
 ; :*?:cv::ooooooooooooooooooooooooooooooooooooooooooooooooo
-; :B0X*?:zx::f("lllllllllllllllllllllllllllllllllllllllllllllllll")
-; :B0X*?:cv::f("ooooooooooooooooooooooooooooooooooooooooooooooooo")
+;:B0X*?:po::f("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+;:B0X*?:iu::f("ooooooooooooooooooooooooooooooooooooooooooooooooo")
 
 ; ===== Trigger strings to nullify the potential misspellings that are indicated. ======
 ; Used the word "corrects" in place of fix to avoid double-counting these as potential fixes. 
@@ -7082,8 +7076,8 @@ Zaffre
 :B0XC:i::f("I") ; Fixes 1 word 
 :B0X*?:visial::f("visual") ; Fixes 36 words 
 :B0X*:assignement::f("assignment") ; Fixes 2 words 
-;:B0X*:delima::f("dilemma") ; Fixes 3 words 
 :B0X?*:delimma::f("dilemma") ; Fixes 3 words 
 :B0XC:copt::f("copy") ; Fixes 1 word, Case-sensitive, to not misspell Copt, An ancient Egyptian descendent.
 :B0X*:delima::f("dilemma") ; Fixes 3 words 
-:B0X:I thing::f("I think")
+:B0X:I thing::f("I think") ; Fixes 1 word
+:B0X*:auot::f("auot") ; Fixes 1 word
