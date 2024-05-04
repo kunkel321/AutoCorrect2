@@ -4,14 +4,15 @@ SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
 #Include "DateTool.ahk"
 ;===============================================================================
-; Update date: 5-2-2024
+; Update date: 5-4-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
 ; https://github.com/kunkel321/AutoCorrect2
 ;===============================================================================
 
-;==Change=color=of=Hotstring=Helper=form=as=desired===========================
+;The below color assingments should not be commented out.  
+;==Change=color=of=Hotstring=Helper=and=other=forms=as=desired================
 GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
 FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
 
@@ -238,6 +239,9 @@ rArrStep := [] ; array for replacement undos
 
 origTriggerTypo := "" ; Used to determine is trigger has been changed, to potentially type new replacement at runtime.
 
+if (A_Args.Length > 0) ; Check if a command line argument is present.
+	CheckClipboard()  ; If present, open hh2 directly. 
+
 ;===The=main=function=for=showing=the=Hotstring=Helper=Tool=====================
 ; This code block copies the selected text, then determines if a hotstring is present.
 ; If present, hotstring is parsed and HH form is populated and ExamineWords() called. 
@@ -249,9 +253,15 @@ CheckClipboard(*)
 	EdtRMatches.CurrMatches := "" ; reset custom property
 	Global ClipboardOld := ClipboardAll() ; Save and put back later.
 	A_Clipboard := ""  ; Must start off blank for detection to work.
-	Send("^c") ; Copy selected text.
-	Errorlevel := !ClipWait(0.3) ; Wait for clipboard to contain text.
-	
+	global A_Args
+	if (A_Args.Length > 0) ; Check if a command line argument is present.
+	{	A_Clipboard := A_Args[1] ; Sent via command line, from MCLogger.
+		A_Args := [] ; Clear, the array after each use. 
+	}	
+	else ; No cmd line, so just simulaate copy like normal. 
+	{	Send("^c") ; Copy selected text.
+		Errorlevel := !ClipWait(0.3) ; Wait for clipboard to contain text.
+	}
 	Global Opts:= "", Trig := "", Repl := "", Opts := ""
 	hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<fCom>\h*;\h*(?:\bFIXES\h*\d+\h*WORDS?\b)?(?:\h;)?\h*(?<mCom>.*))?$" ; Jim 156
 	; Awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
@@ -7080,4 +7090,7 @@ Zaffre
 :B0XC:copt::f("copy") ; Fixes 1 word, Case-sensitive, to not misspell Copt, An ancient Egyptian descendent.
 :B0X*:delima::f("dilemma") ; Fixes 3 words 
 :B0X:I thing::f("I think") ; Fixes 1 word
-:B0X*:auot::f("auot") ; Fixes 1 word
+:B0X*:auot::f("auto") ; Fixes 1 word
+:B0X:thet::f("that") ; Fixes 1 word 
+::tartet::target
+::ammndment::amendment
