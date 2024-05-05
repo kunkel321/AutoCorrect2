@@ -3,14 +3,14 @@
 Persistent
 
 ; ==============================================================================
-; The Manual Correction Logger -- MCLogger --   Version 5-4-2024
+; The Manual Correction Logger -- MCLogger --   Version 5-5-2024
 ; ==============================================================================
 ; By Kunkel321, but inputHook based on Mike's here at: 
 ; https://www.autohotkey.com/boards/viewtopic.php?p=560556#p560556
 ; A script to run in the background all the time and log your typing
 ; errors and manual corrections, formatting the viable ones into ahk hotstrings,
 ; so that repeating typo patterns can later be identified and potentially
-; added as new AutoCorrect library items.  The analysis repor is a GUI form that
+; added as new AutoCorrect library items.  The analysis report is a GUI form that
 ; can export the new hotstring to Hotstring Helper 2.0, or merely append it to 
 ; the bottom of the AutoCorrect file.  The typoCache variable ignores 
 ; non-letters (because those are not needed for typing corrections).  "End keys"
@@ -49,8 +49,8 @@ myAutoCorrectFile := "AutoCorrect2.ahk"
 ;========= LOG ANALYSIS OPTIONS ================================================
 runAnalysisHotkey := "#^+q"   ; Change hotkey if desired.
 sneakPeekHotkey := "!q"       ; Change hotkey if desired.
-ShowX :=  6                   ; Show max of top X results. 
-SendToHH := 0                 ; Export directly to HotSting Helper. 1=yes / 0=no 
+ShowX :=  12                   ; Show max of top X results. 
+SendToHH := 1                 ; Export directly to HotSting Helper. 1=yes / 0=no 
 
 MyAhkEditorPath := "C:\Users\steve\AppData\Local\Programs\Microsoft VS Code\Code.exe" ; <--- specific to Steve's setup. Put path to your editor.
 
@@ -63,7 +63,7 @@ mclMenu.SetIcon("Log and Reload Script", "icons/data_backup-Brown.ico")
 mclMenu.Add("Edit This Script", EditThisLog)
 mclMenu.SetIcon("Edit This Script", "icons/edit-Brown.ico")
 mclMenu.Add("Open " myLogFile, (*) => Run(myLogFile))
-;mclMenu.SetIcon("Open " myLogFile, "icons/edit-Brown.ico")
+mclMenu.SetIcon("Open " myLogFile, "icons/TxtFile-Brown.ico")
 mclMenu.Add("Analyze Manual Corrections", runAnalysis)
 mclMenu.SetIcon("Analyze Manual Corrections", "icons/search-Brown.ico")
 mclMenu.Add("Start with Windows", StartUpMCL)
@@ -308,15 +308,18 @@ runAnalysis(*)
       Else
          cl.Add('radio', 'xs yp+28', "Found " citem)
 	}
-	cl.Add('button', 'w160','Cull and Append').OnEvent('Click', CullerAppender)
-	cl.Add('button', ' x+4 w120','Cancel').OnEvent('Click', (*) => cl.Hide())
+	Global BUchkBox := cl.Add('Checkbox', 'w280 ','Make backup of ' myLogFile ' first')
+	cl.Add('button', 'w160 ','Cull and Append').OnEvent('Click', CullerAppender)
+	cl.Add('button', 'x+5 w120 ','Cancel').OnEvent('Click', (*) => cl.Hide())
 	cl.Show()
+   cl.onEvent("Escape", (*) => cl.Destroy())
 }
 
 ; This only gets called from the radio button Gui form.  If a radio item is selected 
 ; all occurences are removed from the log file, and the new items is appended to 
 ; autocorrect file.  Optionally, the item is sent directly to the HotString Helper 2
-; form.  (Need 5-4-2024 or newer version of AutoCorrect2).
+; form.  (Need 5-4-2024 or newer version of AutoCorrect2).  A backup is made if above 
+; BUchkBox is checked.
 CullerAppender(*)
 {  newFileContent := "", selItemName := ""
    global trunkReport
@@ -338,38 +341,22 @@ CullerAppender(*)
          newFileContent .= line "`n"
    }
    myLogFileBaseName := StrSplit(myLogFile, ".")[1]
-   BUMsg := 
-   (
-   'Should we make a back up of your ' myLogFile ' file before culling?`n`n'
-   'Yes     = Make a backup called: ' myLogFileBaseName '-BU <date>.txt.`n'
-   'No      = Don`'t make a backup, but continue with the cull and append.`n'
-   'Cancel  = Close this message box.'
-   )
-   mResult := MsgBox(BUMsg,,3+32+8192)
-   If mResult = 'Yes'
-   {  FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BU-' A_Now '.txt', 1)
-      CullerAppenderPart2()
-   }  
-   Else if mResult = 'Cancel'
-   {  cl.Show() ; Show gui form again.
-      Return   ; Abort function. 
+   
+   If (BUchkBox.Value = 1)
+      FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BU-' A_Now '.txt', 1)
+   FileDelete myLogFile ; Delete the file so we can remake it.
+   FileAppend(newFileContent, myLogFile) ; Remake the file with the (now culled) string.
+   
+   If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
+   {  myACFileBaseName := StrSplit(myAutoCorrectFile, ".")[1]
+      Run myACFileBaseName ".exe /script " myAutoCorrectFile " " selItemName
    }
-   Else 
-      CullerAppenderPart2()
-   CullerAppenderPart2(*)
-   {  FileDelete myLogFile ; Delete the file so we can remake it.
-      FileAppend(newFileContent, myLogFile) ; Remake the file with the (now culled) string.
-      
-      If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
-      {  myACFileBaseName := StrSplit(myAutoCorrectFile, ".")[1]
-         Run myACFileBaseName ".exe /script " myAutoCorrectFile " " selItemName
-      }
-      Else ; Otherwise, just append to bottom. 
-         FileAppend("`n" selItemName, myAutoCorrectFile) ; Put culled item at bottom of ac file. 
-      ;SoundBeep
-      cl.Destroy() 
-      trunkReport := []
-   }
+   Else ; Otherwise, just append to bottom. 
+      FileAppend("`n" selItemName, myAutoCorrectFile) ; Put culled item at bottom of ac file. 
+   ;SoundBeep
+   cl.Destroy() 
+   trunkReport := []
+   
 }
 
 ; This function is only accessed via the systray menu item.  It toggles adding/removing
