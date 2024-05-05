@@ -50,7 +50,7 @@ myAutoCorrectFile := "AutoCorrect2.ahk"
 runAnalysisHotkey := "#^+q"   ; Change hotkey if desired.
 sneakPeekHotkey := "!q"       ; Change hotkey if desired.
 ShowX :=  6                   ; Show max of top X results. 
-SendToHH := 0                ; Export directly to HotSting Helper. 1=yes / 0=no 
+SendToHH := 0                 ; Export directly to HotSting Helper. 1=yes / 0=no 
 
 MyAhkEditorPath := "C:\Users\steve\AppData\Local\Programs\Microsoft VS Code\Code.exe" ; <--- specific to Steve's setup. Put path to your editor.
 
@@ -163,10 +163,10 @@ tih_Char(tih, char) {
 ; it matches the format ::misspelling::actual word.  The potential hotstring is 
 ; shown in a tooltip, and appended with a datestamp, then added to the "Saved up Text"
 ; variable to be logged at the end of the next interval. 
-tih_EndChar(tih, vk, sc) {
-	Global typoCache .= vk = 8? '<' : '~' 		; use '<' for Backspace, '~' for Space
-	If RegExMatch(typoCache, RegEx, &out) { 	; watch for pattern ..<<. ~
-   	trigLen := strLen(out.trig) 			   ; number of chars in trigger
+tih_EndChar(tih, vk, sc) 
+{	Global typoCache .= vk = 8? '<' : '~' 		; use '<' for Backspace, '~' for Space
+	If RegExMatch(typoCache, RegEx, &out) 	; watch for pattern ..<<. ~
+   {	trigLen := strLen(out.trig) 			   ; number of chars in trigger
 		BsLen := strLen(out.back) 				   ; number of chars in BS...  
 		replLen := strLen(out.repl) 			   ; number of chars in replacement
 		If (replLen > BsLen) { ; replacement longer than number of BSs, so part of trigger missing.
@@ -211,9 +211,7 @@ ClearToolTip(*)
 {	ToolTip ,,,6 ; The 6 is an arbitrary identifier.  
 }
 
-logIsRunning := 0
-savedUpText := ''
-intervalCounter := 0  					; Initialize the counter
+logIsRunning := 0, savedUpText := '', intervalCounter := 0 
 saveIntervalMinutes := saveIntervalMinutes*60*1000 ; convert to miliseconds.
 
 ; There's no point running the logger if no text has been saved up...  
@@ -339,19 +337,39 @@ CullerAppender(*)
       Else
          newFileContent .= line "`n"
    }
-
-   FileDelete myLogFile ; Delete the file so we can remake it.
-   FileAppend(newFileContent, myLogFile) ; Remake the file with the (now culled) string.
-   
-   If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
-   {  myACFileBaseName := StrSplit(myAutoCorrectFile, ".")[1]
-      Run myACFileBaseName ".exe /script " myAutoCorrectFile " " selItemName
+   myLogFileBaseName := StrSplit(myLogFile, ".")[1]
+   BUMsg := 
+   (
+   'Should we make a back up of your ' myLogFile ' file before culling?`n`n'
+   'Yes     = Make a backup called: ' myLogFileBaseName '-BU <date>.txt.`n'
+   'No      = Don`'t make a backup, but continue with the cull and append.`n'
+   'Cancel  = Close this message box.'
+   )
+   mResult := MsgBox(BUMsg,,3+32+8192)
+   If mResult = 'Yes'
+   {  FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BU-' A_Now '.txt', 1)
+      CullerAppenderPart2()
+   }  
+   Else if mResult = 'Cancel'
+   {  cl.Show() ; Show gui form again.
+      Return   ; Abort function. 
    }
-   Else ; Otherwise, just append to bottom. 
-      FileAppend("`n" selItemName, myAutoCorrectFile) ; Put culled item at bottom of ac file. 
-   ;SoundBeep
-   cl.Destroy() 
-   trunkReport := []
+   Else 
+      CullerAppenderPart2()
+   CullerAppenderPart2(*)
+   {  FileDelete myLogFile ; Delete the file so we can remake it.
+      FileAppend(newFileContent, myLogFile) ; Remake the file with the (now culled) string.
+      
+      If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
+      {  myACFileBaseName := StrSplit(myAutoCorrectFile, ".")[1]
+         Run myACFileBaseName ".exe /script " myAutoCorrectFile " " selItemName
+      }
+      Else ; Otherwise, just append to bottom. 
+         FileAppend("`n" selItemName, myAutoCorrectFile) ; Put culled item at bottom of ac file. 
+      ;SoundBeep
+      cl.Destroy() 
+      trunkReport := []
+   }
 }
 
 ; This function is only accessed via the systray menu item.  It toggles adding/removing
