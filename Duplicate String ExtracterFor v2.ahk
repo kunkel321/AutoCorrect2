@@ -1,4 +1,4 @@
-﻿#SingleInstance
+#SingleInstance
 #Requires AutoHotkey v2+
 
 ; Intended for updating AutoHotkey scripts.  kunkel321 4-24-2024.
@@ -8,20 +8,19 @@
 ; The "extraFile" is a different version of your file, that might have new custom hotstrings
 ; added, that are not in the new mainFile. 
 
-mainFile := "D:\AutoHotkey\MasterScript\AutoCorrect2.ahk"  ; <--- Your AutoCorrect.ahk file path here.
-extraFile := "D:\AutoHotkey\MasterScript\AutoCorrect2_OLD.ahk" 
+mainFile := "HotstringLib.ahk"  ; <--- Your AutoCorrect.ahk file path here.
+extraFile := "HotstringLib_OLD.ahk" 
 
 ^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc. 
 
 Try mainList := Fileread(mainFile) ; Make sure file exists and save contents for variable. 
 Catch {
-	MsgBox '====ERROR====`n`nThe file (' mainFile ')`nwas not found.`n`nRemember to set the three variables`nat the top of the script. Now exiting.'
+	MsgBox '====ERROR====`n`nThe file (' mainFile ')`nwas not found.`n`nRemember to set the two variables`nat the top of the script. Now exiting.'
 	ExitApp
 }
-
 Try extraList := Fileread(extraFile) ; Make sure file exists and save contents for variable. 
 Catch {
-	MsgBox '====ERROR====`n`nThe file (' extraFile ')`nwas not found.`n`nRemember to set the three variables`nat the top of the script. Now exiting.'
+	MsgBox '====ERROR====`n`nThe file (' extraFile ')`nwas not found.`n`nRemember to set the two variables`nat the top of the script. Now exiting.'
 	ExitApp
 }
 
@@ -74,8 +73,8 @@ ElapsedTime := (A_TickCount - StartTime) / 1000 ; Calculate and format time take
 MessageHeader := 
 (
 	"Search took " Round(ElapsedTime / 60) " minutes and " Round(mod(ElapsedTime, 60)) " seconds.`n`n"
-	"We Found " CountM " items unique to " extraFileName ".  These might be custom items that you added via HotString Helper.  Please copy and keep any that you want to keep, then you can optionally delete " extraFileName 
-	".`n`nWe also found " CountE " items unique to " mainFileName ".  These are either newly added ones, or ones that you manually removed from your own version of ac2.  Search for and remove any unwanted items from " mainFileName "."
+	"We Found " CountM " items unique to " extraFileName ".  These might be custom items that you added via HotString Helper.  Please copy and keep any, from the first list, below, that you want to save.  Then you can optionally delete " extraFileName 
+	".`n`nWe also found " CountE " items unique to " mainFileName ".  These are either newly added ones, or ones that you manually removed from your own version of ac2.  Search for and remove any unwanted items from " mainFileName ". Those are listed at the bottom, below."
 )
 
 rep.Destroy() ; Remove progress bar.
@@ -87,7 +86,16 @@ extraReport := DupeReportE
 If extraReport = ""
 	extraReport := "No unique hotstrings found in " mainFile "."
 
-finalReport := MessageHeader "`n=================================`n" extraFileName " items you may wish to keep:`n" mainReport  "`n`n`n=================================`n" mainFileName " items that you may have removed from you AutoCorrect2 file, or items that were recently added:`n" extraReport
+finalReport := 
+(
+	MessageHeader 
+	"`n=================================`n" 
+	extraFileName " items you may wish to keep:`n" 
+	mainReport
+	"`n`n=================================`n" 
+	mainFileName " items that you may have removed from your new working file, or items that were recently added:`n" 
+	extraReport
+)
 
 Location := A_ScriptDir "\Uniques_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
 FileAppend finalReport, Location ; Save to text file, then open the file. 
