@@ -3,7 +3,7 @@
 Persistent
 
 ; ==============================================================================
-; The Manual Correction Logger -- MCLogger --   Version 5-5-2024
+; The Manual Correction Logger -- MCLogger --   Version 5-6-2024
 ; ==============================================================================
 ; By Kunkel321, but inputHook based on Mike's here at: 
 ; https://www.autohotkey.com/boards/viewtopic.php?p=560556#p560556
@@ -20,8 +20,11 @@ Persistent
 ; or left-clicking resets the cache and closes the tooltip. 
 ; ==============================================================================
 
-;========= TOOLTIP COLORS ======================================================
-; The iniReads are specific to Steve's computer -- If you see them, he forgot to remove them.
+/*
+; Below coloring lines are specific to Steve's setup.  If you see them, he apparently forgot to remove them. 
+; OR...  If you have WayText (and the WayText folder is in with your ac2 stuff) Use these so that the
+; color scheme assiged via wtSettings will be applied to the MCLogger. 
+
 lColor := IniRead("WayText\wtFiles\Settings.ini", "MainSettings", "ListColor", "Default")
 gColor := iniread("WayText\wtFiles\Settings.ini", "MainSettings", "GUIcolor", "Default")
 fColor := iniread("WayText\wtFiles\Settings.ini", "MainSettings", "FontColor", "Default")
@@ -30,12 +33,13 @@ ListColor := strReplace(subStr(lColor, -6), "efault", "Default")
 gColor := strReplace(subStr(gColor, -6), "efault", "Default")
 FontColor := strReplace(subStr(fColor, -6), "efault", "Default")
 
-If not FileExist("WayText\wtFiles\Settings.ini") {
-   Global ListColor := "Default"
-   Global FontColor := "Default"
-   Global gColor := "Default"
-}
-
+; Use either that above or below color assignments, not both. 
+*/
+;/* 
+ListColor := "Default"
+FontColor := "Default"
+gColor := "Default"
+;*/
 ;========= LOGGER OPTIONS ====================================================== 
 saveIntervalMinutes := 10     ; Collect the log items in RAM, then save to disc this often. 
 IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for this many intervals.
@@ -44,7 +48,7 @@ IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for t
 ;=====File=Name=Assignments=====================================================
 WordListFile := 'GitHubComboList249k.txt' ; Mostly from github: Copyright (c) 2020 Wordnik
 myLogFile := "MCLog.txt"
-myAutoCorrectFile := "AutoCorrect2.ahk"
+myAutoCorrectFile := "HotstringLib.ahk"
 
 ;========= LOG ANALYSIS OPTIONS ================================================
 runAnalysisHotkey := "#^+q"   ; Change hotkey if desired.
