@@ -1,31 +1,35 @@
-﻿#SingleInstance
+#SingleInstance
 #Requires AutoHotkey v2+
-; A script to find duplicate and conflicting beg/mid/end hotstring triggers. By kunkel321 2-28-2024. 
+
+;===============================================================================
+; By kunkel321.  Updated: 5-6-2024. 
+; A script to find duplicate and conflicting beg/mid/end hotstring triggers. 
 ; It should work with hotstrings that are formatted with f(), _HS(), or plain AHK hotstrings. 
 ; Note: When correcting/culling your autocorrect library, remember that sometimes conflicting
 ; autocorrect items can peacefully coexist... Read more in manual, attached here
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&p=559727#p559328
 ; Warning: Sloooww script....  Takes about 6 minutes for 5k lines of autocorrect items. 
+;===============================================================================
 
-; !!! IMPORTANT !!! Set first three variables.
-
-ACitemsStartAt := 1980 ; <--- "AutoCorrect Items Start At this line number."  Skip this many 
-; lines at top of code.  Recommend not scanning 'nullifier' items, 'don't sort' items, 
-; nor '#HotIf' items.  (Hopefully those are all at the top, above your main list.) 
-ACitemsEndAt := 6955 ; <--- stop comparing after this line number. No point scanning the non-English accented words. 
-targetFile := "D:\AutoHotkey\MasterScript\MasterScript.ahk"  ; <--- Your AutoCorrect.ahk file path here.
-
+ACitemsEndAt := 99999 ; <--- Optional:  Stop comparing after this line number. In case
+; the user wants to skip the non-English accented words at the end. 
+targetFile := "HotstringLib.ahk"  ; <--- Your Hotstring Library file path here.
 ^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc. 
+;===============================================================================
 
-If !ACitemsStartAt
-	ACitemsStartAt := 0
-If !ACitemsEndAt
-	ACitemsEndAt := 99999
 Try fullList := Fileread(targetFile)
 Catch {
-	MsgBox '====ERROR====`n`nThe file (' targetFile ')`nwas not found.`n`nRemember to set the three variables`nat the top of the script. Now exiting.'
+	MsgBox '====ERROR====`n`nThe file (' targetFile ')`nwas not found.`n`nRemember to set the variable`nat the top of the script. Now exiting.'
 	ExitApp
 }
+
+; Pre-scan to find beginning of items to scan. 
+; lines at top of code.  Recommend not scanning 'nullifier' items, 'don't sort' items, 
+; nor '#HotIf' items.  (Hopefully those are all at the top, above your main list.) 
+ACitemsStartAt := 0
+For line in StrSplit(fullList, "`n")
+	If InStr(line, "ACitemsStartAt := A_LineNumber + 10")
+		ACitemsStartAt := A_Index + 10 ; <--- "AutoCorrect Items Start At this line number."  Skip this many 
 
 StartTime := A_TickCount 
 Opts:= "", Trig := ""
