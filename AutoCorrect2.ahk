@@ -28,9 +28,9 @@ FontColor := strReplace(subStr(fColor, -6), "efault", "Default")
 ; Use either that above or below color assignments, not both. 
 */
 ; ;The below color assingments should not be commented out.  
-;==Change=color=of=Hotstring=Helper=and=other=forms=as=desired================
-GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
-FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
+; ;==Change=color=of=Hotstring=Helper=and=other=forms=as=desired================
+; GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
+; FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
 
 ;===============================================================================
 NameOfThisFile := "AutoCorrect2.ahk" ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
@@ -1236,7 +1236,7 @@ SoundBeep(900, 250)
 SoundBeep(1100, 200)
 
 ;===============================================================================
-#HotIf WinActive(NameOfThisFile,) ; Can't use A_Var here.
+#HotIf WinActive(NameOfThisFile,) || WinActive(HotstringLibrary) ; Can't use A_Var here.
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.
 {
 	Send("^s") ; Save me.
@@ -1370,7 +1370,7 @@ fix_consecutive_caps() {
 		loop 26 {
 			char2 := Chr(A_Index + 64)
 			; Create hotstring for every possible combination of two letter capital letters.
-			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2)) 
+			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2))
 		}
 	}
 	HotIf
@@ -1392,42 +1392,16 @@ fix_consecutive_caps() {
 	}
 }
 
-;QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
-; ...................QQQQQ........................QQQQ.........................................
-; ...................QQQQQQ.......................QQQQ.........................................
-; ..................QQQQQQQ.......................QQQQ.........................................
-; ..................QQQQQQQQ......................QQQQ.........................................
-; ..................QQQQQQQQ......................QQQQ.........................................
-; .................QQQQQQQQQQ.....QQQQ.....QQQQ.QQQQQQQQQ...QQQQQQQQ...........................
-; .................QQQQQQQQQQ.....QQQQQ...QQQQQ.QQQQQQQQQ..QQQQQQQQQQQ.........................
-; ................QQQQQ.QQQQQQ....QQQQQ...QQQQQ...QQQQ....QQQQQQ.QQQQQQ........................
-; ................QQQQQ..QQQQQ....QQQQQ...QQQQQ...QQQQ....QQQQQ...QQQQQ........................
-; ...............QQQQQQ..QQQQQ....QQQQQ...QQQQQ...QQQQ...QQQQQ.....QQQQQ.......................
-; ...............QQQQQ....QQQQQ...QQQQQ...QQQQQ...QQQQ...QQQQQ.....QQQQQ......QQQQQQQQ.........
-; ...............QQQQQQQQQQQQQQ...QQQQQ...QQQQQ...QQQQ...QQQQQ.....QQQQQ......QQQQQQQQ.........
-; ..............QQQQQQQQQQQQQQQQ..QQQQQ...QQQQQ...QQQQ...QQQQQ.....QQQQQ......QQQQQQQQ.........
-; ..............QQQQQ......QQQQQ..QQQQQ...QQQQQ...QQQQ...QQQQQ.....QQQQQ.......................
-; .............QQQQQ.......QQQQQ..QQQQQ...QQQQQ...QQQQ....QQQQQ...QQQQQ........................
-; .............QQQQQ........QQQQQ.QQQQQQ.QQQQQQ...QQQQQQQ.QQQQQQ.QQQQQQ........................
-; .............QQQQQ........QQQQQ.QQQQQQQQQQQQQ...QQQQQQQQ.QQQQQQQQQQQ.........................
-; ....QQQQQQQQ.QQQQ..........QQQ...QQQQQQQQQQQQ....QQQQQQQ..QQQQQQQQQ...................QQQQ...
-; ..QQQQQQQQQQQQ........................................................................QQQQ...
-; .QQQQQQQQQQQQQQ.......................................................................QQQQ...
-; QQQQQQQ..QQQQQQ.......................................................................QQQQ...
-; QQQQQ.....QQQQQQ......................................................................QQQQ...
-; QQQQQ......QQQQQ....QQQQQQQQ.....QQQQQQQQQQ.QQQQQQQQQQ....QQQQQQQQ.......QQQQQQQQ...QQQQQQQQQ
-; QQQQ........QQQ....QQQQQQQQQQQ...QQQQQQQQQQQQQQQQQQQQQQ.QQQQQQQQQQQ....QQQQQQQQQQQ..QQQQQQQQQ
-; QQQQ..............QQQQQQ.QQQQQQ..QQQQQQQQQQQQQQQQQQQQQQQQQQQQ.QQQQQQ...QQQQQ.QQQQQQ...QQQQ...
-; QQQQ..............QQQQQ...QQQQQ..QQQQQQ.QQQ.QQQQQQ.QQQ.QQQQQ...QQQQQ..QQQQQ....QQQQ...QQQQ...
-; QQQQ.............QQQQQ.....QQQQQ.QQQQQ......QQQQQ......QQQQ.....QQQQ..QQQQ.....QQQQ...QQQQ...
-; QQQQ........QQQ..QQQQQ.....QQQQQ.QQQQQ......QQQQQ.....QQQQQQQQQQQQQQQQQQQQ............QQQQ...
-; QQQQ........QQQQ.QQQQQ.....QQQQQ.QQQQQ......QQQQQ.....QQQQQQQQQQQQQQ.QQQQQ............QQQQ...
-; QQQQ.......QQQQQ.QQQQQ.....QQQQQ.QQQQQ......QQQQQ.....QQQQQ..........QQQQQ.......Q....QQQQ...
-; QQQQQ.....QQQQQQ.QQQQQ.....QQQQQ.QQQQQ......QQQQQ......QQQQ......QQQ..QQQQ.....QQQQ...QQQQ...
-; QQQQQQQ..QQQQQQ...QQQQQ...QQQQQ..QQQQQ......QQQQQ......QQQQQ....QQQQ..QQQQQ....QQQQ...QQQQ...
-; .QQQQQQQQQQQQQQ...QQQQQQ.QQQQQQ..QQQQQ......QQQQQ......QQQQQQ..QQQQQ..QQQQQQ.QQQQQQ...QQQQQQQ
-; ..QQQQQQQQQQQQ.....QQQQQQQQQQQ...QQQQQ......QQQQQ.......QQQQQQQQQQQ....QQQQQQQQQQQ....QQQQQQQ
-;  HotString Helper 2   QQQQQQQ....QQQQQ......QQQQQ..........QQQQQQQ.......QQQQQQQ......QQQQQQQ
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
 ;  AUto-COrrect TWo COnsecutive CApitals
 ;  Table of Contents (this)
 ;  f() AutoCorrect hotstring function
@@ -1435,13 +1409,7 @@ fix_consecutive_caps() {
 ;  Logger function
 ;  InputBuffer Class by Descolada
 ;  Mini report generator function
-;  Marker function to get top of AutoCorrect List
-;  Replacement nullifiers
-;  AutoCorrect entries
-;  Accented non English Items (with definitions)
-;  Capatalize Dates
-;  A few misceleneous boilerplate things
-;  Items appennded via Hotstring Helper at the very bottom.
+;  The actual HOTSTRING LIBRARY has been moved to "HotstringLib.ahk" and is #Included above. 
 ;------------------------------------------------------------------------------
 ;  Multi-fix items are commented with " ; Fixes N misspellings"
 ;  Warning: several items break obscure words.  These are commented with "Misspells xxx" with an explanation. 
@@ -1452,17 +1420,17 @@ fix_consecutive_caps() {
 
 ;:B0XC:smith::f("Smith") ; Fixes 2 words , but misspells smi. 
 
-;========= LOGGER OPTIONS ====================================================== 
+;========= AUTOCORRECTION LOGGER OPTIONS ======================================= 
 saveIntervalMinutes := 20     ; Collect the log items in RAM, then save to disc this often. 
 IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for this many intervals.
 ; (Script will automatically restart the log intervals next time there's a match.)
 
-!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger. (Disabled because I never use it.)
+!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger.
 ;!+l::Run("AutoCorrectsLog.ahk") ; Shift+Alt+L: View/Run log of all autocorrections. (Disabled hotkey because I never use it.) 
 
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
-lastTrigger := "none yet" ; in case no autocorrects have been made
+lastTrigger := "No triggers logged yet." ; in case no autocorrects have been made
 f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 {	static HSInputBuffer := InputBuffer()
 	HSInputBuffer.Start()
@@ -1485,7 +1453,7 @@ f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 	replace := "" ; Reset to blank string.
 	HSInputBuffer.Stop()
 	SoundBeep(900, 60) ; Notification of replacement.
-	Global KeepForLog := LastTrigger  "`n"
+	Global KeepForLog := LastTrigger  
 	SetTimer(keepText, -1)
 }
 
@@ -1501,7 +1469,7 @@ keepText(*) ; Automatically logs if an autocorrect happens, and if I press Backs
 	lih.Start(), lih.Wait()
 	;msgbox lih.EndKey
 	hyphen := (lih.EndKey = "Backspace")?  " << " : " -- "
-	global savedUpText .= A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog
+	global savedUpText .= "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog
 	global intervalCounter := 0  	; Reset the counter since we're adding new text
 	If logIsRunning = 0  			; only start the timer it it is not already running.
 		setTimer Appender, saveIntervalMinutes  	; call function every X minutes.
