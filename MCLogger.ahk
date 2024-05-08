@@ -3,7 +3,7 @@
 Persistent
 
 ; ==============================================================================
-; The Manual Correction Logger -- MCLogger --   Version 5-6-2024
+; The Manual Correction Logger -- MCLogger --   Version 5-8-2024
 ; ==============================================================================
 ; By Kunkel321, but inputHook based on Mike's here at: 
 ; https://www.autohotkey.com/boards/viewtopic.php?p=560556#p560556
@@ -48,7 +48,8 @@ IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for t
 ;=====File=Name=Assignments=====================================================
 WordListFile := 'GitHubComboList249k.txt' ; Mostly from github: Copyright (c) 2020 Wordnik
 myLogFile := "MCLog.txt"
-myAutoCorrectFile := "HotstringLib.ahk"
+myAutoCorrectLibrary := "HotstringLib.ahk"
+myAutoCorrectScript := "AutoCorrect2.ahk"
 
 ;========= LOG ANALYSIS OPTIONS ================================================
 runAnalysisHotkey := "#^+q"   ; Change hotkey if desired.
@@ -167,8 +168,8 @@ tih_Char(tih, char) {
 ; it matches the format ::misspelling::actual word.  The potential hotstring is 
 ; shown in a tooltip, and appended with a datestamp, then added to the "Saved up Text"
 ; variable to be logged at the end of the next interval. 
-tih_EndChar(tih, vk, sc) 
-{	Global typoCache .= vk = 8? '<' : '~' 		; use '<' for Backspace, '~' for Space
+tih_EndChar(tih, vk, sc) {
+	Global typoCache .= vk = 8? '<' : '~' 		; use '<' for Backspace, '~' for Space
 	If RegExMatch(typoCache, RegEx, &out) 	; watch for pattern ..<<. ~
    {	trigLen := strLen(out.trig) 			   ; number of chars in trigger
 		BsLen := strLen(out.back) 				   ; number of chars in BS...  
@@ -305,7 +306,7 @@ runAnalysis(*)
 	global cl := Gui()  ; "cl" for "Cull"
    cl.SetFont('s12 c' FontColor)
    cl.BackColor := gColor
-	cl.Add('text','','The ' ShowX ' most frequent items are below.`nChoose an item to Cull from ' myLogFile '`nand Append to ' myAutoCorrectFile '?')
+	cl.Add('text','','The ' ShowX ' most frequent items are below.`nChoose an item to Cull from ' myLogFile '`nand Append to ' myAutoCorrectLibrary '?')
 	For citem in trunkReport {
       If A_Index = 1
          cl.Add('radio', ' vRadioGrp', "Found " citem)
@@ -313,6 +314,7 @@ runAnalysis(*)
          cl.Add('radio', 'xs yp+28', "Found " citem)
 	}
 	Global BUchkBox := cl.Add('Checkbox', 'w280 ','Make backup of ' myLogFile ' first')
+	Global NoAppendBox := cl.Add('Checkbox', 'w280 ','Don`'t append, just remove from log')
 	cl.Add('button', 'w160 ','Cull and Append').OnEvent('Click', CullerAppender)
 	cl.Add('button', 'x+5 w120 ','Cancel').OnEvent('Click', (*) => cl.Hide())
 	cl.Show()
@@ -351,12 +353,15 @@ CullerAppender(*)
    FileDelete myLogFile ; Delete the file so we can remake it.
    FileAppend(newFileContent, myLogFile) ; Remake the file with the (now culled) string.
    
-   If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
-   {  myACFileBaseName := StrSplit(myAutoCorrectFile, ".")[1]
-      Run myACFileBaseName ".exe /script " myAutoCorrectFile " " selItemName
+   If (NoAppendBox.Value = 0) 
+   {
+      If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
+      {  myACFileBaseName := StrSplit(myAutoCorrectScript, ".")[1]
+         Run myACFileBaseName ".exe /script " myAutoCorrectScript " " selItemName
+      }
+      Else ; Otherwise, just append to bottom. 
+         FileAppend("`n" selItemName, myAutoCorrectLibrary) ; Put culled item at bottom of ac file. 
    }
-   Else ; Otherwise, just append to bottom. 
-      FileAppend("`n" selItemName, myAutoCorrectFile) ; Put culled item at bottom of ac file. 
    ;SoundBeep
    cl.Destroy() 
    trunkReport := []
