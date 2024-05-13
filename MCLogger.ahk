@@ -171,7 +171,7 @@ tih_Char(tih, char) {
 ; variable to be logged at the end of the next interval. 
 tih_EndChar(tih, vk, sc) {
 	Global typoCache .= vk = 8? '<' : '~' 		; use '<' for Backspace, '~' for Space
-	If RegExMatch(typoCache, RegEx, &out) 	   ; watch for pattern ..<<. ~
+	If RegExMatch(typoCache, RegEx, &out) 	; watch for pattern ..<<. ~
    {	trigLen := strLen(out.trig) 			   ; number of chars in trigger
 		BsLen := strLen(out.back) 				   ; number of chars in BS...  
 		replLen := strLen(out.repl) 			   ; number of chars in replacement
