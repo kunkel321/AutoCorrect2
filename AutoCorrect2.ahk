@@ -6,31 +6,17 @@ SetTitleMatchMode("RegEx")
 #Include "HotstringLib.ahk"
 
 ;===============================================================================
-; Update date: 5-6-2024
+; Update date: 5-13-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
 ; https://github.com/kunkel321/AutoCorrect2
 ;===============================================================================
 
-/*
-; Below coloring lines are specific to Steve's setup.  If you see them, he apparently forgot to remove them. 
-; OR...  If you have WayText (and the WayText folder is in with your ac2 stuff) Use these so that the
-; color scheme assiged via wtSettings will be applied to the HH2, DateTool, and PrinterTool Guis too. 
-
-SettingsFile := A_ScriptDir '\WayText\wtFiles\Settings.ini'
-gColor := iniread(SettingsFile, "MainSettings", "GUIcolor", "Default")
-fColor := iniread(SettingsFile, "MainSettings", "FontColor", "Default")
-;-----------------
-GuiColor := strReplace(subStr(gColor, -6), "efault", "Default")
-FontColor := strReplace(subStr(fColor, -6), "efault", "Default")
-
-; Use either that above or below color assignments, not both. 
-*/
-; ;The below color assingments should not be commented out.  
-; ;==Change=color=of=Hotstring=Helper=and=other=forms=as=desired================
-; GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
-; FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
+;The below color assingments should not be commented out.  
+;==Change=color=of=Hotstring=Helper=and=other=forms=as=desired================
+GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
+FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
 
 ;===============================================================================
 NameOfThisFile := "AutoCorrect2.ahk" ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
@@ -570,7 +556,7 @@ hhButtonExam(*) ; Tripple state, but button text is only dual state (exam/done)
 		}
 		Global OrigTrigger := TriggerString.text
 		Global OrigReplacement := ReplaceString.text
-		ExamineWords(OrigTrigger, OrigReplacement) 
+		ExamineWords(OrigTrigger, OrigReplacement) ; Call Exam function every time Pane is opened. 
 		goFilter()
 		ShowHideButtonsControl(False)
 		ShowHideButtonExam(True)	
@@ -1208,13 +1194,13 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 ; #######################################################################################
 
 ;====== Change icons here if desired ===========================================
-TraySetIcon(A_ScriptDir . "\Icons\Psicon.ico")
+TraySetIcon(A_ScriptDir . "\Icons\AhkBluePsicon.ico")
 acMenu := A_TrayMenu ; For convenience.
 acMenu.Delete
 acMenu.Add("Edit This Script", EditThisScript)
 acMenu.SetIcon("Edit This Script", "Icons\edit-Blue.ico")
 acMenu.Add("Hotstring Library", hhButtonOpen) ; <--- Calls a function that is in the hh2 code.
-acMenu.SetIcon("Hotstring Library", "Icons\edit-Blue.ico")
+acMenu.SetIcon("Hotstring Library", "Icons\library-Blue.ico")
 
 acMenu.Add("Run Printer Tool", PrinterTool)
 acMenu.SetIcon("Run Printer Tool", "Icons\printer-Blue.ico")
