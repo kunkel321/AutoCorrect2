@@ -3,7 +3,7 @@
 Persistent
 
 ; ==============================================================================
-; The Manual Correction Logger -- MCLogger --   Version 5-13-2024
+; The Manual Correction Logger -- MCLogger --   Version 5-16-2024
 ; ==============================================================================
 ; By Kunkel321, but inputHook based on Mike's here at: 
 ; https://www.autohotkey.com/boards/viewtopic.php?p=560556#p560556
@@ -143,6 +143,7 @@ peekToolTip(*) ; sneak-a-peek at working variables.
 ~Right::
 {	Global typoCache := "" 
    ToolTip(,,,7)        ; Remove (only) 'sneak peek' tooltip, if showing. 
+   ToolTip(,,,8)        ; Right-click notificiation.
 }
 
 soundBeep(1600, 75) 
@@ -160,7 +161,8 @@ RegEx := "(?<trig>[A-Za-z\. ]{3,})(?<back>[<]+)(?<repl>[A-Za-z\.]+)[ \~]+"
 tih_Char(tih, char) {
 	Global typoCache
 	if (RegExMatch(char, "[A-Za-z\. ]")) ; Only use letters. 
-		typoCache .= char
+	{	typoCache .= char
+   }
 }
 
 ; When Backspace or Space is pressed, this function is called. 
@@ -171,7 +173,7 @@ tih_Char(tih, char) {
 ; variable to be logged at the end of the next interval. 
 tih_EndChar(tih, vk, sc) {
 	Global typoCache .= vk = 8? '<' : '~' 		; use '<' for Backspace, '~' for Space
-	If RegExMatch(typoCache, RegEx, &out) 	; watch for pattern ..<<. ~
+	If RegExMatch(typoCache, RegEx, &out) 	   ; watch for pattern ..<<. ~
    {	trigLen := strLen(out.trig) 			   ; number of chars in trigger
 		BsLen := strLen(out.back) 				   ; number of chars in BS...  
 		replLen := strLen(out.repl) 			   ; number of chars in replacement
@@ -269,7 +271,7 @@ runAnalysis(*)
 	pg.Show()
   ; pg.onEvent("Escape", (*) => pg.Hide())
 
-	Loop parse AllStrs, "`n`r"
+	Loop parse AllStrs, "`n`r" ; <<<<<<<<<<<<<<<<< OUTER LOOP START
 	{	MyProgress.Value += 1
       IF GetKeyState("Esc") ; If Esc key is pressed. 
       {  pg.Destroy() ; Remove progress bar.
@@ -282,7 +284,7 @@ runAnalysis(*)
 		oStr := A_LoopField     ; o is "outer loop"
 		oStr := SubStr(oStr, 14)
 		oStr := trim(oStr, " `t") 
-		Loop parse AllStrs, "`n`r" {
+		Loop parse AllStrs, "`n`r" {  ; <<<<<<<<<<<<<<<<< INNER LOOP START
 			If (not inStr(A_LoopField, "::")) ; Skip these.
 				Continue
 			iStr := A_LoopField  ; i is "inner loop"
@@ -292,10 +294,10 @@ runAnalysis(*)
 			If iStr = oStr { 
 				Tally++
 			}
-		}
+		}  ; <<<<<<<<<<<<<<<<< INNER LOOP END
 		Report .=  Tally " of ⟹ " oStr "`n" 
 		AllStrs := strReplace(AllStrs, oStr, "xxx") ; Replace it with 'xxx' so we don't keep finding it.
-	}
+	}  ; <<<<<<<<<<<<<<<<< OUTER LOOP END
 	global trunkReport := []
 	Report := Sort(Sort(Report, "/U"), "NR") ; U is 'remove duplicates.' NR is 'numeric' and 'reverse sort.'
 	For idx, item in strSplit(Report, "`n")
@@ -326,7 +328,26 @@ runAnalysis(*)
 	cl.Add('button', 'x+5 w120 ','Cancel').OnEvent('Click', (*) => cl.Hide())
 	cl.Show()
    cl.onEvent("Escape", (*) => cl.Destroy())
+   cl.OnEvent("ContextMenu", RClickGui)
 }
+
+RClickGui(*)
+{  SoundBeep
+   global selectedItem := cl.Submit()
+   If selectedItem.RadioGrp = 0 ; No radio button selected. 
+   {  MsgBox 'Nothing selected.'
+      cl.Show() ; Show gui form again.
+      Return   ; Abort function. 
+   }
+   For cName in trunkReport
+      If selectedItem.RadioGrp = A_Index 
+         selItemName := cName
+   selItemName := Trim(StrSplit(selItemName, " of ⟹ ")[2], "`n`r")
+   A_Clipboard := selItemName ;  Warning: Does not restore previous clipbrd contents.
+   Tooltip selItemName " saved to clipboard." ,,,8
+   cl.Show()
+}
+
 
 ; This only gets called from the radio button Gui form.  If a radio item is selected 
 ; all occurences are removed from the log file, and the new items is appended to 
@@ -353,6 +374,7 @@ CullerAppender(*)
       Else
          newFileContent .= line "`n"
    }
+   newFileContent := Trim(newFileContent, "`n ") ; Get rid of empty lines at the bottom. 
    myLogFileBaseName := StrSplit(myLogFile, ".")[1]
    
    If (BUchkBox.Value = 1)
