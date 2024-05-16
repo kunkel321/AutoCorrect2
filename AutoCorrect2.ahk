@@ -1,12 +1,15 @@
+#Requires AutoHotkey v2.0
+
 #SingleInstance
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
 #Include "DateTool.ahk"
+#Include "PrinterTool.ahk"
 #Include "HotstringLib.ahk"
 
 ;===============================================================================
-; Update date: 5-13-2024
+; Update date: 5-15-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -653,12 +656,19 @@ hhButtonAppend(*)
 
 ; Calls the validity check, but doesn't append the hotstring. 
 hhButtonCheck(*)
-{ 	Global tMyDefaultOpts := MyDefaultOpts.text
-	Global tTriggerString := TriggerString.text
-	Global tReplaceString := ReplaceString.text
-	ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
-	biggerMsgBox(CombinedValidMsg, 0)
-	Return
+{ 	
+	If winExist('Validity Report') ; Toggles showing the big box. 
+	{	bb.Destroy()
+		Return
+	}
+	else
+	{	Global tMyDefaultOpts := MyDefaultOpts.text
+		Global tTriggerString := TriggerString.text
+		Global tReplaceString := ReplaceString.text
+		ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
+		biggerMsgBox(CombinedValidMsg, 0)
+		Return
+	}
 }
 
 ; An easy-to-see large dialog to show Validity report/warning. 
@@ -1243,83 +1253,6 @@ EditThisScript(*)
 		msgbox 'cannot run ' NameOfThisFile
 }
 
-;===============================================================================
-;   Get/Set my default printer
-; A tool to allow user to check and/or change default printer.
-; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=118596&p=526363#p526363
-; By Kunkel321 with help from Garry. Partly auto-converted from v1, partly rewritten.
-;===============================================================================
-+!p:: ; Shift+Alt+P
-PrinterTool(*)
-{	; TraySetIcon("shell32.dll","107") ; Icon of a printer with a green checkmark.
-	pfontColor := fontColor
-
-	;guiColor := "F0F8FF" ; "F0F8FF" is light blue
-	;pfontColor := "003366" ; "003366" is dark blue
-	Global df := ""
-
-	; ===== Get default printer name. ======
-	defaultPrinter := RegRead("HKCU\Software\Microsoft\Windows NT\CurrentVersion\Windows", "Device")
-
-	; ==== Get list of installed printers ======
-	Global printerlist := ""
-	Loop Reg, "HKCU\Software\Microsoft\Windows NT\CurrentVersion\devices"
-		printerlist := printerlist . "" . A_loopRegName . "`n"
-	printerlist := SubStr(printerlist, 1, strlen(printerlist) - 2)
-
-	df := Gui()
-	df.Title := "Default Printer Changer"
-	df.OnEvent("Close", ButtonCancel)
-	df.OnEvent("Escape", ButtonCancel)
-	df.BackColor := guiColor
-	df.SetFont("s12 bold c" . pFontColor)
-	df.Add("Text", , "Set A Default Printer ...")
-	df.SetFont("s11")
-	Loop Parse, printerlist, "`n"
-		If InStr(defaultPrinter, A_LoopField)
-			df.AddRadio("checked vRadio" . a_index, a_loopfield)
-		Else
-			df.AddRadio("vRadio" . a_index, a_loopfield)
-	df.AddButton("default", "Set Printer").OnEvent("Click", ButtonSet)
-	df.AddButton("x+10", "Print &Queue").OnEvent("Click", ButtonQue)
-	df.AddButton("x+10", "Control Panel").OnEvent("Click", ButtonCtrlPanel)
-	df.AddButton("x+10", "Cancel").OnEvent("Click", ButtonCancel)
-	df.Show()
-}
-
-ButtonSet(*)
-{ Loop Parse, printerlist, "`n" {
-	thisRadioVal := df["Radio" . a_index].value
-	If thisRadioVal != 0
-		newDefault := a_loopfield
-}
-; ==== Set new default printer =====
-RunWait("C:\Windows\System32\RUNDLL32.exe PRINTUI.DLL, PrintUIEntry /y /n `"" newDefault "`"") ; sets the printer
-df.Destroy()
-}
-
-ButtonQue(*)
-{ viewThis := ""
-	Loop Parse, printerlist, "`n" {
-		thisRadioVal := df["Radio" . a_index].value
-		If thisRadioVal != 0
-			viewThis := a_loopfield
-	}
-	; ==== View print queue for selected =====
-	RunWait("rundll32 printui.dll, PrintUIEntry /o /n `"" viewThis "`"")  ;- display printer queue view -User Garry
-	df.Destroy()
-}
-
-ButtonCtrlPanel(*)
-{ Run("control printers")
-	df.Destroy()
-	printerlist := ""
-}  
-
-ButtonCancel(*)
-{ df.Destroy()
-	printerlist := ""
-}
 
 ; ==============================================================================
 ; UPTIME 
