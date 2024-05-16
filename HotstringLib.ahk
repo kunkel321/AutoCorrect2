@@ -108,7 +108,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:minsitr::f("ministr") ; Fixes 6 words
 :B0X*:ommision::f("omission") ; Fixes 2 words
 :B0X*:peculure::f("peculiar") ; Fixes 5 words
-:B0X*:pinon::f("piñon") ; noun any of several low-growing pines of western North America
 :B0X*:presed::f("presid") ; Fixes 18 words
 :B0X*:recommed::f("recommend") ; Fixes 12 words
 :B0X*:resturaunt::f("restaurant") ; Fixes 6 words
@@ -776,7 +775,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:counr::f("countr") ; Fixes 18 words
 :B0X*:countires::f("countries") ; Fixes 1 word
 :B0X*:creeden::f("creden") ; Fixes 10 words
-:B0X*:creme::f("crème") ; Fixes 2 words
 :B0X*:critere::f("criteri") ; Fixes 6 words
 :B0X*:criteria is::f("criteria are") ; Fixes 1 word
 :B0X*:criteria was::f("criteria were") ; Fixes 1 word
@@ -1698,6 +1696,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:on going::f("ongoing") ; Fixes 1 word
 :B0X*:on it's own::f("on its own") ; Fixes 1 word
 :B0X*:on-going::f("ongoing") ; Fixes 1 word
+:B0X*:onee::f("once") ; Fixes 4 words 
 :B0X*:oneof::f("one of") ; Fixes 1 word
 :B0X*:ongoing bases::f("ongoing basis") ; Fixes 1 word
 :B0X*:onomatopeia::f("onomatopoeia") ; Fixes 1 word
@@ -2837,6 +2836,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:bombarment::f("bombardment") ; Fixes 4 words
 :B0X*?:bondary::f("boundary") ; Fixes 2 words
 :B0X*?:borrom::f("bottom") ; Fixes 14 words
+:B0X*?:botton::f("button") ; Fixes 42 words 
 :B0X*?:boundr::f("boundar") ; Fixes 3 words
 :B0X*?:bouth::f("bout") ; Fixes 53 words
 :B0X*?:boxs::f("boxes") ; Fixes 44 words
@@ -2896,6 +2896,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:cesor::f("cessor") ; Fixes 33 words
 :B0X*?:cesser::f("cessor") ; Fixes 33 words
 :B0X*?:cev::f("ceiv") ; Fixes 82 words, but misspells ceviche (South American seafood dish)
+:B0X*?:chack::f("check") ; Fixes 113 words , but misspells chack (Sound a bird makes). 
 :B0X*?:chagne::f("change") ; Fixes 58 words
 :B0X*?:chaleng::f("challeng") ; Fixes 17 words
 :B0X*?:challang::f("challeng") ; Fixes 17 words
@@ -2999,6 +3000,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:constin::f("contin") ; Fixes 86 words
 :B0X*?:consumate::f("consummate") ; Fixes 6 words
 :B0X*?:consumbe::f("consume") ; Fixes 15 words
+:B0X*?:contect::f("context") ; Fixes 37 words 
 :B0X*?:contian::f("contain") ; Fixes 28 words
 :B0X*?:contien::f("conscien") ; Fixes 13 words
 :B0X*?:contigen::f("contingen") ; Fixes 8 words
@@ -3320,6 +3322,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:femmi::f("femi") ; Fixes 82 words 
 :B0X*?:fencive::f("fensive") ; Fixes 15 words
 :B0X*?:ferec::f("ferenc") ; Fixes 45 words
+:B0X*?:ferente::f("ference") ; Fixes 43 words 
 :B0X*?:feriang::f("ferring") ; Fixes 6 words
 :B0X*?:ferren::f("feren") ; Fixes 113 words
 :B0X*?:fertily::f("fertility") ; Fixes 7 words
@@ -3381,6 +3384,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:fulen::f("fluen") ; Fixes 64 words
 :B0X*?:fullfill::f("fulfill") ; Fixes 16 words
 :B0X*?:furut::f("furt") ; Fixes 16 words
+:B0X*?:fuult::f("fault") ; Fixes 32 words 
 :B0X*?:gallax::f("galax") ; Fixes 4 words
 :B0X*?:galvin::f("galvan") ; Fixes 27 words
 :B0X*?:ganaly::f("ginally") ; Fixes 8 words
@@ -3612,6 +3616,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:lpp::f("lp") ; Fixes 509 words
 :B0X*?:lsih::f("lish") ; Fixes 211 words
 :B0X*?:lsot::f("lso") ; Fixes 42 words
+:B0X*?:lusis::f("lysis") ; Fixes 63 words 
 :B0X*?:lutly::f("lutely") ; Fixes 7 words
 :B0X*?:lyed::f("lied") ; Fixes 50 words
 :B0X*?:machne::f("machine") ; Fixes 8 words
@@ -3773,6 +3778,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:nvien::f("nven") ; Fixes 101 words
 :B0X*?:obedian::f("obedien") ; Fixes 11 words
 :B0X*?:obelm::f("oblem") ; Fixes 28 words
+:B0X*?:obram::f("ogram") ; Fixes 298 words , but misspells "tobramycin" (An antibiotic--trade name Nebcin).
 :B0X*?:occassi::f("occasi") ; Fixes 14 words
 :B0X*?:occasti::f("occasi") ; Fixes 14 words
 :B0X*?:occour::f("occur") ; Fixes 20 words
@@ -4100,6 +4106,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:rmaly::f("rmally") ; Fixes 11 words
 :B0X*?:rmaton::f("rmation") ; Fixes 46 words
 :B0X*?:rocord::f("record") ; Fixes 26 words
+:B0X*?:rograss::f("rogress") ; Fixes 44 words 
 :B0X*?:ropiat::f("ropriat") ; Fixes 39 words
 :B0X*?:rowm::f("rown") ; Fixes 85 words
 :B0X*?:roximite::f("roximate") ; Fixes 8 words
@@ -4135,6 +4142,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:scipt::f("script") ; Fixes 113 words
 :B0X*?:scje::f("sche") ; Fixes 108 words
 :B0X*?:scripton::f("scription") ; Fixes 32 words
+:B0X*?:sctic::f("stric") ; Fixes 120 words 
 :B0X*?:sctipt::f("script") ; Fixes 127 words 
 :B0X*?:sctruct::f("struct") ; Fixes 171 words
 :B0X*?:sdide::f("side") ; Fixes 317 words
@@ -4205,6 +4213,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:specifiy::f("specify") ; Fixes 8 words
 :B0X*?:spectaular::f("spectacular") ; Fixes 5 words
 :B0X*?:spectum::f("spectrum") ; Fixes 4 words
+:B0X*?:speedh::f("speech") ; Fixes 20 words 
 :B0X*?:speling::f("spelling") ; Fixes 9 words
 :B0X*?:spesial::f("special") ; Fixes 48 words
 :B0X*?:spiria::f("spira") ; Fixes 70 words
@@ -4710,6 +4719,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:tha::f("the") ; Fixes 1 word 
 :B0X:thanks@!::f("thanks!") ; Fixes 1 word
 :B0X:thanks@::f("thanks!") ; Fixes 1 word
+:B0X:thay::f("they") ; Fixes 1 word 
 :B0X:the advise of::f("the advice of") ; Fixes 1 word
 :B0X:the dominate::f("the dominant") ; Fixes 1 word
 :B0X:the extend of::f("the extent of") ; Fixes 1 word
@@ -4717,8 +4727,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:there of::f("thereof") ; Fixes 1 word
 :B0X:theri::f("their") ; Fixes 1 word
 :B0X:thes::f("this") ; Fixes 1 word 
-:B0X:thet::f("that") ; Fixes 1 word 
-:B0X:thet::f("that") ; Fixes 1 word 
 :B0X:thet::f("that") ; Fixes 1 word 
 :B0X:they;l::f("they'll") ; Fixes 1 word
 :B0X:they;r::f("they're") ; Fixes 1 word
@@ -5013,6 +5021,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X?:riey::f("riety") ; Fixes 8 words
 :B0X?:rithy::f("rity") ; Fixes 120 words
 :B0X?:ritiers::f("rities") ; Fixes 105 words
+:B0X?:rsise::f("rwise") ; Fixes 5 words 
 :B0X?:rthe::f("r the") ; Fixes 1 word
 :B0X?:ruley::f("ruly") ; Fixes 4 words
 :B0X?:ryied::f("ried") ; Fixes 70 words
@@ -5181,7 +5190,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :*:souffle::soufflé ; noun light fluffy dish of egg yolks and stiffly beaten egg whites mixed with e.g. cheese or fish or fruit
 :*:soupcon::soupçon ; noun a slight but appreciable addition
 :*:tete-a-tete::tête-à-tête ; adj. involving two persons; intimately private; noun a private conversation between two people; small sofa that seats two people
-:*:ubermensch::Übermensch ; noun a person with great powers and abilities
 ::Bjorn::Bjørn ; An old norse name.  Means "Bear."
 ::Fohn wind::Föhn wind ; A type of dry, relatively warm, downslope wind that occurs in the lee (downwind side) of a mountain range.
 ::Quebecois::Québécois ; adj. of or relating to Quebec
@@ -5353,4 +5361,3 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
 
-:B0X*?:obram::f("ogram") ; Fixes 298 words , but misspells "tobramycin" (An antibiotic--trade name Nebcin).
