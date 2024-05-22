@@ -1,5 +1,3 @@
-#Requires AutoHotkey v2.0
-
 #SingleInstance
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
@@ -9,7 +7,7 @@ SetTitleMatchMode("RegEx")
 #Include "HotstringLib.ahk"
 
 ;===============================================================================
-; Update date: 5-15-2024
+; Update date: 5-22-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -186,9 +184,15 @@ hh.SetFont('s10')
 (ButRTrim := hh.AddButton('vbutRtrim x+1 h50 w' . (wFactor+182/6), '<<')).onEvent('click', GoRTrim)
 ; ---- radio buttons -----
 hh.SetFont('s11')
-(RadBeg := hh.AddRadio('vBegRadio y+-18 x' . (wFactor+182/3), '&Beginnings')).onEvent('click', GoFilter)
-(RadMid := hh.AddRadio('vMidRadio x+5', '&Middles')).onEvent('click', GoMidRadio)
-(RadEnd := hh.AddRadio('vEndRadio x+5', '&Endings')).onEvent('click', GoFilter)
+RadBeg := hh.AddRadio('vBegRadio y+-18 x' . (wFactor+182/3), '&Beginnings')
+	RadBeg.onEvent('click', GoFilter)
+	RadBeg.onEvent('contextmenu', GoRadioClick)
+RadMid := hh.AddRadio('vMidRadio x+5', '&Middles')
+	RadMid.onEvent('click', GoFilter)
+	RadMid.onEvent('contextmenu', GoRadioClick)
+RadEnd := hh.AddRadio('vEndRadio x+5', '&Endings')
+	RadEnd.onEvent('click', GoFilter)
+	RadEnd.onEvent('contextmenu', GoRadioClick)
 ; ---- bottom buttons -----
 (ButUndo := hh.AddButton('xm y+3 h26 w' . (wFactor+182*2), "Undo (+Reset)")).OnEvent('Click', GoUndo)
 ButUndo.Enabled := false
@@ -220,7 +224,7 @@ ShowHideButtonsControl(Visibility := False) ; Hides bottom part of GUI as defaul
 ControlPaneRuns(buttonIdentifier)
 {
 	if (buttonIdentifier = "butRunHSlib")
-		Run MyAhkEditorPath " HotstringLib.ahk" ; Note space before file name.
+		hhButtonOpen()
 	if (buttonIdentifier = "butRunAcLog")
 		Run MyAhkEditorPath " AutoCorrectsLog.ahk" ; Note space before file name.
 	else if (buttonIdentifier = "butRunMcLog")
@@ -1046,14 +1050,11 @@ GoReStart(*)
 
 ; Single-click of middle radio button just calls GoFilter function but 
 ; double-click sets button to false.  
-clickLast := 0
-GoMidRadio(*)
-{	global clickCurrent := A_TickCount
-	if (clickCurrent - clickLast < 500) { ; Simulates watching for double-click.
-		RadMid.Value := 0 ; Set middle radio to blank, and removed hotstring options. 
-		MyDefaultOpts.text := strReplace(strReplace(MyDefaultOpts.text, "?", ""), "*", "")
-	}
-	global clickLast := A_TickCount
+GoRadioClick(*)
+{	RadBeg.Value := 0 ; Set radios to blank, and removed hotstring options. 
+	RadMid.Value := 0
+	RadEnd.Value := 0
+	MyDefaultOpts.text := strReplace(strReplace(MyDefaultOpts.text, "?", ""), "*", "")
 	GoFilter()
 }
 
