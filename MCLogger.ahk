@@ -388,10 +388,9 @@ RemoveOldFunc(Report,*)
    if Result = "OK" ; User pressed OK button.
    {  ;MsgBox "### this area under construction ###"
       cl.Destroy()
-      Singletons := "", oldItems := "", oldSingltons := "", oldSinsRemoved := 0
+      Singletons := "", oldItems := "", oldSingletons := "", oldSinsRemoved := 0
       Global origAllStrs
-      myLogFileBaseName := StrSplit(myLogFile, ".")[1] ; Make a backup first.
-      FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BeforeRemovingOldSinglesBU-' A_Now '.txt', 1)
+      myLogFileBaseName := StrSplit(myLogFile, ".")[1] ; Used for making back up, below. 
       
       For item in strSplit(Report, "`n") ; Loop through frequency report. 
       {  If SubStr(item, 1, 1) = 1 ; Make a list of items with freq = 1, "singletons"
@@ -418,14 +417,23 @@ RemoveOldFunc(Report,*)
          }
       }
       
-      For osItem in StrSplit(oldSingletons, "`n") ; Remove old singletons from original list.
-      {   origAllStrs := StrReplace(origAllStrs, "`n" osItem "`n", "`n")
-         oldSinsRemoved++
+      If oldSingletons = ""
+      {  MsgBox  "No single-occurence strings " AgeOfOldSingles " days-old were found in " myLogFileBaseName ". No changes were made, so backup of the log was made either."
+         Return
       }
-      ;A_Clipboard := origAllStrs
-      FileDelete myLogFile ; Delete the file so we can remake it.
-      FileAppend(origAllStrs, myLogFile) ; Remake the file with the (now culled) string.
-      MsgBox oldSinsRemoved " old single-occurence strings have been removed from " myLogFileBaseName ". A backup of the log was first made."
+      Else
+      {
+         For osItem in StrSplit(oldSingletons, "`n") ; Remove old singletons from original list.
+         {  origAllStrs := StrReplace(origAllStrs, "`n" osItem "`n", "`n")
+            oldSinsRemoved++
+         }
+         ;A_Clipboard := origAllStrs
+         FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BeforeRemovingOldSinglesBU-' A_Now '.txt', 1) ; Make a backup first.
+         Sleep 500 ; Just to be safe. 
+         FileDelete myLogFile ; Delete the file so we can remake it.
+         FileAppend(origAllStrs, myLogFile) ; Remake the file with the (now culled) string.
+         MsgBox oldSinsRemoved " old single-occurence strings have been removed from " myLogFileBaseName ". A backup of the log was first made."
+      }
    }
 }
 
