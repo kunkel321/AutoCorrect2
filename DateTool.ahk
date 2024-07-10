@@ -6,7 +6,7 @@
 ;======== DatePicker-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 3-7-2024.
+; The 'H' is for 'Holidays.'   Version: 7-10-2024.
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -18,6 +18,9 @@
 ; Entire code converted to AHK v2 by Just Me.  
 ; https://www.autohotkey.com/boards/viewtopic.php?f=82&t=123895
 ; ToolTipOptions Class (also by Just Me) added later, see below.
+
+; Known issue:  With MonthCal, clicking next/last month arrows too fast enters 
+; the date, rather than just scrolling dates. (Gets read as 'double click.')
 
 ;======== Directions for Use: Date HotStrings===================================
 ; For today, type ";d0" (semicolon dee zero) into edit field.
@@ -148,6 +151,7 @@ MCRemake(*)
    	X := X + (W * 0.30)
    	Y := Y + (H * 0.04)
       MCGUI := Gui("-MinimizeBox +LastFound +ToolWindow +Owner" TargetWindow, guiTitle)
+      ; MCGUI := Gui("-MinimizeBox +LastFound -caption +Owner" TargetWindow, guiTitle)
       ;MCGUI.SetFont("s14") ; <--- optional thicker border
       MCGUI.OnEvent("Close", MCGUIClose)
       MCGUI.OnEvent("Escape", MCGUIClose)
@@ -371,11 +375,11 @@ IsHoliday(YYYYMMDDHHMISS := "", BusinessOnly := 0, StopAtFirst := 0) {
                   ["03 17", "St. Patrick's Day", 0],
                   ["03 14", "Pi Day", 0],
                   ["03 14  2025", "Lunar Eclipse", 0], ; <---------- Temp for one year only.
-                  ["04 08  2024", "Solar Eclipse", 0], ; <---------- Temp for one year only.
                   ["04 01-05  2024", "Spring Break", 0], ; <---------- Temp for one year only.
                   ["04 22", "Earth Day", 0],
                   ["06 18  2024", "Last Day of School", 0], ; <---------- Temp for one year only.
                   ["06 20  2024", "Summer Solstice", 0], ; <---------- Temp for one year only.
+                  ["09 04  2024", "First Day of School", 0], ; <---------- Temp for one year only.
                   ["09 22  2024", "Autumn Equinox", 0], ; <---------- Temp for one year only.
                   ["12 21  2024", "Winter Solstice", 0], ; <---------- Temp for one year only.
                   ["03 20  2025", "Spring Equinox", 0], ; <---------- Temp for one year only.
