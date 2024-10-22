@@ -21,21 +21,21 @@ Persistent
 ; ==============================================================================
 
 ; Below coloring lines are specific to Steve's setup.  If you see them, he apparently forgot to remove them. 
-; OR...  If you have WayText (and the WayText folder is in with your ac2 stuff) Use these so that the
+; OR...  If you have ColorThemeIntegrator, use these so that the
 ; color scheme assiged via wtSettings will be applied to the MCLogger. 
 
-settingsFile := "colorThemeSettings.ini" 		; Assumes that file is in same location as this script.
-; --- Get current colors from ini file. 
-fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
-fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
-listColor := IniRead(settingsFile, "ColorSettings", "listColor")
-formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+; settingsFile := "colorThemeSettings.ini" 		; Assumes that file is in same location as this script.
+; ; --- Get current colors from ini file. 
+; fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
+; fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
+; listColor := IniRead(settingsFile, "ColorSettings", "listColor")
+; formColor := IniRead(settingsFile, "ColorSettings", "formColor")
 
 ; Use either the above, or below color assignments, not both. 
 
-; ListColor := "Default"
-; FontColor := "Default"
-; formColor := "Default"
+ListColor := "Default"
+FontColor := "Default"
+formColor := "Default"
 
 ;========= LOGGER OPTIONS ====================================================== 
 showEachHotString := 1        ; Show a Tooltip every time a HotString pattern is captured.  1=yes / 0=no 
