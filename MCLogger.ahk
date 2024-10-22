@@ -3,7 +3,7 @@
 Persistent
 
 ; ==============================================================================
-; The Manual Correction Logger -- MCLogger --   Version 9-2-2024
+; The Manual Correction Logger -- MCLogger --   Version 10-22-2024
 ; ==============================================================================
 ; By Kunkel321, but inputHook based on Mike's here at: 
 ; https://www.autohotkey.com/boards/viewtopic.php?p=560556#p560556
@@ -24,18 +24,18 @@ Persistent
 ; OR...  If you have WayText (and the WayText folder is in with your ac2 stuff) Use these so that the
 ; color scheme assiged via wtSettings will be applied to the MCLogger. 
 
-; settingsFile := "colorThemeSettings.ini" 		; Assumes that file is in same location as this script.
-; ; --- Get current colors from ini file. 
-; fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
-; fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
-; listColor := IniRead(settingsFile, "ColorSettings", "listColor")
-; formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+settingsFile := "colorThemeSettings.ini" 		; Assumes that file is in same location as this script.
+; --- Get current colors from ini file. 
+fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
+fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
+listColor := IniRead(settingsFile, "ColorSettings", "listColor")
+formColor := IniRead(settingsFile, "ColorSettings", "formColor")
 
 ; Use either the above, or below color assignments, not both. 
 
-ListColor := "Default"
-FontColor := "Default"
-formColor := "Default"
+; ListColor := "Default"
+; FontColor := "Default"
+; formColor := "Default"
 
 ;========= LOGGER OPTIONS ====================================================== 
 showEachHotString := 1        ; Show a Tooltip every time a HotString pattern is captured.  1=yes / 0=no 
@@ -341,6 +341,7 @@ runAnalysis(*)
 			iStr := trim(iStr, " `t") 
 			; msgbox 'Current LoopFields`n`noutter`t' oStr '`ninner`t' iStr 
 			If iStr = oStr { 
+            ;msgbox iStr "`n" oStr
 				Tally++
 			}
 		}  ; <<<<<<<<<<<<<<<<< INNER LOOP END
@@ -349,10 +350,13 @@ runAnalysis(*)
 	}  ; <<<<<<<<<<<<<<<<< OUTER LOOP END
 	global trunkReport := []
 	Report := Sort(Sort(Report, "/U"), "NR") ; U is 'remove duplicates.' NR is 'numeric' and 'reverse sort.'
-	For idx, item in strSplit(Report, "`n")
-		If (idx <= ShowX) and subStr(item, 1, 1) != "1" ; Only use first X lines; hide singletons.
-			trunkReport.Push(item "`n")
-		else break
+	For idx, item in strSplit(Report, "`n") {
+   ; MsgBox 'item: ' item '`n`n>: ' (idx <= ShowX) '`nsub: ' (subStr(item, 1, 1) != "1")
+		If (idx <= ShowX) ; and (subStr(item, 1, 1) != "1") { ; Only use first X lines; hide singletons.
+         trunkReport.Push(item "`n")
+		else 
+         break
+   }
 	pg.Destroy() ; Remove progress bar.
 
    fullReport := '' ; Must delare this, or blank log file causes error in below loop.
@@ -363,6 +367,13 @@ runAnalysis(*)
       }
       A_Clipboard := fullReport
    }
+
+   ; ===debug===
+   ; items := ""
+   ; for item in trunkReport
+   ;    items .= item "`n"
+   ; MsgBox items
+   ; =========
 
 	global cl := Gui()  ; "cl" for "Culled"
    cl.SetFont('s12 ' FontColor)
@@ -404,7 +415,7 @@ RemoveOldFunc(Report,*)
       myLogFileBaseName := StrSplit(myLogFile, ".")[1] ; Used for making back up, below. 
       
       For item in strSplit(Report, "`n") ; Loop through frequency report. 
-      {  If SubStr(item, 1, 1) = 1 ; Make a list of items with freq = 1, "singletons"
+      {  If (SubStr(item, 1, 1) = 1) and (!IsNumber(SubStr(item, 2, 1))) ; Make a list of items with freq = 1, "singletons"
             Singletons .= StrReplace(item, '1 of ⟹ ','') . '`n'
       } 
 
