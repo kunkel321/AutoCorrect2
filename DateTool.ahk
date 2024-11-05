@@ -6,7 +6,7 @@
 ;======== DatePicker-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 7-10-2024.
+; The 'H' is for 'Holidays.'   Version: 11-4-2024.
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -38,10 +38,10 @@
 ; Waits for window to be active again before typing date.
 
 ; ===================================================================
-;^Esc::ExitApp ; Ctrl+Esc to just kill the whole ding dang script.
+;^Esc::ExitApp ; Ctrl+Esc to just kill the whole ding dang script. hide
 
 #HotIf WinActive("DateTool.ahk",) ; Can't use A_Var here.
-^s:: ; Because this tool is #Included in AutoCorrect2, reload ac2 upon save.
+^s:: ; Because this tool is #Included in AutoCorrect2, reload ac2 upon save. hide
 {	Send("^s") ; Save me.
 	MsgBox("Reloading...", "", "T0.3")
 	Sleep(250)
@@ -51,10 +51,16 @@
 #HotIf
 
 ; ===================================================================
-SettingsFile := A_ScriptDir '\WayText\wtFiles\Settings.ini'  ; <--- Specific to Steve's setup... Remove.
-gColor := iniread(SettingsFile, "MainSettings", "GUIcolor", "Default")  ; <--- Specific to Steve's setup... Remove.
-;-----------------
-BorderColor := (strLen(gColor) > 8) ? subStr(gColor, strLen(gColor) - 5, 6) : gColor  ; <--- Specific to Steve's setup... Remove.
+
+if FileExist("colorThemeSettings.ini") {
+   settingsFile := "colorThemeSettings.ini"
+   ; --- Get current colors from ini file. 
+   formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+}
+else { ; Ini file not there, so use these color instead. 
+   formColor := "E5E4E2"
+}
+BorderColor := (strLen(formColor) > 8) ? subStr(formColor, strLen(formColor) - 5, 6) : formColor  ; <--- Specific to Steve's setup... Remove.
 
 ;======== Calendar User Options ===========================================
 guiTitle := "DateTool-H"         ; change title if desired 
@@ -139,7 +145,7 @@ ShowToolTip(nOffset, DatePicked)
 } 
 ; ===================================================================
 
-!+d:: 
+!+d:: ; Show DateTool - H
 MCRemake(*) 
 { ; Hotkey is Alt+Shift+D
    Local X, Y, W, H
@@ -171,13 +177,13 @@ MCRemake(*)
 
 ; ===================================================================
 #HotIf WinActive(guiTitle)
-h::doToggle() ; Calls function to popup list of holidays.
-t::MCGUI["MC"].Value := A_Now ; Hotkey for 'Go to today.'
-1:: 
-2::
-3::
-4::
-5::ChangeMCNumber() ; Shows this many months. (1-5)
+h::doToggle() ; Calls function to popup list of holidays.  hide
+t::MCGUI["MC"].Value := A_Now ; Hotkey for 'Go to today.' hide
+1:: ; hide
+2:: ; hide
+3:: ; hide
+4:: ; hide
+5:: ; ChangeM  CNumber() ; Shows this many months. (1-5) ; hide
 #HotIf 
 ; ===================================================================
 
