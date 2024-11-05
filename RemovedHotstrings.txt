@@ -1,0 +1,6 @@
+This is a list of AutoCorrect hotstrings that were manually removed from the HotstringLib.ahk.  They were removed because an analysis report from the AutoCorrectsLog file indicated that the autocorrection was ‘Backspaced’ more than it was kept.   The MCLogger tool, and the HotString Helper tool each will check this list to avoid re-adding them to your HotstringLib.ahk list. 
+=======================================
+Removed 10-30-2024 -> :*:alse::else
+Removed 10-30-2024 -> :?:ualy::ually
+Removed 10-30-2024 -> :*?:yuo::you (converted to word beginning and end items)
+Removed 11-03-2024 -> :*?:ernt::erent (Made into word-end item)
