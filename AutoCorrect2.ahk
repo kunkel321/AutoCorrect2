@@ -6,23 +6,34 @@ SetTitleMatchMode("RegEx")
 #Include "PrinterTool.ahk"
 #Include "HotstringLib.ahk"
 
+TraySetIcon(A_ScriptDir . "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 5-22-2024
+; Update date: 11-4-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
 ; https://github.com/kunkel321/AutoCorrect2
 ;===============================================================================
 
-;The below color assingments should not be commented out.  
-;==Change=color=of=Hotstring=Helper=and=other=forms=as=desired================
-GuiColor := "F5F5DC" ; "F0F8FF" is light blue. Tip: Use "Default" for Windows default.
-FontColor := "003366" ; "003366" is dark blue. Tip: Use "Default" for Windows default.
+if FileExist("colorThemeSettings.ini") {
+   settingsFile := "colorThemeSettings.ini"
+   ; --- Get current colors from ini file. 
+   fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
+   listColor := IniRead(settingsFile, "ColorSettings", "listColor")
+   formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+}
+else { ; Ini file not there, so use these color instead. 
+   fontColor := "0x1F1F1F"
+   listColor := "0xFFFFFF"
+   formColor := "0xE5E4E2"
+}
+fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
 
 ;===============================================================================
 NameOfThisFile := "AutoCorrect2.ahk" ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
 HotstringLibrary := "HotstringLib.ahk" ; Your actual library of hotstrings are added here.  
 ; To change library name, needs to be changed (1) here, and (2) the #Include at the top.
+RemovedHsFile := "RemovedHotstrings.txt"     ; Also check hotstrings removed (culled) from AUTOcorrects log. 
 MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"  ; <--- Only valid when VSCode is installed
 ; MyAhkEditorPath := "C:\Program Files\AutoHotkey\SciTE\SciTE.exe" : <--- Optionally paste another path and uncomment. 
 If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Notepad otherwise.
@@ -35,31 +46,29 @@ If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Not
 ;===============================================================================
 ;            			Hotstring Helper 2
 ;                Hotkey: Win + H | By: Kunkel321
-; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=114688
+; Forum thread: https://www.autohotkey.com/boards/viewtopic.php?f=6&t=114688
+; New versions posted here: https://github.com/kunkel321/AutoCorrect2
 ; A version of Hotstring Helper that will support block multi-line replacements and 
 ; allow user to examine hotstring for multi-word matches. The "Examine/Analyze" 
 ; pop-down part of the form is based on the WAG tool here
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120377
-; Customization options are below, near top of code.
-; Please get a copy of AutoHotkey.exe (v2) and rename it to match the name of this
-; script file, so that the .exe and the .ahk have the same name, in the same folder.
-; DO NOT COMPILE, or the Append command won't work. The Gui stays in RAM, but gets
-; repopulated upon hotkey press. HotStrings will be appended (added) by the
-; script at the bottom. Shift+Append saves to clipboard instead of appending. 
-; This tool is intended to be embedded in your AutoCorrect list.
+; Customization options are below, near top of code. HotStrings will be appended (added)
+; by the script at the bottom of the (now separate) Hotstring Library. Shift+Append saves 
+; to clipboard instead of appending. 
 ;===============================================================================
 
 ; ===Change=Settings=for=Big=Validity=Dialog=Message=Box========================
 myGreen := 'c1D7C08' ; light green 'cB5FFA4' (for use with dark backgrounds.)
 myRed := 'cB90012' ; light red 'cFFB2AD'
-myBigFont := 's13'
+myBigFont := 's15'
 AutoLookupFromValidityCheck := 0 ; Sets default for auto-lookup of selected text on 
 ; mouse-up, when using the big message box. 
 ; WARNING:  findInScript() function uses VSCode shortcut keys ^f and ^g. 
+; Note: Depending on 'admin rights issues,' AutoCorrect2 might not be able to open 
+; VSCode.  In such cases, open AutoCorrect2.ahk in VSCode, then use findInScript tool. 
 
 ;==Miscelanceous=User=Options===================================================
-hh_Hotkey := "#h" ; The activation hotkey-combo (not string) for HotString Helper, is Win+h. 
-
+hh_Hotkey := "#h" ; The activation hotkey-combo (not string) for HotString Helper, is Win+H. 
 
 ;==Change=title=of=Hotstring=Helper=form=as=desired=============================
 hhFormName := "HotString Helper 2" ; The name at the top of the form. Change here, if desired.
@@ -96,7 +105,7 @@ If not FileExist(WordListPath)
 SplitPath WordListPath, &WordListName ; Extract just the name of the file.
 
 ;=====Other=Settings============================================================
-; Add "Fixes X words, but misspells Y" to the end of autocorrect items. 
+; Add "Fixes X words, but misspells Y" to the end of autocorrect items? 
 ; 1 = Yes, 0 = No. Multi-line Continuation Section items are never auto-commented.
 AutoCommentFixesAndMisspells := 1
 ; Automatically enter the new replacement of a 'whole-word' autocorrect entry into the active edit field?
@@ -105,7 +114,7 @@ AutoEnterNewEntry := 1 ; 1 = yes, add. 0 = no, I'll manually type it.
 ;====Window=specific=hotkeys====================================================
 ; These can be edited... Cautiously. 
 #HotIf WinActive(hhFormName) ; Allows window-specific hotkeys.
-$Enter:: ; When Enter is pressed, but only in this GUI. "$" prevents accidental Enter key loop.
+$Enter:: ; When Enter is pressed, but only in this GUI. "$" prevents accidental Enter key loop. ; hide
 { 	If (hh['SymTog'].text = "Hide Symb")
 		return ; If 'Show symbols' is active, do nothing.
 	Else if ReplaceString.Focused {
@@ -114,24 +123,24 @@ $Enter:: ; When Enter is pressed, but only in this GUI. "$" prevents accidental 
 	}
 	Else hhButtonAppend() ; Replacement box not focused, so press Append button.
 }
-+Left:: ; Shift+Left: Got to trigger, move cursor far left.
++Left:: ; Shift+Left: Got to trigger, move cursor far left. ; hide
 {	TriggerString.Focus()
 		Send "{Home}"
 }
-Esc::
+Esc:: ; hide
 { 	hh.Hide()
 	A_Clipboard := ClipboardOld
 }
-^z:: GoUndo() ; Undo last 'word exam' trims, one at a time.
-^+z:: GoReStart() ; Put the whole trigger and replacement back (restart).
-^Up:: 		; Ctrl+Up Arrow, or 
-^WheelUp::	; Ctrl+Mouse Wheel Up to increase font size (toggle, not zoom.)
+^z:: GoUndo() ; Undo last 'word exam' trims, one at a time. ; hide
+^+z:: GoReStart() ; Put the whole trigger and replacement back (restart). ; hide
+^Up:: 		; Ctrl+Up Arrow, or  ; hide
+^WheelUp::	; Ctrl+Mouse Wheel Up to increase font size (toggle, not zoom.) ; hide
 {	MyDefaultOpts.SetFont('s15')  ; sets at 15
 	TriggerString.SetFont('s15')
 	ReplaceString.SetFont('s15')
 }
-^Down:: 		; Ctrl+Down Arrow, or 
-^WheelDown:: 	; Ctrl+Mouse Wheel Down to put font size back.
+^Down:: 		; Ctrl+Down Arrow, or  ; hide
+^WheelDown:: 	; Ctrl+Mouse Wheel Down to put font size back. ; hide
 {	MyDefaultOpts.SetFont('s11')  ; sets back at 11
 	TriggerString.SetFont('s11')
 	ReplaceString.SetFont('s11')
@@ -141,28 +150,31 @@ Esc::
 ;===== Main Graphical User Interface (GUI) is built here =======================
 hh := Gui('', hhFormName)
 hh.Opt("-MinimizeBox +alwaysOnTop")
-try hh.BackColor := GuiColor ; This variable gets set at the top of the HotString Helper section. 
+try hh.BackColor := formColor ; This variable gets set at the top of the HotString Helper section. 
 FontColor := FontColor != "" ? "c" . FontColor : ""
 hh.SetFont("s11 " . FontColor)  ; This variable gets set at the top of the HotString Helper section. 
 hFactor := 0, wFactor := 0 ; Don't change size here. 
 ; -----  Trigger string parts ----
 hh.AddText('y4 w30', 'Options')
 (TrigLbl := hh.AddText('x+40 w250', 'Trigger String'))
-(MyDefaultOpts := hh.AddEdit('cDefault yp+20 xm+2 w70 h24'))
-(TriggerString := hh.AddEdit('cDefault x+18 w' . wFactor + 280, '')).OnEvent('Change', TriggerChanged)
+listColor := listColor != "" ? "Background" . listColor : ""
+(MyDefaultOpts := hh.AddEdit(listColor ' yp+20 xm+2 w70 h24'))
+(TriggerString := hh.AddEdit(listColor ' x+18 w' . wFactor + 280, '')).OnEvent('Change', TriggerChanged)
+; (MyDefaultOpts := hh.AddEdit('cDefault yp+20 xm+2 w70 h24'))
+; (TriggerString := hh.AddEdit('cDefault x+18 w' . wFactor + 280, '')).OnEvent('Change', TriggerChanged)
 ; ----- Replacement string parts ----
 hh.AddText('xm', 'Replacement')
 hh.SetFont('s9')
 hh.AddButton('vSizeTog x+75 yp-5 h8 +notab', 'Make Bigger').OnEvent("Click", TogSize)
 hh.AddButton('vSymTog x+5 h8 +notab', '+ Symbols').OnEvent("Click", TogSym)
 hh.SetFont('s11')
-(ReplaceString := hh.AddEdit('cDefault vReplaceString +Wrap y+1 xs h' . hFactor + 100 . ' w' . wFactor + 370, '')).OnEvent('Change', GoFilter)
+(ReplaceString := hh.AddEdit(listColor ' vReplaceString +Wrap y+1 xs h' . hFactor + 100 . ' w' . wFactor + 370, '')).OnEvent('Change', GoFilter)
 ; ---- Below Replacement ----
 ComLbl := hh.AddText('xm y' . hFactor + 182, 'Comment')
-(ChkFunc := hh.AddCheckbox('vFunc, x+70 y' . hFactor + 182, 'Make Function')).onEvent('click', FormAsFunc)
+(ChkFunc := hh.AddCheckbox( 'vFunc, x+70 y' . hFactor + 182, 'Make Function')).onEvent('click', FormAsFunc)
 ChkFunc.Value := 1 ; 'Make Function' box checked by default?  1 = checked.  NOTE: If HH detects a multiline item, this gets unchecked. 
 ;hh.SetFont("s11 cGreen")
-ComStr := hh.AddEdit('cGreen vComStr xs y' . hFactor + 200 . ' w' . wFactor + 370)
+ComStr := hh.AddEdit(listColor ' cGreen vComStr xs y' . hFactor + 200 . ' w' . wFactor + 370)
 ;hh.SetFont("s11 " . FontColor)
 ; ---- Buttons ----
 (ButApp := hh.AddButton('xm y' . hFactor + 234, 'Append')).OnEvent("Click", hhButtonAppend)
@@ -175,11 +187,17 @@ ButExam.OnEvent("ContextMenu", subFuncExamControl)
 (ButCancel := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Cancel')).OnEvent("Click", hhButtonCancel)
 hh.OnEvent("Close", hhButtonCancel)
 ; ============== Bottom (toggling) "Exam Pane" part of GUI =====================
+
+; Calculate contrasting text color for better readability
+r := (formColor >> 16) & 0xFF, g := (formColor >> 8) & 0xFF, b := formColor & 0xFF
+brightness := (r * 299 + g * 587 + b * 114) / 1000
+DeltaColor := brightness > 128 ? "191970" : "00FFFF" ; Color options for Blue Delta String.
+
 ; ---- delta string ----
 hh.SetFont('s10')
 (ButLTrim := hh.AddButton('vbutLtrim xm h50  w' . (wFactor+182/6), '>>')).onEvent('click', GoLTrim)
 hh.SetFont('s14')
-(TxtTypo := hh.AddText('vTypoLabel -wrap +center cBlue x+1 w' . (wFactor+182*5/3), hhFormName))
+(TxtTypo := hh.AddText('vTypoLabel -wrap +center c' DeltaColor ' x+1 w' . (wFactor+182*5/3), hhFormName))
 hh.SetFont('s10')
 (ButRTrim := hh.AddButton('vbutRtrim x+1 h50 w' . (wFactor+182/6), '<<')).onEvent('click', GoRTrim)
 ; ---- radio buttons -----
@@ -200,39 +218,62 @@ ButUndo.Enabled := false
 hh.SetFont('s12')
 (TxtTLable := hh.AddText('vTrigLabel center y+4 h25 xm w' . wFactor+182, 'Misspells'))
 (TxtRLable := hh.AddText('vReplLabel center h25 x+5 w' . wFactor+182, 'Fixes'))
-(EdtTMatches := hh.AddEdit('cDefault vTrigMatches y+1 xm h' . hFactor+300 . ' w' . wFactor+182,))
-(EdtRMatches := hh.AddEdit('cDefault vReplMatches x+5 h' . hFactor+300 . ' w' . wFactor+182,))
+(EdtTMatches := hh.AddEdit(listColor ' vTrigMatches y+1 xm h' . hFactor+300 . ' w' . wFactor+182,))
+(EdtRMatches := hh.AddEdit(listColor ' vReplMatches x+5 h' . hFactor+300 . ' w' . wFactor+182,))
 ; ---- word list file ----
 hh.SetFont('bold s8')
 (TxtWordList := hh.AddText('vWordList center xm y+1 h14 w' . wFactor*2+364 , "Assigned word list: " WordListName))
 hh.SetFont('bold s10')
 ShowHideButtonExam(Visibility := False) ; Hides bottom part of GUI as default. 
 ; ============== Bottom (toggling) "Control Pane" part of GUI =====================
-(TxtCtrlLbl1 := hh.AddText(' center cBlue ym+270 h25 xm w' . wFactor+370, 'Secret Control Panel!'))
+(TxtCtrlLbl1 := hh.AddText(' center c' DeltaColor ' ym+270 h25 xm w' . wFactor+370, 'Secret Control Panel!'))
 hh.SetFont('s10')
 (butRunHSlib := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open HotString Library'))
 butRunHSlib.OnEvent("click", (*) => ControlPaneRuns("butRunHSlib"))
-(butRunAcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open AutoCorrection Log'))
-butRunAcLog.OnEvent("click", (*) => ControlPaneRuns("butRunAcLog"))
-(butRunMcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open Manual Correction Log'))
-butRunMcLog.OnEvent("click", (*) => ControlPaneRuns("butRunMcLog"))
+
+(butOpenAcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open AutoCorrection Log'))
+butOpenAcLog.OnEvent("click", (*) => ControlPaneRuns("butOpenAcLog"))
+(butAnalyzeAcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, '  Analyze AutoCorrection Log  '))
+butAnalyzeAcLog.OnEvent("click", (*) => ControlPaneRuns("butAnalyzeAcLog"))
+try SetButtonIcon(butAnalyzeAcLog, A_ScriptDir "\Icons\AcAnalysis.ico") ; <--- Will try to put this icon image on button.
+
+(butOpenMcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open Manual Correction Log'))
+butOpenMcLog.OnEvent("click", (*) => ControlPaneRuns("butOpenMcLog"))
+(butAnalyzeMcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, '  Analyze Manual Correction Log  '))
+butAnalyzeMcLog.OnEvent("click", (*) => ControlPaneRuns("butAnalyzeMcLog")) ; <--- Will try to put this icon image on button.
+try SetButtonIcon(butAnalyzeMcLog, A_ScriptDir "\Icons\JustLog.ico") 
+
 (butFixRep := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Count HotStrings and Potential Fixes'))
 butFixRep.OnEvent('Click', StringAndFixReport)
 
-ShowHideButtonsControl(Visibility := False) ; Hides bottom part of GUI as default. 
+if FileExist("colorThemeSettings.ini") { ; Only show this button if colorThemeInt ini file is there. 
+	(butColorTool := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Change Color Theme'))
+	butColorTool.OnEvent('Click', (*) => ControlPaneRuns("butOpenColorTool"))
+}
+; Add button for Color Theme Integrator tool? 
 
-ControlPaneRuns(buttonIdentifier)
-{
-	if (buttonIdentifier = "butRunHSlib")
-		hhButtonOpen()
-	if (buttonIdentifier = "butRunAcLog")
-		Run MyAhkEditorPath " AutoCorrectsLog.ahk" ; Note space before file name.
-	else if (buttonIdentifier = "butRunMcLog")
-		Run MyAhkEditorPath " MCLog.txt" ; Note space before file name.
+SetButtonIcon(ButtonCtrl, IconFile) { ; <--- Tries to put this icon images on buttons.
+	hIcon := DllCall("LoadImage", "Ptr", 0, "Str", IconFile, "UInt", 1, "Int", 24, "Int", 24, "UInt", 0x10) 
+    SendMessage(0xF7, 1, hIcon, ButtonCtrl.Hwnd)  ; BM_SETIMAGE
 }
 
+ControlPaneRuns(buttonIdentifier) {	
+	Switch buttonIdentifier {
+		Case "butRunHSlib" 		: hhButtonOpen()
+		Case "butOpenAcLog" 	: Run MyAhkEditorPath " AutoCorrectsLog.txt" ; Note space before file name.
+		Case "butAnalyzeAcLog" 	: Run "AcLogAnalyzer.exe"
+		Case "butOpenMcLog" 	: Run MyAhkEditorPath " MCLog.txt" ; Note space before file name.
+		Case "butAnalyzeMcLog" 	: Run "MCLogger.exe /script MCLogger.ahk analyze" ; Run with cmd line param.
+		Case "butOpenColorTool" : Run "ColorThemeInt.exe /script ColorThemeInt.ahk analyze" ; Run with cmd line param.
+	}
+}
+
+ShowHideButtonsControl(Visibility := False) ; Hides bottom part of GUI as default. 
+
 ShowHideButtonsControl(Visibility := False) ; Shows/Hides bottom, Exam Pane, part of GUI.
-{	ControlCmds := [TxtCtrlLbl1,butRunHSlib,butRunAcLog,butRunMcLog,butFixRep]
+{	ControlCmds := [TxtCtrlLbl1,butRunHSlib,butOpenAcLog,butAnalyzeAcLog,butOpenMcLog,butAnalyzeMcLog,butFixRep]
+	if FileExist("colorThemeSettings.ini") 
+		ControlCmds.Push(butColorTool)
 	for ctrl in ControlCmds {
 		ctrl.Visible := Visibility
 	}
@@ -686,7 +727,7 @@ biggerMsgBox(thisMess, secondButt)
 		bb.Destroy()
 	Global bb := Gui(,'Validity Report')
 	bb.SetFont('s11 ' FontColor)
-	bb.BackColor := GuiColor, GuiColor
+	bb.BackColor := formColor, formColor
 	global mbTitle := ""
 	(mbTitle := bb.Add('Text',, 'For proposed new item:')).Focus() ; Focusing this prevents the three "edit" boxes from being focussed by default.
 	bb.SetFont(myBigFont )
@@ -702,9 +743,9 @@ biggerMsgBox(thisMess, secondButt)
 		bbItem2 := bbItem[2]
 	; Use "edit" rather than "text" because it allows us to select the text. 
 	edtSharedSettings := ' -VScroll ReadOnly -E0x200 Background'
-	bb.Add('Edit', (inStr(bbItem[1],'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem[1]) 
-	trigEdtBox := bb.Add('Edit', (strLen(bbItem2)>104? ' w600 ' : ' ') (inStr(bbItem2,'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem2) 
-	bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3],'-Okay.')? myGreen : myRed) edtSharedSettings GuiColor, bbItem[3])
+	bb.Add('Edit', (inStr(bbItem[1],'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem[1]) 
+	trigEdtBox := bb.Add('Edit', (strLen(bbItem2)>104? ' w600 ' : ' ') (inStr(bbItem2,'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem2) 
+	bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3],'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem[3])
 	trigEdtBox.OnEvent('Focus', findInScript) 
 	bb.SetFont('s11 ' FontColor)
 	secondButt=1? bb.Add('Text',,"==============================`nAppend HotString Anyway?"):''
@@ -715,7 +756,8 @@ biggerMsgBox(thisMess, secondButt)
 		bbAppend.Visible := False
 	bbClose := bb.Add('Button', 'x+5 Default', 'Close')
 	bbClose.OnEvent 'Click', (*) => bb.Destroy()
-	If not inStr(bbItem2,'-Okay.') ; It no trigger concerns, don't need checkbox.
+	; bbTime[4] is the value of "showLookupBox" from ValidationFunction.
+	If bbItem[4] = 1 ; Has trigger concerns to look up, so need checkbox.
 		global bbAuto := bb.Add('Checkbox', 'x+5 Checked' AutoLookupFromValidityCheck, 'Auto Lookup`nin editor')
 	bb.Show('yCenter x' (A_ScreenWidth/2))
 	WinSetAlwaysontop(1, "A")
@@ -756,7 +798,7 @@ findInScript(*)
 ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 { 	GoFilter() ; This ensures that "rMatches" has been populated. <--- had it commented out for a while, then put back. 
 	Global CombinedValidMsg := "", validHotDupes := "", validHotMisspells := "", ACitemsStartAt
-	ThisFile := Fileread(HotstringLibrary) ; Save these contents to variable 'ThisFile'.
+	HsLibContents := Fileread(HotstringLibrary) ; Save these contents to variable 'HsLibContents'.
 	If (tMyDefaultOpts = "") ; If options box is empty, skip regxex check.
 		validOpts := "Okay."
 	else { ;===== Make sure hotstring options are valid ========
@@ -786,44 +828,60 @@ ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 		}
 	}
 	;==== Make sure hotstring box content is valid ========
-	validHot := "" ; Reset to empty each time.
+	validHot := "", showLookupBox := 0 ; Reset each time.
 	If (tTriggerString = "") || (tTriggerString = myPrefix) || (tTriggerString = mySuffix) 
 		validHot := "HotString box should not be empty."
 	Else If InStr(tTriggerString, ":")
 		validHot := "Don't include colons."
 	else ; No colons, and not empty. Good. Now check for duplicates.
-	{	Loop Parse, ThisFile, "`n", "`r" { ; Check line-by-line.
+	{	Loop Parse, HsLibContents, "`n", "`r" { ; Check line-by-line.
 			If (A_Index < ACitemsStartAt) or (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") 
 				continue ; Will skip non-hotstring lines, so the regex isn't used as much.
 			If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &loo) { ; loo is "current loopfield"
 				If (tTriggerString = loo.Trig) and (tMyDefaultOpts = loo.Opts) { ; full duplicate triggers
 					validHotDupes := "`nDuplicate trigger string found at line " A_Index ".`n---> " A_LoopField
+					showLookupBox := 1
 					Continue
 				} ; No duplicates.  Look for conflicts... 
 				If (InStr(loo.Trig, tTriggerString) and inStr(tMyDefaultOpts, "*") and inStr(tMyDefaultOpts, "?"))
 				|| (InStr(tTriggerString, loo.Trig) and inStr(loo.Opts, "*") and  inStr(loo.Opts, "?")) { ; Word-Middle Matches
 					validHotDupes .= "`nWord-Middle conflict found at line " A_Index ", where one of the strings will be nullified by the other.`n---> " A_LoopField 
+					showLookupBox := 1
 					Continue
 				}
 				If ((loo.Trig = tTriggerString) and inStr(loo.Opts, "*") and  not inStr(loo.Opts, "?") and inStr(tMyDefaultOpts, "?") and not inStr(tMyDefaultOpts, "*"))
 				|| ((loo.Trig = tTriggerString) and inStr(loo.Opts, "?") and  not inStr(loo.Opts, "*") and inStr(tMyDefaultOpts, "*") and not inStr(tMyDefaultOpts, "?")) { ; Rule out: Same word, but beginning and end opts
 					validHotDupes .= "`nDuplicate trigger found at line " A_Index ", but maybe okay, because one is word-beginning and other is word-ending.`n---> " A_LoopField 
+					showLookupBox := 1
 					Continue
 				}
 				If (inStr(loo.Opts, "*") and loo.Trig = subStr(tTriggerString, 1, strLen(loo.Trig)))
 				|| (inStr(tMyDefaultOpts, "*") and tTriggerString = subStr(loo.Trig, 1, strLen(tTriggerString))) { ; Word-Beginning Matches
 					validHotDupes .= "`nWord Beginning conflict found at line " A_Index ", where one of the strings is a subset of the other.  Whichever appears last will never be expanded.`n---> " A_LoopField					
+					showLookupBox := 1
 					Continue
 				}
 				If (inStr(loo.Opts, "?") and loo.Trig = subStr(tTriggerString, -strLen(loo.Trig)))
 				|| (inStr(tMyDefaultOpts, "?") and tTriggerString = subStr(loo.Trig, -strLen(tTriggerString))) { ; Word-Ending Matches
 					validHotDupes .= "`nWord Ending conflict found at line " A_Index ", where one of the strings is a superset of the other.  The longer of the strings should appear before the other, in your code.`n---> " A_LoopField					
+					showLookupBox := 1
 					Continue
 				}
 			}
 			Else ; not a regex match, so go to next loop.
 				continue 
 		}	
+		
+		; Added later... Check if proposed item is duplicate of a previousl removed item...
+		If FileExist(RemovedHsFile) { ; If there is a "Removed Strings" file, save the contents for a variable.
+			loop parse FileRead(RemovedHsFile), "`n"
+				If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &loo)  ; loo is "current loopfield"
+					If (tTriggerString = loo.Trig) and (tMyDefaultOpts = loo.Opts) {
+						validHotDupes .= "`nWarning: A duplicate trigger string was previously removed.`n----> " A_LoopField
+						Continue
+					}
+		}
+		
 		If validHotDupes != ""
 			validHotDupes := SubStr(validHotDupes, 2)
 		If (tMatches > 0){ ; This error message is collected separately from the loop, so both can potentially be reported. 
@@ -847,7 +905,7 @@ ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 	else
 		validRep := "Okay."
 	; Concatenate the three above validity checks.
-	CombinedValidMsg := "OPTIONS BOX `n-" . validOpts . "*|*HOTSTRING BOX `n-" . validHot . "*|*REPLACEMENT BOX `n-" . validRep
+	CombinedValidMsg := "OPTIONS BOX `n-" . validOpts . "*|*HOTSTRING BOX `n-" . validHot . "*|*REPLACEMENT BOX `n-" . validRep "*|*" showLookupBox
 	Return CombinedValidMsg ; return result for use is Append or Validation functions.
 } ; end of validation func
 
@@ -1084,32 +1142,37 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 		}
 	}
 
-	Loop Read, WordListPath ; Compare with the big list of words and find matches.
-	{
-		If InStr(A_LoopReadLine, tFind) {
-			IF (RadMid.value = 1) {
-				tFilt .= A_LoopReadLine '`n'
-				tMatches++
-			}
-			Else If (RadEnd.value = 1) {
-				If InStr(SubStr(A_LoopReadLine, -StrLen(tFind)), tFind) {
+	If FileExist(WordListPath) {
+		Loop Read, WordListPath ; Compare with the big list of words and find matches.
+		{
+			If InStr(A_LoopReadLine, tFind) {
+				IF (RadMid.value = 1) {
 					tFilt .= A_LoopReadLine '`n'
 					tMatches++
 				}
-			}
-			else If (RadBeg.value = 1) {
-				If InStr(SubStr(A_LoopReadLine, 1, StrLen(tFind)), tFind) {
-					tFilt .= A_LoopReadLine '`n'
-					tMatches++
+				Else If (RadEnd.value = 1) {
+					If InStr(SubStr(A_LoopReadLine, -StrLen(tFind)), tFind) {
+						tFilt .= A_LoopReadLine '`n'
+						tMatches++
+					}
 				}
-			}
-			Else {
-				If (A_LoopReadLine = tFind) {
-					tFilt := tFind
-					tMatches++
+				else If (RadBeg.value = 1) {
+					If InStr(SubStr(A_LoopReadLine, 1, StrLen(tFind)), tFind) {
+						tFilt .= A_LoopReadLine '`n'
+						tMatches++
+					}
+				}
+				Else {
+					If (A_LoopReadLine = tFind) {
+						tFilt := tFind
+						tMatches++
+					}
 				}
 			}
 		}
+	}
+	else {
+		tFilt := "Comparison`nword list`nnot found"
 	}
 
 	IF (RadMid.value = 1) {
@@ -1149,36 +1212,41 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 	rFilt := ''
 	Global rMatches := 0
 	
-	Loop Read WordListPath  ; Compare with the big list of words and find matches.
-	{
-		If InStr(A_LoopReadLine, rFind) {
-			IF (RadMid.value = 1) { 
-				rFilt .= A_LoopReadLine '`n'
+	If FileExist(WordListPath) {
+		Loop Read WordListPath  ; Compare with the big list of words and find matches.
+		{
+			If InStr(A_LoopReadLine, rFind) {
+				IF (RadMid.value = 1) { 
+					rFilt .= A_LoopReadLine '`n'
 
-				rMatches++
-			}
-			Else If (RadEnd.value = 1) {
-				If InStr(SubStr(A_LoopReadLine, -StrLen(rFind)), rFind) {
-					rFilt .= A_LoopReadLine '`n'
 					rMatches++
 				}
-			}
-			else If (RadBeg.value = 1) { ; 'Beg' radio.
-				If InStr(SubStr(A_LoopReadLine, 1, StrLen(rFind)), rFind) {
-					rFilt .= A_LoopReadLine '`n'
-					rMatches++
+				Else If (RadEnd.value = 1) {
+					If InStr(SubStr(A_LoopReadLine, -StrLen(rFind)), rFind) {
+						rFilt .= A_LoopReadLine '`n'
+						rMatches++
+					}
 				}
-			}
-			Else {
-				If (A_LoopReadLine = rFind) {
-					rFilt := rFind
-					rMatches++
+				else If (RadBeg.value = 1) { ; 'Beg' radio.
+					If InStr(SubStr(A_LoopReadLine, 1, StrLen(rFind)), rFind) {
+						rFilt .= A_LoopReadLine '`n'
+						rMatches++
+					}
+				}
+				Else {
+					If (A_LoopReadLine = rFind) {
+						rFilt := rFind
+						rMatches++
+					}
 				}
 			}
 		}
 	}
-	EdtRMatches.Value := rFilt
-	TxtRLable.Text := "Fixes [" . rMatches . "]"
+	Else {
+		rFilt := "Comparison`nword list`nnot found"
+	}
+		EdtRMatches.Value := rFilt
+		TxtRLable.Text := "Fixes [" . rMatches . "]"
 }
 
 
@@ -1205,7 +1273,6 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 ; #######################################################################################
 
 ;====== Change icons here if desired ===========================================
-TraySetIcon(A_ScriptDir . "\Icons\AhkBluePsicon.ico")
 acMenu := A_TrayMenu ; For convenience.
 acMenu.Delete
 acMenu.Add("Edit This Script", EditThisScript)
@@ -1234,11 +1301,11 @@ SoundBeep(1100, 200)
 
 ;===============================================================================
 #HotIf WinActive(NameOfThisFile,) || WinActive(HotstringLibrary) ; Can't use A_Var here.
-^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.
+^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.  ; hide
 {
 	Send("^s") ; Save me.
 	MsgBox("Reloading...", "", "T0.3")
-	Sleep(250)
+	Sleep(500)
 	Reload() ; Reload me too.
 	MsgBox("I'm reloaded.") ; Pops up then disappears super-quickly because of the reload.
 }
@@ -1246,7 +1313,7 @@ SoundBeep(1100, 200)
 
 ;===============================================================================
 ; Open this script in VSCode.
-^+e::
+^+e:: ; Open AutoCorrect2 script in VSCode
 EditThisScript(*)
 {	Try
 		Run MyAhkEditorPath " "  NameOfThisFile
@@ -1257,7 +1324,7 @@ EditThisScript(*)
 
 ; ==============================================================================
 ; UPTIME 
-!+u::
+!+u:: ; Uptime -- time since Windows restart
 UpTime(*)
 { MsgBox("UpTime is:`n" . Uptime(A_TickCount))
 	Uptime(ms) {
@@ -1346,7 +1413,7 @@ IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for t
 ; (Script will automatically restart the log intervals next time there's a match.)
 
 !+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger.
-;!+l::Run("AutoCorrectsLog.ahk") ; Shift+Alt+L: View/Run log of all autocorrections. (Disabled hotkey because I never use it.) 
+;!+l::Run("AutoCorrectsLog.txt") ; Shift+Alt+L: View/Run log of all autocorrections. (Disabled hotkey because I never use it.)  ; hide
 
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
@@ -1398,7 +1465,7 @@ keepText(*) ; Automatically logs if an autocorrect happens, and if I press Backs
 
 ; Gets called by timer, or by onExit.
 Appender(*) 
-{	FileAppend(savedUpText, "AutoCorrectsLog.ahk")
+{	FileAppend(savedUpText, "AutoCorrectsLog.txt")
 	global savedUpText := ''  		; clear each time, since text has been logged.
 	global logIsRunning := 1  		; set to 1 so we don't keep resetting the timer.
 	global intervalCounter += 1 	; Increments here, but resets in other locations. 
@@ -1515,9 +1582,9 @@ class InputBuffer {
 ; Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
 ^F3:: ; Ctrl+F3: Report information about the autocorrect items.
 StringAndFixReport(*)
-{	ThisFile := FileRead(HotstringLibrary)
+{	HsLibContents := FileRead(HotstringLibrary)
 	thisOptions := '', regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0
-	Loop Parse ThisFile, '`n'
+	Loop Parse HsLibContents, '`n'
 	{	If SubStr(Trim(A_LoopField),1,1) != ':'
 			continue
 		entries++
@@ -1533,7 +1600,10 @@ StringAndFixReport(*)
 		If RegExMatch(A_LoopField, 'Fixes\h*\K\d+', &fn) ; Need a regex for this... 
 			fixes += fn[]
 	}
-	MsgBox( '   Totals`n==========================='
+	MsgBox( 'The ' HotstringLibrary ' component of`n'
+	NameOfThisFile ' contains the following '
+	'`n Autocorrect hotstring totals.'
+	'`n==========================='
 	'`n    Regular Autocorrects:`t' numberFormat(regulars)
 	'`n    Word Beginnings:`t`t' numberFormat(begins)
 	'`n    Word Middles:`t`t' numberFormat(middles)

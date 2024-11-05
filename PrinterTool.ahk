@@ -1,19 +1,16 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
 ;===============================================================================
-;   Get/Set my default printer.  Updated: 5-14-2024
+;   Get/Set my default printer.  Updated: 11-4-2024
 ; A tool to allow user to check and/or change default printer.
 ; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=118596&p=526363#p526363
 ; By Kunkel321 with help from Garry, Boiler, RussF
 ;===============================================================================
-+!p:: ; Shift+Alt+P
++!p:: ; Shift+Alt+P for Printer Tool
 PrinterTool(*)
 {	; TraySetIcon("shell32.dll","107") ; Icon of a printer with a green checkmark.
-	pfontColor := fontColor
-
-	;guiColor := "F0F8FF" ; "F0F8FF" is light blue
-	;pfontColor := "003366" ; "003366" is dark blue
-	Global df := ""
+	Global formColor, fontColor, df := ""
+	fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
 
 	; ===== Get default printer name. ======
 	defaultPrinter := RegRead("HKCU\Software\Microsoft\Windows NT\CurrentVersion\Windows", "Device")
@@ -28,10 +25,10 @@ PrinterTool(*)
 	df.Title := "Default Printer Changer"
 	df.OnEvent("Close", ButtonCancel)
 	df.OnEvent("Escape", ButtonCancel)
-	df.BackColor := guiColor
-	df.SetFont("s12 bold c" . pFontColor)
+	df.BackColor := formColor
+	df.SetFont("s12 bold " FontColor)
 	df.Add("Text", , "View or Set A Default Printer ...")
-	df.SetFont("s10 bold c" . pFontColor)
+	df.SetFont("s10 bold " FontColor)
 	df.Add("Text","y+3" , "Select one and right-click for more options.")
 	df.SetFont("s11")
 	Loop Parse, printerlist, "`n"
