@@ -3,7 +3,7 @@
 Persistent
 
 ; ==============================================================================
-; The Manual Correction Logger -- MCLogger --   Version 10-22-2024
+; The Manual Correction Logger -- MCLogger --   Version 11-2-2024
 ; ==============================================================================
 ; By Kunkel321, but inputHook based on Mike's here at: 
 ; https://www.autohotkey.com/boards/viewtopic.php?p=560556#p560556
@@ -20,22 +20,23 @@ Persistent
 ; or left-clicking resets the cache and closes the tooltip. 
 ; ==============================================================================
 
-; Below coloring lines are specific to Steve's setup.  If you see them, he apparently forgot to remove them. 
-; OR...  If you have ColorThemeIntegrator, use these so that the
-; color scheme assiged via wtSettings will be applied to the MCLogger. 
+; Below coloring lines are specific to Steve's setup.  If you see them, he apparently 
+; forgot to remove them. OR...  If you have ColorThemeIntegrator, use these so that 
+; the  color scheme assiged via wtSettings will be applied to the MCLogger. 
 
-; settingsFile := "colorThemeSettings.ini" 		; Assumes that file is in same location as this script.
-; ; --- Get current colors from ini file. 
-; fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
-; fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
-; listColor := IniRead(settingsFile, "ColorSettings", "listColor")
-; formColor := IniRead(settingsFile, "ColorSettings", "formColor")
-
-; Use either the above, or below color assignments, not both. 
-
-ListColor := "Default"
-FontColor := "Default"
-formColor := "Default"
+if FileExist("colorThemeSettings.ini") {
+   settingsFile := "colorThemeSettings.ini"
+   ; --- Get current colors from ini file. 
+   fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
+   listColor := IniRead(settingsFile, "ColorSettings", "listColor")
+   formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+}
+else { ; Ini file not there, so use these color instead. 
+   fontColor := "1F1F1F"
+   listColor := "FFFFFF"
+   formColor := "E5E4E2"
+}
+fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
 
 ;========= LOGGER OPTIONS ====================================================== 
 showEachHotString := 1        ; Show a Tooltip every time a HotString pattern is captured.  1=yes / 0=no 
@@ -48,6 +49,7 @@ IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for t
 WordListFile := 'GitHubComboList249k.txt'    ; Mostly from github: Copyright (c) 2020 Wordnik
 myLogFile := "MCLog.txt"                     ; The log of manual corrections.  A text file, not an ahk file (though either will work).
 myAutoCorrectLibrary := "HotstringLib.ahk"   ; A validity check is done before adding new MC strings to the log. 
+RemovedHsFile := "RemovedHotstrings.txt"     ; Also check hotstrings removed (culled) from AUTOcorrects log. 
 myAutoCorrectScript := "AutoCorrect2.ahk"    ; So MCLogger knows where to append new hotstrings. (Or were to send items to HH.) 
 SendToHH := 1                                ; Export directly to HotSting Helper. 1=yes / 0=no 
 MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe" ; <--- specific to Steve's setup. Put path to your own editor.
@@ -117,6 +119,9 @@ If not FileExist(WordListPath) {
 WordList := FileRead(wordListPath) ; Get word list into variable.
 wordListArray := strSplit(WordList, "`n") ; Segment variable into array.
 
+; We'll check for the existence of the ACLibrary.  We won't check for the "Removed Strings"
+; file though, because some people might not use that.  If the file exists, it will also
+; get used for the "existing items" validity check.
 If not FileExist(myAutoCorrectLibrary) {
 	MsgBox("This error means that the exsiting library of hotstrings "
 	"`nwas not found.`n`nMust assign a file to variable, such as`n"
@@ -124,6 +129,9 @@ If not FileExist(myAutoCorrectLibrary) {
 	ExitApp
 }
 AcFileContents := Fileread(myAutoCorrectLibrary)
+If FileExist(RemovedHsFile)
+   AcFileContents .= "`n" Fileread(RemovedHsFile)
+;msgbox "AcFileContents:`n`n" AcFileContents
 
 #HotIf WinActive("MCLogger.ahk") ; Allow "window-specific" hotkey action.
 $^s:: ; hide 
@@ -228,11 +236,12 @@ tih_EndChar(tih, vk, sc) {
 		}
 
       global duplicateFound := 0
-      Loop Parse, AcFileContents, "`n", "`r"  ; Compares trigger to existing AC library. 
-      { 	If (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") 
+      Loop Parse, AcFileContents, "`n", "`r"  ; Compares trigger to existing AC library and Removed items list. 
+      { 	If (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") and (SubStr(A_LoopField, 1,7) != "Removed")
             continue ; Will skip non-hotstring lines, so the regex isn't used as much.
          If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &loo)  ; loo is "current loopfield"
-         {	If InStr(newTrig, loo.Trig) and InStr(loo.Opts, "?") and InStr(loo.Opts, "*")
+         {	If InStr(newTrig, loo.Trig) and InStr(loo.Opts, "?") and InStr(loo.Opts, "*") ; Word middle match
+         	|| (newTrig == loo.Trig) ; or Exact match  
             {	global duplicateFound := 1
                ; SoundBeep 1800, 200 ; temporary for debuggin
                ; SoundBeep 2200, 200 ; temporary for debuggin
@@ -299,10 +308,13 @@ Appender(*)
 	;soundBeep 600, 800
 }
 
-; This gets called from the hotkey or the menu item.  It creates two different GUI
-; forms.  THe first is a progress bar that shows the progress of a frequency analysis
-; which checks which potential hotstrings have been logged multiple times. The 
-; second GUI is a dynamic group of radio buttons, which shows the top X most frequent.
+; This gets called from the hotkey, the menu item, or command line switch.  
+; It creates two different GUI forms.  THe first is a progress bar that shows 
+; the progress of a frequency analysis which checks which potential hotstrings 
+; have been logged multiple times. The second GUI is a dynamic group of radio 
+; buttons, which shows the top X most frequent.
+if (A_Args.Length > 0) ; Check if a command line argument is present.
+	runAnalysis() ; If present, open run analysis immediately. 
 Hotkey(runAnalysisHotkey, runAnalysis)  ; Change hotkey above, if desired. 
 runAnalysis(*)
 {
