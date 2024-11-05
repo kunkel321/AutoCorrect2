@@ -1,7 +1,7 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
 ; Library of HotStrings for AutoCorrect2.
-; Library updated 6-11-2024
+; Library updated 11-3-2024
 
 ;###############################################
 ; ; Two hotstrings for testing keyboard input buffering (or lack thereof).
@@ -47,6 +47,7 @@
 :B0?:foreign:: ; Here for :?:ign::ing, which corrects 11384 words.
 :B0?:resign:: ; Here for :?:ign::ing, which corrects 11384 words.
 :B0?:sovereign:: ; Here for :?:ign::ing, which corrects 11384 words.
+:B0C:AutoCorrect:: ; Here for :B0X*:rre::f("re") ; which correct 8199 words. But... Is is needed?  
 
 /*
 Unfortunately, it doesn't work if the multi-fix item has :*: in the options.  So these can't be nullified.  
@@ -91,9 +92,6 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 
 #Hotstring Z ; The Z causes the end char to be reset after each activation and helps prevent a zombie outbreak. 
 
-;============== Determine start line of autocorrect items ======================
-; If this variable name or assignment gets changed, also change it in the Conflicting String Locator script.
-ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until it gets to here. 
 ;===============================================================================
 ; When considering "conflicting" hotstrings, remember that sometimes conflicting
 ; autocorrect items can peacefully coexist... Read more in manual, attached here
@@ -130,6 +128,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:easr::f("ears") ; Fixes 102 words
 :B0X*?:ecomon::f("econom") ; Fixes 50 words
 :B0X*?:esorce::f("esource") ; Fixes 11 words
+:B0X*C:i)::f("i)") ; Fixes 1 word
 :B0X*?:juristiction::f("jurisdiction") ; Fixes 4 words
 :B0X*?:konw::f("know") ; Fixes 66 words
 :B0X*?:mmorow::f("morrow") ; Fixes 4 words
@@ -145,6 +144,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:threatn::f("threaten") ; Fixes 10 words
 :B0X*?:tihkn::f("think") ; Fixes 43 words
 :B0X*?:tiojn::f("tion") ; Fixes 7052 words
+:B0X*:trafic::f("traffic") ; Fixes 13 words 
 :B0X*?:visiosn::f("vision") ; Fixes 51 words
 :B0X:doesnt::f("doesn't") ; Fixes 1 word
 :B0X:inprocess::f("in process") ; Fixes 1 word
@@ -156,6 +156,10 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 ::decollete::décolleté ; adj. (of a garment) having a low-cut neckline
 ::manana::mañana ; Spanish: Tomorrow. 
 ; ===== End of Don't Sort items ===========
+
+;============== Determine start line of autocorrect items ======================
+; If this variable name or assignment gets changed, also change it in the Conflicting String Locator script.
+ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until it gets to here. 
 
 ; ===== Main List ==========================
 :B0X*:Buddist::f("Buddhist") ; Fixes 3 words
@@ -325,6 +329,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:airplane hanger::f("airplane hangar") ; Fixes 1 word
 :B0X*:airporta::f("airports") ; Fixes 1 word
 :B0X*:airrcraft::f("aircraft") ; Fixes 1 word
+:B0X*:akk::f("all") ; Fixes 1 word 
 :B0X*:albiet::f("albeit") ; Fixes 1 word
 :B0X*:aledg::f("alleg") ; Fixes 46 words
 :B0X*:alege::f("allege") ; Fixes 6 words
@@ -347,7 +352,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:along side::f("alongside") ; Fixes 1 word
 :B0X*:along time::f("a long time") ; Fixes 1 word
 :B0X*:alongside it's::f("alongside its") ; Fixes 1 word
-:B0X*:alse::f("else") ; Fixes 3 words
 :B0X*:alter boy::f("altar boy") ; Fixes 1 word
 :B0X*:alter server::f("altar server") ; Fixes 1 word
 :B0X*:alterior::f("ulterior") ; Fixes 4 words
@@ -624,6 +628,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:beut::f("beaut") ; Fixes 20 words
 :B0X*:beween::f("between") ; Fixes 3 words
 :B0X*:bewteen::f("between") ; Fixes 3 words
+:B0X*:bewwe::f("betwe") ; Fixes 7 words 
 :B0X*:beyond it's::f("beyond its") ; Fixes 1 word
 :B0X*:biginning::f("beginning") ; Fixes 3 words
 :B0X*:billingual::f("bilingual") ; Fixes 7 words
@@ -795,6 +800,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:dalmation::f("dalmatian") ; Fixes 2 words
 :B0X*:dardenelles::f("Dardanelles") ; Fixes 1 word
 :B0X*:darker then::f("darker than") ; Fixes 1 word
+:B0X*:daye::f("date") ; Fixes 23 words, exists as beginning and end.
 :B0X*:deafult::f("default") ; Fixes 6 words
 :B0X*:decathalon::f("decathlon") ; Fixes 2 words
 :B0X*:deciding on how::f("deciding how") ; Fixes 1 word
@@ -895,6 +901,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:each phenomena::f("each phenomenon") ; Fixes 1 word
 :B0X*:ealier::f("earlier") ; Fixes 1 word
 :B0X*:earnt::f("earned") ; Fixes 1 word
+:B0X*:effecting::f("affecting") ; Fixes 1 word 
 :B0X*:eiter::f("either") ; Fixes 1 word
 :B0X*:eles::f("eels") ; Fixes 1 word
 :B0X*:elphant::f("elephant") ; Fixes 6 words
@@ -914,6 +921,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:enchanc::f("enhanc") ; Fixes 9 words
 :B0X*:encylop::f("encyclop") ; Fixes 16 word
 :B0X*:endevors::f("endeavors") ; Fixes 8 words
+:B0X*:endire::f("entire") ; Fixes 7 words 
 :B0X*:endolithe::f("endolith") ; Fixes 2 words
 :B0X*:ened::f("need") ; Fixes 44 words
 :B0X*:enlargment::f("enlargement") ; Fixes 2 words
@@ -1473,6 +1481,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:klenex::f("kleenex") ; Fixes 1 word
 :B0X*:knifes::f("knives") ; Fixes 1 word
 :B0X*:knive::f("knife") ; Fixes 1 word
+:B0X*:kwwp::f("keep") ; Fixes 1 word 
 :B0X*:lable::f("label") ; Fixes 12 words
 :B0X*:labratory::f("laboratory") ; Fixes 1 word
 :B0X*:lack there of::f("lack thereof") ; Fixes 1 word
@@ -1863,6 +1872,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:proseletyz::f("proselytiz") ; Fixes 8 words
 :B0X*:protocal::f("protocol") ; Fixes 2 words
 :B0X*:protruberanc::f("protuberanc") ; Fixes 4 words
+:B0X*:provious::f("previous") ; Fixes 4 words 
 :B0X*:proximty::f("proximity") ; Fixes 1 word
 :B0X*:pseudonyn::f("pseudonym") ; Fixes 9 words
 :B0X*:publically::f("publicly") ; Fixes 1 word
@@ -1981,6 +1991,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:seguoy::f("segue") ; Fixes 4 words
 :B0X*:seh::f("she") ; Fixes 236 words
 :B0X*:seinor::f("senior") ; Fixes 5 words
+:B0X*:selett::f("select") ; Fixes 32 words 
 :B0X*:senari::f("scenari") ; Fixes 4 words
 :B0X*:senc::f("sens") ; Fixes 107 words
 :B0X*:sentan::f("senten") ; Fixes 9 words
@@ -2050,6 +2061,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:spainish::f("Spanish") ; Fixes 1 word
 :B0X*:speach::f("speech") ; Fixes 1 word
 :B0X*:speciman::f("specimen") ; Fixes 2 words
+:B0X*:speecj::f("speech") ; Fixes 19 words 
 :B0X*:spendour::f("splendour") ; Fixes 2 words
 :B0X*:spilt among::f("split among") ; Fixes 1 word
 :B0X*:spilt between::f("split between") ; Fixes 1 word
@@ -2190,7 +2202,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:therby::f("thereby") ; Fixes 1 word
 :B0X*:there after::f("thereafter") ; Fixes 1 word
 :B0X*:there best::f("their best") ; Fixes 1 word
-:B0X*:there by::f("thereby") ; Fixes 1 word
 :B0X*:there final::f("their final") ; Fixes 2 words
 :B0X*:there first::f("their first") ; Fixes 1 word
 :B0X*:there last::f("their last") ; Fixes 1 word
@@ -2358,12 +2369,10 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:twelve month's::f("twelve months") ; Fixes 1 word
 :B0X*:twice as much than::f("twice as much as") ; Fixes 1 word
 :B0X*:two in a half::f("two and a half") ; Fixes 1 word
-:B0X*:tyhe::f("they") ; Fixes 1 word
 :B0X*:tyo::f("to") ; Fixes 1110 words
 :B0X*:tyrany::f("tyranny") ; Fixes 1 word
 :B0X*:tyrrani::f("tyranni") ; Fixes 20 words
 :B0X*:tyrrany::f("tyranny") ; Fixes 1 word
-:B0X*:uber::f("über") ; Fixes 1 word
 :B0X*:ubli::f("publi") ; Fixes 37 words
 :B0X*:uise::f("use") ; Fixes 20 words
 :B0X*:ukran::f("Ukrain") ; Fixes 3 words
@@ -2497,6 +2506,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:we;d::f("we'd") ; Fixes 1 word
 :B0X*:weaponary::f("weaponry") ; Fixes 1 word
 :B0X*:weather or not::f("whether or not") ; Fixes 1 word
+:B0X*:weekness::f("weakness") ; Fixes 2 words 
 :B0X*:well know::f("well known") ; Fixes 1 word
 :B0X*:wendsay::f("Wednesday") ; Fixes 1 word
 :B0X*:wensday::f("Wednesday") ; Fixes 1 word
@@ -2626,6 +2636,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*:you're own::f("your own") ; Fixes 1 word
 :B0X*:you;d::f("you'd") ; Fixes 1 word
 :B0X*:youare::f("you are") ; Fixes 1 word
+:B0X*:yould::f("would") ; Fixes 7 words 
 :B0X*:your their::f("you're their") ; Fixes 1 word
 :B0X*:your your::f("you're your") ; Fixes 1 word
 :B0X*:youseff::f("yousef") ; Fixes 1 word
@@ -2651,6 +2662,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:accensi::f("ascensi") ; Fixes 7 words
 :B0X*?:acceptib::f("acceptab") ; Fixes 10 words
 :B0X*?:accessab::f("accessib") ; Fixes 14 words
+:B0X*?:accoc::f("assoc") ; Fixes 54 words 
 :B0X*?:accomadat::f("accommodat") ; Fixes 23 words
 :B0X*?:accomo::f("accommo") ; Fixes 23 words
 :B0X*?:accoring::f("according") ; Fixes 3 words
@@ -2693,6 +2705,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:affilliat::f("affiliat") ; Fixes 16 words
 :B0X*?:affort::f("afford") ; Fixes 13 words
 :B0X*?:affraid::f("afraid") ; Fixes 4 words
+:B0X*?:agail::f("avail") ; Fixes 38 words 
 :B0X*?:aggree::f("agree") ; Fixes 28 words
 :B0X*?:agrava::f("aggrava") ; Fixes 9 words
 :B0X*?:agreg::f("aggreg") ; Fixes 19 words
@@ -2720,6 +2733,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:alochol::f("alcohol") ; Fixes 28 words
 :B0X*?:alott::f("allott") ; Fixes 8 words
 :B0X*?:alowe::f("allowe") ; Fixes 24 words
+:B0X*?:alsay::f("alway") ; Fixes 4 words 
 :B0X*?:alsitic::f("alistic") ; Fixes 98 words
 :B0X*?:altion::f("lation") ; Fixes 448 words
 :B0X*?:ameria::f("America") ; Fixes 28 words
@@ -2760,6 +2774,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:apropri::f("appropri") ; Fixes 34 words
 :B0X*?:aprov::f("approv") ; Fixes 23 words
 :B0X*?:aptue::f("apture") ; Fixes 15 words
+:B0X*?:apuur::f("aptur") ; Fixes 26 words 
 :B0X*?:aquain::f("acquain") ; Fixes 22 words
 :B0X*?:aquiant::f("acquaint") ; Fixes 22 words
 :B0X*?:aquisi::f("acquisi") ; Fixes 10 words
@@ -2954,6 +2969,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:colecti::f("collecti") ; Fixes 49 words
 :B0X*?:colelct::f("collect") ; Fixes 69 words
 :B0X*?:collon::f("colon") ; Fixes 89 words
+:B0X*?:colomn::f("column") ; Fixes 20 words 
 :B0X*?:comanie::f("companie") ; Fixes 5 words
 :B0X*?:comany::f("company") ; Fixes 6 words
 :B0X*?:comapan::f("compan") ; Fixes 39 words
@@ -3029,6 +3045,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:contru::f("constru") ; Fixes 73 words
 :B0X*?:convenant::f("covenant") ; Fixes 10 words
 :B0X*?:convential::f("conventional") ; Fixes 23 words
+:B0X*?:convere::f("confere") ; Fixes 19 words 
 :B0X*?:convice::f("convince") ; Fixes 10 words
 :B0X*?:coopor::f("cooper") ; Fixes 26 words
 :B0X*?:coorper::f("cooper") ; Fixes 26 words
@@ -3148,6 +3165,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:dipend::f("depend") ; Fixes 50 words
 :B0X*?:diriv::f("deriv") ; Fixes 26 words
 :B0X*?:discrib::f("describ") ; Fixes 19 words
+:B0X*?:disgno::f("diagno") ; Fixes 41 words 
 :B0X*?:disipl::f("discipl") ; Fixes 26 words
 :B0X*?:disolved::f("dissolved") ; Fixes 19 words
 :B0X*?:dispaly::f("display") ; Fixes 11 words
@@ -3268,7 +3286,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:eremt::f("erent") ; Fixes 96 words
 :B0X*?:erionn::f("ersion") ; Fixes 74 words 
 :B0X*?:ernece::f("erence") ; Fixes 54 words
-:B0X*?:ernt::f("erent") ; Fixes 8 words
 :B0X*?:erruped::f("errupted") ; Fixes 6 words
 :B0X*?:esab::f("essab") ; Fixes 9 words
 :B0X*?:esential::f("essential") ; Fixes 8 words
@@ -3484,6 +3501,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:igeou::f("igiou") ; Fixes 23 words
 :B0X*?:igini::f("igni") ; Fixes 127 words
 :B0X*?:ignf::f("ignif") ; Fixes 50 words
+:B0X*?:ignot::f("ignor") ; Fixes 51 words 
 :B0X*?:igous::f("igious") ; Fixes 23 words, but misspells pemphigous (a skin disease)
 :B0X*?:igth::f("ight") ; Jack's fixes 315 words
 :B0X*?:ihs::f("his") ; Fixes 618 words
@@ -3508,6 +3526,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:inece::f("ience") ; Fixes 101 words
 :B0X*?:ineing::f("ining") ; Fixes 193 words
 :B0X*?:infectuo::f("infectio") ; Fixes 15 words
+:B0X*?:infite::f("invite") ; Fixes 19 words 
 :B0X*?:infrant::f("infant") ; Fixes 31 words
 :B0X*?:infrige::f("infringe") ; Fixes 7 words
 :B0X*?:ingenius::f("ingenious") ; Fixes 4 words
@@ -3773,6 +3792,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:nnung::f("nning") ; Fixes 107 words
 :B0X*?:nominclat::f("nomenclat") ; Fixes 8 words 
 :B0X*?:nonom::f("nonym") ; Fixes 40 words
+:B0X*?:notwwo::f("notewo") ; Fixes 6 words 
 :B0X*?:nouce::f("nounce") ; Fixes 47 words
 :B0X*?:nounch::f("nounc") ; Fixes 54 words
 :B0X*?:nouncia::f("nuncia") ; Fixes 47 words
@@ -3857,6 +3877,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:oridina::f("ordina") ; Fixes 63 words
 :B0X*?:origion::f("origin") ; Fixes 37 words
 :B0X*?:ormenc::f("ormanc") ; Fixes 11 words
+:B0X*?:oroow::f("orrow") ; Fixes 26 words 
 :B0X*?:osible::f("osable") ; Fixes 23 words
 :B0X*?:oteab::f("otab") ; Fixes 22 words
 :B0X*?:ouevre::f("oeuvre") ; Fixes 10 words
@@ -4061,6 +4082,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:radiactiv::f("radioactiv") ; Fixes 5 words
 :B0X*?:raell::f("reall") ; Fixes 24 words
 :B0X*?:rafic::f("rific") ; Fixes 85 words
+:B0X*?:rafy::f("raft") ; Fixes 195 words 
 :B0X*?:ranie::f("rannie") ; Fixes 8 words
 :B0X*?:ratly::f("rately") ; Fixes 30 words
 :B0X*?:raverci::f("roversi") ; Fixes 19 words
@@ -4191,6 +4213,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:sevic::f("servic") ; Fixes 25 words, but misspells seviche (South American dish of raw fish)
 :B0X*?:sgin::f("sign") ; Fixes 243 words.
 :B0X*?:shco::f("scho") ; Fixes 117 words
+:B0X*?:shoose::f("choose") ; Fixes 11 words 
 :B0X*?:siad::f("said") ; Fixes 9 words
 :B0X*?:sicion::f("cision") ; Fixes 22 words
 :B0X*?:sicne::f("since") ; Fixes 22 words
@@ -4512,7 +4535,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*?:ytion::f("tion") ; Fixes 8455 words 
 :B0X*?:ytou::f("you") ; Fixes 51 words
 :B0X*?:ytri::f("tri") ; Fixes 3250 words, but misspells Chytridiales and Synchytrium (Simple parasitic fungi including pond scum parasites).
-:B0X*?:yuo::f("you") ; Fixes 51 words
 :B0X*?:zyne::f("zine") ; Fixes 89 words
 :B0X*?C:Amercia::f("America") ; Fixes 28 words, Case sensitive to not misspell amerciable (Of a crime or misdemeanor) 
 :B0X*?C:balen::f("balan") ; Fixes 45 words.  Case-sensitive to not misspell Balenciaga (Spanish fashion designer). 
@@ -4541,6 +4563,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X*C:herat::f("heart") ; Fixes 63 words, Case-sensitive to not misspell Herat (a city in Afganistan).
 :B0X*C:hsi::f("his") ; Fixes 95 words, Case-sensitive to not misspell Hsian (a city in China)
 :B0X*C:ime::f("imme") ; Fixes 35 words, Case-sensitive to not misspell IMEI (International Mobile Equipment Identity)
+:B0X*C:uber::f("über") ; Fixes 1 word
 :B0X*C:wich::f("which") ; Fixes 3 words, Case-sensitive to not misspell Wichita.
 :B0X*C:yoru::f("your") ; Fixes 4 words, case sensitive to not misspell Yoruba (A Nigerian langue) 
 :B0X:*more that::f("more than") ; Fixes 1 word
@@ -4582,6 +4605,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:another criteria::f("another criterion") ; Fixes 1 word
 :B0X:another words::f("in other words") ; Fixes 1 word
 :B0X:apon::f("upon") ; Fixes 1 word
+:B0X:are ass::f("are as") ; Fixes 1 word 
 :B0X:are dominate::f("are dominant") ; Fixes 1 word
 :B0X:are meet::f("are met") ; Fixes 1 word
 :B0X:are renown::f("are renowned") ; Fixes 1 word
@@ -4606,6 +4630,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:boildrplate::f("boilerplate") ; Fixes 1 word 
 :B0X:both of who::f("both of whom") ; Fixes 1 word
 :B0X:butause::f("because") ; Fixes 1 word 
+:B0X:ca nyou::f("can you")
 :B0X:cafe::f("café") ; Fixes 1 word
 :B0X:cafes::f("cafés") ; Fixes 1 word
 :B0X:can breath::f("can breathe") ; Fixes 1 word
@@ -4635,11 +4660,11 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:elast::f("least") ; Fixes 1 word
 :B0X:embarras::f("embarrass") ; Fixes 1 word
 :B0X:en mass::f("en masse") ; Fixes 1 word
+:B0X:entrie::f("entire") ; Fixes 1 word 
 :B0X:excell::f("excel") ; Fixes 1 word
 :B0X:experienc::f("experience") ; Fixes 1 word
 :B0X:eyt::f("yet") ; Fixes 1 word
 :B0X:facia::f("fascia") ; Fixes 1 word
-:B0X:fo::f("of") ; Fixes 1 word
 :B0X:for he and::f("for him and") ; Fixes 1 word
 :B0X:fora::f("for a") ; Fixes 1 word
 :B0X:forbad::f("forbade") ; Fixes 1 word
@@ -4683,6 +4708,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:has swam::f("has swum") ; Fixes 1 word
 :B0X:has trod::f("has trodden") ; Fixes 1 word
 :B0X:has woke::f("has woken") ; Fixes 1 word
+:B0X:hav::f("had") ; Fixes 1 word 
 :B0X:have ran::f("have run") ; Fixes 1 word
 :B0X:have swam::f("have swum") ; Fixes 1 word
 :B0X:having ran::f("having run") ; Fixes 1 word
@@ -4705,6 +4731,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:it self::f("itself") ; Fixes 1 word
 :B0X:japanes::f("Japanese") ; Fixes 1 word
 :B0X:larg::f("large") ; Fixes 1 word
+:B0X:lise::f("like") ; Fixes 1 word 
 :B0X:lot's of::f("lots of") ; Fixes 1 word
 :B0X:maltesian::f("Maltese") ; Fixes 1 word
 :B0X:mear::f("mere") ; Fixes 1 word
@@ -4769,7 +4796,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:ths::f("the") ; Fixes 1 word 
 :B0X:to bath::f("to bathe") ; Fixes 1 word
 :B0X:to be build::f("to be built") ; Fixes 1 word
-:B0X:to breath::f("to breathe") ; Fixes 1 word
+:B0X:to breath::f("to breathe") ; Fixes 1 word. Would break "breath to breath."
 :B0X:to chose::f("to choose") ; Fixes 1 word
 :B0X:to cut of::f("to cut off") ; Fixes 1 word
 :B0X:to loath::f("to loathe") ; Fixes 1 word
@@ -4777,6 +4804,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:to try and::f("to try to") ; Fixes 1 word
 :B0X:tou::f("you") ; Fixes 1 word
 :B0X:troup::f("troupe") ; Fixes 1 word
+:B0X:tyhe::f("they") ; Fixes 1 word
 :B0X:was cable of::f("was capable of") ; Fixes 1 word
 :B0X:was establish::f("was established") ; Fixes 1 word
 :B0X:was extend::f("was extended") ; Fixes 1 word
@@ -4818,6 +4846,9 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X:youve::f("you've") ; Fixes 1 word
 :B0X?*:actaul::f("actual") ; Fixes 40 words 
 :B0X?*:delimma::f("dilemma") ; Fixes 3 words 
+:B0X?*:discrict::f("district") ; Fixes 13 words 
+:B0X?*:folor::f("color") ; Fixes 147 words 
+:B0X?*:ligy::f("lify") ; Fixes 37 words 
 :B0X?*:orror::f("error") ; Fixes 56 words , but misspells horror, added to protective word list, above. 
 :B0X?:'nt::f("n't") ; Fixes 24 words
 :B0X?:;ll::f("'ll") ; Fixes 1 word
@@ -4862,6 +4893,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X?:blly::f("bly") ; Fixes 735 words
 :B0X?:boared::f("board") ; Fixes 1 word
 :B0X?:borke::f("broke") ; Fixes 5 words
+:B0X?:bth::f("beth") ; Fixes 5 words 
 :B0X?:bthe::f("b the") ; Fixes 1 word
 :B0X?:busines::f("business") ; Fixes 3 words
 :B0X?:busineses::f("businesses") ; Fixes 2 words
@@ -4888,8 +4920,10 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X?:ctoty::f("ctory") ; Fixes 23 words
 :B0X?:cually::f("cularly") ; Fixes 38 words
 :B0X?:culem::f("culum") ; Fixes 19 words
+:B0X?:cumenta::f("cuments") ; Fixes 2 words 
 :B0X?:currenly::f("currently") ; Fixes 5 words
 :B0X?:daty::f("day") ; Fixes 48 words 
+:B0X?:daye::f("date") ; Fixes 73 words, exists as beginning and end.
 :B0X?:decidely::f("decidedly") ; Fixes 2 words
 :B0X?:develope::f("develop") ; Fixes 5 words
 :B0X?:developes::f("develops") ; Fixes 5 words
@@ -4972,6 +5006,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X?:itr::f("it") ; Fixes 366 words, but misspells Savitr (Important Hindu god) 
 :B0X?:ityes::f("ities") ; Fixes 1347 words
 :B0X?:ivites::f("ivities") ; Fixes 73 words
+:B0X?:jutt::f("just") ; Fixes 9 words 
 :B0X?:kc::f("ck") ; Fixes 610 words.  Misspells kc (thousand per second).
 :B0X?:kfulls::f("kfuls") ; Fixes 7 words
 :B0X?:kn::f("nk") ; Fixes 168 words
@@ -4983,7 +5018,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X?:lfull::f("lful") ; Fixes 13 words
 :B0X?:lieing::f("lying") ; Fixes 46 words
 :B0X?:lighly::f("lightly") ; Fixes 3 words
-:B0X?:ligy::f("lify") ; ixes 15 words
 :B0X?:likey::f("likely") ; Fixes 4 words
 :B0X?:llete::f("lette") ; Fixes 17 words
 :B0X?:lsit::f("list") ; Fixes 244 words
@@ -5075,6 +5109,7 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X?:siary::f("sary") ; Fixes 16 words
 :B0X?:sice::f("sive") ; Fixes 166 words, but misspells sice (The number six at dice)
 :B0X?:sicly::f("sically") ; Fixes 24 words
+:B0X?:sinn::f("sign") ; Fixes 21 words 
 :B0X?:smoothe::f("smooth") ; Fixes 2 words
 :B0X?:sorce::f("source") ; Fixes 5 words
 :B0X?:specif::f("specify") ; Fixes 4 words
@@ -5099,7 +5134,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X?:thn::f("then") ; Fixes 15 words 
 :B0X?:thne::f("then") ; Fixes 11 words
 :B0X?:throught::f("through") ; Fixes 3 words
-:B0X?:tht::f("th") ; Fixes 408 words
 :B0X?:thw::f("the") ; Fixes 44 words
 :B0X?:thyness::f("thiness") ; Fixes 32 words
 :B0X?:tiem::f("time") ; Fixes 44 words
@@ -5119,7 +5153,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0X?:tust::f("trust") ; Fixes 8 words 
 :B0X?:twon::f("town") ; Fixes 32 words
 :B0X?:tyo::f("to") ; Fixes 185 words
-:B0X?:ualy::f("ually") ; Fixes 72 words
 :B0X?:uarly::f("ularly") ; Fixes 66 words
 :B0X?:ularily::f("ularly") ; Fixes 66 words
 :B0X?:ultimely::f("ultimately") ; Fixes 2 words
@@ -5155,6 +5188,8 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 :B0XC:i::f("I") ; Fixes 1 word 
 :B0XC:may of::f("may have") ; Fixes 1 word
 :B0XC:nad::f("and") ; Fixes 1 word, Case-sensitive to not misspell NAD (A coenzyme present in most living cells)
+:B0XC:tou::f("you") ; Fixes 1 word Case sensitive because 'Time Of Use' acronym.
+
 ; ===== End of Main List ==========================
 ;------------------------------------------------------------------------------
 ; Accented English words, from, amongst others,
@@ -5309,7 +5344,6 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 ::metier::métier ; noun an occupation for which you are especially well suited; an asset of special worth or utility
 ::minaudiere::minaudière ; A small, decorative handbag without handles or a strap.
 ::mobius::Möbius ; noun a continuous closed surface with only one side; formed from a rectangular strip by rotating one end 180 degrees and joining it with the other end
-::moire::moiré ; adj. (of silk fabric) having a wavelike pattern; noun silk fabric with a wavy surface pattern
 ::motley crue::Mötley Crüe ; American heavy metal band formed in Hollywood, California in 1981.
 ::motorhead::Motörhead ; English rock band formed in London in 1975.
 ::naive::naïve ; adj. inexperienced; marked by or showing unaffected simplicity and lack of guile or worldly experience
@@ -5389,9 +5423,15 @@ ACitemsStartAt := A_LineNumber + 10 ; hh2 validity checks will skip lines until 
 ::;fruits::Apple`nBanana`nCarrot`nDate`nEggplant`nFig`nGrape`nHoneydew`nIceberg lettuce`nJalapeno`nKiwi`nLemon`nMango`nNectarine`nOrange`nPapaya`nQuince`nRadish`nStrawberry`nTomato`nUgli fruit`nVanilla bean`nWatermelon`nXigua (Chinese watermelon)`nYellow pepper`nZucchini
 ::;animals::Aardvark`nButterfly`nCheetah`nDolphin`nElephant`nFrog`nGiraffe`nHippo`nIguana`nJaguar`nKangaroo`nLion`nMonkey`nNarwhal`nOwl`nPenguin`nQuail`nRabbit`nSnake`nTiger`nUmbrellabird`nVulture`nWolf`nX-ray fish`nYak`nZebra
 ::;colors::Amber`nBlue`nCrimson`nDenim`nEmerald`nFuchsia`nGold`nHarlequin`nIndigo`nJade`nKhaki`nLavender`nMagenta`nNavy`nOlive`nPink`nQuartz`nRed`nScarlet`nTurquoise`nUltramarine`nViolet`nWhite`nXanadu`nYellow`nZaffre
+::;colorhex::Red := {#}FF0000`nOrange := {#}FF7F00`nYellow := {#}FFFF00`nGreen := {#}00FF00`nBlue := {#}0000FF`nIndigo := {#}4B0082`nViolet := {#}8F00FF
 ;################################################
 
 ;-------------------------------------------------------------------------------
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
 
+:B0X*:yuo::f("you") ; Fixes 51 words 
+:B0X?:yuo::f("you") ; Fixes 3 words 
+
+:B0X*:daty::f("day") ; Fixes 72 words 
+:B0X?:ernt::f("erent") ; Fixes 26 words 
