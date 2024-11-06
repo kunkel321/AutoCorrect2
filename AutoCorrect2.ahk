@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 
 TraySetIcon(A_ScriptDir . "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 11-4-2024
+; Update date: 11-6-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -28,6 +28,9 @@ else { ; Ini file not there, so use these color instead.
    formColor := "0xE5E4E2"
 }
 fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
+; Calculate contrasting text color for better readability of delta string and validation msgs.
+r := (formColor >> 16) & 0xFF, g := (formColor >> 8) & 0xFF, b := formColor & 0xFF
+brightness := (r * 299 + g * 587 + b * 114) / 1000
 
 ;===============================================================================
 NameOfThisFile := "AutoCorrect2.ahk" ; This variable is used in the below #HotIf command for Ctrl+s: Save and Reload.
@@ -58,8 +61,8 @@ If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Not
 ;===============================================================================
 
 ; ===Change=Settings=for=Big=Validity=Dialog=Message=Box========================
-myGreen := 'c1D7C08' ; light green 'cB5FFA4' (for use with dark backgrounds.)
-myRed := 'cB90012' ; light red 'cFFB2AD'
+myGreen := brightness > 128 ? 'c1D7C08' : 'cB5FFA4'  ; Color options for validity msg.
+myRed := brightness > 128 ? 'cB90012' : 'cfd7c73' ; Color options for validity msg.
 myBigFont := 's15'
 AutoLookupFromValidityCheck := 0 ; Sets default for auto-lookup of selected text on 
 ; mouse-up, when using the big message box. 
@@ -187,12 +190,7 @@ ButExam.OnEvent("ContextMenu", subFuncExamControl)
 (ButCancel := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Cancel')).OnEvent("Click", hhButtonCancel)
 hh.OnEvent("Close", hhButtonCancel)
 ; ============== Bottom (toggling) "Exam Pane" part of GUI =====================
-
-; Calculate contrasting text color for better readability
-r := (formColor >> 16) & 0xFF, g := (formColor >> 8) & 0xFF, b := formColor & 0xFF
-brightness := (r * 299 + g * 587 + b * 114) / 1000
 DeltaColor := brightness > 128 ? "191970" : "00FFFF" ; Color options for Blue Delta String.
-
 ; ---- delta string ----
 hh.SetFont('s10')
 (ButLTrim := hh.AddButton('vbutLtrim xm h50  w' . (wFactor+182/6), '>>')).onEvent('click', GoLTrim)
@@ -216,8 +214,8 @@ RadEnd := hh.AddRadio('vEndRadio x+5', '&Endings')
 ButUndo.Enabled := false
 ; ---- results lists -----
 hh.SetFont('s12')
-(TxtTLable := hh.AddText('vTrigLabel center y+4 h25 xm w' . wFactor+182, 'Misspells'))
-(TxtRLable := hh.AddText('vReplLabel center h25 x+5 w' . wFactor+182, 'Fixes'))
+(TxtTLabel := hh.AddText('vTrigLabel center y+4 h25 xm w' . wFactor+182, 'Misspells'))
+(TxtRLabel := hh.AddText('vReplLabel center h25 x+5 w' . wFactor+182, 'Fixes'))
 (EdtTMatches := hh.AddEdit(listColor ' vTrigMatches y+1 xm h' . hFactor+300 . ' w' . wFactor+182,))
 (EdtRMatches := hh.AddEdit(listColor ' vReplMatches x+5 h' . hFactor+300 . ' w' . wFactor+182,))
 ; ---- word list file ----
@@ -280,7 +278,7 @@ ShowHideButtonsControl(Visibility := False) ; Shows/Hides bottom, Exam Pane, par
 }
 
 ShowHideButtonExam(Visibility := False) ; Shows/Hides bottom, Exam Pane, part of GUI.
-{	examCmds := [ButLTrim, TxtTypo, ButRTrim, RadBeg, RadMid, RadEnd, ButUndo, TxtTLable, TxtRLable, EdtTMatches, EdtRMatches, TxtWordList]
+{	examCmds := [ButLTrim, TxtTypo, ButRTrim, RadBeg, RadMid, RadEnd, ButUndo, TxtTLabel, TxtRLabel, EdtTMatches, EdtRMatches, TxtWordList]
 	for ctrl in examCmds {
 		ctrl.Visible := Visibility
 	}
@@ -746,7 +744,6 @@ biggerMsgBox(thisMess, secondButt)
 	bb.Add('Edit', (inStr(bbItem[1],'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem[1]) 
 	trigEdtBox := bb.Add('Edit', (strLen(bbItem2)>104? ' w600 ' : ' ') (inStr(bbItem2,'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem2) 
 	bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3],'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem[3])
-	trigEdtBox.OnEvent('Focus', findInScript) 
 	bb.SetFont('s11 ' FontColor)
 	secondButt=1? bb.Add('Text',,"==============================`nAppend HotString Anyway?"):''
 	bbAppend := bb.Add('Button', , 'Append Anyway')
@@ -757,8 +754,10 @@ biggerMsgBox(thisMess, secondButt)
 	bbClose := bb.Add('Button', 'x+5 Default', 'Close')
 	bbClose.OnEvent 'Click', (*) => bb.Destroy()
 	; bbTime[4] is the value of "showLookupBox" from ValidationFunction.
-	If bbItem[4] = 1 ; Has trigger concerns to look up, so need checkbox.
-		global bbAuto := bb.Add('Checkbox', 'x+5 Checked' AutoLookupFromValidityCheck, 'Auto Lookup`nin editor')
+	If bbItem[4] = 1 { ; Has trigger concerns to look up, so need checkbox.
+		global bbAuto := bb.Add('Checkbox', 'x+12 y+-22 Checked' AutoLookupFromValidityCheck, 'Auto Lookup in editor')
+		trigEdtBox.OnEvent('Focus', findInScript) 
+	}
 	bb.Show('yCenter x' (A_ScreenWidth/2))
 	WinSetAlwaysontop(1, "A")
 	bb.OnEvent 'Escape', (*) => bb.Destroy()
@@ -766,32 +765,34 @@ biggerMsgBox(thisMess, secondButt)
 
 ; Find the text that is selected in the biggerMsgBox GUI. 
 findInScript(*) 
-{	If (bbAuto.Value = 0)
+{	If (bbAuto.Value = 1) {	
+		SoundBeep ; Otherwise beep, wait for mouse up, etc. 
+		if (GetKeyState("LButton", "P"))
+			KeyWait "LButton", "U"
+		A_Clipboard := ""
+		SendInput "^c"
+		If !ClipWait( 1, 0)
+			Return	
+		;msgbox A_Clipboard
+		if WinExist(HotstringLibrary)
+			WinActivate HotstringLibrary
+		else 
+		{	Run MyAhkEditorPath " " HotstringLibrary
+			While !WinExist(HotstringLibrary)
+				Sleep 50
+			WinActivate HotstringLibrary
+		}
+		If RegExMatch(A_Clipboard, "^\d{2,}") ; two or more digits? 
+			SendInput "^g" A_Clipboard ; <--- Keyboard shortcut for "Go to line number."
+		else 
+		{	SendInput "^f" ; <--- Keyboard shortcut for "Find"
+			sleep 200
+			SendInput "^v" ; Paste in search string (which is text selected in big message box.)
+		}
+		mbTitle.Focus() ; Focus title again so text doesn't stay selected. 
+	}
+	Else
 		Return ; If auto-lookup on mouse up box not checked, do nothing. 
-	SoundBeep ; Otherwise beep, wait for mouse up, etc. 
-	if (GetKeyState("LButton", "P"))
-		KeyWait "LButton", "U"
-	A_Clipboard := ""
-	SendInput "^c"
-	If !ClipWait( 1, 0)
-		Return	
-	;msgbox A_Clipboard
-	if WinExist(HotstringLibrary)
-		WinActivate HotstringLibrary
-	else 
-	{	Run MyAhkEditorPath " " HotstringLibrary
-		While !WinExist(HotstringLibrary)
-			Sleep 50
-		WinActivate HotstringLibrary
-	}
-	If RegExMatch(A_Clipboard, "^\d{2,}") ; two or more digits? 
-		SendInput "^g" A_Clipboard ; <--- Keyboard shortcut for "Go to line number."
-	else 
-	{	SendInput "^f" ; <--- Keyboard shortcut for "Find"
-		sleep 200
-		SendInput "^v" ; Paste in search string (which is text selected in big message box.)
-	}
-	mbTitle.Focus() ; Focus title again so text doesn't stay selected. 
 }
 
 ; This function runs several validity checks. 
@@ -1194,7 +1195,7 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 	MyDefaultOpts.text := MyOpts
 
 	EdtTMatches.Value := tFilt
-	TxtTLable.Text := "Misspells [" . tMatches . "]"
+	TxtTLabel.Text := "Misspells [" . tMatches . "]"
 	
 	If (tMatches > 0) { 
 		TrigLbl.Text := "Misspells [" . tMatches . "] words" ; Change Trig Str Label to show warning. 
@@ -1246,7 +1247,7 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 		rFilt := "Comparison`nword list`nnot found"
 	}
 		EdtRMatches.Value := rFilt
-		TxtRLable.Text := "Fixes [" . rMatches . "]"
+		TxtRLabel.Text := "Fixes [" . rMatches . "]"
 }
 
 
