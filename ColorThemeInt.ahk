@@ -3,7 +3,7 @@
 
 /*
 Color Theme Integrator
-Kunkel321: 11-1-2024
+Kunkel321: 11-6-2024
 https://github.com/kunkel321/ColorThemeIntegrator
 https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132310
 
@@ -35,7 +35,7 @@ The colors are assigned by default as:
 * formColor = The color that appears in the posing Counter-Clockwise from the Complementary position. 
 * listColor = The color that appears in the posing Clockwise from the Complementary position. 
 This means that the color which is chosen in the top comboBox corresponds to the font color of the form.  The gui element (font/list/form) which is used for the reference color (and which corresponds to the top comboBox) can be changed with the second comboBox "... Is Reference."   
-The four color, warnColor, is not part of this color pattern scheme and is only changed via double-clicking the warnColor item on the bottom of the ListBox.  If you don't have any projects with guis that use alternate Gui Backcolors, then you can ignore the warnColor. 
+The four color, warnColor, is not part of this color pattern scheme and is only changed via double-clicking the warnColor item on the bottom of the ListBox.  However, when changing the light/darkness of the formColor, the warnColor's level of light/darkness will change with it.  If you don't have any projects with guis that use alternate Gui Backcolors, then you can ignore the warnColor. 
 
 So… If the Split Size is 10 or 15 or so, then the pattern will be “Split Complementary.”  If the Split Size is set to 0, then the listColor and the fontColor will be at the same position and will be "Complementary" to the formColor.   If the Split Size is the max of 60, then all three colors will be at the same location and the theme will be "Monochromatic."  If the Split Size value is around 45 to 50, then the pattern will be “Analogous” (again, see colordesigner site).  And if the Split Size is 20, then the pattern will be a “Triad.”   As indicated above, the primary color is set in the top comboBox, and the other two are the split colors.  The split colors can swapped by setting a negative number as the Split Size.
 
@@ -46,6 +46,8 @@ Similar to changing the shading, users may wish to "tone-down" one or more of th
 Near the bottom is the 4-row ListBox.  This shows the hexadecimal color values that will get exported.   The ListBox is also an "override."  If you can't get a color you like with the Hue, Shade, and Saturation controls, double-click the row in the list to pick a totally different color.  This will call a Windows color picker (based strongly on Teadrinker code) and disregard the above gui controls.  Holding the Ctrl Key while double-clicking will allow you to "eyedropper-pick" a color from the screen.  Note that if you then change a Hue, Shade, or Saturation controls, those controls will, again, take presidence and determine the colors used for the first three items (font, list, form). 
 
 The current four colors, as well as the values of all the controls, can be saved to a configuration (.ini) file.  The tool will attempt to read from the file at start.  If the ini file is not found when the script starts, default values will be applied.  Near the top of the code is the "restartTheseScripts" list.  The tool will look for a list or scripts to restart (so that their gui colors will be updated.)  When the save button is pressed, the user will be given the option to also restart these scripts.  Uncheck the checkbox to bypass restarting the other scripts. 
+
+The script looks for command line arguments when it starts.  If there are command line arguments, the gui is shown at statup, and Esc or closing the form exits the app.  this was added so that the tool could be launched from the HotString Helper2 tool.
 */
 
 myHotKey := "!+g"                   ; Alt+Shift+G shows/hides tool.
@@ -197,7 +199,16 @@ savButton.OnEvent("Click", SaveColors)
 canButton := myGui.Add("Button" , "w100 x+15", "Cancel")
 canButton.OnEvent("Click", buttCancel)
 
-myGui.OnEvent("Escape", (*) => myGui.Hide()) ; If user presses escape while gui is active...
+myGui.OnEvent("Escape", ExitTool) ; If user presses escape while gui is active...
+myGui.OnEvent("Close", ExitTool) ; If user closes via red 'x'.
+
+; If color tool was opened from hh2, then do a full exit after use.  Otherwise hide. 
+ExitTool(*) {
+    if (A_Args.Length > 0)
+        ExitApp()
+    Else
+        myGui.Hide()
+}
 
 ; Main hotkey shows/hides gui.
 Hotkey(myHotKey, showHideTool) 
@@ -212,6 +223,7 @@ showHideTool(*) {
     }
 }
 
+; Show a warning if colors were manually set, then the user tries for programmatically change them. 
 global colorsManuallyset := 0
 manualChangeWarning(*) {
     Result := ""
@@ -409,12 +421,17 @@ colorChanged(*) {
     fontColor := fontArr[FontShadeSteps.Value]
     fontArr := ColorToGrayGradient(fontColor, saturationSteps)
     fontColor := fontArr[-FontSaturationSteps.Value]
+   
+    warnArr := WhiteColorBlackGradient(warnColor, shadingSteps)
+    newWarnColor := warnArr[FormShadeSteps.Value]
 
-	warnProg.Opt("c" subStr(warnProg.Text, -8))
+	warnProg.Opt("c" newWarnColor)
+    ;warnProg.Opt("c" SubStr(warnColor, 3))  ; Remove "0x" prefix
 
     For Ctrl in myGui {
         If (Ctrl.Type = "Edit") or (Ctrl.Type = "ListBox") or (Ctrl.Type = "ComboBox")
             Ctrl.Opt("Background" listColor)
+
         If (Ctrl.Type = "Text") or (Ctrl.Type = "Edit") or (Ctrl.Type = "ListBox") or (Ctrl.Type = "ComboBox")
             Ctrl.Opt("c" fontColor) ; doesn't work for radios :- (
     }
@@ -692,7 +709,7 @@ doSave(*) {
                 Sleep 100
             }
             else
-                msgbox "`"" A_LoopField "`" doesn't appear to exist.  Skipping that one. "
+                msgbox "`"" A_LoopField "`" doesn't appear to exist.  Skipping that one.`n`nYou may wish to remove it from the 'restartTheseScripts' variable near the top of the code."
         }
     }
     sav.Hide()
