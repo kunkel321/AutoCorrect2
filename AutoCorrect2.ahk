@@ -2,13 +2,14 @@
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
+#Include "PrivateParts.ahk"  ; <--- specific to Steve's setup.
 #Include "DateTool.ahk"
 #Include "PrinterTool.ahk"
 #Include "HotstringLib.ahk"
 
-TraySetIcon(A_ScriptDir . "\Icons\AhkBluePsicon.ico")
+TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 11-6-2024
+; Update date: 11-9-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -27,7 +28,7 @@ else { ; Ini file not there, so use these color instead.
    listColor := "0xFFFFFF"
    formColor := "0xE5E4E2"
 }
-fontColor := "c" SubStr(fontColor, -6) ; Ensure exactly one 'c' on the left. 
+
 ; Calculate contrasting text color for better readability of delta string and validation msgs.
 r := (formColor >> 16) & 0xFF, g := (formColor >> 8) & 0xFF, b := formColor & 0xFF
 brightness := (r * 299 + g * 587 + b * 114) / 1000
@@ -45,6 +46,8 @@ If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Not
 	"`nTherefore Notepad will be used as a substite.")
 	MyAhkEditorPath := "Notepad.exe"
 }
+If not FileExist(HotstringLibrary) 
+	MsgBox("This message means the the hotstring library, '" HotstringLibrary "' can't be found.  Please correct, and try again.")
 
 ;===============================================================================
 ;            			Hotstring Helper 2
@@ -61,9 +64,10 @@ If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Not
 ;===============================================================================
 
 ; ===Change=Settings=for=Big=Validity=Dialog=Message=Box========================
-myGreen := brightness > 128 ? 'c1D7C08' : 'cB5FFA4'  ; Color options for validity msg.
+myGreen := brightness > 128 ? 'c0d3803' : 'cb8f3ab'  ; Color options for validity msg.
 myRed := brightness > 128 ? 'cB90012' : 'cfd7c73' ; Color options for validity msg.
 myBigFont := 's15'
+valOK := "-no problems found" ; Message shown when no conflicts are found.
 AutoLookupFromValidityCheck := 0 ; Sets default for auto-lookup of selected text on 
 ; mouse-up, when using the big message box. 
 ; WARNING:  findInScript() function uses VSCode shortcut keys ^f and ^g. 
@@ -118,7 +122,7 @@ AutoEnterNewEntry := 1 ; 1 = yes, add. 0 = no, I'll manually type it.
 ; These can be edited... Cautiously. 
 #HotIf WinActive(hhFormName) ; Allows window-specific hotkeys.
 $Enter:: ; When Enter is pressed, but only in this GUI. "$" prevents accidental Enter key loop. ; hide
-{ 	If (hh['SymTog'].text = "Hide Symb")
+{ 	If (SymTog.text = "Hide Symb")
 		return ; If 'Show symbols' is active, do nothing.
 	Else if ReplaceString.Focused {
 		Send("{Enter}") ; Just normal typing; Enter yields Enter key press.
@@ -154,102 +158,117 @@ Esc:: ; hide
 hh := Gui('', hhFormName)
 hh.Opt("-MinimizeBox +alwaysOnTop")
 try hh.BackColor := formColor ; This variable gets set at the top of the HotString Helper section. 
-FontColor := FontColor != "" ? "c" . FontColor : ""
-hh.SetFont("s11 " . FontColor)  ; This variable gets set at the top of the HotString Helper section. 
+FontColor := FontColor != "" ? "c" SubStr(fontColor, -6) : "" ; Ensure exactly one 'c' on the left. 
+hh.SetFont("s11 " FontColor)  ; This variable gets set at the top of the HotString Helper section. 
 hFactor := 0, wFactor := 0 ; Don't change size here. 
+
 ; -----  Trigger string parts ----
 hh.AddText('y4 w30', 'Options')
-(TrigLbl := hh.AddText('x+40 w250', 'Trigger String'))
+TrigLbl := hh.AddText('x+40 w250', 'Trigger String')
 listColor := listColor != "" ? "Background" . listColor : ""
-(MyDefaultOpts := hh.AddEdit(listColor ' yp+20 xm+2 w70 h24'))
-(TriggerString := hh.AddEdit(listColor ' x+18 w' . wFactor + 280, '')).OnEvent('Change', TriggerChanged)
-; (MyDefaultOpts := hh.AddEdit('cDefault yp+20 xm+2 w70 h24'))
-; (TriggerString := hh.AddEdit('cDefault x+18 w' . wFactor + 280, '')).OnEvent('Change', TriggerChanged)
+MyDefaultOpts := hh.AddEdit(listColor ' yp+20 xm+2 w70 h24')
+TriggerString := hh.AddEdit(listColor ' x+18 w' . wFactor + 280, '')
+	TriggerString.OnEvent('Change', TriggerChanged)
+
 ; ----- Replacement string parts ----
 hh.AddText('xm', 'Replacement')
 hh.SetFont('s9')
-hh.AddButton('vSizeTog x+75 yp-5 h8 +notab', 'Make Bigger').OnEvent("Click", TogSize)
-hh.AddButton('vSymTog x+5 h8 +notab', '+ Symbols').OnEvent("Click", TogSym)
+SizeTog := hh.AddButton('x+75 yp-5 h8 +notab', 'Make Bigger')
+	SizeTog.OnEvent("Click", TogSize)
+SymTog := hh.AddButton('x+5 h8 +notab', '+ Symbols')
+	SymTog.OnEvent("Click", TogSym)
 hh.SetFont('s11')
-(ReplaceString := hh.AddEdit(listColor ' vReplaceString +Wrap y+1 xs h' . hFactor + 100 . ' w' . wFactor + 370, '')).OnEvent('Change', GoFilter)
+ReplaceString := hh.AddEdit(listColor ' +Wrap y+1 xs h' hFactor + 100 ' w' wFactor + 370, '')
+	ReplaceString.OnEvent('Change', GoFilter)
+
 ; ---- Below Replacement ----
-ComLbl := hh.AddText('xm y' . hFactor + 182, 'Comment')
-(ChkFunc := hh.AddCheckbox( 'vFunc, x+70 y' . hFactor + 182, 'Make Function')).onEvent('click', FormAsFunc)
-ChkFunc.Value := 1 ; 'Make Function' box checked by default?  1 = checked.  NOTE: If HH detects a multiline item, this gets unchecked. 
-;hh.SetFont("s11 cGreen")
-ComStr := hh.AddEdit(listColor ' cGreen vComStr xs y' . hFactor + 200 . ' w' . wFactor + 370)
-;hh.SetFont("s11 " . FontColor)
+ComLbl := hh.AddText('xm y' hFactor + 182, 'Comment')
+ChkFunc := hh.AddCheckbox( 'vFunc, x+70 y' hFactor + 182, 'Make Function')
+	ChkFunc.OnEvent('Click', FormAsFunc)
+ChkFunc.Value := 1 ; 'Make Function' box checked by default?  1 = checked.  
+; NOTE: If HH detects a multiline item, this gets unchecked. 
+ComStr := hh.AddEdit(listColor ' cGreen vComStr xs y' hFactor + 200 ' w' wFactor + 370) ; Remove greed, if desired.
+
 ; ---- Buttons ----
-(ButApp := hh.AddButton('xm y' . hFactor + 234, 'Append')).OnEvent("Click", hhButtonAppend)
-(ButCheck := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Check')).OnEvent("Click", hhButtonCheck)
-(ButExam := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Exam'))
-ButExam.OnEvent("Click", hhButtonExam)
-ButExam.OnEvent("ContextMenu", subFuncExamControl)
-(ButSpell := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Spell')).OnEvent("Click", hhButtonSpell)
-(ButOpen := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Open')).OnEvent("Click", hhButtonOpen)
-(ButCancel := hh.AddButton('+notab x+5 y' . hFactor + 234, 'Cancel')).OnEvent("Click", hhButtonCancel)
+ButApp := hh.AddButton('xm y' hFactor + 234, 'Append')
+	ButApp.OnEvent("Click", hhButtonAppend)
+ButCheck := hh.AddButton('+notab x+5 y' hFactor + 234, 'Check')
+	ButCheck.OnEvent("Click", hhButtonCheck)
+ButExam := hh.AddButton('+notab x+5 y' hFactor + 234, 'Exam')
+	ButExam.OnEvent("Click", hhButtonExam)
+	ButExam.OnEvent("ContextMenu", subFuncExamControl)
+ButSpell := hh.AddButton('+notab x+5 y' hFactor + 234, 'Spell')
+	ButSpell.OnEvent("Click", hhButtonSpell)
+ButOpen := hh.AddButton('+notab x+5 y' hFactor + 234, 'Open')
+	ButOpen.OnEvent("Click", hhButtonOpen)
+ButCancel := hh.AddButton('+notab x+5 y' hFactor + 234, 'Cancel')
+	ButCancel.OnEvent("Click", hhButtonCancel)
+
 hh.OnEvent("Close", hhButtonCancel)
+
 ; ============== Bottom (toggling) "Exam Pane" part of GUI =====================
-DeltaColor := brightness > 128 ? "191970" : "00FFFF" ; Color options for Blue Delta String.
 ; ---- delta string ----
 hh.SetFont('s10')
-(ButLTrim := hh.AddButton('vbutLtrim xm h50  w' . (wFactor+182/6), '>>')).onEvent('click', GoLTrim)
+ButLTrim := hh.AddButton('vbutLtrim xm h50  w' (wFactor+182/6), '>>')
+	ButLTrim.onEvent('click', GoLTrim)
 hh.SetFont('s14')
-(TxtTypo := hh.AddText('vTypoLabel -wrap +center c' DeltaColor ' x+1 w' . (wFactor+182*5/3), hhFormName))
+DeltaColor := brightness > 128 ? "191970" : "00FFFF" ; Color options for Blue Delta String.
+TxtTypo := hh.AddText('vTypoLabel -wrap +center c' DeltaColor ' x+1 w' . (wFactor+182*5/3), hhFormName)
 hh.SetFont('s10')
-(ButRTrim := hh.AddButton('vbutRtrim x+1 h50 w' . (wFactor+182/6), '<<')).onEvent('click', GoRTrim)
+(ButRTrim := hh.AddButton('vbutRtrim x+1 h50 w' (wFactor+182/6), '<<')).onEvent('click', GoRTrim)
 ; ---- radio buttons -----
 hh.SetFont('s11')
-RadBeg := hh.AddRadio('vBegRadio y+-18 x' . (wFactor+182/3), '&Beginnings')
-	RadBeg.onEvent('click', GoFilter)
-	RadBeg.onEvent('contextmenu', GoRadioClick)
+RadBeg := hh.AddRadio('vBegRadio y+-18 x' (wFactor+182/3), '&Beginnings')
+	RadBeg.OnEvent('click', GoFilter)
+	RadBeg.OnEvent('contextmenu', GoRadioClick)
 RadMid := hh.AddRadio('vMidRadio x+5', '&Middles')
-	RadMid.onEvent('click', GoFilter)
-	RadMid.onEvent('contextmenu', GoRadioClick)
+	RadMid.OnEvent('click', GoFilter)
+	RadMid.OnEvent('contextmenu', GoRadioClick)
 RadEnd := hh.AddRadio('vEndRadio x+5', '&Endings')
-	RadEnd.onEvent('click', GoFilter)
-	RadEnd.onEvent('contextmenu', GoRadioClick)
+	RadEnd.OnEvent('click', GoFilter)
+	RadEnd.OnEvent('contextmenu', GoRadioClick)
 ; ---- bottom buttons -----
-(ButUndo := hh.AddButton('xm y+3 h26 w' . (wFactor+182*2), "Undo (+Reset)")).OnEvent('Click', GoUndo)
-ButUndo.Enabled := false
+ButUndo := hh.AddButton('xm y+3 h26 w' (wFactor+182*2), "Undo (+Reset)")
+	ButUndo.OnEvent('Click', GoUndo)
+	ButUndo.Enabled := false
 ; ---- results lists -----
 hh.SetFont('s12')
-(TxtTLabel := hh.AddText('vTrigLabel center y+4 h25 xm w' . wFactor+182, 'Misspells'))
-(TxtRLabel := hh.AddText('vReplLabel center h25 x+5 w' . wFactor+182, 'Fixes'))
-(EdtTMatches := hh.AddEdit(listColor ' vTrigMatches y+1 xm h' . hFactor+300 . ' w' . wFactor+182,))
-(EdtRMatches := hh.AddEdit(listColor ' vReplMatches x+5 h' . hFactor+300 . ' w' . wFactor+182,))
+TxtTLabel := hh.AddText('vTrigLabel center y+4 h25 xm w' wFactor+182, 'Misspells')
+TxtRLabel := hh.AddText('vReplLabel center h25 x+5 w' wFactor+182, 'Fixes')
+EdtTMatches := hh.AddEdit(listColor ' vTrigMatches y+1 xm h' hFactor+300 ' w' wFactor+182,)
+EdtRMatches := hh.AddEdit(listColor ' vReplMatches x+5 h' hFactor+300 ' w' wFactor+182,)
 ; ---- word list file ----
 hh.SetFont('bold s8')
-(TxtWordList := hh.AddText('vWordList center xm y+1 h14 w' . wFactor*2+364 , "Assigned word list: " WordListName))
+TxtWordList := hh.AddText('vWordList center xm y+1 h14 w' . wFactor*2+364 , "Assigned word list: " WordListName)
 hh.SetFont('bold s10')
-ShowHideButtonExam(Visibility := False) ; Hides bottom part of GUI as default. 
+
 ; ============== Bottom (toggling) "Control Pane" part of GUI =====================
-(TxtCtrlLbl1 := hh.AddText(' center c' DeltaColor ' ym+270 h25 xm w' . wFactor+370, 'Secret Control Panel!'))
+TxtCtrlLbl1 := hh.AddText(' center c' DeltaColor ' ym+270 h25 xm w' wFactor+370, 'Secret Control Panel!')
 hh.SetFont('s10')
-(butRunHSlib := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open HotString Library'))
-butRunHSlib.OnEvent("click", (*) => ControlPaneRuns("butRunHSlib"))
+butRunHSlib := hh.AddButton('  y+5 h25 xm w' wFactor+370, 'Open HotString Library')
+	butRunHSlib.OnEvent("click", (*) => ControlPaneRuns("butRunHSlib"))
 
-(butOpenAcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open AutoCorrection Log'))
-butOpenAcLog.OnEvent("click", (*) => ControlPaneRuns("butOpenAcLog"))
-(butAnalyzeAcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, '  Analyze AutoCorrection Log  '))
-butAnalyzeAcLog.OnEvent("click", (*) => ControlPaneRuns("butAnalyzeAcLog"))
-try SetButtonIcon(butAnalyzeAcLog, A_ScriptDir "\Icons\AcAnalysis.ico") ; <--- Will try to put this icon image on button.
+butOpenAcLog := hh.AddButton('  y+5 h25 xm w' wFactor+370, 'Open AutoCorrection Log')
+	butOpenAcLog.OnEvent("click", (*) => ControlPaneRuns("butOpenAcLog"))
+butAnalyzeAcLog := hh.AddButton('  y+5 h25 xm w' wFactor+370, '  Analyze AutoCorrection Log  ')
+	butAnalyzeAcLog.OnEvent("click", (*) => ControlPaneRuns("butAnalyzeAcLog"))
+	try SetButtonIcon(butAnalyzeAcLog, A_ScriptDir "\Icons\AcAnalysis.ico") ; <--- Will try to put this icon image on button.
 
-(butOpenMcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, 'Open Manual Correction Log'))
-butOpenMcLog.OnEvent("click", (*) => ControlPaneRuns("butOpenMcLog"))
-(butAnalyzeMcLog := hh.AddButton('  y+5 h25 xm w' . wFactor+370, '  Analyze Manual Correction Log  '))
-butAnalyzeMcLog.OnEvent("click", (*) => ControlPaneRuns("butAnalyzeMcLog")) ; <--- Will try to put this icon image on button.
-try SetButtonIcon(butAnalyzeMcLog, A_ScriptDir "\Icons\JustLog.ico") 
+butOpenMcLog := hh.AddButton('  y+5 h25 xm w' wFactor+370, 'Open Manual Correction Log')
+	butOpenMcLog.OnEvent("click", (*) => ControlPaneRuns("butOpenMcLog"))
+butAnalyzeMcLog := hh.AddButton('  y+5 h25 xm w' wFactor+370, '  Analyze Manual Correction Log  ')
+	butAnalyzeMcLog.OnEvent("click", (*) => ControlPaneRuns("butAnalyzeMcLog")) ; <--- Will try to put this icon image on button.
+	try SetButtonIcon(butAnalyzeMcLog, A_ScriptDir "\Icons\JustLog.ico") 
 
-(butFixRep := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Count HotStrings and Potential Fixes'))
-butFixRep.OnEvent('Click', StringAndFixReport)
+butFixRep := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Count HotStrings and Potential Fixes')
+	butFixRep.OnEvent('Click', StringAndFixReport)
 
 if FileExist("colorThemeSettings.ini") { ; Only show this button if colorThemeInt ini file is there. 
-	(butColorTool := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Change Color Theme'))
-	butColorTool.OnEvent('Click', (*) => ControlPaneRuns("butOpenColorTool"))
+	butColorTool := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Change Color Theme')
+		butColorTool.OnEvent('Click', (*) => ControlPaneRuns("butOpenColorTool"))
 }
-; Add button for Color Theme Integrator tool? 
 
+; SetButtonIcon function derived from AI code.
 SetButtonIcon(ButtonCtrl, IconFile) { ; <--- Tries to put this icon images on buttons.
 	hIcon := DllCall("LoadImage", "Ptr", 0, "Str", IconFile, "UInt", 1, "Int", 24, "Int", 24, "UInt", 0x10) 
     SendMessage(0xF7, 1, hIcon, ButtonCtrl.Hwnd)  ; BM_SETIMAGE
@@ -258,7 +277,7 @@ SetButtonIcon(ButtonCtrl, IconFile) { ; <--- Tries to put this icon images on bu
 ControlPaneRuns(buttonIdentifier) {	
 	Switch buttonIdentifier {
 		Case "butRunHSlib" 		: hhButtonOpen()
-		Case "butOpenAcLog" 	: Run MyAhkEditorPath " AutoCorrectsLog.txt" ; Note space before file name.
+		Case "butOpenAcLog" 	: Run MyAhkEditorPath " " AutoCorrectsLogFile ; Note space before file name.
 		Case "butAnalyzeAcLog" 	: Run "AcLogAnalyzer.exe"
 		Case "butOpenMcLog" 	: Run MyAhkEditorPath " MCLog.txt" ; Note space before file name.
 		Case "butAnalyzeMcLog" 	: Run "MCLogger.exe /script MCLogger.ahk analyze" ; Run with cmd line param.
@@ -267,32 +286,29 @@ ControlPaneRuns(buttonIdentifier) {
 }
 
 ShowHideButtonsControl(Visibility := False) ; Hides bottom part of GUI as default. 
-
-ShowHideButtonsControl(Visibility := False) ; Shows/Hides bottom, Exam Pane, part of GUI.
-{	ControlCmds := [TxtCtrlLbl1,butRunHSlib,butOpenAcLog,butAnalyzeAcLog,butOpenMcLog,butAnalyzeMcLog,butFixRep]
+ShowHideButtonsControl(Visibility) { ; Shows/Hides bottom, Exam Pane, part of GUI.
+	ControlCmds := [TxtCtrlLbl1,butRunHSlib,butOpenAcLog,butAnalyzeAcLog,butOpenMcLog,butAnalyzeMcLog,butFixRep]
 	if FileExist("colorThemeSettings.ini") 
-		ControlCmds.Push(butColorTool)
+		ControlCmds.Push(butColorTool) ; Include this in array only if ini file is present.
 	for ctrl in ControlCmds {
 		ctrl.Visible := Visibility
 	}
 }
 
-ShowHideButtonExam(Visibility := False) ; Shows/Hides bottom, Exam Pane, part of GUI.
-{	examCmds := [ButLTrim, TxtTypo, ButRTrim, RadBeg, RadMid, RadEnd, ButUndo, TxtTLabel, TxtRLabel, EdtTMatches, EdtRMatches, TxtWordList]
+ShowHideButtonExam(Visibility := False) ; Hides bottom part of GUI as default. 
+ShowHideButtonExam(Visibility) { ; Shows/Hides bottom, Exam Pane, part of GUI.
+	examCmds := [ButLTrim, TxtTypo, ButRTrim, RadBeg, RadMid, RadEnd, ButUndo, TxtTLabel, TxtRLabel, EdtTMatches, EdtRMatches, TxtWordList]
 	for ctrl in examCmds {
 		ctrl.Visible := Visibility
 	}
 }
 
-ExamPaneOpen := 0
-ControlPaneOpen := 0
+ExamPaneOpen := 0, ControlPaneOpen := 0 ; Used to track pane status.
+OrigTrigger := "", OrigReplacment := ""  ; Used to restore original content.
+origTriggerTypo := "" ; Used to determine is trigger has been changed, to potentially type new replacement at runtime.
 
-OrigTrigger := "" ; Used to restore original content.
-OrigReplacment := ""
 tArrStep := [] ; array for trigger undos
 rArrStep := [] ; array for replacement undos
-
-origTriggerTypo := "" ; Used to determine is trigger has been changed, to potentially type new replacement at runtime.
 
 if (A_Args.Length > 0) ; Check if a command line argument is present.
 	CheckClipboard()  ; If present, open hh2 directly. 
@@ -301,27 +317,27 @@ if (A_Args.Length > 0) ; Check if a command line argument is present.
 ; This code block copies the selected text, then determines if a hotstring is present.
 ; If present, hotstring is parsed and HH form is populated and ExamineWords() called. 
 ; If not, NormalStartup() function is called.
-Hotkey hh_Hotkey, CheckClipboard ; Change hotkey above, if desired. 
-CheckClipboard(*)
-{ 	DefaultHotStr := "" ; Clear each time. 
+Hotkey hh_Hotkey, CheckClipboard ; Change hotkey near top, if desired. 
+CheckClipboard(*) {
+	DefaultHotStr := "" ; Clear each time. 
 	TrigLbl.SetFont(FontColor) ; Reset color of Label, in case it's red. 
-	EdtRMatches.CurrMatches := "" ; reset custom property
+	EdtRMatches.CurrMatches := "" ; reset property of rep matches box.
 	Global ClipboardOld := ClipboardAll() ; Save and put back later.
 	A_Clipboard := ""  ; Must start off blank for detection to work.
 	global A_Args
-	if (A_Args.Length > 0) ; Check if a command line argument is present.
-	{	A_Clipboard := A_Args[1] ; Sent via command line, from MCLogger.
+	if (A_Args.Length > 0) { ; Check if a command line argument is present.
+		A_Clipboard := A_Args[1] ; Sent via command line, from MCLogger.
 		A_Args := [] ; Clear, the array after each use. 
 	}	
-	else ; No cmd line, so just simulaate copy like normal. 
-	{	Send("^c") ; Copy selected text.
+	else { ; No cmd line, so just simulate copy like normal. 
+		Send("^c") ; Copy selected text.
 		Errorlevel := !ClipWait(0.3) ; Wait for clipboard to contain text.
 	}
-	Global Opts:= "", Trig := "", Repl := "", Opts := ""
+	;Global Opts:= "", Trig := "", Repl := "", Com := "" <---- not even needed?
 	hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<fCom>\h*;\h*(?:\bFIXES\h*\d+\h*WORDS?\b)?(?:\h;)?\h*(?<mCom>.*))?$" ; Jim 156
 	; Awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
 	; The regex will detect, and parse, a hotstring, whether normal, or embedded in an f() function. 
-	thisHotStr := Trim(A_Clipboard," `t`n`r")
+	thisHotStr := Trim(A_Clipboard," `t`n`r") ; For regex check, trim whitespace.
 	If RegExMatch(thisHotStr, hsRegex, &hotstr) {
 		thisHotStr := "" ; Reset to blank each use.
 		TriggerString.text := hotstr.Trig  ; Send to top of GUI. 
@@ -332,11 +348,9 @@ CheckClipboard(*)
 		ReplaceString.text := hotstr.Repl
 		ComStr.text := hotstr.mCom ; Removes automated part of comment, leaves manual part. 
 		Global OrigReplacement := hotstr.Repl
-		; ---- For parse text label ----
 		Global strT := hotstr.Trig
 		Global TrigNeedle_Orig := hotstr.Trig  ; used for TriggerChnged function below.
 		Global strR := hotstr.Repl
-		;hh.origHotStr := hotstr.Repl ; Used if Rarify checkbox undone. 
 		; set radio buttons, based on options of copied hotstring... 
 		If InStr(hotstr.Opts, "*") && InStr(hotstr.Opts, "?")
 			RadMid.Value := 1 ; Set Radio to "middle"
@@ -346,19 +360,19 @@ CheckClipboard(*)
 			RadEnd.Value := 1 ; Set Radio to "end"
 		Else
 			RadMid.Value := 1 ; Also set Radio to "middle"
-		ExamineWords(strT, strR)
+		ExamineWords(strT, strR) ; We know it's not a multi-line item, so examine.
 	}
 	Else {
-		Global strT := A_Clipboard
+		Global strT := A_Clipboard  ; No regex match, so don't trim whitespace.
 		Global TrigNeedle_Orig := strT ; used for TriggerChnged function below.
 		Global strR := A_Clipboard	
-		;hh.origHotStr := A_Clipboard ; Used if Rarify checkbox undone. 
 		NormalStartup(strT, strR)
 	}
 
 	Global tMatches := 0 ; <--- Need this or can't run validiy check w/o first filtering. 
+	; Whenever the hotkey is pressed and hh2 is launched, undo history should be reset.
 	; ---- clear/reset undo history --- 
-	ButUndo.Enabled := false
+	ButUndo.Enabled := false 
 	Loop tArrStep.Length
 		tArrStep.pop
 	Loop rArrStep.Length
@@ -369,106 +383,88 @@ CheckClipboard(*)
 ; This function tries to determine if the content of the clipboard is an AutoCorrect
 ; item, or a selection of boilerplate text.  If boilerplate text, an acronym is
 ; generated from the first letters.  (e.g. ::ttyl::talk to you later)
-IsMultiLine := 0
-NormalStartup(strT, strR)
-{	; If multiple spaces or `n present, probably not an Autocorrect entry, so make acronym.
-	If ((StrLen(A_Clipboard) - StrLen(StrReplace(A_Clipboard," ")) > 2) || InStr(A_Clipboard, "`n"))
-	{	DefaultOpts := DefaultBoilerPlateOpts 
-		ReplaceString.value := A_Clipboard
-		Global IsMultiLine := 1
+isBoilerplate := 0
+NormalStartup(strT, strR) {	; If multiple spaces or `n present, probably not an Autocorrect entry, so make acronym.
+	If ((StrLen(A_Clipboard) - StrLen(StrReplace(A_Clipboard," ")) > 2) || InStr(A_Clipboard, "`n")) {
+		DefaultOpts := DefaultBoilerPlateOpts 
+		ReplaceString.value := A_Clipboard ; Use selected text for replacement string.
+		Global isBoilerplate := 1 ; Used below to prevent wrapping boilerplate items in f() syntax. 
 		ChkFunc.Value := 0 ; Multi-line item, so don't make into function. 
-		If (addFirstLetters > 0)
-		{ ;LBLhotstring := "Edit trigger string as needed"
+		If (addFirstLetters > 0) { 
 			initials := "" ; Initials will be the first letter of each word as a hotstring suggestion.
 			HotStrSug := StrReplace(A_Clipboard, "`n", " ") ; Unwrap, but only for hotstr suggestion.
-			Loop Parse, HotStrSug, A_Space, A_Tab
-			{ 	If (Strlen(A_LoopField) > tooSmallLen) ; Check length of each word, ignore if N letters.
+			Loop Parse, HotStrSug, A_Space, A_Tab { 	
+				If (Strlen(A_LoopField) > tooSmallLen) ; Check length of each word, ignore if N letters.
 					initials .= SubStr(A_LoopField, "1", "1") 
 				If (StrLen(initials) = addFirstLetters) ; stop looping if hotstring is N chars long.
 					break
 			}
 			initials := StrLower(initials)
 			; Append preferred prefix or suffix, as defined above, to initials.
-			DefaultHotStr := myPrefix . initials . mySuffix
+			DefaultHotStr := myPrefix initials mySuffix
 		}
-		else 
-		{	;LBLhotstring := "Add a trigger string"
-			DefaultHotStr := myPrefix . mySuffix ; Use prefix and/or suffix as needed, but no initials.
+		else {	
+			DefaultHotStr := myPrefix mySuffix ; Use prefix and/or suffix as needed, but no initials.
 		}
 	}
-	Else If (A_Clipboard = "")
-	{	;LBLhotstring := "Add a trigger string"
-		MyDefaultOpts.Text := "" ; <-- Is this needed?  Might be redundant by Filter() ? 
-		TriggerString.Text := "", ReplaceString.Text := "", ComStr.Text := "" ; Clear boxes. 
-		RadBeg.Value := 0, RadMid.Value := 0, RadEnd.Value := 0 
-		GoFilter()
+	Else If (A_Clipboard = "") {	
+		MyDefaultOpts.Text := "", TriggerString.Text := "", ReplaceString.Text := "", ComStr.Text := "" ; Clear boxes. 
+		RadBeg.Value := 0, RadMid.Value := 0, RadEnd.Value := 0 ; Clear radio buttons
 		hh.Show('Autosize yCenter') 
 		Return
 	}
-	else
-	{ ;LBLhotstring := "Add misspelled word"
+	else { ; No `n found so assume it's a mispelling autocorrect entry: no pre/suffix.
 		If (AutoEnterNewEntry = 1)
 		{	Global targetWindow := WinActive("A")  ; Get the handle of the currently active window
 			Global origTriggerTypo  := A_Clipboard ; Used to determine if we can type new replacement into current edit field.
 		}
 		; NOTE:  Do we want the copied word to be lower-cased and trimmed of white space?  Methinks, yes. 
-		DefaultHotStr := Trim(StrLower(A_Clipboard)) ; No `n found so assume it's a mispelling autocorrect entry: no pre/suffix.
+		DefaultHotStr := Trim(StrLower(A_Clipboard))
 		ReplaceString.value := Trim(StrLower(A_Clipboard)) 
 		DefaultOpts := DefaultAutoCorrectOpts  
 	}
 	
 	MyDefaultOpts.text := DefaultOpts
-	;TrigLbl.value := LBLhotstring
 	TriggerString.value := DefaultHotStr
 	ReplaceString.Opt("-Readonly")
 	ButApp.Enabled := true
-	If ExamPaneOpen = 1
-		goFilter()
+	Global ExamPaneOpen
+	goFilter()
 	hh.Show('Autosize yCenter') 
 } 
 
 ; The "Exam" button triggers this function.  Most of this function is dedicated
 ; to comparing/parsing the trigger and replacement to populate the blue Delta String
+; Note:  We are using the term "Delta" so denote the change in the string, between trigger and replacement.
 ExamineWords(strT, strR) 
 {	SubTogSize(0, 0) ; Incase size is 'Bigger,' make Smaller.
 	hh.Show('Autosize yCenter') 
 
-	ostrT := strT ; original value (not an array)
-	ostrR := strR
-	LenT := strLen(strT)
-	LenR := strLen(strR)
+	ostrT := strT, ostrR := strR ; Hold original str values (not arrays).
+	LenT := strLen(strT), LenR := strLen(strR) ; Need length of strings.
 
 	LoopNum := min(LenT, LenR)
-	strT := StrSplit(strT)
-	strR := StrSplit(strR)
-	Global beginning := ""
-	Global typo := ""
-	Global fix := ""
-	Global ending := ""
+	strT := StrSplit(strT), strR := StrSplit(strR) ; Make into arrays.
+	Global beginning := "", typo := "", fix := "", ending := ""
 
-	If ostrT = ostrR ; trig/replacement the same
-	{	deltaString := "[ " ostrT " | " ostrR " ]"
-		found := false ; for duplicate item message, below
-	}
-	else ; trig/replacement not the same, so find the difference
-	{	Loop LoopNum
-		{ ; find matching left substring.
-			bsubT := (strT[A_Index])
-			bsubR := (strR[A_Index])
-			If (bsubT = bsubR)
-				beginning .= bsubT
+	If (ostrT = ostrR) ; trig/replacement the same
+		deltaString := "[ " ostrT " ]"
+	else { ; trig/replacement not the same, so find the difference
+		Loop LoopNum { ; find matching left substring.
+			bsubT := strT[A_Index] ; bsubT "beginniing subpart of trigger"
+			bsubR := strR[A_Index]
+			If (bsubT = bsubR) ; Keep adding letters until there's a difference.
+				beginning .= bsubT 
 			else
 				break
 		}
-
-		Loop LoopNum
-		{ ; Reverse Loop, find matching right substring.
+		Loop LoopNum { ; Reverse Loop, find matching right substring.
 			RevIndex := (LenT - A_Index) + 1
-			esubT := (strT[RevIndex])
+			esubT := strT[RevIndex] ; esubT "ending of subpart of trigger"
 			RevIndex := (LenR - A_Index) + 1
-			esubR := (strR[RevIndex])
-			If (esubT = esubR)
-				ending := esubT . ending
+			esubR := strR[RevIndex]
+			If (esubT = esubR)  ; Keep adding letters until there's a difference.
+				ending := esubT ending
 			else
 				break
 		}
@@ -476,11 +472,11 @@ ExamineWords(strT, strR)
 		If (strLen(beginning) + strLen(ending)) > LoopNum { ; Overlap means repeated chars in trig or replacement.
 			If (LenT > LenR) { ; Trig is longer, so use T-R for str len.
 				delta := subStr(ending, 1, (LenT - LenR)) ; Left part of ending.  Right part of beginning would also work.
-				delta := " [ " . delta . " |  ] "
+				delta := " [ " delta " |  ] "
 			}
 			If (LenR > LenT) { ; Replacement is longer, so use R-T for str len.
 				delta := subStr(ending, 1, (LenR - LenT))
-				delta := " [  |  " . delta . " ] "
+				delta := " [  |  " delta " ] "
 			}
 		}
 		Else {
@@ -496,61 +492,55 @@ ExamineWords(strT, strR)
 				fix := StrReplace(ostrR, ending, "")
 				fix := StrReplace(fix, beginning, "")
 			}
-			delta := " [ " . typo . " | " . fix . " ] "
+			delta := " [ " typo " | " fix " ] "
 		}
-		deltaString := beginning . delta . ending
+		deltaString := beginning delta ending
 
-	}		
-	; -------------
+	} ; ------------- finished creating delta string
+
 	TxtTypo.text := deltaString ; set label at top of form.
 
-	ViaExamButt := "Yes"
-	GoFilter(ViaExamButt) ; Call filter function then come back here.
-	
+	; Call filter function then come back here.
+	GoFilter(True) ; Param is "via exam button"
 	If (ButExam.text = "Exam") { 
 		ButExam.text := "Done"
 		If(hFactor != 0) {
-			hh['SizeTog'].text := "Make Bigger"
+			SizeTog.text := "Make Bigger"
 			SoundBeep
 			SubTogSize(0, 0) ; Make replacement edit box small again.
 		}
-	ShowHideButtonExam(True)	
-	}	
+		ShowHideButtonExam(True)
+	}
+
 	hh.Show('Autosize yCenter') 
 }
 
 ; This function toggles the size of the HH form, using the above variables.
 ; HeightSizeIncrease and WidthSizeIncrease determine the size when large.
 ; The size when small is hardcoded.  Change with caution. 
-TogSize(*)
-{ 	If (hh['SizeTog'].text = "Make Bigger") { ; Means current state is 'Small'
-		hh['SizeTog'].text := "Make Smaller"
+TogSize(*) {
+	If (SizeTog.text = "Make Bigger") { ; Means current state is 'Small'
+		SizeTog.text := "Make Smaller" ; Change the button label.
 		If (ButExam.text = "Done") {
-			ShowHideButtonExam(Visibility := False)
-			ExamPaneOpen := 0
-			ShowHideButtonsControl(Visibility := False)
-			ControlPaneOpen := 0
+			ShowHideButtonExam(False)
+			ShowHideButtonsControl(False)
+			Global ExamPaneOpen := 0, ControlPaneOpen := 0
 			ButExam.text := "Exam"
 		}
 		Global hFactor := HeightSizeIncrease
 		SubTogSize(hFactor, WidthSizeIncrease)
-		;hhButtonExam()
-		hh.Show('Autosize yCenter') 
-		return
 	}
-	If (hh['SizeTog'].text = "Make Smaller") { ; Means current state is 'Big'
-		hh['SizeTog'].text := "Make Bigger"
-		Global hFactor := 0
+	Else If (SizeTog.text = "Make Smaller") { ; Means current state is 'Big'
+		SizeTog.text := "Make Bigger" ; Change the button label.
+		Global hFactor := 0 ; hFactor is also used as param in SubTogSize(), but still need to set global var here.
 		SubTogSize(0, 0)
-		hh.Show('Autosize yCenter') 
-		return
 	}
+	hh.Show('Autosize yCenter') 
 }
 
 ; Called by TogSize function. 
 SubTogSize(hFactor, wFactor) ; Actually re-draws the form. 
-{	;MsgBox("TogSizeFunc`nhFactor is:`n`n" . hFactor)
-	TriggerString.Move(, , wFactor + 280,)
+{	TriggerString.Move(, , wFactor + 280,)
 	ReplaceString.Move(, , wFactor + 372, hFactor + 100)
 	ComLbl.Move(, hFactor + 182, ,)
 	ComStr.move(, hFactor + 200, wFactor + 367,)
@@ -563,22 +553,21 @@ SubTogSize(hFactor, wFactor) ; Actually re-draws the form.
 	ButCancel.Move(, hFactor + 234, ,)
 }
 
-; This function gets called from hhButtonExam (below) or ButExam's onEvent.
-; It shows the Control Pane.
-subFuncExamControl(*)
-{	Global ControlPaneOpen
-	If ControlPaneOpen = 1 {
+; This function gets called from hhButtonExam (below), when Shift is down, or 
+; from ButExam's right-click onEvent.  It shows the Control Pane.
+subFuncExamControl(*) {	
+	Global ControlPaneOpen, hFactor, HeightSizeIncrease
+	If (ControlPaneOpen = 1) { 
 		ButExam.text := "Exam"
 		ShowHideButtonsControl(False)
 		ShowHideButtonExam(False)	
 		ControlPaneOpen := 0
 	}
-	Else {
+	Else { ; Control Pane closed, so...
 		ButExam.text := "Done"
-			;msgbox 'hFactor is ' hFactor 
-		If(hFactor = HeightSizeIncrease) { 
+		If (hFactor = HeightSizeIncrease) { 
 			TogSize() ; Make replacement edit box small again.
-			hh['SizeTog'].text := "Make Bigger"
+			SizeTog.text := "Make Bigger"
 		}
 		ShowHideButtonsControl(True)
 		ShowHideButtonExam(False)	
@@ -587,9 +576,10 @@ subFuncExamControl(*)
 	hh.Show('Autosize yCenter') 
 }
 
-hhButtonExam(*) ; Tripple state, but button text is only dual state (exam/done)
-{	Global ExamPaneOpen
-	Global ControlPaneOpen
+; Exam button is tripple state (Exam/Control/Closed)
+; However button text is only dual state ("exam/done").
+hhButtonExam(*) {
+	Global ExamPaneOpen, ControlPaneOpen, hFactor, HeightSizeIncrease
 	If ((ExamPaneOpen = 0) and (ControlPaneOpen = 0) and GetKeyState("Shift")) 
 	|| ((ExamPaneOpen = 1) and (ControlPaneOpen = 0) and GetKeyState("Shift")) { ; Both closed, so open Control Pane.
 	subFuncExamControl() ; subFunction shows control pane. 
@@ -598,7 +588,7 @@ hhButtonExam(*) ; Tripple state, but button text is only dual state (exam/done)
 		ButExam.text := "Done"
 		If(hFactor = HeightSizeIncrease) {
 			TogSize() ; Make replacement edit box small again.
-			hh['SizeTog'].text := "Make Bigger"
+			SizeTog.text := "Make Bigger"
 		}
 		Global OrigTrigger := TriggerString.text
 		Global OrigReplacement := ReplaceString.text
@@ -608,21 +598,20 @@ hhButtonExam(*) ; Tripple state, but button text is only dual state (exam/done)
 		ShowHideButtonExam(True)	
 		ExamPaneOpen := 1
 	}
-	Else { ; Close either whatever pane is open..
+	Else { ; Close either, whatever pane is open..
 		ButExam.text := "Exam"
 		ShowHideButtonsControl(False)
 		ShowHideButtonExam(False)
-		ExamPaneOpen := 0
-		ControlPaneOpen := 0	
+		ExamPaneOpen := 0, ControlPaneOpen := 0	
 	}	
 	hh.Show('Autosize yCenter') 	
 }
 
 ; This functions toggles on/off whether the Pilcrow and other symbols are shown.
 ; When shown, the replacment box is set "read only" and Append is disabled. 
-TogSym(*)
-{ 	If (hh['SymTog'].text = "+ Symbols") {
-		hh['SymTog'].text := "- Symbols"
+TogSym(*) {
+	If (SymTog.text = "+ Symbols") {
+		SymTog.text := "- Symbols"
 		togReplaceString := ReplaceString.text
 		togReplaceString := StrReplace(StrReplace(togReplaceString, "`r`n", "`n"), "`n", myPilcrow . "`n") ; Pilcrow for Enter
 		togReplaceString := StrReplace(togReplaceString, A_Space, myDot) ; middle dot for Space
@@ -631,10 +620,9 @@ TogSym(*)
 		ReplaceString.Opt("+Readonly")
 		ButApp.Enabled := false
 		hh.Show('Autosize yCenter') 
-		return
 	}
-	If (hh['SymTog'].text = "- Symbols") {
-		hh['SymTog'].text := "+ Symbols"
+	Else If (SymTog.text = "- Symbols") {
+		SymTog.text := "+ Symbols"
 		togReplaceString := ReplaceString.text
 		togReplaceString := StrReplace(togReplaceString, myPilcrow . "`r", "`r") ; Have to use `r ... weird.
 		togReplaceString := StrReplace(togReplaceString, myDot, A_Space)
@@ -642,38 +630,38 @@ TogSym(*)
 		ReplaceString.value := togReplaceString
 		ReplaceString.Opt("-Readonly")
 		ButApp.Enabled := true
-		hh.Show('Autosize yCenter') 
-		return
 	}
+	hh.Show('Autosize yCenter') 
 }
 
-; The function is called whenever the trigger(hotstring) edit box is changed.  
+; This function is called whenever the trigger (hotstring) edit box is changed.  
 ; It assesses whether a letter has beem manually added to the beginning/ending
 ; of the trigger, and adds the same letter to the replacement edit box.  
 ; BUGGY...  Doesn't always do anything.  :(
 TriggerChanged(*)
-{	TrigNeedle_New := TriggerString.text 
-	If TrigNeedle_New != TrigNeedle_Orig && ExamPaneOpen = 1 { ; If trigger has changed and pane open.
-		If TrigNeedle_Orig = SubStr(TrigNeedle_New, 2, ) { ; one char added on the left left box
-			tArrStep.push(TriggerString.text) ; <---- save history for Undo feature
-			rArrStep.push(ReplaceString.text) ; <---- save history
-			ReplaceString.Value := SubStr(TrigNeedle_New, 1, 1) . ReplaceString.text ; add same char to left of other box
+{	Global ExamPaneOpen, TrigNeedle_Orig
+	TrigNeedle_New := TriggerString.text 
+	If (TrigNeedle_New != TrigNeedle_Orig) && (ExamPaneOpen = 1) { ; If trigger has changed and pane open.
+		If (TrigNeedle_Orig = SubStr(TrigNeedle_New, 2, )) { ; one char added on the left left box
+			tArrStep.push(TriggerString.text) ; Save history for Undo feature.
+			rArrStep.push(ReplaceString.text) ; Save history.
+			ReplaceString.Value := SubStr(TrigNeedle_New, 1, 1) ReplaceString.text ; add same char to left of other box
 		}
-		If TrigNeedle_Orig = SubStr(TrigNeedle_New, 1, StrLen(TrigNeedle_New)-1) { ; one char added on the right or left box
-			tArrStep.push(TriggerString.text) ; <---- save history for Undo feature
-			rArrStep.push(ReplaceString.text) ; <---- save history
-			ReplaceString.text :=  ReplaceString.text . SubStr(TrigNeedle_New, -1, ) ; add same char on other side.
+		If (TrigNeedle_Orig = SubStr(TrigNeedle_New, 1, StrLen(TrigNeedle_New)-1)) { ; one char added on the right or left box
+			tArrStep.push(TriggerString.text) ; Save history for Undo feature.
+			rArrStep.push(ReplaceString.text) ; Save history.
+			ReplaceString.text := ReplaceString.text SubStr(TrigNeedle_New, -1, ) ; add same char on other side.
 		}
-		Global TrigNeedle_Orig := TrigNeedle_New ; Update the "original" string so it can detect the next change.
+		TrigNeedle_Orig := TrigNeedle_New ; Update the "original" string so it can detect the next change.
 	}
 	ButUndo.Enabled := true
 	goFilter()
 }
 
-; This function detects that the "[] Make Function" box was ticked. 
+; This function detects that the "[] Make Function" checkbox was ticked. 
 ; It puts/removes the needed hotstring options, then beeps. 
-FormAsFunc(*)
-{	If (ChkFunc.Value = 1) {
+FormAsFunc(*) {	
+	If (ChkFunc.Value = 1) {
 		MyDefaultOpts.text := "B0X" StrReplace(StrReplace(MyDefaultOpts.text, "B0", ""), "X", "")
 		SoundBeep 700, 200
 	}
@@ -684,108 +672,110 @@ FormAsFunc(*)
 }
 
 ; Runs a validity check.  If validiy problems are found, user is given option to append anyway.  
-hhButtonAppend(*)
-{ 	Global tMyDefaultOpts := MyDefaultOpts.text
+hhButtonAppend(*) { 	
+	Global tMyDefaultOpts := MyDefaultOpts.text
 	Global tTriggerString := TriggerString.text
 	Global tReplaceString := ReplaceString.text
 	ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
-	If Not InStr(CombinedValidMsg, "-Okay.", , , 3) ; Msg doesn't have three occurrences of "-Okay." 
+	If Not InStr(CombinedValidMsg, valOK, , , 3) ; Msg doesn't have three occurrences of valOK.
 		biggerMsgBox(CombinedValidMsg, 1)
 	else { ; no validation problems found
 		Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
-		return
 	}
 }
 
 ; Calls the validity check, but doesn't append the hotstring. 
-hhButtonCheck(*)
-{ 	
+hhButtonCheck(*) { 	
 	If winExist('Validity Report') ; Toggles showing the big box. 
-	{	bb.Destroy()
-		Return
-	}
-	else
-	{	Global tMyDefaultOpts := MyDefaultOpts.text
+		bb.Destroy()
+	else {	
+		Global tMyDefaultOpts := MyDefaultOpts.text
 		Global tTriggerString := TriggerString.text
 		Global tReplaceString := ReplaceString.text
 		ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 		biggerMsgBox(CombinedValidMsg, 0)
-		Return
 	}
 }
 
 ; An easy-to-see large dialog to show Validity report/warning. 
 ; Selecting text from the trigger report box copies it when releasing the mouse button.
-; Selected text is sent to find box in VSCode.  If digits, sent to go-to-line. 
+; Selected text is optionally sent to find box in VSCode.  If digits, sent to go-to-line. 
 bb := 0
-biggerMsgBox(thisMess, secondButt)
-{	A_Clipboard := thisMess
-	global bb
+biggerMsgBox(thisMess, secondButt) {
+	global bb, fontColor, formColor, myBigFont, mbTitle := "", AutoLookupFromValidityCheck
 	if (IsObject(bb)) ; Ensures we don't have multiple instances. 
 		bb.Destroy()
-	Global bb := Gui(,'Validity Report')
-	bb.SetFont('s11 ' FontColor)
-	bb.BackColor := formColor, formColor
-	global mbTitle := ""
-	(mbTitle := bb.Add('Text',, 'For proposed new item:')).Focus() ; Focusing this prevents the three "edit" boxes from being focussed by default.
+
+	bb := Gui(,'Validity Report')
+	bb.BackColor := formColor
+
+	bb.SetFont('s11 ' fontColor)
+	mbTitle := bb.Add('Text',, 'For proposed new item:')
+		mbTitle.Focus() ; Focusing this prevents the three "edit" boxes from being focussed by default.
+
 	bb.SetFont(myBigFont )
 	proposedHS := ':' tMyDefaultOpts ':' tTriggerString '::' tReplaceString
 	bb.Add('Text', (strLen(proposedHS)>90? 'w600 ':'') 'xs yp+22', proposedHS)
-	bb.SetFont('s11 ')
-	secondButt=0? bb.Add('Text', ,"===Validation Check Results==="):''
-	bb.SetFont(myBigFont )
-	bbItem := StrSplit(thisMess, "*|*") 
+
+	bb.SetFont('s11')
+	secondButt=0? bb.Add('Text',, "===Validation Check Results==="):'' ; secondButt is "Append Anyway"
+
+	bb.SetFont(myBigFont)
+	bbItem := StrSplit(thisMess, "*|*") ; *|* is just an ad hoc delimiter.
 	If InStr(bbItem[2],"`n",,,10)  ; 2 lines per conflict, if more than 5 conflicts, truncate, and add message.
 		bbItem2 :=  subStr(bbItem[2], 1, inStr(bbItem[2], "`n",,,10)) "`n## Too many conflicts to show in form ##"
 	Else  ; There are 10 or fewer conflicts found, so show full substring.
 		bbItem2 := bbItem[2]
 	; Use "edit" rather than "text" because it allows us to select the text. 
-	edtSharedSettings := ' -VScroll ReadOnly -E0x200 Background'
-	bb.Add('Edit', (inStr(bbItem[1],'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem[1]) 
-	trigEdtBox := bb.Add('Edit', (strLen(bbItem2)>104? ' w600 ' : ' ') (inStr(bbItem2,'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem2) 
-	bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3],'-Okay.')? myGreen : myRed) edtSharedSettings formColor, bbItem[3])
+	; Note: myGreen, myRed, and myBigFont are all defined near top of code.
+	edtSharedSettings := ' -VScroll ReadOnly -E0x200 Background' ; These opts make the edit box look like a text box.
+	bb.Add('Edit', (inStr(bbItem[1], valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem[1]) 
+	trigEdtBox := bb.Add('Edit', (strLen(bbItem2)>104? ' w600 ' : ' ') (inStr(bbItem2, valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem2) 
+	bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3], valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem[3])
+	
 	bb.SetFont('s11 ' FontColor)
 	secondButt=1? bb.Add('Text',,"==============================`nAppend HotString Anyway?"):''
 	bbAppend := bb.Add('Button', , 'Append Anyway')
-	bbAppend.OnEvent 'Click', (*) => Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
-	bbAppend.OnEvent 'Click', (*) => bb.Destroy()
+		bbAppend.OnEvent 'Click', (*) => Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
+		bbAppend.OnEvent 'Click', (*) => bb.Destroy()
 	if secondButt != 1
 		bbAppend.Visible := False
+	
 	bbClose := bb.Add('Button', 'x+5 Default', 'Close')
-	bbClose.OnEvent 'Click', (*) => bb.Destroy()
-	; bbTime[4] is the value of "showLookupBox" from ValidationFunction.
-	If bbItem[4] = 1 { ; Has trigger concerns to look up, so need checkbox.
+		bbClose.OnEvent 'Click', (*) => bb.Destroy()
+
+	; bbItem[4] is the value of "showLookupBox" from ValidationFunction.
+	If (bbItem[4] = 1) { ; Has trigger concerns to look up, so need checkbox.
 		global bbAuto := bb.Add('Checkbox', 'x+12 y+-22 Checked' AutoLookupFromValidityCheck, 'Auto Lookup in editor')
 		trigEdtBox.OnEvent('Focus', findInScript) 
 	}
 	bb.Show('yCenter x' (A_ScreenWidth/2))
 	WinSetAlwaysontop(1, "A")
-	bb.OnEvent 'Escape', (*) => bb.Destroy()
+	bb.OnEvent 'Escape', (*) => bb.Destroy() ; Totally destroy and remake each time.
 }
 
 ; Find the text that is selected in the biggerMsgBox GUI. 
-findInScript(*) 
-{	If (bbAuto.Value = 1) {	
+findInScript(*) {
+		If (bbAuto.Value = 1) {	
 		SoundBeep ; Otherwise beep, wait for mouse up, etc. 
-		if (GetKeyState("LButton", "P"))
+		if GetKeyState("LButton", "P")
 			KeyWait "LButton", "U"
 		A_Clipboard := ""
 		SendInput "^c"
 		If !ClipWait( 1, 0)
 			Return	
-		;msgbox A_Clipboard
-		if WinExist(HotstringLibrary)
-			WinActivate HotstringLibrary
-		else 
-		{	Run MyAhkEditorPath " " HotstringLibrary
-			While !WinExist(HotstringLibrary)
+
+		If not WinExist(HotstringLibrary) {
+			Run MyAhkEditorPath " " HotstringLibrary
+			While not WinExist(HotstringLibrary) ; Wait for it to open. 
 				Sleep 50
-			WinActivate HotstringLibrary
 		}
+		WinActivate HotstringLibrary
+
 		If RegExMatch(A_Clipboard, "^\d{2,}") ; two or more digits? 
 			SendInput "^g" A_Clipboard ; <--- Keyboard shortcut for "Go to line number."
-		else 
-		{	SendInput "^f" ; <--- Keyboard shortcut for "Find"
+		else {	
+			SendInput "^f" ; <--- Keyboard shortcut for "Find"
 			sleep 200
 			SendInput "^v" ; Paste in search string (which is text selected in big message box.)
 		}
@@ -796,46 +786,45 @@ findInScript(*)
 }
 
 ; This function runs several validity checks. 
-ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
-{ 	GoFilter() ; This ensures that "rMatches" has been populated. <--- had it commented out for a while, then put back. 
+ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString) {
+	GoFilter() ; This ensures that "rMatches" has been populated. <--- had it commented out for a while, then put back. 
 	Global CombinedValidMsg := "", validHotDupes := "", validHotMisspells := "", ACitemsStartAt
 	HsLibContents := Fileread(HotstringLibrary) ; Save these contents to variable 'HsLibContents'.
 	If (tMyDefaultOpts = "") ; If options box is empty, skip regxex check.
-		validOpts := "Okay."
+		validOpts := valOK
 	else { ;===== Make sure hotstring options are valid ========
 		NeedleRegEx := "(\*|B0|\?|SI|C|K[0-9]{1,3}|SE|X|SP|O|R|T)" ; These are in the AHK docs I swear!!!
 		WithNeedlesRemoved := RegExReplace(tMyDefaultOpts, NeedleRegEx, "") ; Remove all valid options from var.
 		If (WithNeedlesRemoved = "") ; If they were all removed...
-			validOpts := "Okay."
+			validOpts := valOK
 		else { ; Some characters from the Options box were not recognized.
 			OptTips := inStr(WithNeedlesRemoved, ":")? "Don't include the colons.`n":""
 			OptTips .= " ;  a block text assignement to var
 			(
-			...Tips from AHK v1 docs...
+			Common options. From AHK docs
 			* - ending char not needed
 			? - trigger inside other words
-			B0 - no backspacing
-			SI - send input mode
 			C - case-sensitive
-			K(n) - set key delay
+			--don't use below with f function--
+			B0 - no backspacing (leave trigger)
+			SI - send input mode
 			SE - send event mode
-			X - execute command
-			SP - send play mode
+			Kn - set key delay (n is a digit)
 			O - omit end char
-			R - send raw
-			T - super raw
+			R - raw dog it
 			)"
 			validOpts .= "Invalid Hotsring Options found.`n---> " WithNeedlesRemoved "`n" OptTips
 		}
 	}
+
 	;==== Make sure hotstring box content is valid ========
 	validHot := "", showLookupBox := 0 ; Reset each time.
 	If (tTriggerString = "") || (tTriggerString = myPrefix) || (tTriggerString = mySuffix) 
 		validHot := "HotString box should not be empty."
 	Else If InStr(tTriggerString, ":")
 		validHot := "Don't include colons."
-	else ; No colons, and not empty. Good. Now check for duplicates.
-	{	Loop Parse, HsLibContents, "`n", "`r" { ; Check line-by-line.
+	else { ; No colons, and not empty. Good. Now check for duplicates.
+		Loop Parse, HsLibContents, "`n", "`r" { ; Check line-by-line.
 			If (A_Index < ACitemsStartAt) or (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") 
 				continue ; Will skip non-hotstring lines, so the regex isn't used as much.
 			If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &loo) { ; loo is "current loopfield"
@@ -845,13 +834,13 @@ ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 					Continue
 				} ; No duplicates.  Look for conflicts... 
 				If (InStr(loo.Trig, tTriggerString) and inStr(tMyDefaultOpts, "*") and inStr(tMyDefaultOpts, "?"))
-				|| (InStr(tTriggerString, loo.Trig) and inStr(loo.Opts, "*") and  inStr(loo.Opts, "?")) { ; Word-Middle Matches
+				|| (InStr(tTriggerString, loo.Trig) and inStr(loo.Opts, "*") and inStr(loo.Opts, "?")) { ; Word-Middle Matches
 					validHotDupes .= "`nWord-Middle conflict found at line " A_Index ", where one of the strings will be nullified by the other.`n---> " A_LoopField 
 					showLookupBox := 1
 					Continue
 				}
-				If ((loo.Trig = tTriggerString) and inStr(loo.Opts, "*") and  not inStr(loo.Opts, "?") and inStr(tMyDefaultOpts, "?") and not inStr(tMyDefaultOpts, "*"))
-				|| ((loo.Trig = tTriggerString) and inStr(loo.Opts, "?") and  not inStr(loo.Opts, "*") and inStr(tMyDefaultOpts, "*") and not inStr(tMyDefaultOpts, "?")) { ; Rule out: Same word, but beginning and end opts
+				If ((loo.Trig = tTriggerString) and inStr(loo.Opts, "*") and not inStr(loo.Opts, "?") and inStr(tMyDefaultOpts, "?") and not inStr(tMyDefaultOpts, "*"))
+				|| ((loo.Trig = tTriggerString) and inStr(loo.Opts, "?") and not inStr(loo.Opts, "*") and inStr(tMyDefaultOpts, "*") and not inStr(tMyDefaultOpts, "?")) { ; Rule out: Same word, but beginning and end opts
 					validHotDupes .= "`nDuplicate trigger found at line " A_Index ", but maybe okay, because one is word-beginning and other is word-ending.`n---> " A_LoopField 
 					showLookupBox := 1
 					Continue
@@ -869,7 +858,7 @@ ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 					Continue
 				}
 			}
-			Else ; not a regex match, so go to next loop.
+			Else ; not a regex match, so go to next item in loop.
 				continue 
 		}	
 		
@@ -884,16 +873,16 @@ ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 		}
 		
 		If validHotDupes != ""
-			validHotDupes := SubStr(validHotDupes, 2)
+			validHotDupes := SubStr(validHotDupes, 2) ; Trim `n from beginning. 
 		If (tMatches > 0){ ; This error message is collected separately from the loop, so both can potentially be reported. 
 			validHotMisspells := "This trigger string will misspell [" tMatches "] words."
 		}
 		if validHotDupes and validHotMisspells
 			validHot := validHotDupes "`n-" validHotMisspells ; neither is blank, so new line
 		else If !validHotDupes  and !validHotMisspells ; both are blank, so no validity concerns. 
-			validHot := "Okay."
+			validHot := valOK
 		else 
-		validHot := validHotDupes  validHotMisspells ; one (and only one) is blank so concantinate
+			validHot := validHotDupes  validHotMisspells ; one (and only one) is blank so concantinate
 	}
 
 	;==== Make sure replacement string box content is valid ===========
@@ -904,82 +893,75 @@ ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString)
 	else if  (tReplaceString = tTriggerString)
 		validRep := "Replacement string SAME AS Trigger string."
 	else
-		validRep := "Okay."
+		validRep := valOK
 	; Concatenate the three above validity checks.
-	CombinedValidMsg := "OPTIONS BOX `n-" . validOpts . "*|*HOTSTRING BOX `n-" . validHot . "*|*REPLACEMENT BOX `n-" . validRep "*|*" showLookupBox
-	Return CombinedValidMsg ; return result for use is Append or Validation functions.
+	CombinedValidMsg := "OPTIONS BOX `n" validOpts "*|*HOTSTRING BOX `n" validHot "*|*REPLACEMENT BOX `n" validRep "*|*" showLookupBox
+	Return CombinedValidMsg ; return result for use in Append or Validation functions.
 } ; end of validation func
 
 ; The "Append It" function actually combines the hotsring components and 
 ; appends them to the script, then reloads it. 
-Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
-{ 	WholeStr := ""
+Appendit(tMyDefaultOpts, tTriggerString, tReplaceString) {
+	WholeStr := "", tComStr := '', aComStr := '' ; tComStr is "text of comment string." aComStr is "auto comment string."
 	tMyDefaultOpts := MyDefaultOpts.text
 	tTriggerString := TriggerString.text
 	tReplaceString := ReplaceString.text
-	; tComStr := hh['ComStr'].text ; tComStr is "text of comment string." <--- not used?
-	tComStr := '' ; tComStr is "text of comment string."
-	aComStr := '' ; aComStr is "auto comment string." Default to blank each time. 
 	
-	If (rMatches > 0) and (AutoCommentFixesAndMisspells = 1) ; AutoCom var set near top of code. 
-	{ 	Misspells := ""
+	If (rMatches > 0) and (AutoCommentFixesAndMisspells = 1) { ; AutoCom var set near top of code. 
 		Misspells := EdtTMatches.Value
-		If (tMatches > 3) ; and (Misspells != "") ; More than 3 misspellings?
-			Misspells := ", but misspells " . tMatches . " words !!! "
-		Else If (Misspells != "") { ; any misspellings? List them, if <= 3.
-		; Misspells := StrReplace(Misspells, "`n", " (), ")
+		If (tMatches > 3) ; More than 3 misspellings?
+			Misspells := ", but misspells " tMatches . " words !!! "
+		Else If (Misspells != "") { ; Any misspellings? List them, if <= 3.
 			Misspells := SubStr(StrReplace(Misspells, "`n", " (), "), 1, -2) . ". "
-			Misspells := ", but misspells " . Misspells
-			;MsgBox("tMatches " . tMatches . "`nMisspells is:`n`n" . Misspells)
+			Misspells := ", but misspells " Misspells
 		}
-		aComStr := "Fixes " . rMatches . " words " . Misspells
+		aComStr := "Fixes " rMatches " words " Misspells
 		aComStr := StrReplace(aComStr, "Fixes 1 words ", "Fixes 1 word ")
 	}
 
-	fopen := '' , fclose := ''
-	If (chkFunc.Value = 1) and (IsMultiLine = 0) ; add function part if needed
-		{
-			tMyDefaultOpts := "B0X" . StrReplace(tMyDefaultOpts, "B0X", "")
-			fopen := 'f("'
-			fclose := '")'
-		}
-	
-	If (ComStr.text != "") || (aComStr != "")
-		tComStr := " `; " . aComStr . ComStr.text
-
-	If InStr(tReplaceString, "`n") { ; Combine the parts into a muli-line hotstring.
-		openParenth := subStr(tReplaceString, -1) = "`t"? "(RTrim0`n" : "(`n" ; If last char is Tab, use LTrim0.
-		WholeStr := ":" . tMyDefaultOpts . ":" . tTriggerString . "::" . tComStr . "`n" . fopen . openParenth . tReplaceString . "`n)" . fclose
+	; Add function part if needed. Combine the parts into a single- or multi-line hotstring.
+	If (chkFunc.Value = 1) and (isBoilerplate = 0) and not InStr(tReplaceString, "`n") { ; Function.
+		tMyDefaultOpts := "B0X" StrReplace(StrReplace(tMyDefaultOpts, "B0", ""), "X", "")	
+		If (ComStr.text != "") || (aComStr != "")
+			tComStr := " `; " aComStr ComStr.text
+		WholeStr := ":" tMyDefaultOpts ":" tTriggerString "::f(`"" tReplaceString "`")" tComStr
 	}
-	Else ; Combine the parts into a single-line hotstring.
-		WholeStr := ":" . tMyDefaultOpts . ":" . tTriggerString . "::" . fopen . tReplaceString . fclose . tComStr
+	Else If InStr(tReplaceString, "`n") { ; Combine the parts into a muli-line hotstring.
+		tMyDefaultOpts := StrReplace(StrReplace(tMyDefaultOpts, "B0", ""), "X", "")
+		openParenth := subStr(tReplaceString, -1) = "`t"? "(RTrim0`n" : "(`n" ; If last char is Tab, use LTrim0.
+		WholeStr := ":" tMyDefaultOpts ":" tTriggerString "::" tComStr "`n" openParenth tReplaceString "`n)"
+	}	
+	Else { ; Plain vanilla, single-line, no function.
+		tMyDefaultOpts := StrReplace(tMyDefaultOpts, "X", "")
+		WholeStr := ":" tMyDefaultOpts ":" tTriggerString "::" tReplaceString tComStr
+	}
 			
 	If GetKeyState("Shift") { ; User held Shift when clicking Append Button. 
 		A_Clipboard := WholeStr
-		SoundBeep 800, 200
-		SoundBeep 700, 300
-		; MsgBox "in appendit(), clipbrd is`n" A_Clipboard
+		ToolTip("Copied to clipboard.")
+		SetTimer () => ToolTip(), -2000
 	}
-	else
-	{ 	FileAppend("`n" WholeStr, HotstringLibrary) ; 'n makes sure it goes on a new line.
+	else {
+		FileAppend("`n" WholeStr, HotstringLibrary) ; 'n makes sure it goes on a new line.
 		If (AutoEnterNewEntry = 1) ; If this user setting (at the top) is set, then call function
 			ChangeActiveEditField()
 		If not getKeyState("Ctrl")
 			Reload() ; relaod the script so the new hotstring will be ready for use; but not if ctrl pressed.
 	}
-}  ; Newly added hotstrings will be way at the bottom of the ahk file.
+}  ; Newly added hotstrings will be way at the bottom of the ahk library file.
 
 ; This function only gets called if the new AC item is a single-word fix.
 ; It assesses whether the text in the target document is still selected, and if trigger is unchanged,
 ; and if so, corrects the item in the target document. 
-ChangeActiveEditField(*)
-{	Send("^c") ; Copy selected text.
+ChangeActiveEditField(*) {
+	A_Clipboard := ""
+	Send("^c") ; Copy selected text.
 	Errorlevel := !ClipWait(0.3) ; Wait for clipboard to contain text.
 	Global origTriggerTypo := trim(origTriggerTypo) ; Remove any whitespace.
 	hasSpace := (subStr(A_Clipboard, -1) = " ")? " " : ""
 	A_Clipboard := trim(A_Clipboard) ; Remove any whitespace.
-	If (origTriggerTypo = A_Clipboard) and (origTriggerTypo = TriggerString.text) ; Make sure nothing has changed. 
-	{	If (bb != 0) ; If the big validity message box is showing.. 
+	If (origTriggerTypo = A_Clipboard) and (origTriggerTypo = TriggerString.text) { ; Make sure nothing has changed. 
+		If (bb != 0) ; If the big validity message box is showing.. 
 			bb.Hide() ; Hide it.
 		hh.Hide() ; hide main HotStrHelper form.
 		WinWaitActive(targetWindow)
@@ -989,7 +971,7 @@ ChangeActiveEditField(*)
 
 ; Calls the Google "Did you mean..." function below. 
 hhButtonSpell(*) ; Called it "Spell" because "Spell Check" is too long.
-{ tReplaceString := ReplaceString.text
+{	tReplaceString := ReplaceString.text
 	If (tReplaceString = "")
 		MsgBox("Replacement Text not found.", , 4096)
 	else {
@@ -1008,9 +990,9 @@ hhButtonSpell(*) ; Called it "Spell" because "Spell Check" is too long.
 	}
 }
 
-GoogleAutoCorrect(word)
-{ 	; Original by TheDewd, converted to v2 by Mikeyww.
-	; autohotkey.com/boards/viewtopic.php?f=82&t=120143
+; Original by TheDewd, converted to v2 by Mikeyww.
+; autohotkey.com/boards/viewtopic.php?f=82&t=120143
+GoogleAutoCorrect(word) {
 	objReq := ComObject('WinHttp.WinHttpRequest.5.1')
 	objReq.Open('GET', 'https://www.google.com/search?q=' word)
 	objReq.SetRequestHeader('User-Agent'
@@ -1021,41 +1003,46 @@ GoogleAutoCorrect(word)
 			Return B[1] || A[1]
 }
 
-; Opens this file and go to the bottom so you can see your Hotstrings.
-hhButtonOpen(*)
-{  	If WinActive(hhFormName) 
-	{	hh.Hide()
+; Opens hotstring lib and go to the bottom so you can see your Hotstrings.
+hhButtonOpen(*) {
+	If WinActive(hhFormName) {
+		hh.Hide()
 		A_Clipboard := ClipboardOld  ; Restore previous contents of clipboard.
 	}
 	Try
 		Run MyAhkEditorPath " "  HotstringLibrary
 	Catch
 		msgbox 'cannot run ' HotstringLibrary
-	WinWaitActive(HotstringLibrary) ; Wait for the script to be open in text editor.
-	Sleep(1000)
+	counter := 0
+	While not WinActive(HotstringLibrary) { ; Wait for the script to be open in text editor.
+		Sleep(100)
+		counter++
+		If (counter > 40) {
+			Msgbox "Cannot seem to open Library.`nMaybe an 'admin rights' issue?"
+			Return
+		}
+	}
 	Send("{Ctrl Down}{End}{Ctrl Up}{Home}") ; Navigate to the bottom.
 }
 
 ; Close/hide form, clear everything, and restore clipboard contents. 
-hhButtonCancel(*)
-{ 	hh.Hide()
-	MyDefaultOpts.value := ""
-	TriggerString.value := ""
-	ReplaceString.value := ""
+hhButtonCancel(*) {
+	hh.Hide()
+	MyDefaultOpts.value := "", TriggerString.value := "", ReplaceString.value := ""
 	tArrStep := [] ; array for trigger undos
 	rArrStep := [] ; array for replacement undos
 	A_Clipboard := ClipboardOld  ; Restore previous contents of clipboard.
 }
 
-GoLTrim(*) ; Trim one char from left of trigger and replacement.
-{		;---- trig -----
+GoLTrim(*) { ; Trim one char from left of trigger and replacement.
+		;---- trig -----
 	tText := TriggerString.value
-	tArrStep.push(tText) ; <---- save history for Undo feature
+	tArrStep.push(tText) ; Save history for Undo feature.
 	tText := subStr(tText, 2)
 	TriggerString.value := tText
 		; ----- repl -----
 	rText := ReplaceString.value
-	rArrStep.push(rText) ; <---- save history
+	rArrStep.push(rText) ; Save history.
 	rText := subStr(rText, 2)
 	ReplaceString.value := rText
 	; -----------
@@ -1063,8 +1050,8 @@ GoLTrim(*) ; Trim one char from left of trigger and replacement.
 	TriggerChanged() 
 }
 
-GoRTrim(*) ; Trim one char from right of trigger and replacement.
-{		; ----- trig -----
+GoRTrim(*) { ; Trim one char from right of trigger and replacement.
+		; ----- trig -----
 	tText := TriggerString.value
 	tArrStep.push(tText) ; <---- save history
 	tText := subStr(tText, 1, strLen(tText) - 1)
@@ -1080,23 +1067,26 @@ GoRTrim(*) ; Trim one char from right of trigger and replacement.
 }
 
 ; Left and Right Trims are saved in Arrays.  This function removes the last one. 
-GoUndo(*)
-{ 	If GetKeyState("Shift") 
+GoUndo(*) {
+	If GetKeyState("Shift") 
 		GoReStart() 
-	else If (tArrStep.Length > 0) and (rArrStep.Length > 0) {
+	Else If (tArrStep.Length > 0) and (rArrStep.Length > 0) {
 		TriggerString.value := tArrStep.Pop()
 		ReplaceString.value := rArrStep.Pop()
 		GoFilter()
 	}
-	else {
+	else 
 		ButUndo.Enabled := false
-	}
 }
+
 ; ReEnters the trigger and replacement that were gotten from RegEx upon first capture.
 ; Clears arrays.  Has effect of "undoing" all of the changes. 
 GoReStart(*)
-{ 	If !OrigTrigger and !OrigReplacment
-		MsgBox("Can't restart -- Nothing in memory...")
+{ 	If !OrigTrigger and !OrigReplacment {
+	; Would never see tip anyway, because you can't call function if nothing in arrays.
+		ToolTip("Can't restart. Nothing in memory.")
+		SetTimer () => ToolTip(), -2000
+	}
 	Else {
 		TriggerString.Value := OrigTrigger ; Restore original values. 
 		ReplaceString.Value := OrigReplacement
@@ -1108,29 +1098,28 @@ GoReStart(*)
 }
 
 ; Single-click of middle radio button just calls GoFilter function but 
-; double-click sets button to false.  
-GoRadioClick(*)
-{	RadBeg.Value := 0 ; Set radios to blank, and removed hotstring options. 
-	RadMid.Value := 0
-	RadEnd.Value := 0
+; Right-click sets button to false.  
+GoRadioClick(*) { ; Set radios to blank, and removed hotstring options. 
+	RadBeg.Value := 0, RadMid.Value := 0, RadEnd.Value := 0
 	MyDefaultOpts.text := strReplace(strReplace(MyDefaultOpts.text, "?", ""), "*", "")
 	GoFilter()
 }
 
-; Filters the two lists of words at bottom of Exam Pane. 
-; Mostly this is called via L/R trims, or by changing radio buttons.  
+; Filters the two lists of words at bottom of the Exam Pane. 
+; Mostly this is called via L/R trims, or by changing radio buttons.
+; Also gets called when the clipboard is originally assessed.  
 ; If it is called via Exam button, then reads Options box and updates radios.
-GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
-{	; ====== Hotstring/Trigger ===========
+GoFilter(ViaExamButt := False, *) { ; Filter the big list of words, as needed.
+		; ---- Hotstring/Trigger part ----
 	tFind := Trim(TriggerString.Value)
-	If !tFind
+	If (tFind = "")
 		tFind := " " ; prevents error if tFind is blank.
 	tFilt := ''
-	Global tMatches := 0 ; Global so I can read it in the Validation() function.
+	Global tMatches := 0 ; Global so we can read it in the Validation() function.
 	MyOpts := MyDefaultOpts.text 
 
-	If (ViaExamButt = "Yes") { ; Read opts box, change radios as needed.
-		If  inStr(MyOpts, "*") and  inStr(MyOpts, "?")
+	If (ViaExamButt = True) { ; Read opts box, change radios as needed.
+		If  inStr(MyOpts, "*") and inStr(MyOpts, "?")
 			RadMid.value := 1
 		Else if  inStr(MyOpts, "*")
 			RadBeg.value := 1
@@ -1143,11 +1132,10 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 		}
 	}
 
-	If FileExist(WordListPath) {
-		Loop Read, WordListPath ; Compare with the big list of words and find matches.
-		{
+	If FileExist(WordListPath) { ; Now that radios are updated...
+		Loop Read, WordListPath { ; Compare with the big list of words and find matches.
 			If InStr(A_LoopReadLine, tFind) {
-				IF (RadMid.value = 1) {
+				If (RadMid.value = 1) {
 					tFilt .= A_LoopReadLine '`n'
 					tMatches++
 				}
@@ -1157,7 +1145,7 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 						tMatches++
 					}
 				}
-				else If (RadBeg.value = 1) {
+				Else If (RadBeg.value = 1) {
 					If InStr(SubStr(A_LoopReadLine, 1, StrLen(tFind)), tFind) {
 						tFilt .= A_LoopReadLine '`n'
 						tMatches++
@@ -1172,43 +1160,42 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 			}
 		}
 	}
-	else {
+	Else 
 		tFilt := "Comparison`nword list`nnot found"
-	}
 
-	IF (RadMid.value = 1) {
+	If (RadMid.value = 1) {
 		If not inStr(MyOpts, "*")
-			MyOpts := MyOpts . "*"
+			MyOpts := MyOpts "*" ; Make sure (only) one is there.
 		If not inStr(MyOpts, "?")
-			MyOpts := MyOpts . "?"
+			MyOpts := MyOpts "?"
 	}
 	Else If (RadEnd.value = 1) {
 		If not inStr(MyOpts, "?")
-			MyOpts := MyOpts . "?"
-			MyOpts := StrReplace(MyOpts, "*")
+			MyOpts := MyOpts "?"
+		MyOpts := StrReplace(MyOpts, "*") ; Make sure none there.
 	}
 	else If (RadBeg.value = 1) {
 		If not inStr(MyOpts, "*")
-			MyOpts := MyOpts . "*"
-			MyOpts := StrReplace(MyOpts, "?")
+			MyOpts := MyOpts "*"
+		MyOpts := StrReplace(MyOpts, "?")
 	}
 	MyDefaultOpts.text := MyOpts
 
 	EdtTMatches.Value := tFilt
-	TxtTLabel.Text := "Misspells [" . tMatches . "]"
+	TxtTLabel.Text := "Misspells [" tMatches "]"
 	
 	If (tMatches > 0) { 
-		TrigLbl.Text := "Misspells [" . tMatches . "] words" ; Change Trig Str Label to show warning. 
-		TrigLbl.SetFont("cRed")
+		TrigLbl.Text := "Misspells [" tMatches "] words" ; Change Trig Str Label to show warning. 
+		TrigLbl.SetFont("cRed") ; Allert color for trigger str box label.
 	}
-	If (tMatches = 0) {
+	Else If (tMatches = 0) {
 		TrigLbl.Text := "No Misspellings found." ; Change Trig Str Label to NO LONGER show warning. 
 		TrigLbl.SetFont(FontColor) ; reset color of Label, incase it's red. 
 	}
 
-	; ====== Replacement/Expansion text ==========
+		; ---- Replacement/Expansion text part ----
 	rFind := Trim(ReplaceString.Value, "`n`t ")
-		If !rFind
+	If (rFind = "")
 		rFind := " " ; prevents error if rFind is blank.
 	rFilt := ''
 	Global rMatches := 0
@@ -1243,11 +1230,11 @@ GoFilter(ViaExamButt := "No", *) ; Filter the big list of words, as needed.
 			}
 		}
 	}
-	Else {
+	Else 
 		rFilt := "Comparison`nword list`nnot found"
-	}
-		EdtRMatches.Value := rFilt
-		TxtRLabel.Text := "Fixes [" . rMatches . "]"
+
+	EdtRMatches.Value := rFilt
+	TxtRLabel.Text := "Fixes [" rMatches "]"
 }
 
 
@@ -1315,19 +1302,18 @@ SoundBeep(1100, 200)
 ;===============================================================================
 ; Open this script in VSCode.
 ^+e:: ; Open AutoCorrect2 script in VSCode
-EditThisScript(*)
-{	Try
+EditThisScript(*) {	
+	Try
 		Run MyAhkEditorPath " "  NameOfThisFile
 	Catch
 		msgbox 'cannot run ' NameOfThisFile
 }
 
-
 ; ==============================================================================
 ; UPTIME 
 !+u:: ; Uptime -- time since Windows restart
-UpTime(*)
-{ MsgBox("UpTime is:`n" . Uptime(A_TickCount))
+UpTime(*) { 
+	MsgBox("UpTime is:`n" . Uptime(A_TickCount))
 	Uptime(ms) {
 		VarSetStrCapacity(&b, 256) ; V1toV2: if 'b' is NOT a UTF-16 string, use 'b := Buffer(256)'
 		;    DllCall("GetDurationFormat","uint",2048,"uint",0,"ptr",0,"int64",ms*10000,"wstr"," d 'days, 'h' hours, 'm' minutes, 's' seconds'", "wstr",b,"int",256)
@@ -1382,44 +1368,25 @@ fix_consecutive_caps() {
 
 ;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
 ;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;  AUto-COrrect TWo COnsecutive CApitals
-;  Table of Contents (this)
-;  f() AutoCorrect hotstring function
-;  KeepText() cacher function
-;  Logger function
-;  InputBuffer Class by Descolada
-;  Mini report generator function
-;  The actual HOTSTRING LIBRARY has been moved to "HotstringLib.ahk" and is #Included above. 
-;------------------------------------------------------------------------------
-;  Multi-fix items are commented with " ; Fixes N misspellings"
-;  Warning: several items break obscure words.  These are commented with "Misspells xxx" with an explanation. 
-;  The Replacment nullifiers attempt to nullify the potential misspellings. 
-;  As of Feb 2024, ~5k items, >328k potential fixes.  Ctrl+F3 for Fix counter
-;  Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
-;------------------------------------------------------------------------------
-
-;:B0XC:smith::f("Smith") ; Fixes 2 words , but misspells smi. 
 
 ;========= AUTOCORRECTION LOGGER OPTIONS ======================================= 
 saveIntervalMinutes := 20     ; Collect the log items in RAM, then save to disc this often. 
 IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for this many intervals.
 ; (Script will automatically restart the log intervals next time there's a match.)
+beepOnCorrection := 1			; Been when the f() function is used.
+AutoCorrectsLogFile := "AutoCorrectsLog.txt"
+
+If not FileExist(AutoCorrectsLogFile)
+	FileAppend("This will be the log of AutoCorrects.`n", AutoCorrectsLogFile)
 
 !+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger.
-;!+l::Run("AutoCorrectsLog.txt") ; Shift+Alt+L: View/Run log of all autocorrections. (Disabled hotkey because I never use it.)  ; hide
+
+lastTrigger := "No triggers logged yet." ; in case no autocorrects have been made
 
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
-lastTrigger := "No triggers logged yet." ; in case no autocorrects have been made
-f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
+; This is the main autoCorrection Logger f() Function.  All the one-line "f" autocorrects call this.
+f(replace := "") 
 {	static HSInputBuffer := InputBuffer()
 	HSInputBuffer.Start()
 	trigger := A_ThisHotkey, endchar := A_EndChar
@@ -1427,22 +1394,22 @@ f(replace := "") ; All the one-line "f" autocorrects call this f(unction).
 	trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1) ; use everything to right of 2nd colon. 
 	TrigLen := StrLen(trigger) + StrLen(endchar) ; determine number of backspaces needed.
 	; Rarify: Only remove and replace rightmost necessary chars.  
-	trigL := StrSplit(trigger)
-	replL := StrSplit(replace)
+	trigArr := StrSplit(trigger), replArr := StrSplit(replace) ; Make into arrays.
 	endCh := StrLen(endchar)
-	Global ignorLen := 0
-	Loop Min(trigL.Length, replL.Length) ; find matching left substring.
-	{	If (trigL[A_Index] == replL[A_Index]) ; The double equal (==) makes it case-sensitive. 
+	ignorLen := 0
+	Loop Min(trigArr.Length, replArr.Length) { ; find matching left substring.
+		If (trigArr[A_Index] == replArr[A_Index]) ; The double equal (==) makes it case-sensitive. 
 			ignorLen++
-		else break
+		else 
+			break
 	}
 	replace := SubStr(replace, (ignorLen+1))
-	SendInput("{BS " . (TrigLen - ignorLen) . "}" replace StrReplace(endchar, "!", "{!}")) ; Type replacemement and endchar. 
+	SendInput("{BS " (TrigLen - ignorLen) "}" replace StrReplace(endchar, "!", "{!}")) ; Type replacemement and endchar. 
 	replace := "" ; Reset to blank string.
 	HSInputBuffer.Stop()
-	SoundBeep(900, 60) ; Notification of replacement.
-	Global KeepForLog := LastTrigger  
-	SetTimer(keepText, -1)
+	If (beepOnCorrection = 1)
+		SoundBeep(900, 60) ; Notification of replacement.
+	SetTimer(keepText.bind(LastTrigger), -1)
 }
 
 logIsRunning := 0, savedUpText := '', intervalCounter := 0 ; Initialize the counter
@@ -1451,13 +1418,13 @@ saveIntervalMinutes := saveIntervalMinutes*60*1000 ; convert to miliseconds.
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
 ; There's no point running the logger if no text has been saved up...  
 ; So don't run timer when script starts.  Run it when logging starts. 
-keepText(*) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
-{ 	EndKeys := "{Backspace}"
+; keepText(*) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
+keepText(KeepForLog, *) { ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
+	EndKeys := "{Backspace}"
 	global lih := InputHook("B V I1 E T1", EndKeys) ; "logger input hook." T is time-out. T1 = 1 second.
 	lih.Start(), lih.Wait()
-	;msgbox lih.EndKey
 	hyphen := (lih.EndKey = "Backspace")?  " << " : " -- "
-	global savedUpText .= "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog
+	global savedUpText .= "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog  
 	global intervalCounter := 0  	; Reset the counter since we're adding new text
 	If logIsRunning = 0  			; only start the timer it it is not already running.
 		setTimer Appender, saveIntervalMinutes  	; call function every X minutes.
@@ -1465,13 +1432,13 @@ keepText(*) ; Automatically logs if an autocorrect happens, and if I press Backs
 #MaxThreadsPerHotkey 1
 
 ; Gets called by timer, or by onExit.
-Appender(*) 
-{	FileAppend(savedUpText, "AutoCorrectsLog.txt")
+Appender(*) {
+	FileAppend(savedUpText, AutoCorrectsLogFile)
 	global savedUpText := ''  		; clear each time, since text has been logged.
 	global logIsRunning := 1  		; set to 1 so we don't keep resetting the timer.
 	global intervalCounter += 1 	; Increments here, but resets in other locations. 
-	If (intervalCounter >= IntervalsBeforeStopping) ; Check if no text has been kept for X intervals
-	{   setTimer Appender, 0  		; Turn off the timer
+	If (intervalCounter >= IntervalsBeforeStopping) { ; Check if no text has been kept for X intervals
+		setTimer Appender, 0  		; Turn off the timer
 		global logIsRunning := 0  	; Indicate that the timer is no longer running
 		global intervalCounter := 0 ; Reset the counter for safety
 	}
@@ -1479,7 +1446,7 @@ Appender(*)
 	;soundBeep 600, 800
 }
 
-OnExit Appender ; Also append one more time on exit, incase we are in the middle of on interval. 
+OnExit Appender ; Also append one more time on exit, incase we are in the middle of an interval. 
 
 ;================================================================================================
 /* InputBuffer Class by Descolada https://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865
