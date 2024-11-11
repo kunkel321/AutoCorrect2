@@ -1,11 +1,10 @@
-## The AutoCorrect for v2 Package.
-This started as a version of the 2007 AutoHotkey script, AutoCorrect.ahk, though it has evolved into a package of several interrelated scripts.  It is written in AHK v2 code, and so is "AutoCorrect2."  Please note that the .exe files are not compiled versions of the same-named .ahk files.  Rather, they are a copies of AutoHotKey.exe that were downloaded from the AutoHotkey site, and renamed, to match the .ahk file.  Keeping the two in the same folder allows the user to run the code "portably," right from the folder.   It would probably be okay for a user to compile the ahk files into exe files, but the txt files must stay as read/writable separate files. 
+# AutoCorrect for v2 Package.
+This started as a version of the 2007 AutoHotkey script, AutoCorrect.ahk, though it has evolved into a package of several interrelated scripts.  It is written in AHK v2 code, and so is called "AutoCorrect2."  Please note that the .exe files are not compiled versions of the same-named .ahk files.  Rather, they are a copies of AutoHotKey.exe that were downloaded from the AutoHotkey site, and renamed, to match the .ahk file.  Keeping the two in the same folder allows the user to run the code "portably," right from the folder.   It would probably be okay for a user to compile the ahk files into exe files, but the txt files must stay as read/writable separate files. 
 
-Steve Kunkel
-(kunkel321)
+_Stephen Kunkel (kunkel321)_
 
-![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/WordListsForHH/GUI%20quicksheet.png))
 ## Hotstring Helper 2 – Quick Sheet
+![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/WordListsForHH/GUI%20quicksheet.png))
 1.	The Options Box.  Hotstring options go here.
 2.	The Hotstring (Trigger string) Box.  Gets populated with word on clipboard.  If many words are on clipboard, an acronym is generated.  If the Exam Pane is open, adding a letter to the beginning or end of the trigger will cause the same letter to be automatically added to the replacement text.  Shift+Left focuses the Trigger Box.  Ctrl+Up/Down or Ctrl+Mouse Wheel toggles font size.
 3.	If the string in the Trigger Box corresponds to any English words, if will turn red and warn you.  
