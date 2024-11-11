@@ -4,7 +4,7 @@ This started as a version of the 2007 AutoHotkey script, AutoCorrect.ahk, though
 Steve Kunkel
 (kunkel321)
 
-![Screenshot of hotkeyhelper main gui]([https://i.imgur.com/q4t2eOg.png](https://github.com/kunkel321/AutoCorrect2/blob/main/WordListsForHH/GUI%20quicksheet.png))
+![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/WordListsForHH/GUI%20quicksheet.png))
 ## Hotstring Helper 2 – Quick Sheet
 1.	The Options Box.  Hotstring options go here.
 2.	The Hotstring (Trigger string) Box.  Gets populated with word on clipboard.  If many words are on clipboard, an acronym is generated.  If the Exam Pane is open, adding a letter to the beginning or end of the trigger will cause the same letter to be automatically added to the replacement text.  Shift+Left focuses the Trigger Box.  Ctrl+Up/Down or Ctrl+Mouse Wheel toggles font size.
