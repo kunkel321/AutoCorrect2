@@ -2,14 +2,13 @@
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
-#Include "PrivateParts.ahk"  ; <--- specific to Steve's setup.
 #Include "DateTool.ahk"
 #Include "PrinterTool.ahk"
 #Include "HotstringLib.ahk"
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 11-9-2024
+; Update date: 11-28-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -24,12 +23,11 @@ if FileExist("colorThemeSettings.ini") {
    formColor := IniRead(settingsFile, "ColorSettings", "formColor")
 }
 else { ; Ini file not there, so use these color instead. 
-   fontColor := "0x1F1F1F"
-   listColor := "0xFFFFFF"
-   formColor := "0xE5E4E2"
+   fontColor := "0x1F1F1F", listColor := "0xFFFFFF", formColor := "0xE5E4E2"
 }
 
 ; Calculate contrasting text color for better readability of delta string and validation msgs.
+formColor := "0x" subStr(formColor, -6) ; Make the hex value appear as a number, rather than a string. 
 r := (formColor >> 16) & 0xFF, g := (formColor >> 8) & 0xFF, b := formColor & 0xFF
 brightness := (r * 299 + g * 587 + b * 114) / 1000
 
@@ -243,61 +241,82 @@ TxtWordList := hh.AddText('vWordList center xm y+1 h14 w' . wFactor*2+364 , "Ass
 hh.SetFont('bold s10')
 
 ; ============== Bottom (toggling) "Control Pane" part of GUI =====================
-TxtCtrlLbl1 := hh.AddText(' center c' DeltaColor ' ym+270 h25 xm w' wFactor+370, 'Secret Control Panel!')
-hh.SetFont('s10')
-butRunHSlib := hh.AddButton('  y+5 h25 xm w' wFactor+370, 'Open HotString Library')
-	butRunHSlib.OnEvent("click", (*) => ControlPaneRuns("butRunHSlib"))
+buttonConfigs := [ ; Define button configurations as array.
+    ["Open HotString Library", Map( ; Text used for button.
+        "action", hhButtonOpen, ; Action when button is clicked.
+        "icon", "" ; Optional Icon.
+    )],
+    ["Open AutoCorrection Log", Map(
+        "action", (*) => Run(AutoCorrectsLogFile),
+        "icon", ""
+    )],
+    ["  Analyze AutoCorrection Log", Map( ; Space before text leaves padding for icon.
+        "action", (*) => Run("AcLogAnalyzer.exe"),
+        "icon", A_ScriptDir "\Icons\AcAnalysis.ico"
+    )],
+    ["Open Backspace Context Log", Map(
+        "action", (*) => Run(ErrContextLog),
+        "icon", ""
+    )],
+    ["Open Removed HotStrings List", Map(
+        "action", (*) => Run(RemovedHsFile),
+        "icon", ""
+    )],
+    ["Open Manual Correction Log", Map(
+        "action", (*) => Run("MCLog.txt"),
+        "icon", ""
+    )],
+    ["  Analyze Manual Correction Log", Map(
+        "action", (*) => Run("MCLogger.exe /script MCLogger.ahk analyze"),
+        "icon", A_ScriptDir "\Icons\JustLog.ico"
+    )],
+    ["Report HotStrings and Potential Fixes", Map(
+        "action", StringAndFixReport,
+        "icon", ""
+    )]
+]
 
-butOpenAcLog := hh.AddButton('  y+5 h25 xm w' wFactor+370, 'Open AutoCorrection Log')
-	butOpenAcLog.OnEvent("click", (*) => ControlPaneRuns("butOpenAcLog"))
-butAnalyzeAcLog := hh.AddButton('  y+5 h25 xm w' wFactor+370, '  Analyze AutoCorrection Log  ')
-	butAnalyzeAcLog.OnEvent("click", (*) => ControlPaneRuns("butAnalyzeAcLog"))
-	try SetButtonIcon(butAnalyzeAcLog, A_ScriptDir "\Icons\AcAnalysis.ico") ; <--- Will try to put this icon image on button.
-
-butOpenMcLog := hh.AddButton('  y+5 h25 xm w' wFactor+370, 'Open Manual Correction Log')
-	butOpenMcLog.OnEvent("click", (*) => ControlPaneRuns("butOpenMcLog"))
-butAnalyzeMcLog := hh.AddButton('  y+5 h25 xm w' wFactor+370, '  Analyze Manual Correction Log  ')
-	butAnalyzeMcLog.OnEvent("click", (*) => ControlPaneRuns("butAnalyzeMcLog")) ; <--- Will try to put this icon image on button.
-	try SetButtonIcon(butAnalyzeMcLog, A_ScriptDir "\Icons\JustLog.ico") 
-
-butFixRep := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Count HotStrings and Potential Fixes')
-	butFixRep.OnEvent('Click', StringAndFixReport)
-
-if FileExist("colorThemeSettings.ini") { ; Only show this button if colorThemeInt ini file is there. 
-	butColorTool := hh.AddButton('y+5 h25 xm w' . wFactor+370,'Change Color Theme')
-		butColorTool.OnEvent('Click', (*) => ControlPaneRuns("butOpenColorTool"))
+if FileExist("colorThemeSettings.ini") { ; Only add this button if ini file is there.
+    buttonConfigs.Push(["  Change Color Theme", Map(
+        "action", (*) => Run("ColorThemeInt.exe /script ColorThemeInt.ahk analyze"),
+        "icon", A_ScriptDir "\Icons\msn butterfly.ico"
+    )])
 }
 
-; SetButtonIcon function derived from AI code.
-SetButtonIcon(ButtonCtrl, IconFile) { ; <--- Tries to put this icon images on buttons.
-	hIcon := DllCall("LoadImage", "Ptr", 0, "Str", IconFile, "UInt", 1, "Int", 24, "Int", 24, "UInt", 0x10) 
-    SendMessage(0xF7, 1, hIcon, ButtonCtrl.Hwnd)  ; BM_SETIMAGE
+TxtCtrlLbl1 := hh.AddText("center c" DeltaColor " ym+270 h25 xm w" wFactor+370, "Secret Control Panel!")
+hh.SetFont("s10")
+
+buttons := Map()
+
+for config in buttonConfigs {
+    buttonText := config[1]
+    buttonConfig := config[2]
+    
+    button := hh.AddButton("y+2 h28 xm w" wFactor+370, buttonText)
+    button.OnEvent("click", buttonConfig["action"])
+    
+    if buttonConfig["icon"]
+        try SetButtonIcon(button, buttonConfig["icon"])
+        
+    buttons[buttonText] := button
 }
 
-ControlPaneRuns(buttonIdentifier) {	
-	Switch buttonIdentifier {
-		Case "butRunHSlib" 		: hhButtonOpen()
-		Case "butOpenAcLog" 	: Run MyAhkEditorPath " " AutoCorrectsLogFile ; Note space before file name.
-		Case "butAnalyzeAcLog" 	: Run "AcLogAnalyzer.exe"
-		Case "butOpenMcLog" 	: Run MyAhkEditorPath " MCLog.txt" ; Note space before file name.
-		Case "butAnalyzeMcLog" 	: Run "MCLogger.exe /script MCLogger.ahk analyze" ; Run with cmd line param.
-		Case "butOpenColorTool" : Run "ColorThemeInt.exe /script ColorThemeInt.ahk analyze" ; Run with cmd line param.
-	}
+SetButtonIcon(ButtonCtrl, IconFile) {
+    hIcon := DllCall("LoadImage", "Ptr", 0, "Str", IconFile, "UInt", 1, "Int", 24, "Int", 24, "UInt", 0x10) 
+    SendMessage(0xF7, 1, hIcon, ButtonCtrl.Hwnd)
 }
 
-ShowHideButtonsControl(Visibility := False) ; Hides bottom part of GUI as default. 
-ShowHideButtonsControl(Visibility) { ; Shows/Hides bottom, Exam Pane, part of GUI.
-	ControlCmds := [TxtCtrlLbl1,butRunHSlib,butOpenAcLog,butAnalyzeAcLog,butOpenMcLog,butAnalyzeMcLog,butFixRep]
-	if FileExist("colorThemeSettings.ini") 
-		ControlCmds.Push(butColorTool) ; Include this in array only if ini file is present.
-	for ctrl in ControlCmds {
-		ctrl.Visible := Visibility
-	}
+ShowHideButtonsControl(Visibility := false) ; Hide at startup.
+ShowHideButtonsControl(Visibility := false) {
+    TxtCtrlLbl1.Visible := Visibility
+    for _, button in buttons
+        button.Visible := Visibility
 }
 
 ShowHideButtonExam(Visibility := False) ; Hides bottom part of GUI as default. 
 ShowHideButtonExam(Visibility) { ; Shows/Hides bottom, Exam Pane, part of GUI.
-	examCmds := [ButLTrim, TxtTypo, ButRTrim, RadBeg, RadMid, RadEnd, ButUndo, TxtTLabel, TxtRLabel, EdtTMatches, EdtRMatches, TxtWordList]
+	examCmds := [ButLTrim,TxtTypo,ButRTrim,RadBeg,RadMid,RadEnd,ButUndo
+				,TxtTLabel,TxtRLabel,EdtTMatches,EdtRMatches,TxtWordList]
 	for ctrl in examCmds {
 		ctrl.Visible := Visibility
 	}
@@ -324,6 +343,7 @@ CheckClipboard(*) {
 	EdtRMatches.CurrMatches := "" ; reset property of rep matches box.
 	Global ClipboardOld := ClipboardAll() ; Save and put back later.
 	A_Clipboard := ""  ; Must start off blank for detection to work.
+	
 	global A_Args
 	if (A_Args.Length > 0) { ; Check if a command line argument is present.
 		A_Clipboard := A_Args[1] ; Sent via command line, from MCLogger.
@@ -333,7 +353,7 @@ CheckClipboard(*) {
 		Send("^c") ; Copy selected text.
 		Errorlevel := !ClipWait(0.3) ; Wait for clipboard to contain text.
 	}
-	;Global Opts:= "", Trig := "", Repl := "", Com := "" <---- not even needed?
+
 	hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<fCom>\h*;\h*(?:\bFIXES\h*\d+\h*WORDS?\b)?(?:\h;)?\h*(?<mCom>.*))?$" ; Jim 156
 	; Awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
 	; The regex will detect, and parse, a hotstring, whether normal, or embedded in an f() function. 
@@ -386,7 +406,7 @@ CheckClipboard(*) {
 isBoilerplate := 0
 NormalStartup(strT, strR) {	; If multiple spaces or `n present, probably not an Autocorrect entry, so make acronym.
 	If ((StrLen(A_Clipboard) - StrLen(StrReplace(A_Clipboard," ")) > 2) || InStr(A_Clipboard, "`n")) {
-		DefaultOpts := DefaultBoilerPlateOpts 
+		MyDefaultOpts.text := DefaultBoilerPlateOpts 
 		ReplaceString.value := A_Clipboard ; Use selected text for replacement string.
 		Global isBoilerplate := 1 ; Used below to prevent wrapping boilerplate items in f() syntax. 
 		ChkFunc.Value := 0 ; Multi-line item, so don't make into function. 
@@ -401,17 +421,16 @@ NormalStartup(strT, strR) {	; If multiple spaces or `n present, probably not an 
 			}
 			initials := StrLower(initials)
 			; Append preferred prefix or suffix, as defined above, to initials.
-			DefaultHotStr := myPrefix initials mySuffix
+			TriggerString.value := myPrefix initials mySuffix
 		}
 		else {	
-			DefaultHotStr := myPrefix mySuffix ; Use prefix and/or suffix as needed, but no initials.
+			TriggerString.value := myPrefix mySuffix ; Use prefix and/or suffix as needed, but no initials.
 		}
 	}
 	Else If (A_Clipboard = "") {	
 		MyDefaultOpts.Text := "", TriggerString.Text := "", ReplaceString.Text := "", ComStr.Text := "" ; Clear boxes. 
 		RadBeg.Value := 0, RadMid.Value := 0, RadEnd.Value := 0 ; Clear radio buttons
 		hh.Show('Autosize yCenter') 
-		Return
 	}
 	else { ; No `n found so assume it's a mispelling autocorrect entry: no pre/suffix.
 		If (AutoEnterNewEntry = 1)
@@ -419,16 +438,17 @@ NormalStartup(strT, strR) {	; If multiple spaces or `n present, probably not an 
 			Global origTriggerTypo  := A_Clipboard ; Used to determine if we can type new replacement into current edit field.
 		}
 		; NOTE:  Do we want the copied word to be lower-cased and trimmed of white space?  Methinks, yes. 
-		DefaultHotStr := Trim(StrLower(A_Clipboard))
+		TriggerString.value := Trim(StrLower(A_Clipboard))
 		ReplaceString.value := Trim(StrLower(A_Clipboard)) 
-		DefaultOpts := DefaultAutoCorrectOpts  
+		MyDefaultOpts.text := DefaultAutoCorrectOpts  
 	}
 	
-	MyDefaultOpts.text := DefaultOpts
-	TriggerString.value := DefaultHotStr
+	; SoundBeep 800, 100
+	; SoundBeep 1000, 100
+	; SoundBeep 700, 100
 	ReplaceString.Opt("-Readonly")
 	ButApp.Enabled := true
-	Global ExamPaneOpen
+	;Global ExamPaneOpen
 	goFilter()
 	hh.Show('Autosize yCenter') 
 } 
@@ -619,7 +639,6 @@ TogSym(*) {
 		ReplaceString.value := togReplaceString
 		ReplaceString.Opt("+Readonly")
 		ButApp.Enabled := false
-		hh.Show('Autosize yCenter') 
 	}
 	Else If (SymTog.text = "- Symbols") {
 		SymTog.text := "+ Symbols"
@@ -631,7 +650,7 @@ TogSym(*) {
 		ReplaceString.Opt("-Readonly")
 		ButApp.Enabled := true
 	}
-	hh.Show('Autosize yCenter') 
+	;hh.Show('Autosize yCenter') 
 }
 
 ; This function is called whenever the trigger (hotstring) edit box is changed.  
@@ -799,7 +818,7 @@ ValidationFunction(tMyDefaultOpts, tTriggerString, tReplaceString) {
 			validOpts := valOK
 		else { ; Some characters from the Options box were not recognized.
 			OptTips := inStr(WithNeedlesRemoved, ":")? "Don't include the colons.`n":""
-			OptTips .= " ;  a block text assignement to var
+			OptTips .= " ;  a block text assignment to var
 			(
 			Common options. From AHK docs
 			* - ending char not needed
@@ -1317,13 +1336,13 @@ UpTime(*) {
 	Uptime(ms) {
 		VarSetStrCapacity(&b, 256) ; V1toV2: if 'b' is NOT a UTF-16 string, use 'b := Buffer(256)'
 		;    DllCall("GetDurationFormat","uint",2048,"uint",0,"ptr",0,"int64",ms*10000,"wstr"," d 'days, 'h' hours, 'm' minutes, 's' seconds'", "wstr",b,"int",256)
-		DllCall("GetDurationFormat", "uint", 2048, "uint", 0, "ptr", 0, "int64", ms * 10000, "wstr", " d 'days, 'h' hrs, 'm' mins'", "wstr", b, "int", 256)
+		DllCall("GetDurationFormat", "uint", 2048, "uint", 0, "ptr", 0, "int64", ms * 10000, "wstr", " d 'days, 'h' hours, 'm' minutes'", "wstr", b, "int", 256)
 		b := StrReplace(b, " 0 days,")
-		b := StrReplace(b, " 0 hrs,")
-		b := StrReplace(b, " 0 mins,")
+		b := StrReplace(b, " 0 hours,")
+		b := StrReplace(b, " 0 minutes,")
 		b := StrReplace(b, " 1 days,", "1 day,")
-		b := StrReplace(b, " 1 hrs,", " 1 hr,")
-		b := StrReplace(b, " 1 mins,", " 1 min,")
+		b := StrReplace(b, " 1 hours,", " 1 hour,")
+		b := StrReplace(b, " 1 minutes,", " 1 minute,")
 		; b := StrReplace(b," 1 seconds"," 1 second")
 		return b
 	}
@@ -1366,23 +1385,49 @@ fix_consecutive_caps() {
 	}
 }
 
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-;HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;####;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;####;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;####;;;;;;;;;#############;;;###############;;;;###############;;;;#############;;#########
+;;####;;;;;;;#######;;;#######;######;;#######;;########;;#######;;#######;;;#####;;#######;;
+;;####;;;;;;;#####;;;;;;;#####;####;;;;;;#####;;######;;;;;;#####;;#####;;;;;;;####;#######;;
+;;####;;;;;;;#####;;;;;;;#####;####;;;;;;#####;;######;;;;;;#####;;################;#######;;
+;;####;;;;;;;#####;;;;;;;#####;####;;;;;;#####;;######;;;;;;#####;;################;#######;;
+;;####;;;;;;;#####;;;;;;;#####;####;;;;;;#####;;######;;;;;;#####;;#####;;;;;;;;;;;;#######;;
+;;####;;;;;;;#######;;;#######;######;;#######;;########;;#######;;#######;;;######;#######;;
+;;###########;;#############;;;###############;;;;###############;;;;#############;;#######;;
+;;###########;;;;#########;;;;;;;#############;;;;;;#############;;;;;;#########;;;;#######;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;#####;;;;;;;;;;;;;;#####;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;#######;;#######;;########;;#######;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;################;;#################;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;========= AUTOCORRECTION LOGGER OPTIONS ======================================= 
-saveIntervalMinutes := 20     ; Collect the log items in RAM, then save to disc this often. 
-IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for this many intervals.
+saveIntervalMinutes 	:= 20   ; Collect the log items in RAM, then save to disc this often. 
+IntervalsBeforeStopping := 2  	; Stop collecting, if no new pattern matches for this many intervals.
 ; (Script will automatically restart the log intervals next time there's a match.)
-beepOnCorrection := 1			; Been when the f() function is used.
-AutoCorrectsLogFile := "AutoCorrectsLog.txt"
+beepOnCorrection 		:= 1	; Beep when the f() function is used.
+AutoCorrectsLogFile 	:= "AutoCorrectsLog.txt" ; The text file for the log.
+
+;========= BASCSPACE CONTEXT LOGGER OPTIONS =====================================
+precedingWordCount		:= 5	; Cache this many words for context logging.
+followingWordCount		:= 4	; Wait for this many additional words before logging.
+beepOnContexLog			:= 1	; Beep when an "on BS" error is logged.
+ErrContextLog 			:= "ErrContextLog.txt" ; The text file for the log.
 
 If not FileExist(AutoCorrectsLogFile)
-	FileAppend("This will be the log of AutoCorrects.`n", AutoCorrectsLogFile)
+	FileAppend("This will be the log of all autocorrections.`n", AutoCorrectsLogFile)
+If not FileExist(ErrContextLog)
+	FileAppend(
+		"This will be the log of extended context information for backspaced autocorrections.`n"
+		"Date Y-M-D`titem`t`t`tcontext`n"
+		"===============================================", ErrContextLog)
 
 !+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger.
 
 lastTrigger := "No triggers logged yet." ; in case no autocorrects have been made
 
+;========= AUTOCORRECTION LOGGER =============================================== 
 ; Mikeyww's idea to use a one-line function call. Cool.
 ; www.autohotkey.com/boards/viewtopic.php?f=76&t=120745
 ; This is the main autoCorrection Logger f() Function.  All the one-line "f" autocorrects call this.
@@ -1406,10 +1451,17 @@ f(replace := "")
 	replace := SubStr(replace, (ignorLen+1))
 	SendInput("{BS " (TrigLen - ignorLen) "}" replace StrReplace(endchar, "!", "{!}")) ; Type replacemement and endchar. 
 	replace := "" ; Reset to blank string.
+
 	HSInputBuffer.Stop()
 	If (beepOnCorrection = 1)
 		SoundBeep(900, 60) ; Notification of replacement.
 	SetTimer(keepText.bind(LastTrigger), -1)
+
+	; For onBsLogger function.
+	Global IsRecent := 1 ; Set IsRecent, then change back in x second(s).
+	; setTimer TriggerRecency, -2000 ; run only once, in x second(s).
+	setTimer (*) => IsRecent := 0, -1000 ; run only once, in x second(s).
+
 }
 
 logIsRunning := 0, savedUpText := '', intervalCounter := 0 ; Initialize the counter
@@ -1420,8 +1472,7 @@ saveIntervalMinutes := saveIntervalMinutes*60*1000 ; convert to miliseconds.
 ; So don't run timer when script starts.  Run it when logging starts. 
 ; keepText(*) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
 keepText(KeepForLog, *) { ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
-	EndKeys := "{Backspace}"
-	global lih := InputHook("B V I1 E T1", EndKeys) ; "logger input hook." T is time-out. T1 = 1 second.
+	global lih := InputHook("B V I1 E T1", "{Backspace}") ; "logger input hook." T is time-out. T1 = 1 second.
 	lih.Start(), lih.Wait()
 	hyphen := (lih.EndKey = "Backspace")?  " << " : " -- "
 	global savedUpText .= "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog  
@@ -1442,11 +1493,80 @@ Appender(*) {
 		global logIsRunning := 0  	; Indicate that the timer is no longer running
 		global intervalCounter := 0 ; Reset the counter for safety
 	}
-	;soundBeep 800, 800 ; <----------------------------------- Announcement to ensure the log is logging.  Remove later. 
+	;soundBeep 800, 800 ; <------------ Announcement to ensure the log is logging.  Remove later. 
 	;soundBeep 600, 800
 }
 
 OnExit Appender ; Also append one more time on exit, incase we are in the middle of an interval. 
+
+;========= BASCSPACE CONTEXT LOGGER ============================================
+; The "On Backspace" Logger constantly keeps a cache of the last several words typed.  
+; (Does not cache digits.)  If an autocorrection is logged, and backspace is pressed
+; within X seconds, the cached words AND the next X words are logged.  This is so we
+; can later see the context--whether the BS was due to a misfire of the hotstring. 
+Global IsRecent := 0 ; Start blank
+OnBSLogger() ; Run at script startup.
+OnBSLogger() { 
+    Global lastTrigger
+    WordArr := []
+    bsih := InputHook("B V I1 E", "{Space}{Backspace}{Tab}{Enter}") ; "logger input hook"
+    waitingForExtra := false, extraWordsCount := 0, LogEntry := ""
+    timeoutTimer := 0
+    
+    LogContent(*) { ; Function to handle logging
+        If !waitingForExtra  ; Don't proceed if we're no longer waiting (already logged)
+            return
+            
+        LogEntry := ""
+        For wArr in WordArr {
+            LogEntry .= wArr
+        }
+        LogEntry := StrReplace(LogEntry, "{Space}", "| - |")
+        LogEntry := StrReplace(LogEntry, "{Backspace}", "| < |")
+        LogEntry := StrReplace(LogEntry, "{Enter}", "| e |")
+        LogEntry := StrReplace(LogEntry, "||", "|")
+        LogEntry := StrReplace(LogEntry, "  ", " ")
+
+        dateStamp := "`n" A_YYYY "-" A_MM "-" A_DD
+        tabs := StrLen(lastTrigger)>20? "`t" : "`t`t"
+        
+        FileAppend(dateStamp " << " lastTrigger tabs "---> " LogEntry, ErrContextLog)
+        If (beepOnContexLog = 1)
+            SoundBeep(600, 200), SoundBeep(400, 200)
+        
+        LogEntry := "", waitingForExtra := false, extraWordsCount := 0
+        WordArr := []
+        SetTimer(timeoutTimer, 0)  ; Clear the timeout timer
+    }
+    
+    Loop {
+        bsih.Start(), bsih.Wait()
+        If !RegExMatch(bsih.Input, "\d") {
+            If (waitingForExtra) {
+                If (bsih.EndKey = "Space") {
+                    extraWordsCount++
+                    WordArr.Push(bsih.Input "{" bsih.EndKey "}")
+                    
+                    If (extraWordsCount > followingWordCount) {
+                        LogContent()  ; Log when we have enough words
+                    }
+                }
+            } 
+            else {
+                WordArr.Push(bsih.Input "{" bsih.EndKey "}")
+                If (WordArr.Length > precedingWordCount)
+                    WordArr.RemoveAt(1)
+                    
+                If (bsih.EndKey = "Backspace" && IsRecent = 1) {
+                    waitingForExtra := true
+                    ; Set up timeout timer with 8 second delay
+                    timeoutTimer := LogContent  ; Store the function reference
+                    SetTimer(timeoutTimer, -8000)  ; Will trigger after 8 seconds
+                }
+            }
+        }
+    }
+}
 
 ;================================================================================================
 /* InputBuffer Class by Descolada https://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865
@@ -1548,12 +1668,13 @@ class InputBuffer {
 
 ;###############################################
 ; Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
+; Newer-added entries will have 'potential fixes' based on the 249k wordlist. 
 ^F3:: ; Ctrl+F3: Report information about the autocorrect items.
-StringAndFixReport(*)
-{	HsLibContents := FileRead(HotstringLibrary)
+StringAndFixReport(*) {
+	HsLibContents := FileRead(HotstringLibrary)
 	thisOptions := '', regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0
-	Loop Parse HsLibContents, '`n'
-	{	If SubStr(Trim(A_LoopField),1,1) != ':'
+	Loop Parse HsLibContents, '`n' {
+		If SubStr(Trim(A_LoopField),1,1) != ':'
 			continue
 		entries++
 		thisOptions := SubStr(Trim(A_LoopField), 1, InStr(A_LoopField, ':',,,2)) ; get options part of hotstring
@@ -1581,10 +1702,9 @@ StringAndFixReport(*)
 	'`n   Potential Fixes:`t`t' numberFormat(fixes) 
 	, 'Report for ' HotstringLibrary, 64 + 4096  ; Icon Asterisk (info)	64; System Modal (always on top) 4096
 	)
-	numberFormat(num) ; Function to format a number with commas (by ChatGPT4)
-	{	global
-		Loop 
-		{	oldnum := num
+	numberFormat(num) { ; Function to format a number with commas (by ChatGPT4)
+		Loop 5 {	; '5' to prevent endless loop.
+			oldnum := num
 			num := RegExReplace(num, "(\d)(\d{3}(\,|$))", "$1,$2") ; search for number patterns and insert commas
 			if (num == oldnum) ; If the number doesn't change, exit the loop
 				break
