@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 11-28-2024
+; Update date: 11-29-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -79,8 +79,10 @@ hh_Hotkey := "#h" ; The activation hotkey-combo (not string) for HotString Helpe
 hhFormName := "HotString Helper 2" ; The name at the top of the form. Change here, if desired.
 
 ; ======Change=size=of=GUI=when="Make Bigger"=is=invoked========================
-HeightSizeIncrease := 300 ; Numbers, not 'strings,' so no quotation marks. 
-WidthSizeIncrease := 400
+HeightSizeIncrease := 300	; Increase by this many pixels.
+WidthSizeIncrease := 400	; Increase by this many pixels.
+hFactor := 0 				; Keep at 0.
+wFactor := 366 				; 366 recommended. The buttons, etc need at least 366.
 
 ;====Assign=symbols=for="Show Symb"=button======================================
 myPilcrow := "¶"    ; Okay to change symbols if desired.
@@ -158,14 +160,14 @@ hh.Opt("-MinimizeBox +alwaysOnTop")
 try hh.BackColor := formColor ; This variable gets set at the top of the HotString Helper section. 
 FontColor := FontColor != "" ? "c" SubStr(fontColor, -6) : "" ; Ensure exactly one 'c' on the left. 
 hh.SetFont("s11 " FontColor)  ; This variable gets set at the top of the HotString Helper section. 
-hFactor := 0, wFactor := 0 ; Don't change size here. 
+
 
 ; -----  Trigger string parts ----
 hh.AddText('y4 w30', 'Options')
 TrigLbl := hh.AddText('x+40 w250', 'Trigger String')
 listColor := listColor != "" ? "Background" . listColor : ""
 MyDefaultOpts := hh.AddEdit(listColor ' yp+20 xm+2 w70 h24')
-TriggerString := hh.AddEdit(listColor ' x+18 w' . wFactor + 280, '')
+TriggerString := hh.AddEdit(listColor ' x+18 w' . wFactor -86, '')
 	TriggerString.OnEvent('Change', TriggerChanged)
 
 ; ----- Replacement string parts ----
@@ -176,7 +178,7 @@ SizeTog := hh.AddButton('x+75 yp-5 h8 +notab', 'Make Bigger')
 SymTog := hh.AddButton('x+5 h8 +notab', '+ Symbols')
 	SymTog.OnEvent("Click", TogSym)
 hh.SetFont('s11')
-ReplaceString := hh.AddEdit(listColor ' +Wrap y+1 xs h' hFactor + 100 ' w' wFactor + 370, '')
+ReplaceString := hh.AddEdit(listColor ' +Wrap y+1 xs h' hFactor + 100 ' w' wFactor, '')
 	ReplaceString.OnEvent('Change', GoFilter)
 
 ; ---- Below Replacement ----
@@ -185,21 +187,21 @@ ChkFunc := hh.AddCheckbox( 'vFunc, x+70 y' hFactor + 182, 'Make Function')
 	ChkFunc.OnEvent('Click', FormAsFunc)
 ChkFunc.Value := 1 ; 'Make Function' box checked by default?  1 = checked.  
 ; NOTE: If HH detects a multiline item, this gets unchecked. 
-ComStr := hh.AddEdit(listColor ' cGreen vComStr xs y' hFactor + 200 ' w' wFactor + 370) ; Remove greed, if desired.
+ComStr := hh.AddEdit(listColor ' cGreen vComStr xs y' hFactor + 200 ' w' wFactor) ; Remove greed, if desired.
 
 ; ---- Buttons ----
-ButApp := hh.AddButton('xm y' hFactor + 234, 'Append')
+ButApp := hh.AddButton('xm y' hFactor + 234 ' w' (wFactor/6)-4 , 'Append')
 	ButApp.OnEvent("Click", hhButtonAppend)
-ButCheck := hh.AddButton('+notab x+5 y' hFactor + 234, 'Check')
+ButCheck := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Check')
 	ButCheck.OnEvent("Click", hhButtonCheck)
-ButExam := hh.AddButton('+notab x+5 y' hFactor + 234, 'Exam')
+ButExam := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Exam')
 	ButExam.OnEvent("Click", hhButtonExam)
 	ButExam.OnEvent("ContextMenu", subFuncExamControl)
-ButSpell := hh.AddButton('+notab x+5 y' hFactor + 234, 'Spell')
+ButSpell := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Spell')
 	ButSpell.OnEvent("Click", hhButtonSpell)
-ButOpen := hh.AddButton('+notab x+5 y' hFactor + 234, 'Open')
+ButOpen := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Open')
 	ButOpen.OnEvent("Click", hhButtonOpen)
-ButCancel := hh.AddButton('+notab x+5 y' hFactor + 234, 'Cancel')
+ButCancel := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Cancel')
 	ButCancel.OnEvent("Click", hhButtonCancel)
 
 hh.OnEvent("Close", hhButtonCancel)
@@ -207,16 +209,16 @@ hh.OnEvent("Close", hhButtonCancel)
 ; ============== Bottom (toggling) "Exam Pane" part of GUI =====================
 ; ---- delta string ----
 hh.SetFont('s10')
-ButLTrim := hh.AddButton('vbutLtrim xm h50  w' (wFactor+182/6), '>>')
+ButLTrim := hh.AddButton('vbutLtrim xm h50  w' (wFactor/8), '>>')
 	ButLTrim.onEvent('click', GoLTrim)
 hh.SetFont('s14')
 DeltaColor := brightness > 128 ? "191970" : "00FFFF" ; Color options for Blue Delta String.
-TxtTypo := hh.AddText('vTypoLabel -wrap +center c' DeltaColor ' x+1 w' . (wFactor+182*5/3), hhFormName)
+TxtTypo := hh.AddText('vTypoLabel -wrap +center c' DeltaColor ' x+1 w' . (wFactor*3/4), hhFormName)
 hh.SetFont('s10')
-(ButRTrim := hh.AddButton('vbutRtrim x+1 h50 w' (wFactor+182/6), '<<')).onEvent('click', GoRTrim)
+(ButRTrim := hh.AddButton('vbutRtrim x+1 h50 w' (wFactor/8), '<<')).onEvent('click', GoRTrim)
 ; ---- radio buttons -----
 hh.SetFont('s11')
-RadBeg := hh.AddRadio('vBegRadio y+-18 x' (wFactor+182/3), '&Beginnings')
+RadBeg := hh.AddRadio('vBegRadio y+-18 x' (wFactor/6)+7, '&Beginnings')
 	RadBeg.OnEvent('click', GoFilter)
 	RadBeg.OnEvent('contextmenu', GoRadioClick)
 RadMid := hh.AddRadio('vMidRadio x+5', '&Middles')
@@ -226,18 +228,19 @@ RadEnd := hh.AddRadio('vEndRadio x+5', '&Endings')
 	RadEnd.OnEvent('click', GoFilter)
 	RadEnd.OnEvent('contextmenu', GoRadioClick)
 ; ---- bottom buttons -----
-ButUndo := hh.AddButton('xm y+3 h26 w' (wFactor+182*2), "Undo (+Reset)")
+; ButUndo := hh.AddButton('xm y+3 h26 w' (wFactor+182*2), "Undo (+Reset)")
+ButUndo := hh.AddButton('xm y+3 h26 w' (wFactor), "Undo (+Reset)")
 	ButUndo.OnEvent('Click', GoUndo)
 	ButUndo.Enabled := false
 ; ---- results lists -----
 hh.SetFont('s12')
-TxtTLabel := hh.AddText('vTrigLabel center y+4 h25 xm w' wFactor+182, 'Misspells')
-TxtRLabel := hh.AddText('vReplLabel center h25 x+5 w' wFactor+182, 'Fixes')
-EdtTMatches := hh.AddEdit(listColor ' vTrigMatches y+1 xm h' hFactor+300 ' w' wFactor+182,)
-EdtRMatches := hh.AddEdit(listColor ' vReplMatches x+5 h' hFactor+300 ' w' wFactor+182,)
+TxtTLabel := hh.AddText('vTrigLabel center y+4 h25 xm w' wFactor/2, 'Misspells')
+TxtRLabel := hh.AddText('vReplLabel center h25 x+5 w' wFactor/2, 'Fixes')
+EdtTMatches := hh.AddEdit(listColor ' vTrigMatches y+1 xm h' hFactor+300 ' w' wFactor/2,)
+EdtRMatches := hh.AddEdit(listColor ' vReplMatches x+5 h' hFactor+300 ' w' wFactor/2,)
 ; ---- word list file ----
 hh.SetFont('bold s8')
-TxtWordList := hh.AddText('vWordList center xm y+1 h14 w' . wFactor*2+364 , "Assigned word list: " WordListName)
+TxtWordList := hh.AddText('vWordList center xm y+1 h14 w' . wFactor , "Assigned word list: " WordListName)
 hh.SetFont('bold s10')
 
 ; ============== Bottom (toggling) "Control Pane" part of GUI =====================
@@ -283,7 +286,7 @@ if FileExist("colorThemeSettings.ini") { ; Only add this button if ini file is t
     )])
 }
 
-TxtCtrlLbl1 := hh.AddText("center c" DeltaColor " ym+270 h25 xm w" wFactor+370, "Secret Control Panel!")
+TxtCtrlLbl1 := hh.AddText("center c" DeltaColor " ym+270 h25 xm w" wFactor, "Secret Control Panel!")
 hh.SetFont("s10")
 
 buttons := Map()
@@ -292,7 +295,7 @@ for config in buttonConfigs {
     buttonText := config[1]
     buttonConfig := config[2]
     
-    button := hh.AddButton("y+2 h28 xm w" wFactor+370, buttonText)
+    button := hh.AddButton("y+2 h28 xm w" wFactor, buttonText)
     button.OnEvent("click", buttonConfig["action"])
     
     if buttonConfig["icon"]
@@ -457,7 +460,7 @@ NormalStartup(strT, strR) {	; If multiple spaces or `n present, probably not an 
 ; to comparing/parsing the trigger and replacement to populate the blue Delta String
 ; Note:  We are using the term "Delta" so denote the change in the string, between trigger and replacement.
 ExamineWords(strT, strR) 
-{	SubTogSize(0, 0) ; Incase size is 'Bigger,' make Smaller.
+{	SubTogSize(hFactor, wFactor) ; Incase size is 'Bigger,' make Smaller.
 	hh.Show('Autosize yCenter') 
 
 	ostrT := strT, ostrR := strR ; Hold original str values (not arrays).
@@ -527,7 +530,7 @@ ExamineWords(strT, strR)
 		If(hFactor != 0) {
 			SizeTog.text := "Make Bigger"
 			SoundBeep
-			SubTogSize(0, 0) ; Make replacement edit box small again.
+			SubTogSize(hFactor, wFactor) ; Make replacement edit box small again.
 		}
 		ShowHideButtonExam(True)
 	}
@@ -548,22 +551,22 @@ TogSize(*) {
 			ButExam.text := "Exam"
 		}
 		Global hFactor := HeightSizeIncrease
-		SubTogSize(hFactor, WidthSizeIncrease)
+		SubTogSize(hFactor, wFactor + WidthSizeIncrease)
 	}
 	Else If (SizeTog.text = "Make Smaller") { ; Means current state is 'Big'
 		SizeTog.text := "Make Bigger" ; Change the button label.
 		Global hFactor := 0 ; hFactor is also used as param in SubTogSize(), but still need to set global var here.
-		SubTogSize(0, 0)
+		SubTogSize(hFactor, wFactor)
 	}
 	hh.Show('Autosize yCenter') 
 }
 
 ; Called by TogSize function. 
 SubTogSize(hFactor, wFactor) ; Actually re-draws the form. 
-{	TriggerString.Move(, , wFactor + 280,)
-	ReplaceString.Move(, , wFactor + 372, hFactor + 100)
+{	TriggerString.Move(, , wFactor -86,)
+	ReplaceString.Move(, , wFactor, hFactor + 100)
 	ComLbl.Move(, hFactor + 182, ,)
-	ComStr.move(, hFactor + 200, wFactor + 367,)
+	ComStr.move(, hFactor + 200, wFactor,)
 	ChkFunc.Move(, hFactor + 182, ,)
 	ButApp.Move(, hFactor + 234, ,)
 	ButCheck.Move(, hFactor + 234, ,)
