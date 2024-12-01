@@ -1,9 +1,6 @@
-﻿#SingleInstance
-#Requires AutoHotkey v2+
-
-/*
+﻿/*
 Color Theme Integrator
-Kunkel321: 11-6-2024
+Kunkel321: 11-30-2024
 https://github.com/kunkel321/ColorThemeIntegrator
 https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132310
 
@@ -43,12 +40,17 @@ With a gui, the font needs to “stand out” from the background color of the g
 
 Similar to changing the shading, users may wish to "tone-down" one or more of the colors by reducing the saturation.  This is simulated by fading the color to gray.  The saturation up/down controls are next to the shading ones. Double-clicking the "ReSaturate" text label will reset the saturation levels to max.  And double-clicking the "UnShade" text label will set the shade spinners to the middle number (neither light, nor dark.)
 
-Near the bottom is the 4-row ListBox.  This shows the hexadecimal color values that will get exported.   The ListBox is also an "override."  If you can't get a color you like with the Hue, Shade, and Saturation controls, double-click the row in the list to pick a totally different color.  This will call a Windows color picker (based strongly on Teadrinker code) and disregard the above gui controls.  Holding the Ctrl Key while double-clicking will allow you to "eyedropper-pick" a color from the screen.  Note that if you then change a Hue, Shade, or Saturation controls, those controls will, again, take presidence and determine the colors used for the first three items (font, list, form). 
+Under the shading and saturation spinners is the 4-row ListBox.  This shows the hexadecimal color values that will get exported.   The ListBox is also an "override."  If you can't get a color you like with the Hue, Shade, and Saturation controls, double-click the row in the list to pick a totally different color.  This will call a Windows color picker (based strongly on Teadrinker code) and disregard the above gui controls.  Holding the Ctrl Key while double-clicking will allow you to "eyedropper-pick" a color from the screen.  Note that if you then change a Hue, Shade, or Saturation controls, those controls will, again, take presidence and determine the colors used for the first three items (font, list, form). 
 
-The current four colors, as well as the values of all the controls, can be saved to a configuration (.ini) file.  The tool will attempt to read from the file at start.  If the ini file is not found when the script starts, default values will be applied.  Near the top of the code is the "restartTheseScripts" list.  The tool will look for a list or scripts to restart (so that their gui colors will be updated.)  When the save button is pressed, the user will be given the option to also restart these scripts.  Uncheck the checkbox to bypass restarting the other scripts. 
+The current four colors, as well as the values of all the controls, can be saved to a configuration (.ini) file as the main [ColorSettings] section, which is read by other apps.  The tool will attempt to read from the file at start.  If the ini file is not found when the script starts, default values will be applied.  Near the top of the code is the "restartTheseScripts" list.  The tool will look for a list or scripts to restart (so that their gui colors will be updated.)  When the save button is pressed, the user will be given the option to also restart these scripts.  Uncheck the checkbox to bypass restarting the other scripts. 
+
+Added 11-29-2024, at the bottom is are the controls for saving favorive themes.  Each theme is saved as its own [Section] in the ini file. 
 
 The script looks for command line arguments when it starts.  If there are command line arguments, the gui is shown at statup, and Esc or closing the form exits the app.  this was added so that the tool could be launched from the HotString Helper2 tool.
 */
+
+#SingleInstance
+#Requires AutoHotkey v2+
 
 myHotKey := "!+g"                   ; Alt+Shift+G shows/hides tool.
 ^Esc::ExitApp                       ; Ctrl+Esc Terminates entire script.
@@ -60,6 +62,20 @@ saturationSteps     := 30           ; Change number of steps, if desired.
 
 ; *******************************************************
 ; *** REPLACE BELOW SCRIPT NAMES/PATHS WITH YOUR OWN ***
+; Each of the below scripts should have code to read from the colorThemeSettings.ini file. 
+; Recommended code to use in the other scripts:
+/*
+if FileExist("colorThemeSettings.ini") {
+   settingsFile := "colorThemeSettings.ini"
+   ; --- Get current colors from ini file. 
+   fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
+   listColor := IniRead(settingsFile, "ColorSettings", "listColor")
+   formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+}
+else { ; Ini file not there, so use these color instead. 
+   fontColor := "0x1F1F1F", listColor := "0xFFFFFF", formColor := "0xE5E4E2"
+}
+*/
 restartTheseScripts := " ; Path not needed if they are in same folder as this script.
 (           
 AutoCorrect2.exe
@@ -187,6 +203,7 @@ myGui.Add("text", "xp+14 yp+4  +BackgroundTrans", "Form warning state" )
 
 ; the buttons
 myGui.SetFont("s11")
+
 expButton := myGui.Add("Button" , "w100 x14", "To ClipBrd")
 expButton.OnEvent("Click", exportClip)
 
@@ -201,6 +218,135 @@ canButton.OnEvent("Click", buttCancel)
 
 myGui.OnEvent("Escape", ExitTool) ; If user presses escape while gui is active...
 myGui.OnEvent("Close", ExitTool) ; If user closes via red 'x'.
+
+
+myGui.SetFont("s9")
+myGui.Add("Text","x14 w215 Center","Saved Favorite Themes").SetFont("bold")
+myGui.SetFont("s11")
+
+
+; read ini file and put section names into array for combo box.
+myFavesArr := [] 
+
+favesDropList := myGui.Add("DropDownList", "y+4 w215", myFavesArr)
+
+saveFaveButton := myGui.Add("Button" , "w100 x14", "Save Fave")
+saveFaveButton.OnEvent("Click", saveFave)
+
+loadFaveButton := myGui.Add("Button" , "w100 x+15", "Load Fave")
+loadFaveButton.OnEvent("Click", loadFave)
+
+deleteFaveButton := myGui.Add("Button" , "w100 x14", "Delete Fave")
+deleteFaveButton.OnEvent("Click", deleteFave)
+
+canButton2 := myGui.Add("Button" , "w100 x+15", "Cancel")
+canButton2.OnEvent("Click", buttCancel)
+
+
+saveFave(*) {
+    global myGui, listColor, fontColor, formColor
+    ; Create input box for theme name
+    inputGui := Gui()
+    inputGui.BackColor := formColor
+    inputGui.SetFont("s12 c" fontColor)
+    inputGui.Add("Text",, "Enter theme name:")
+    themeName := inputGui.Add("Edit", "w200 Background" listColor)
+    inputGui.Add("Button", "Default w80", "OK").OnEvent("Click", (*) => inputGui.Submit())
+    inputGui.Add("Button", "w80 x+10", "Cancel").OnEvent("Click", (*) => inputGui.Hide())
+    inputGui.Show()
+    
+    WinWaitClose(inputGui)
+    if !themeName.Value  ; User cancelled or entered empty name
+        return
+        
+    ; Save all current settings under new section
+    IniWrite(fontColor, settingsFile, themeName.Value, "fontColor")
+    IniWrite(listColor, settingsFile, themeName.Value, "listColor")
+    IniWrite(formColor, settingsFile, themeName.Value, "formColor")
+    IniWrite(warnColor, settingsFile, themeName.Value, "warnColor")
+    IniWrite(myRadRGB.Value, settingsFile, themeName.Value, "myRadRGB")
+    IniWrite(myRadCYM.Value, settingsFile, themeName.Value, "myRadCYM")
+    IniWrite(color1.Value, settingsFile, themeName.Value, "color1")
+    IniWrite(myReference.Value, settingsFile, themeName.Value, "myReference")
+    IniWrite(sSteps.Value, settingsFile, themeName.Value, "sSteps")
+    IniWrite(myRadLight.Value, settingsFile, themeName.Value, "myRadLight")
+    IniWrite(myRadDark.Value, settingsFile, themeName.Value, "myRadDark")
+    IniWrite(FontShadeSteps.Value, settingsFile, themeName.Value, "FontShadeSteps")
+    IniWrite(FontSaturationSteps.Value, settingsFile, themeName.Value, "FontSaturationSteps")
+    IniWrite(ListShadeSteps.Value, settingsFile, themeName.Value, "ListShadeSteps")
+    IniWrite(ListSaturationSteps.Value, settingsFile, themeName.Value, "ListSaturationSteps")
+    IniWrite(FormShadeSteps.Value, settingsFile, themeName.Value, "FormShadeSteps")
+    IniWrite(FormSaturationSteps.Value, settingsFile, themeName.Value, "FormSaturationSteps")
+    
+    ; Update combobox with new theme
+    refreshThemesList()
+}
+
+loadFave(*) {
+    global myGui, favesDropList
+    if !favesDropList.Text  ; No theme selected
+        return
+        
+    themeName := favesDropList.Text
+    
+    ; Load all settings from selected theme section
+    fontColor := IniRead(settingsFile, themeName, "fontColor")
+    listColor := IniRead(settingsFile, themeName, "listColor")
+    formColor := IniRead(settingsFile, themeName, "formColor")
+    warnColor := IniRead(settingsFile, themeName, "warnColor")
+    myRadRGB.Value := IniRead(settingsFile, themeName, "myRadRGB")
+    myRadCYM.Value := IniRead(settingsFile, themeName, "myRadCYM")
+    color1.Value := IniRead(settingsFile, themeName, "color1")
+    myReference.Value := IniRead(settingsFile, themeName, "myReference")
+    sSteps.Value := IniRead(settingsFile, themeName, "sSteps")
+    myRadLight.Value := IniRead(settingsFile, themeName, "myRadLight")
+    myRadDark.Value := IniRead(settingsFile, themeName, "myRadDark")
+    FontShadeSteps.Value := IniRead(settingsFile, themeName, "FontShadeSteps")
+    FontSaturationSteps.Value := IniRead(settingsFile, themeName, "FontSaturationSteps")
+    ListShadeSteps.Value := IniRead(settingsFile, themeName, "ListShadeSteps")
+    ListSaturationSteps.Value := IniRead(settingsFile, themeName, "ListSaturationSteps")
+    FormShadeSteps.Value := IniRead(settingsFile, themeName, "FormShadeSteps")
+    FormSaturationSteps.Value := IniRead(settingsFile, themeName, "FormSaturationSteps")
+    
+    ; Update GUI with new colors
+    colorChanged()
+}
+
+deleteFave(*) {
+    global favesDropList
+    if !favesDropList.Text  ; No theme selected
+        return
+        
+    themeName := favesDropList.Text
+    Result := MsgBox("Are you sure you want to delete the theme '" themeName "'?", 
+                    "Confirm Delete", "0x34")  ; Yes/No + Warning icon
+    if Result != "Yes"
+        return
+        
+    ; Delete the section from ini file
+    IniDelete(settingsFile, themeName)
+    
+    ; Update combobox
+    refreshThemesList()
+}
+
+refreshThemesList() {
+    global favesDropList, settingsFile
+    
+    ; Get all section names as newline-delimited string
+    sections := StrSplit(IniRead(settingsFile), "`n")
+    themeNames := []
+    for section in sections {
+        if (section != "ColorSettings")
+            themeNames.Push(section)
+    }
+    
+    ; Update combobox
+    favesDropList.Delete()
+    favesDropList.Add(themeNames)
+}
+; Call this when GUI is created to populate initial themes list
+refreshThemesList()
 
 ; If color tool was opened from hh2, then do a full exit after use.  Otherwise hide. 
 ExitTool(*) {
