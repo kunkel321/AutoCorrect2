@@ -1,8 +1,8 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated:  11-28-2024
-Determines frequency of items in AutoCorrects Log file, then sorts by freq (or weight).  Date not factored in sort. There's no hotkey, just run the script.  It reports the top X hotstrings that were immediately followed by 'Backspace' (<<), and how many times they were used without backspacing (--)).  Sort one or the other, or sort by "weight."  Intended for use with kunkel321's 'AutoCorrect for v2.' Items are reported in Gui, as radio buttons.  User is given option to 'Go to' item in HotStringLibrary, open it in HotStringHelper2, and/or Cull from embedded log at the bottom.  Items culled from ACLog file will get added to the RemovedHotStrings file.  This helps us avoid inadvertently "re-adding" them later.  Fully functional script was written by current human (kunkel321), then totally refactored (with lots of debugging) using ClaudeAI. Then... More human parts were added.  Hellbent helped me workout how to "weigh" the analyzed items. It is important to note that this log analyzer reads/analyzes the autocorrection log that is created by HotStringHelper, with is in the AutoCorrect2.ahk file.  Without hh2 logging your autocorrections, there will be nothing to analyze.  More recently (11-28-2024), the "ErrContextLog" functionality was added to hh2.  This Analyzer script uses that log too.  So please use a version of AutoCorrect2.ahk that is no older than 11-28-2024. 
+                Updated:  12-20-2024
+Determines frequency of items in AutoCorrects Log file, then sorts by freq (or weight).  Date not factored in sort. There's no hotkey, just run the script.  It reports the top X hotstrings that were immediately followed by 'Backspace' (<<), and how many times they were used without backspacing (--)).  Sort one or the other, or sort by "weight."  Intended for use with kunkel321's 'AutoCorrect for v2.' Items are reported in Gui, as radio buttons.  User is given option to 'Go to' item in HotStringLibrary, open it in HotStringHelper2, and/or Cull from embedded log at the bottom.  Items culled from ACLog file will get added to the RemovedHotStrings file.  This helps us avoid inadvertently "re-adding" them later.  Fully functional script was written by current human (kunkel321), then totally refactored (with lots of debugging) using ClaudeAI. Then... More human parts were added.  Hellbent helped me workout how to "weigh" the analyzed items. It is important to note that this log analyzer reads/analyzes the autocorrection log that is created by the AutoCorrect2.ahk script.  Without ac2 logging your autocorrections, there will be nothing to analyze.  More recently (11-28-2024), the "ErrContextLog" functionality was added to hh2.  This AcLogAnalyzer script uses that log too.  So please use a version of AutoCorrect2.ahk that is no older than 11-28-2024. 
 ===================================================
 */
 #SingleInstance Force
@@ -13,17 +13,18 @@ Determines frequency of items in AutoCorrects Log file, then sorts by freq (or w
 ShowX := 25             ; Show this many top results in report.
 SortByBS := 1           ; Sort by "Backspaced" items or "Kept" items? (1=BS, 0=Kept)
 WeighItems := 1         ; Attempt to weigh items based on how problematic they are. (1=yes) Only applies if SortByBS is '1'.
-freqImportance := 50     ; Is it important for an item to be "high-frequency" when applying weight? (0 to ~50, where 0=not important)
+freqImportance := 20    ; Is it important for an item to be "high-frequency" when applying weight? (0 to ~50, where 0=not important)
 IgnoreFewerThan := 2    ; Only used when Weighing.  If few '<<' items, skip line.
 AddFulltoClipBrd := 1   ; Send full report clipboard as well?
-myAutoCorrectScript := "AutoCorrect2.ahk"
-HotstringLibrary := "HotstringLib.ahk"
-ACLog := "AutoCorrectsLog.txt"
+myAutoCorrectScript := "AutoCorrect2.ahk" ; Used for sending HS to hotstring helper.
+HotstringLibrary := "HotstringLib.ahk" ; Used for 'Go To Hotstring' button.
+ACLog := "AutoCorrectsLog.txt" ; The main log that gets analyzed.
+errLog := "ErrContextLog.txt" ; Holds the additional context info for BS items.
 startLine := 7          ; Don't scan log until getting the this linemumber.
 RemovedHsFile := "RemovedHotstrings.txt" ; File containing hotstrings removed (culled) from log. 
-CullDateFormat := "MM-dd-yyyy"
-MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
-TraySetIcon(A_ScriptDir "\icons\AcAnalysis.ico")
+CullDateFormat := "MM-dd-yyyy" ; Used in RemovedHsFile.
+MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe" ; Put path to your editor.
+TraySetIcon(A_ScriptDir "\icons\AcAnalysis.ico") ; The icon for the guis and System Tray Icon. 
 ;========================================
 
 ; other global variables
@@ -138,28 +139,51 @@ FormatReportLine(bsTally, okTally, oStr) {
                 If not bsTally <= IgnoreFewerThan { ; Only use high-frequency items.
                     ; Special thanks to Hellbent for helping me try different weighing algorithms.
                     Weight := Round((bsTally / (bsTally + okTally) * 100) + bsTally * (freqImportance * 0.1), 1)  
-                    return Weight " is weight for ->`t" Format("{1}<< and {2}-- `tfor{3}`n", bsTally, okTally, oStr)
+                    return Weight " is weight for ->`t" Format("{1}<< and {2}-- `tfor {3}`n", bsTally, okTally, oStr)
                 }
             }
         }
         Else
-            return Format("{1}<< and {2}-- `tfor{3}`n", bsTally, okTally, oStr)
+            return Format("{1}<< and {2}-- `tfor {3}`n", bsTally, okTally, oStr)
     else
-        return Format("{1}-- and {2}<< `tfor{3}`n", okTally, bsTally, oStr)
+        return Format("{1}-- and {2}<< `tfor {3}`n", okTally, bsTally, oStr)
 }
 
 PrepareReport(Report) {
+    global contextLogContent := FileRead(errLog)
+
     Report := Sort(Sort(Report, "/U"), "NR")
     If (AddFulltoClipBrd =1)
         A_Clipboard := Report
     trunkReport := ""
     Loop Parse, Report, "`n" {
-        if (A_Index <= ShowX && A_LoopField != "")
-            trunkReport .= A_LoopField "`n"
+        if (A_Index <= ShowX && A_LoopField != "") {
+
+            contextCount := " [" IfHasContext(A_LoopField) "]"
+            contextCount := StrReplace(contextCount, "[0]", "[_]")
+            loopFldArr := StrSplit(A_LoopField, "<<")
+            thisLoopFld := loopFldArr[1] " <<" contextCount  loopFldArr[2]
+            trunkReport .=  thisLoopFld "`n"
+
+
+        }
         else if (A_Index > ShowX)
             break
     }
     return StrSplit(RTrim(trunkReport, "`n"), "`n")
+}
+
+IfHasContext(workingItem) {
+    ContextItemCount := 0
+    selItemArr := StrSplit(workingItem, ":")
+    selItemTrigger := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
+    global contextLogContent
+    loop parse contextLogContent, "`n" {
+        If InStr(A_LoopField, selItemTrigger) {
+            ContextItemCount++
+        }
+    }
+    Return ContextItemCount
 }
 
 AnalysisResults() {
@@ -202,13 +226,14 @@ CreateActionButtons() {
     buttons := [
         {label: 'Send to HH', callback: SendToHH},
         {label: 'Cull From Log', callback: cullFromLog},
+        {label: 'Edit Scpt', callback: (*) => Run(MyAhkEditorPath " " A_ScriptName)},
         {label: 'See in Lib', callback: goToHS},
         {label: 'See Context', callback: seeContext},
-        {label: 'Close', callback: (*) => ExitApp()}
+        {label: 'Close Tool', callback: (*) => ExitApp()}
     ]
     
     For idx, btn in buttons {
-        buttonOpts := (idx > 1 ? 'x+5 ' : '') (idx = 3? ' xm y+5 ' : '')
+        buttonOpts := (idx > 1 ? 'x+5 ' : '') (idx = 4? ' xm y+5 ' : '')
         newBtn := aca.Add('Button', buttonOpts, btn.label)
         newBtn.OnEvent('Click', btn.callback)
     }
@@ -222,9 +247,7 @@ SendToHH(*) {
         workingItem := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
 
         myACFileBaseName := StrSplit(myAutoCorrectScript, ".")[1]
-
-        ; Check if the file exists
-        if (!FileExist(myACFileBaseName . ".exe")) {
+        if (!FileExist(myACFileBaseName . ".exe")) { ; Check if the file exists
             MsgBox("Error: " myACFileBaseName ".exe not found in the current directory.")
             return
         }
@@ -254,29 +277,41 @@ goToHS(*) {
 
 seeContext(*) {
     result := ProcessSelectedItem()
-    contextItems := "No context items found"
     if (result) {
         global workingItem := result.workingItem
         selItemArr := StrSplit(workingItem, ":")
         selItemTrigger := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
-        contextLogContent := FileRead("ErrContextLog.txt")
+        contextLogContent := FileRead(errLog)
 
-        If InStr(contextLogContent, selItemTrigger)
-            contextItems := "" ; If the hotstring is in there at all, clear var.
-        loop parse contextLogContent, "`n" {
-            If InStr(A_LoopField, selItemTrigger) {
-                thisItem := StrSplit(A_LoopField, "`t---> ")[2]
-                contextItems .= thisItem "`n"
+        If !InStr(contextLogContent, selItemTrigger)
+            contextItems := "No context items found"
+        Else {
+            loop parse contextLogContent, "`n" {
+                If InStr(A_LoopField, selItemTrigger) {
+                    thisItem := StrSplit(A_LoopField, "`t---> ")[2]
+                    contextItems .= thisItem "`n"
+                }
             }
         }
 
         ctxGui := Gui()
-        ctxGUI.SetFont('s12 ' (FontColor ? "c" FontColor : ""))
+        ctxGUI.SetFont('s15 ' (FontColor ? "c" FontColor : ""))
         ctxGUI.BackColor := formColor
-        ctxGui.AddText(, "Context of item -- " selItemTrigger "`n====================`n" contextItems)
-        ctxGui.AddButton(,"Done").OnEvent("click", ctxDone)
-        ctxGui.Show
-        ctxDone(*) {
+        ; Use an Edit control, so text in selectable.  Make it look like text though.
+        ctxGui.Add('Edit', '-VScroll ReadOnly -E0x200 -WantReturn -TabStop Background' formColor
+        , "Context of item -- " selItemTrigger "`n======================`n" contextItems)
+        ctxGui.AddButton(,"Open Log").OnEvent("click", ctxOpenLog)
+        closeBtn := ctxGui.AddButton(" x+4","Close This")
+        closeBtn.OnEvent("click", ctxClose)
+        ctxGui.Show()
+        closeBtn.Focus() ; Move focus to the close button
+
+        ctxOpenLog(*) {
+            ctxGui.Destroy()
+            Run(errLog)
+            aca.Show()
+        }
+        ctxClose(*) {
             ctxGui.Destroy()
             aca.Show()
         }
