@@ -1,4 +1,4 @@
-#SingleInstance
+﻿#SingleInstance
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 11-29-2024
+; Update date: 12-20-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -61,7 +61,7 @@ If not FileExist(HotstringLibrary)
 ; to clipboard instead of appending. 
 ;===============================================================================
 
-; ===Change=Settings=for=Big=Validity=Dialog=Message=Box========================
+;====Change=Settings=for=Big=Validity=Dialog=Message=Box========================
 myGreen := brightness > 128 ? 'c0d3803' : 'cb8f3ab'  ; Color options for validity msg.
 myRed := brightness > 128 ? 'cB90012' : 'cfd7c73' ; Color options for validity msg.
 myBigFont := 's15'
@@ -78,9 +78,10 @@ hh_Hotkey := "#h" ; The activation hotkey-combo (not string) for HotString Helpe
 ;==Change=title=of=Hotstring=Helper=form=as=desired=============================
 hhFormName := "HotString Helper 2" ; The name at the top of the form. Change here, if desired.
 
-; ======Change=size=of=GUI=when="Make Bigger"=is=invoked========================
+;=======Change=size=of=GUI=when="Make Bigger"=is=invoked========================
 HeightSizeIncrease := 300	; Increase by this many pixels.
 WidthSizeIncrease := 400	; Increase by this many pixels.
+; The h/wFactor variables define the default (smaller) size of hh2.
 hFactor := 0 				; Keep at 0.
 wFactor := 366 				; 366 recommended. The buttons, etc need at least 366.
 
@@ -99,7 +100,9 @@ mySuffix := ""         ; An empty string "" means don't use feature.
 
 ;===============Change=options=AUTOCORRECT=words=as=desired=====================
 ; PreEnter these (single-word) autocorrect options; "T" = raw text mode, etc.
-DefaultAutoCorrectOpts := "*" ; An empty string "" means don't use feature.
+DefaultAutoCorrectOpts := "B0X" ; An empty string "" means don't use feature.
+MakeFuncByDefault := 1 ; 'Make Function' box checked by default?  1 = checked. 
+; NOTE: If HH detects a multiline item, this gets unchecked. 
 
 ;=====List=of=words=use=for=examination=lookup==================================
 WordListFile := 'GitHubComboList249k.txt' ; Mostly from github: Copyright (c) 2020 Wordnik
@@ -185,8 +188,6 @@ ReplaceString := hh.AddEdit(listColor ' +Wrap y+1 xs h' hFactor + 100 ' w' wFact
 ComLbl := hh.AddText('xm y' hFactor + 182, 'Comment')
 ChkFunc := hh.AddCheckbox( 'vFunc, x+70 y' hFactor + 182, 'Make Function')
 	ChkFunc.OnEvent('Click', FormAsFunc)
-ChkFunc.Value := 1 ; 'Make Function' box checked by default?  1 = checked.  
-; NOTE: If HH detects a multiline item, this gets unchecked. 
 ComStr := hh.AddEdit(listColor ' cGreen vComStr xs y' hFactor + 200 ' w' wFactor) ; Remove greed, if desired.
 
 ; ---- Buttons ----
@@ -444,6 +445,7 @@ NormalStartup(strT, strR) {	; If multiple spaces or `n present, probably not an 
 		TriggerString.value := Trim(StrLower(A_Clipboard))
 		ReplaceString.value := Trim(StrLower(A_Clipboard)) 
 		MyDefaultOpts.text := DefaultAutoCorrectOpts  
+		ChkFunc.Value := MakeFuncByDefault
 	}
 	
 	; SoundBeep 800, 100
@@ -1372,6 +1374,7 @@ fix_consecutive_caps() {
 	HotIf
 	; Third letter is checked using InputHook.
 	fix(char1, char2, *) {
+		;ih := InputHook("V I101 L1")
 		ih := InputHook("V I101 L1 T.3")
 		ih.OnEnd := OnEnd
 		ih.Start()
@@ -1406,9 +1409,6 @@ fix_consecutive_caps() {
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;========= AUTOCORRECTION LOGGER OPTIONS ======================================= 
-saveIntervalMinutes 	:= 20   ; Collect the log items in RAM, then save to disc this often. 
-IntervalsBeforeStopping := 2  	; Stop collecting, if no new pattern matches for this many intervals.
-; (Script will automatically restart the log intervals next time there's a match.)
 beepOnCorrection 		:= 1	; Beep when the f() function is used.
 AutoCorrectsLogFile 	:= "AutoCorrectsLog.txt" ; The text file for the log.
 
@@ -1467,40 +1467,17 @@ f(replace := "")
 
 }
 
-logIsRunning := 0, savedUpText := '', intervalCounter := 0 ; Initialize the counter
-saveIntervalMinutes := saveIntervalMinutes*60*1000 ; convert to miliseconds.
-
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
-; There's no point running the logger if no text has been saved up...  
-; So don't run timer when script starts.  Run it when logging starts. 
-; keepText(*) ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
-keepText(KeepForLog, *) { ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
+; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
+keepText(KeepForLog, *) {  
 	global lih := InputHook("B V I1 E T1", "{Backspace}") ; "logger input hook." T is time-out. T1 = 1 second.
 	lih.Start(), lih.Wait()
 	hyphen := (lih.EndKey = "Backspace")?  " << " : " -- "
-	global savedUpText .= "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog  
-	global intervalCounter := 0  	; Reset the counter since we're adding new text
-	If logIsRunning = 0  			; only start the timer it it is not already running.
-		setTimer Appender, saveIntervalMinutes  	; call function every X minutes.
+	; "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog  
+	FileAppend("`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog, AutoCorrectsLogFile)
+
 }
 #MaxThreadsPerHotkey 1
-
-; Gets called by timer, or by onExit.
-Appender(*) {
-	FileAppend(savedUpText, AutoCorrectsLogFile)
-	global savedUpText := ''  		; clear each time, since text has been logged.
-	global logIsRunning := 1  		; set to 1 so we don't keep resetting the timer.
-	global intervalCounter += 1 	; Increments here, but resets in other locations. 
-	If (intervalCounter >= IntervalsBeforeStopping) { ; Check if no text has been kept for X intervals
-		setTimer Appender, 0  		; Turn off the timer
-		global logIsRunning := 0  	; Indicate that the timer is no longer running
-		global intervalCounter := 0 ; Reset the counter for safety
-	}
-	;soundBeep 800, 800 ; <------------ Announcement to ensure the log is logging.  Remove later. 
-	;soundBeep 600, 800
-}
-
-OnExit Appender ; Also append one more time on exit, incase we are in the middle of an interval. 
 
 ;========= BASCSPACE CONTEXT LOGGER ============================================
 ; The "On Backspace" Logger constantly keeps a cache of the last several words typed.  
@@ -1513,7 +1490,9 @@ OnBSLogger() {
     Global lastTrigger
     WordArr := []
     bsih := InputHook("B V I1 E", "{Space}{Backspace}{Tab}{Enter}") ; "logger input hook"
-    waitingForExtra := false, extraWordsCount := 0, LogEntry := ""
+    waitingForExtra := false
+	extraWordsCount := 0
+	LogEntry := ""
     timeoutTimer := 0
     
     LogContent(*) { ; Function to handle logging
@@ -1524,14 +1503,22 @@ OnBSLogger() {
         For wArr in WordArr {
             LogEntry .= wArr
         }
-        LogEntry := StrReplace(LogEntry, "{Space}", "| - |")
-        LogEntry := StrReplace(LogEntry, "{Backspace}", "| < |")
-        LogEntry := StrReplace(LogEntry, "{Enter}", "| e |")
-        LogEntry := StrReplace(LogEntry, "||", "|")
+		; Change end keys for abbrev. chars. 
+		LogEntry := StrReplace(LogEntry, "]Space]", "] - ]")
+		LogEntry := StrReplace(LogEntry, "]Backspace]", "] < ]")
+		; LogEntry := StrReplace(LogEntry, "]Enter]", "] e ]")
+		; LogEntry := StrReplace(LogEntry, "]Tab]", "] t ]")
+		LogEntry := StrReplace(LogEntry, "[Space[", "[ - [")
+		LogEntry := StrReplace(LogEntry, "[Backspace[", "[ < [")
+		; LogEntry := StrReplace(LogEntry, "[Enter[", "[ e [")
+		; LogEntry := StrReplace(LogEntry, "[tab[", "[ t [")
+		; Remove doubles.
+        LogEntry := StrReplace(LogEntry, "[[", "[")
+        LogEntry := StrReplace(LogEntry, "]]", "]")
         LogEntry := StrReplace(LogEntry, "  ", " ")
 
         dateStamp := "`n" A_YYYY "-" A_MM "-" A_DD
-        tabs := StrLen(lastTrigger)>20? "`t" : "`t`t"
+        tabs := StrLen(lastTrigger)>14? "`t" : "`t`t" ; Adjust so that "--->" is in own column. 
         
         FileAppend(dateStamp " << " lastTrigger tabs "---> " LogEntry, ErrContextLog)
         If (beepOnContexLog = 1)
@@ -1548,21 +1535,18 @@ OnBSLogger() {
             If (waitingForExtra) {
                 If (bsih.EndKey = "Space") {
                     extraWordsCount++
-                    WordArr.Push(bsih.Input "{" bsih.EndKey "}")
-                    
+                    WordArr.Push(bsih.Input "]" bsih.EndKey "]")
                     If (extraWordsCount > followingWordCount) {
                         LogContent()  ; Log when we have enough words
                     }
                 }
             } 
             else {
-                WordArr.Push(bsih.Input "{" bsih.EndKey "}")
+                WordArr.Push(bsih.Input "[" bsih.EndKey "[")
                 If (WordArr.Length > precedingWordCount)
                     WordArr.RemoveAt(1)
-                    
                 If (bsih.EndKey = "Backspace" && IsRecent = 1) {
                     waitingForExtra := true
-                    ; Set up timeout timer with 8 second delay
                     timeoutTimer := LogContent  ; Store the function reference
                     SetTimer(timeoutTimer, -8000)  ; Will trigger after 8 seconds
                 }
@@ -1716,3 +1700,4 @@ StringAndFixReport(*) {
 	}
 }
 ;###############################################
+
