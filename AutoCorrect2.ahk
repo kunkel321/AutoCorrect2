@@ -275,7 +275,7 @@ buttonConfigs := [ ; Define button configurations as array.
         "icon", A_ScriptDir "\Icons\JustLog.ico"
     )],
     ["Report HotStrings and Potential Fixes", Map(
-        "action", StringAndFixReport,
+        "action", (*) => StringAndFixReport("Button"),
         "icon", ""
     )]
 ]
@@ -1655,57 +1655,56 @@ class InputBuffer {
 ; Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
 ; Newer-added entries will have 'potential fixes' based on the 249k wordlist. 
 ; Peek-at-last-trigger feature uses this GUI too. 
-!+F3:: ; Alt+Shift+F3: Peek at last trigger.
-^F3:: ; Ctrl+F3: Report information about the autocorrect items.
-StringAndFixReport(*) { ; Functon also called from hh2 Control Panel button.
-	HsLibContents := FileRead(HotstringLibrary)
-	thisOptions := '', regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0
-	Loop Parse HsLibContents, '`n' {
-		If SubStr(Trim(A_LoopField),1,1) != ':'
-			continue
-		entries++
-		thisOptions := SubStr(Trim(A_LoopField), 1, InStr(A_LoopField, ':',,,2)) ; get options part of hotstring
-		If InStr(thisOptions, '*') and InStr(thisOptions, '?')
-			middles++
-		Else If InStr(thisOptions, '*')
-			begins++
-		Else If InStr(thisOptions, '?')
-			ends++
-		Else
-			regulars++
-		If RegExMatch(A_LoopField, 'Fixes\h*\K\d+', &fn) ; Need a regex for this... 
-			fixes += fn[]
-	}
 
-	fixRepMsg := ( 
-	'The ' HotstringLibrary ' component of`n'
-	NameOfThisFile ' contains the following '
-	'`n Autocorrect hotstring totals.'
-	'`n==========================='
-	'`n    Regular Autocorrects:`t' numberFormat(regulars)
-	'`n    Word Beginnings:`t`t' numberFormat(begins)
-	'`n    Word Middles:`t`t' numberFormat(middles)
-	'`n    Word Ends:`t`t' numberFormat(ends)
-	'`n==========================='
-	'`n   Total Entries:`t`t' numberFormat(entries)
-	'`n   Potential Fixes:`t`t' numberFormat(fixes) 
-	)
-	numberFormat(num) { ; Function to format a number with commas (by ChatGPT4)
-		Loop 5 {	; '5' to prevent endless loop.
-			oldnum := num
-			num := RegExReplace(num, "(\d)(\d{3}(\,|$))", "$1,$2") ; search for number patterns and insert commas
-			if (num == oldnum) ; If the number doesn't change, exit the loop
-				break
-		}
-		return num
-	}
+!+F3::StringAndFixReport("lastTrigger") ; Alt+Shift+F3: Peek at last trigger.
+^F3::StringAndFixReport("report") ; Ctrl+F3: Report information about the autocorrect items.
+StringAndFixReport(caller := "Button") { ; Functon also called from hh2 Control Panel button.
 	
-	If (A_ThisHotkey = "!+F3") {
+	If (caller = "lastTrigger") {
 		thisMessage := "Last logged trigger:`n`n" lastTrigger
 		buttPos := ""
 	}
-	Else { ; Called by ^F3 or hh2 Control panel button.
-		thisMessage := fixRepMsg
+	Else { 
+		HsLibContents := FileRead(HotstringLibrary)
+		thisOptions := '', regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0
+		Loop Parse HsLibContents, '`n' {
+			If SubStr(Trim(A_LoopField),1,1) != ':'
+				continue
+			entries++
+			thisOptions := SubStr(Trim(A_LoopField), 1, InStr(A_LoopField, ':',,,2)) ; get options part of hotstring
+			If InStr(thisOptions, '*') and InStr(thisOptions, '?')
+				middles++
+			Else If InStr(thisOptions, '*')
+				begins++
+			Else If InStr(thisOptions, '?')
+				ends++
+			Else
+				regulars++
+			If RegExMatch(A_LoopField, 'Fixes\h*\K\d+', &fn) ; Need a regex for this... 
+				fixes += fn[]
+		}
+		numberFormat(num) { ; Function to format a number with commas (by ChatGPT4)
+			Loop 5 {	; '5' to prevent endless loop.
+				oldnum := num
+				num := RegExReplace(num, "(\d)(\d{3}(\,|$))", "$1,$2") ; search for number patterns and insert commas
+				if (num == oldnum) ; If the number doesn't change, exit the loop
+					break
+			}
+			return num
+		}
+		thisMessage := ( 
+		'The ' HotstringLibrary ' component of`n'
+		NameOfThisFile ' contains the following '
+		'`n Autocorrect hotstring totals.'
+		'`n================================'
+		'`n    Regular Autocorrects:`t' numberFormat(regulars)
+		'`n    Word Beginnings:`t`t' numberFormat(begins)
+		'`n    Word Middles:`t`t' numberFormat(middles)
+		'`n    Word Ends:`t`t' numberFormat(ends)
+		'`n================================'
+		'`n   Total Entries:`t`t' numberFormat(entries)
+		'`n   Potential Fixes:`t`t' numberFormat(fixes) 
+		)
 		buttPos := "x90"
 	}
 
