@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 12-20-2024
+; Update date: 12-21-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -1426,8 +1426,6 @@ If not FileExist(ErrContextLog)
 		"Date Y-M-D`titem`t`t`tcontext`n"
 		"===============================================", ErrContextLog)
 
-!+F3:: MsgBox(lastTrigger, "Trigger", 0) ; Shift+Alt+F3: Peek at last trigger.
-
 lastTrigger := "No triggers logged yet." ; in case no autocorrects have been made
 
 ;========= AUTOCORRECTION LOGGER =============================================== 
@@ -1656,8 +1654,10 @@ class InputBuffer {
 ;###############################################
 ; Number of "potential fixes" based on WordWeb app, and varies greatly by word list used. 
 ; Newer-added entries will have 'potential fixes' based on the 249k wordlist. 
+; Peek-at-last-trigger feature uses this GUI too. 
+!+F3:: ; Alt+Shift+F3: Peek at last trigger.
 ^F3:: ; Ctrl+F3: Report information about the autocorrect items.
-StringAndFixReport(*) {
+StringAndFixReport(*) { ; Functon also called from hh2 Control Panel button.
 	HsLibContents := FileRead(HotstringLibrary)
 	thisOptions := '', regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0
 	Loop Parse HsLibContents, '`n' {
@@ -1676,7 +1676,9 @@ StringAndFixReport(*) {
 		If RegExMatch(A_LoopField, 'Fixes\h*\K\d+', &fn) ; Need a regex for this... 
 			fixes += fn[]
 	}
-	MsgBox( 'The ' HotstringLibrary ' component of`n'
+
+	fixRepMsg := ( 
+	'The ' HotstringLibrary ' component of`n'
 	NameOfThisFile ' contains the following '
 	'`n Autocorrect hotstring totals.'
 	'`n==========================='
@@ -1687,7 +1689,6 @@ StringAndFixReport(*) {
 	'`n==========================='
 	'`n   Total Entries:`t`t' numberFormat(entries)
 	'`n   Potential Fixes:`t`t' numberFormat(fixes) 
-	, 'Report for ' HotstringLibrary, 64 + 4096  ; Icon Asterisk (info)	64; System Modal (always on top) 4096
 	)
 	numberFormat(num) { ; Function to format a number with commas (by ChatGPT4)
 		Loop 5 {	; '5' to prevent endless loop.
@@ -1698,6 +1699,28 @@ StringAndFixReport(*) {
 		}
 		return num
 	}
+	
+	If (A_ThisHotkey = "!+F3") {
+		thisMessage := "Last logged trigger:`n`n" lastTrigger
+		buttPos := ""
+	}
+	Else { ; Called by ^F3 or hh2 Control panel button.
+		thisMessage := fixRepMsg
+		buttPos := "x90"
+	}
+
+	fixRepGui := Gui()
+	fixRepGui.SetFont(myBigFont " " FontColor)
+	fixRepGui.BackColor := formColor
+	; Use an Edit control, so text in selectable.  Make it look like text though.
+	fixRepGui.Add('Edit', '-VScroll ReadOnly -E0x200 -WantReturn -TabStop Background' formColor, thisMessage)
+	closeBtn := fixRepGui.AddButton(buttPos, "Close This")
+	fixRepGui.AddButton("x+8","Copy Text").OnEvent("Click", (*) => A_Clipboard := thisMessage)
+	fixRepGui.Show("x" A_ScreenWidth/10) ; Appear to the left of hh2 Gui.
+	closeBtn.Focus() ; Move focus to the close button, so Edit text is not highlighted.
+	closeBtn.OnEvent("click"	, (*) => fixRepGui.Destroy())
+	fixRepGui.OnEvent("Escape"	, (*) => fixRepGui.Destroy())
+
 }
 ;###############################################
 
