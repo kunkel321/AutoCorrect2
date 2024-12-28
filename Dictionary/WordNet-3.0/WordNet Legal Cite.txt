@@ -1,0 +1,20 @@
+From https://wordnet.princeton.edu/citing-wordnet
+
+Citing WordNet
+Please note that WordNet® is a registered tradename. Princeton University makes WordNet available to research and commercial users free of charge provided the terms of our license are followed, and proper reference is made to the project using an appropriate citation.
+
+When writing a paper or producing a software application, tool, or interface based on WordNet, it is necessary to properly cite the source. Below are citations for hardcopy and the online version provided on our website. Please use whichever is appopriate to your project or paper, and be sure to follow the terms of the license.
+
+Hardcopy
+George A. Miller (1995). WordNet: A Lexical Database for English.
+Communications of the ACM Vol. 38, No. 11: 39-41.
+
+Christiane Fellbaum (1998, ed.) WordNet: An Electronic Lexical Database. Cambridge, MA: MIT Press.
+
+WordNet: An Electronic Lexical Database(Link is external) (citation above) is available from MIT Press(Link is external).
+
+Online
+Publications should cite this website when referring to the online version of WordNet. Below is a citation in MLA web citation style.
+
+Princeton University "About WordNet." WordNet.[1] Princeton University. 2010. 
+[1] https://wordnet.princeton.edu/

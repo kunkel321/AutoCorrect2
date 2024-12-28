@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 12-21-2024
+; Update date: 12-28-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -47,6 +47,9 @@ If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Not
 If not FileExist(HotstringLibrary) 
 	MsgBox("This message means the the hotstring library, '" HotstringLibrary "' can't be found.  Please correct, and try again.")
 
+; Initialize dictionary with path (but won't load until first use)
+dict := WordNetDictionary.GetInstance(A_ScriptDir "\Dictionary\WordNet-3.0\dict\")
+
 ;===============================================================================
 ;            			Hotstring Helper 2
 ;                Hotkey: Win + H | By: Kunkel321
@@ -58,13 +61,14 @@ If not FileExist(HotstringLibrary)
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120377
 ; Customization options are below, near top of code. HotStrings will be appended (added)
 ; by the script at the bottom of the (now separate) Hotstring Library. Shift+Append saves 
-; to clipboard instead of appending. 
+; to clipboard instead of appending.  Dictionaries used: https://wordnet.princeton.edu/
+; and https://gcide.gnu.org.ua/ See "class WordNetDictionary" below.
 ;===============================================================================
 
 ;====Change=Settings=for=Big=Validity=Dialog=Message=Box========================
 myGreen := brightness > 128 ? 'c0d3803' : 'cb8f3ab'  ; Color options for validity msg.
 myRed := brightness > 128 ? 'cB90012' : 'cfd7c73' ; Color options for validity msg.
-myBigFont := 's15'
+myBigFont := 's15' ; BigFont also used for dictionary gui and potential fixes report gui.
 valOK := "-no problems found" ; Message shown when no conflicts are found.
 AutoLookupFromValidityCheck := 0 ; Sets default for auto-lookup of selected text on 
 ; mouse-up, when using the big message box. 
@@ -200,8 +204,8 @@ ButExam := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Exam'
 	ButExam.OnEvent("ContextMenu", subFuncExamControl)
 ButSpell := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Spell')
 	ButSpell.OnEvent("Click", hhButtonSpell)
-ButOpen := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Open')
-	ButOpen.OnEvent("Click", hhButtonOpen)
+ButLook := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Look')
+	ButLook.OnEvent("Click", hhButtonDict)
 ButCancel := hh.AddButton('+notab x+5 y' hFactor + 234 ' w' (wFactor/6)-4 , 'Cancel')
 	ButCancel.OnEvent("Click", hhButtonCancel)
 
@@ -324,7 +328,15 @@ ShowHideButtonExam(Visibility) { ; Shows/Hides bottom, Exam Pane, part of GUI.
 	for ctrl in examCmds {
 		ctrl.Visible := Visibility
 	}
+	If (Visibility = True) { ; <=======================================================<<<<
+		SetTimer(initDictionary, -1)
+	}
 }
+
+initDictionary(*) {
+	dict.StartBackgroundLoad()
+}
+
 
 ExamPaneOpen := 0, ControlPaneOpen := 0 ; Used to track pane status.
 OrigTrigger := "", OrigReplacment := ""  ; Used to restore original content.
@@ -574,7 +586,7 @@ SubTogSize(hFactor, wFactor) ; Actually re-draws the form.
 	ButCheck.Move(, hFactor + 234, ,)
 	ButExam.Move(, hFactor + 234, ,)
 	ButSpell.Move(, hFactor + 234, ,)
-	ButOpen.Move(, hFactor + 234, ,)
+	ButLook.Move(, hFactor + 234, ,)
 	ButCancel.Move(, hFactor + 234, ,)
 }
 
@@ -722,91 +734,97 @@ hhButtonCheck(*) {
 }
 
 ; An easy-to-see large dialog to show Validity report/warning. 
-; Selecting text from the trigger report box copies it when releasing the mouse button.
-; Selected text is optionally sent to find box in VSCode.  If digits, sent to go-to-line. 
-bb := 0
+; Select text from the trigger report box and press Look Up button.
+; Selected text is sent to find box in VSCode.  If digits, sent to go-to-line. 
+currentEdit := 0, bb := 0
 biggerMsgBox(thisMess, secondButt) {
-	global bb, fontColor, formColor, myBigFont, mbTitle := "", AutoLookupFromValidityCheck
-	if (IsObject(bb)) ; Ensures we don't have multiple instances. 
-		bb.Destroy()
+    global bb, fontColor, formColor, myBigFont, mbTitle := "", currentEdit
+    if (IsObject(bb))
+        bb.Destroy()
 
-	bb := Gui(,'Validity Report')
-	bb.BackColor := formColor
+    bb := Gui(,'Validity Report')
+    bb.BackColor := formColor
 
-	bb.SetFont('s11 ' fontColor)
-	mbTitle := bb.Add('Text',, 'For proposed new item:')
-		mbTitle.Focus() ; Focusing this prevents the three "edit" boxes from being focussed by default.
+    bb.SetFont('s11 ' fontColor)
+    mbTitle := bb.Add('Text',, 'For proposed new item:')
+    mbTitle.Focus()
 
-	bb.SetFont(myBigFont )
-	proposedHS := ':' tMyDefaultOpts ':' tTriggerString '::' tReplaceString
-	bb.Add('Text', (strLen(proposedHS)>90? 'w600 ':'') 'xs yp+22', proposedHS)
+    bb.SetFont(myBigFont)
+    proposedHS := ':' tMyDefaultOpts ':' tTriggerString '::' tReplaceString
+    bb.Add('Text', (strLen(proposedHS)>90? 'w600 ':'') 'xs yp+22', proposedHS)
 
-	bb.SetFont('s11')
-	secondButt=0? bb.Add('Text',, "===Validation Check Results==="):'' ; secondButt is "Append Anyway"
+    bb.SetFont('s11')
+    secondButt=0? bb.Add('Text',, "===Validation Check Results==="):''
 
-	bb.SetFont(myBigFont)
-	bbItem := StrSplit(thisMess, "*|*") ; *|* is just an ad hoc delimiter.
-	If InStr(bbItem[2],"`n",,,10)  ; 2 lines per conflict, if more than 5 conflicts, truncate, and add message.
-		bbItem2 :=  subStr(bbItem[2], 1, inStr(bbItem[2], "`n",,,10)) "`n## Too many conflicts to show in form ##"
-	Else  ; There are 10 or fewer conflicts found, so show full substring.
-		bbItem2 := bbItem[2]
-	; Use "edit" rather than "text" because it allows us to select the text. 
-	; Note: myGreen, myRed, and myBigFont are all defined near top of code.
-	edtSharedSettings := ' -VScroll ReadOnly -E0x200 Background' ; These opts make the edit box look like a text box.
-	bb.Add('Edit', (inStr(bbItem[1], valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem[1]) 
-	trigEdtBox := bb.Add('Edit', (strLen(bbItem2)>104? ' w600 ' : ' ') (inStr(bbItem2, valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem2) 
-	bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3], valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem[3])
-	
-	bb.SetFont('s11 ' FontColor)
-	secondButt=1? bb.Add('Text',,"==============================`nAppend HotString Anyway?"):''
-	bbAppend := bb.Add('Button', , 'Append Anyway')
-		bbAppend.OnEvent 'Click', (*) => Appendit(tMyDefaultOpts, tTriggerString, tReplaceString)
-		bbAppend.OnEvent 'Click', (*) => bb.Destroy()
-	if secondButt != 1
-		bbAppend.Visible := False
-	
-	bbClose := bb.Add('Button', 'x+5 Default', 'Close')
-		bbClose.OnEvent 'Click', (*) => bb.Destroy()
+    bb.SetFont(myBigFont)
+    bbItem := StrSplit(thisMess, "*|*")
+    If InStr(bbItem[2],"`n",,,10)
+        bbItem2 := subStr(bbItem[2], 1, inStr(bbItem[2], "`n",,,10)) "`n## Too many conflicts to show in form ##"
+    Else
+        bbItem2 := bbItem[2]
 
-	; bbItem[4] is the value of "showLookupBox" from ValidationFunction.
-	If (bbItem[4] = 1) { ; Has trigger concerns to look up, so need checkbox.
-		global bbAuto := bb.Add('Checkbox', 'x+12 y+-22 Checked' AutoLookupFromValidityCheck, 'Auto Lookup in editor')
-		trigEdtBox.OnEvent('Focus', findInScript) 
-	}
-	bb.Show('yCenter x' (A_ScreenWidth/2))
-	WinSetAlwaysontop(1, "A")
-	bb.OnEvent 'Escape', (*) => bb.Destroy() ; Totally destroy and remake each time.
+    edtSharedSettings := ' -VScroll ReadOnly -E0x200 Background'
+    bb.Add('Edit', (inStr(bbItem[1], valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem[1])
+    trigEdtBox := bb.Add('Edit', (strLen(bbItem2)>104? ' w600 ' : ' ') (inStr(bbItem2, valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem2)
+    bb.Add('Edit', (strLen(bbItem[3])>104? ' w600 ' : ' ') (inStr(bbItem[3], valOK)? myGreen : myRed) edtSharedSettings formColor, bbItem[3])
+
+    bb.SetFont('s11 ' FontColor)
+    secondButt=1? bb.Add('Text',,"==============================`nAppend HotString Anyway?"):''
+    bbAppend := bb.Add('Button', , 'Append Anyway')
+    bbAppend.OnEvent('Click', (*) => (Appendit(tMyDefaultOpts, tTriggerString, tReplaceString), bb.Destroy()))
+    if secondButt != 1
+        bbAppend.Visible := False
+
+    bbClose := bb.Add('Button', 'x+5 Default', 'Close')
+    bbClose.OnEvent('Click', (*) => bb.Destroy())
+
+    if (bbItem[4] = 1) {
+        bbLookup := bb.Add('Button', 'x+12', 'Look Up')
+        bbLookup.OnEvent('Click', (*) => processSelectedText(lookupSelectedText))
+        trigEdtBox.OnEvent('Focus', (*) => (currentEdit := trigEdtBox))
+    }
+
+    bb.Show('yCenter x' (A_ScreenWidth/2))
+    WinSetAlwaysontop(1, "A")
+    bb.OnEvent('Escape', (*) => bb.Destroy())
 }
 
-; Find the text that is selected in the biggerMsgBox GUI. 
-findInScript(*) {
-		If (bbAuto.Value = 1) {	
-		SoundBeep ; Otherwise beep, wait for mouse up, etc. 
-		if GetKeyState("LButton", "P")
-			KeyWait "LButton", "U"
-		A_Clipboard := ""
-		SendInput "^c"
-		If !ClipWait( 1, 0)
-			Return	
+processSelectedValText(callback) { ; Claude AI wrote this function. 
+    if !IsObject(currentEdit) {
+        return
+    }
+    
+    EM_GETSEL := 0xB0
+    start := 0
+    end := 0
+    DllCall("SendMessage", "Ptr", currentEdit.hwnd, "Uint", EM_GETSEL, "Ptr*", &start, "Ptr*", &end)
+    if (start != end) {
+        text := StrReplace(currentEdit.Value, "`n", "`r`n")
+        selected := SubStr(text, start + 1, end - start)
+        A_Clipboard := selected
+        word := Trim(A_Clipboard)
+        if (word != "") {
+            callback(word)
+        }
+    }
+}
 
-		If not WinExist(HotstringLibrary) {
-			Run MyAhkEditorPath " " HotstringLibrary
-			While not WinExist(HotstringLibrary) ; Wait for it to open. 
-				Sleep 50
-		}
-		WinActivate HotstringLibrary
+lookupSelectedText(text) {
+    if not WinExist(HotstringLibrary) {
+        Run MyAhkEditorPath " " HotstringLibrary
+        While not WinExist(HotstringLibrary)
+            Sleep 50
+    }
+    WinActivate HotstringLibrary
 
-		If RegExMatch(A_Clipboard, "^\d{2,}") ; two or more digits? 
-			SendInput "^g" A_Clipboard ; <--- Keyboard shortcut for "Go to line number."
-		else {	
-			SendInput "^f" ; <--- Keyboard shortcut for "Find"
-			sleep 200
-			SendInput "^v" ; Paste in search string (which is text selected in big message box.)
-		}
-		mbTitle.Focus() ; Focus title again so text doesn't stay selected. 
-	}
-	Else
-		Return ; If auto-lookup on mouse up box not checked, do nothing. 
+    If RegExMatch(text, "^\d{2,}")
+        SendInput "^g" text
+    else {
+        SendInput "^f"
+        Sleep 200
+        SendInput "^v"
+    }
+    mbTitle.Focus()
 }
 
 ; This function runs several validity checks. 
@@ -1261,6 +1279,324 @@ GoFilter(ViaExamButt := False, *) { ; Filter the big list of words, as needed.
 	TxtRLabel.Text := "Fixes [" rMatches "]"
 }
 
+; OnEvents for hh2 edit boxes. 
+ReplaceString.OnEvent("Focus", editFocus)
+EdtTMatches.OnEvent("Focus", editFocus)
+EdtRMatches.OnEvent("Focus", editFocus)
+
+currentEdit := ""
+editFocus(ctrl, *) {
+	global currentEdit := ctrl
+}
+
+ButLook.OnEvent("ContextMenu", hhButtonDictOnline)  ; Add right-click handler
+
+hhButtonDict(*) {
+    processSelectedText((word) => dict.ShowDefinitionGui(word, fontColor, listColor, formColor, myBigFont))
+}
+
+hhButtonDictOnline(*) {
+    processSelectedText((word) => Run("https://gcide.gnu.org.ua/?q=" word "&define=Define&strategy=."))
+}
+
+processSelectedText(callback) {  ; Claude AI wrote this function. 
+    if !IsObject(currentEdit) {
+        return
+    }
+    
+    EM_GETSEL := 0xB0
+    start := 0
+    end := 0
+    DllCall("SendMessage", "Ptr", currentEdit.hwnd, "Uint", EM_GETSEL, "Ptr*", &start, "Ptr*", &end)
+    if (start != end) {
+        text := StrReplace(currentEdit.Value, "`n", "`r`n")
+        selected := SubStr(text, start + 1, end - start)
+        A_Clipboard := selected
+        word := Trim(A_Clipboard)
+        if (word != "") {
+            callback(word)
+        }
+    }
+}
+
+; ===== Left-Clicking the "Look" Button Uses WordNet ========
+; George A. Miller (1995). WordNet: A Lexical Database for English.
+; Communications of the ACM Vol. 38, No. 11: 39-41.
+; Christiane Fellbaum (1998, ed.) WordNet: An Electronic Lexical Database. Cambridge, MA: MIT Press.
+; Princeton University "About WordNet." WordNet. Princeton University. 2010. 
+; https://wordnet.princeton.edu/
+
+; ======== Right-Clicking the Button uses GCIDE ==========
+; GNU Collaborative International Dictionary of English
+; https://gcide.gnu.org.ua/
+; ========================================================
+
+class WordNetDictionary { ; Class was made by using AI. 
+    static instance := ""
+    definitions := Map()
+    isLoaded := false
+    isLoading := false
+    loadingStatus := ""
+    WORDNET_PATH := ""
+    
+    __New(wordNetPath) {
+        this.WORDNET_PATH := wordNetPath
+    }
+    
+    StartBackgroundLoad() {
+        if (!this.isLoaded && !this.isLoading) {
+            this.isLoading := true
+            this.loadingStatus := "Initializing..."
+            SetTimer(() => this.LoadDictionary(), -100)
+        }
+    }
+    
+    IsReady() {
+        return this.isLoaded
+    }
+    
+    GetLoadingStatus() {
+        if (this.isLoaded)
+            return "Ready"
+        else if (this.isLoading)
+            return this.loadingStatus
+        else
+            return "Not started"
+    }
+    
+    class WordNetReader {
+        static ReadDataFile(filePath) {
+            if !FileExist(filePath)
+                return Map()
+                
+            dataMap := Map()
+            try {
+                fileContent := FileRead(filePath, "UTF-8")
+                isHeader := true
+                
+                for line in StrSplit(fileContent, "`n", "`r") {
+                    if (line = "")
+                        continue
+                        
+                    if isHeader && RegExMatch(line, "^\d")
+                        isHeader := false
+                        
+                    if isHeader
+                        continue
+                        
+                    if (InStr(line, "|")) {
+                        synsetOffset := SubStr(line, 1, 8)
+                        if RegExMatch(line, "\|(.*)", &match) {
+                            defText := Trim(match[1])
+                            if (defText != "")
+                                dataMap[synsetOffset] := defText
+                        }
+                    }
+                }
+            }
+            return dataMap
+        }
+        
+        static ReadIndexFile(filePath, dataFilePath) {
+            if !FileExist(filePath)
+                return Map()
+                
+            entries := Map()
+            dataContent := this.ReadDataFile(dataFilePath)
+            
+            try {
+                fileContent := FileRead(filePath, "UTF-8")
+                isHeader := true
+                
+                for line in StrSplit(fileContent, "`n", "`r") {
+                    if (line = "")
+                        continue
+                        
+                    if isHeader && SubStr(line, 1, 1) != " "
+                        isHeader := false
+                        
+                    if isHeader
+                        continue
+                        
+                    fields := StrSplit(RegExReplace(line, "\s+", " "), " ")
+                    if (fields.Length < 4)
+                        continue
+                        
+                    word := fields[1]
+                    offsets := []
+                    
+                    for field in fields {
+                        if RegExMatch(field, "^\d{8}$") {
+                            offsets.Push(field)
+                            if (offsets.Length >= 3)
+                                break
+                        }
+                    }
+                    
+                    definitions := ""
+                    for offset in offsets {
+                        if dataContent.Has(offset)
+                            definitions .= "`n  • " dataContent[offset]
+                    }
+                    
+                    if (definitions != "")
+                        entries[word] := definitions
+                }
+            }
+            return entries
+        }
+    }
+    
+    LoadDictionary() {
+        posMap := Map(
+            "noun", "Loading nouns...",
+            "verb", "Loading verbs...",
+            "adj", "Loading adjectives...",
+            "adv", "Loading adverbs..."
+        )
+        
+        for dfile, statusMsg in posMap {
+            this.loadingStatus := statusMsg
+            
+            indexFile := this.WORDNET_PATH "index." dfile
+            dataFile := this.WORDNET_PATH "data." dfile
+            
+            if FileExist(indexFile) && FileExist(dataFile) {
+                entries := WordNetDictionary.WordNetReader.ReadIndexFile(indexFile, dataFile)
+                
+                for word, def in entries {
+                    if this.definitions.Has(word)
+                        this.definitions[word] .= "`n[" dfile "]" def
+                    else
+                        this.definitions[word] := "[" dfile "]" def
+                }
+            }
+        }
+        
+        this.isLoaded := true
+        this.isLoading := false
+        this.loadingStatus := "Ready"
+    }
+    LookupWord(word) {
+        if (!this.isLoaded) {
+            if (!this.isLoading)
+                this.StartBackgroundLoad()
+            return "Dictionary is still loading. Current status: " this.loadingStatus
+        }
+        
+        ; Clean and prepare the search word
+        word := StrLower(Trim(word))
+        
+        ; Try exact match first
+        if (this.definitions.Has(word))
+            return this.definitions[word]
+        
+        ; Try with underscores instead of spaces
+        wordWithUnderscores := StrReplace(word, A_Space, "_")
+        if (this.definitions.Has(wordWithUnderscores))
+            return this.definitions[wordWithUnderscores]
+        
+        ; Try with spaces instead of underscores
+        wordWithSpaces := StrReplace(word, "_", A_Space)
+        if (this.definitions.Has(wordWithSpaces))
+            return this.definitions[wordWithSpaces]
+        
+        return "Word not found."
+    }
+    FindSimilarWords(partial, limit := 5) {
+        if (!this.isLoaded) {
+            if (!this.isLoading)
+                this.StartBackgroundLoad()
+            return []
+        }
+        
+        similar := []
+        count := 0
+        
+        for word in this.definitions {
+            if (InStr(word, partial) = 1 && count < limit) {
+                similar.Push(word)
+                count++
+            }
+        }
+        
+        return similar
+    }
+    
+    ShowDefinitionGui(word, fontColor, listColor, formColor, myBigFont) {
+        if (!this.isLoaded) {
+            if (!this.isLoading) {
+                this.StartBackgroundLoad()
+            }
+            MsgBox("Dictionary is still loading.`nCurrent status: " this.loadingStatus 
+                "`n`nPlease try again in a moment.", "Dictionary Loading")
+            return
+        }
+        
+        definition := this.LookupWord(word)
+    
+        dictGui := Gui() ; Create GUI
+        dictGui.SetFont(myBigFont, "Segoe UI")
+        dictGui.BackColor := formColor
+        dictGui.Add("Text", "y10", "Definition for: " word) ; Add word as title
+        ; Use Edit control styled as text for the definition
+        defEdit := dictGui.Add("Edit"
+			, "xm y+10 w500 r10 ReadOnly -E0x200 -WantReturn -TabStop", definition)
+        defEdit.Opt("Background" formColor)
+        ; Add buttons
+        closeBtn := dictGui.AddButton("x100 y+10", "Close")
+        dictGui.AddButton("x+8", "Copy Text").OnEvent("Click", (*) => A_Clipboard := definition)
+        dictGui.AddButton("x+8", "Try GCIDE").OnEvent("Click", (*) => Run("https://gcide.gnu.org.ua/?q=" word "&define=Define&strategy=."))
+        ; Setup events
+        closeBtn.OnEvent("Click", (*) => dictGui.Destroy())
+        dictGui.OnEvent("Escape", (*) => dictGui.Destroy())
+        dictGui.Show("AutoSize")
+        closeBtn.Focus()
+    }
+    
+    static GetInstance(wordNetPath := "") {
+        if (!this.instance) {
+            if (wordNetPath = "") {
+                throw ValueError("WordNetPath must be provided when creating first instance")
+            }
+            
+            ; Check for required files
+            requiredFiles := [
+                "index.noun", "index.verb", "index.adj", "index.adv",
+                "data.noun", "data.verb", "data.adj", "data.adv"
+            ]
+            
+            missingFiles := []
+            for file in requiredFiles {
+                if !FileExist(wordNetPath file) {
+                    missingFiles.Push(file)
+                }
+            }
+            
+            if (missingFiles.Length > 0) {
+                ; Create the list of missing files
+                missingFilesList := ""
+                for file in missingFiles {
+                    missingFilesList .= file "`n"
+                }
+                
+                MsgBox(
+                    "Missing required WordNet dictionary files:`n`n" 
+                    missingFilesList "`n"
+                    "Please download the WordNet database from:`n"
+                    "https://wordnet.princeton.edu/download`n`n"
+                    "After downloading, extract the files and ensure the above files "
+                    "are present in the 'dict' folder.",
+                    "WordNet Dictionary Files Missing"
+                )
+                throw ValueError("Required WordNet files not found")
+            }
+            
+            this.instance := WordNetDictionary(wordNetPath)
+        }
+        return this.instance
+    }
+}
 
 ; ################ END of HH2 ###########################################################
 ; ...............................QQQ.....................QQQQQQ.....QQQ.........QQQ......
@@ -1359,37 +1695,37 @@ UpTime(*) {
 ; https://www.autohotkey.com/boards/viewtopic.php?p=533067#p533067
 ; Minor edits added by kunkel321 2-7-2024
 
-fix_consecutive_caps()
-fix_consecutive_caps() {
-; Hotstring only works if CapsLock is off.
-	HotIf (*) => !GetKeyState("CapsLock", "T")
-	loop 26 {
-		char1 := Chr(A_Index + 64)
-		loop 26 {
-			char2 := Chr(A_Index + 64)
-			; Create hotstring for every possible combination of two letter capital letters.
-			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2))
-		}
-	}
-	HotIf
-	; Third letter is checked using InputHook.
-	fix(char1, char2, *) {
-		;ih := InputHook("V I101 L1")
-		ih := InputHook("V I101 L1 T.3")
-		ih.OnEnd := OnEnd
-		ih.Start()
-		OnEnd(ih) {
-			char3 := ih.Input
-			if (char3 ~= "[A-Z]")  ; If char is UPPERcase alpha.
-				Hotstring "Reset"
-			else if (char3 ~= "[a-z]")  ; If char is lowercase alpha.
-			|| (char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") ; <--- Remove this line to prevent correction of those 2-letter words.
-			{	SendInput("{BS 2}" StrLower(char2) char3)
-				SoundBeep(800, 80) ; Case fix announcent. 
-			}
-		}
-	}
-}
+; fix_consecutive_caps()
+; fix_consecutive_caps() {
+; ; Hotstring only works if CapsLock is off.
+; 	HotIf (*) => !GetKeyState("CapsLock", "T")
+; 	loop 26 {
+; 		char1 := Chr(A_Index + 64)
+; 		loop 26 {
+; 			char2 := Chr(A_Index + 64)
+; 			; Create hotstring for every possible combination of two letter capital letters.
+; 			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2))
+; 		}
+; 	}
+; 	HotIf
+; 	; Third letter is checked using InputHook.
+; 	fix(char1, char2, *) {
+; 		;ih := InputHook("V I101 L1")
+; 		ih := InputHook("V I101 L1 T.3")
+; 		ih.OnEnd := OnEnd
+; 		ih.Start()
+; 		OnEnd(ih) {
+; 			char3 := ih.Input
+; 			if (char3 ~= "[A-Z]")  ; If char is UPPERcase alpha.
+; 				Hotstring "Reset"
+; 			else if (char3 ~= "[a-z]")  ; If char is lowercase alpha.
+; 			|| (char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") ; <--- Remove this line to prevent correction of those 2-letter words.
+; 			{	SendInput("{BS 2}" StrLower(char2) char3)
+; 				SoundBeep(800, 80) ; Case fix announcent. 
+; 			}
+; 		}
+; 	}
+; }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;####;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
