@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 12-28-2024
+; Update date: 12-29-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -70,9 +70,7 @@ myGreen := brightness > 128 ? 'c0d3803' : 'cb8f3ab'  ; Color options for validit
 myRed := brightness > 128 ? 'cB90012' : 'cfd7c73' ; Color options for validity msg.
 myBigFont := 's15' ; BigFont also used for dictionary gui and potential fixes report gui.
 valOK := "-no problems found" ; Message shown when no conflicts are found.
-AutoLookupFromValidityCheck := 0 ; Sets default for auto-lookup of selected text on 
-; mouse-up, when using the big message box. 
-; WARNING:  findInScript() function uses VSCode shortcut keys ^f and ^g. 
+; WARNING:  The Look Up button uses VSCode shortcut keys ^f and ^g. 
 ; Note: Depending on 'admin rights issues,' AutoCorrect2 might not be able to open 
 ; VSCode.  In such cases, open AutoCorrect2.ahk in VSCode, then use findInScript tool. 
 
@@ -1695,37 +1693,37 @@ UpTime(*) {
 ; https://www.autohotkey.com/boards/viewtopic.php?p=533067#p533067
 ; Minor edits added by kunkel321 2-7-2024
 
-; fix_consecutive_caps()
-; fix_consecutive_caps() {
-; ; Hotstring only works if CapsLock is off.
-; 	HotIf (*) => !GetKeyState("CapsLock", "T")
-; 	loop 26 {
-; 		char1 := Chr(A_Index + 64)
-; 		loop 26 {
-; 			char2 := Chr(A_Index + 64)
-; 			; Create hotstring for every possible combination of two letter capital letters.
-; 			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2))
-; 		}
-; 	}
-; 	HotIf
-; 	; Third letter is checked using InputHook.
-; 	fix(char1, char2, *) {
-; 		;ih := InputHook("V I101 L1")
-; 		ih := InputHook("V I101 L1 T.3")
-; 		ih.OnEnd := OnEnd
-; 		ih.Start()
-; 		OnEnd(ih) {
-; 			char3 := ih.Input
-; 			if (char3 ~= "[A-Z]")  ; If char is UPPERcase alpha.
-; 				Hotstring "Reset"
-; 			else if (char3 ~= "[a-z]")  ; If char is lowercase alpha.
-; 			|| (char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") ; <--- Remove this line to prevent correction of those 2-letter words.
-; 			{	SendInput("{BS 2}" StrLower(char2) char3)
-; 				SoundBeep(800, 80) ; Case fix announcent. 
-; 			}
-; 		}
-; 	}
-; }
+fix_consecutive_caps()
+fix_consecutive_caps() {
+; Hotstring only works if CapsLock is off.
+	HotIf (*) => !GetKeyState("CapsLock", "T")
+	loop 26 {
+		char1 := Chr(A_Index + 64)
+		loop 26 {
+			char2 := Chr(A_Index + 64)
+			; Create hotstring for every possible combination of two letter capital letters.
+			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2))
+		}
+	}
+	HotIf
+	; Third letter is checked using InputHook.
+	fix(char1, char2, *) {
+		;ih := InputHook("V I101 L1")
+		ih := InputHook("V I101 L1 T.3")
+		ih.OnEnd := OnEnd
+		ih.Start()
+		OnEnd(ih) {
+			char3 := ih.Input
+			if (char3 ~= "[A-Z]")  ; If char is UPPERcase alpha.
+				Hotstring "Reset"
+			else if (char3 ~= "[a-z]")  ; If char is lowercase alpha.
+			|| (char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") ; <--- Remove this line to prevent correction of those 2-letter words.
+			{	SendInput("{BS 2}" StrLower(char2) char3)
+				SoundBeep(800, 80) ; Case fix announcent. 
+			}
+		}
+	}
+}
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;####;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
