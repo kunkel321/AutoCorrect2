@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 12-29-2024
+; Update date: 12-28-2024
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -37,8 +37,9 @@ HotstringLibrary := "HotstringLib.ahk" ; Your actual library of hotstrings are a
 ; To change library name, needs to be changed (1) here, and (2) the #Include at the top.
 RemovedHsFile := "RemovedHotstrings.txt"     ; Also check hotstrings removed (culled) from AUTOcorrects log. 
 MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"  ; <--- Only valid when VSCode is installed
-; MyAhkEditorPath := "C:\Program Files\AutoHotkey\SciTE\SciTE.exe" : <--- Optionally paste another path and uncomment. 
-If not FileExist(MyAhkEditorPath) { ; Make sure AHK editor is assigned.  Use Notepad otherwise.
+; Optionally paste another path and uncomment.  Tip:  Download SciTE4AHK here https://www.autohotkey.com/scite4ahk/ then unzip and put the unzipped SciTE forl in the same folder as AutoCorrect.ahk, and use the below assignment.  
+; MyAhkEditorPath := A_ScriptDir "\SciTE4AHK_v3.1.0_Portable\SciTE\SciTE.exe" 
+If !FileExist(MyAhkEditorPath) and !(MyAhkEditorPath = "Notepad.exe") { ; Make sure AHK editor is assigned.  Use Notepad otherwise.
 	MsgBox("This error means that the variable 'MyAhkEditorPath' has"
 	"`nnot been assigned a valid path for an editor."
 	"`nTherefore Notepad will be used as a substite.")
@@ -814,13 +815,15 @@ lookupSelectedText(text) {
             Sleep 50
     }
     WinActivate HotstringLibrary
+    Sleep 300
 
     If RegExMatch(text, "^\d{2,}")
         SendInput "^g" text
     else {
-        SendInput "^f"
-        Sleep 200
-        SendInput "^v"
+        SendInput "^f^v"
+        ; SendInput "^f"
+        ; Sleep 300
+        ; SendInput "^v"
     }
     mbTitle.Focus()
 }
