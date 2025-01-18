@@ -1,11 +1,11 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
 ; Library of HotStrings for AutoCorrect2.  Please note that the f() function calls require the function that is defined in the AutoCorrect2 code.
-; Library updated 12-20-2024
+; Library updated 1-16-2025
 
 ; ===== Trigger strings to nullify the potential misspellings that are indicated. ======
 ; Used the word "corrects" in place of fix to avoid double-counting these as potential fixes. 
-:B0*:horror:: ; Here for :?*:orror::error, whitch corrects 56 words.
+:B0*:horror:: ; Here for :?*:orror::error, which corrects 56 words.
 :B0:Savitr:: ; (Important Hindu god) Here for :?:itr::it, which corrects 366 words.
 :B0:Vaisyas:: ; (A member of the mercantile and professional Hindu caste.) Here for :?:syas::says, which corrects 12 words.
 :B0:Wheatley:: ; (a fictional artificial intelligence from the Portal franchise) Here for :?:atley::ately, which corrects 162 words.
@@ -101,6 +101,7 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 :B0X*:recommed::f("recommend") ; Fixes 12 words
 :B0X*:thge::f("the") ; Fixes 402 words
 :B0X*:thsi::f("this") ; Fixes 7 words
+:B0X*:trafic::f("traffic") ; Fixes 13 words 
 :B0X*:unkow::f("unknow") ; Fixes 14 words
 :B0X*?:abotu::f("about") ; Fixes 37 words
 :B0X*?:allign::f("align") ; Fixes 41 words
@@ -118,7 +119,6 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 :B0X*?:easr::f("ears") ; Fixes 102 words
 :B0X*?:ecomon::f("econom") ; Fixes 50 words
 :B0X*?:esorce::f("esource") ; Fixes 11 words
-:B0X*C:i)::f("i)") ; Fixes 1 word
 :B0X*?:juristiction::f("jurisdiction") ; Fixes 4 words
 :B0X*?:konw::f("know") ; Fixes 66 words
 :B0X*?:mmorow::f("morrow") ; Fixes 4 words
@@ -134,8 +134,9 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 :B0X*?:threatn::f("threaten") ; Fixes 10 words
 :B0X*?:tihkn::f("think") ; Fixes 43 words
 :B0X*?:tiojn::f("tion") ; Fixes 7052 words
-:B0X*:trafic::f("traffic") ; Fixes 13 words 
 :B0X*?:visiosn::f("vision") ; Fixes 51 words
+:B0X*C:i)::f("i)") ; Fixes 1 word
+:B0X:addign::f("assign") ; Fixes 1 word 
 :B0X:doesnt::f("doesn't") ; Fixes 1 word
 :B0X:inprocess::f("in process") ; Fixes 1 word
 :B0X?:adresing::f("addressing") ; Fixes 3 words
@@ -153,6 +154,9 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 
 ; ===== Main List ==========================
 
+:*?:becavi::behavi
+:*?:compine::combine
+:B0*:icon cash::icon cache
 :B0X*:Buddist::f("Buddhist") ; Fixes 3 words
 :B0X*:Feburary::f("February") ; Fixes 1 word
 :B0X*:Hatian::f("Haitian") ; Fixes 2 words
@@ -1050,6 +1054,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:fleed::f("freed") ; Fixes 4 words
 :B0X*:florescent::f("fluorescent") ; Fixes 1 word
 :B0X*:flourescent::f("fluorescent") ; Fixes 1 word
+:B0X*:folder cash::f("folder cache")
 :B0X*:follow suite::f("follow suit") ; Fixes 1 word
 :B0X*:following it's::f("following its") ; Fixes 1 word
 :B0X*:for along time::f("for a long time") ; Fixes 1 word
@@ -1243,6 +1248,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:have underwent::f("have undergone") ; Fixes 1 word
 :B0X*:have went::f("have gone") ; Fixes 1 word
 :B0X*:havebeen::f("have been") ; Fixes 1 word
+:B0X*:haveto::f("have to")
 :B0X*:haviest::f("heaviest") ; Fixes 1 word
 :B0X*:having became::f("having become") ; Fixes 1 word
 :B0X*:having began::f("having begun") ; Fixes 1 word
@@ -1475,6 +1481,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:it's website::f("its website") ; Fixes 1 word
 :B0X*:itis::f("it is") ; Fixes 1 word
 :B0X*:itr::f("it") ; Fixes 101 words, but misspells itraconazole (Antifungal drug). 
+:B0X*:its not::f("it's not")
 :B0X*:its the::f("it's the") ; Fixes 1 word
 :B0X*:itwas::f("it was") ; Fixes 1 word
 :B0X*:iunior::f("junior") ; Fixes 1 word
@@ -1616,6 +1623,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:minstries::f("ministries") ; Fixes 1 word
 :B0X*:minstry::f("ministry") ; Fixes 1 word
 :B0X*:minumum::f("minimum") ; Fixes 1 word
+:B0X*:minur::f("minor") ; Fixes 11 words 
 :B0X*:mirrorr::f("mirror") ; Fixes 6 words
 :B0X*:miscellanious::f("miscellaneous") ; Fixes 3 words
 :B0X*:miscellanous::f("miscellaneous") ; Fixes 3 words
@@ -2998,6 +3006,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:atoin::f("ation") ; Fixes 5229 words
 :B0X*?:atribut::f("attribut") ; Fixes 31 words
 :B0X*?:attachement::f("attachment") ; Fixes 4 words
+:B0X*?:attech::f("attach") ; Fixes 25 words 
 :B0X*?:attemt::f("attempt") ; Fixes 11 words
 :B0X*?:attenden::f("attendan") ; Fixes 7 words
 :B0X*?:attensi::f("attenti") ; Fixes 16 words
@@ -3411,8 +3420,10 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:efering::f("eferring") ; Fixes 3 words
 :B0X*?:efern::f("eferen") ; Fixes 35 words
 :B0X*?:effecien::f("efficien") ; Fixes 10 words
+:B0X*?:efious::f("evious") ; Fixes 8 words 
 :B0X*?:egth::f("ength") ; Fixes 33 words
 :B0X*?:ehter::f("ether") ; Fixes 84 words
+:B0X*?:eidt::f("edit") ; Fixes 199 words 
 :B0X*?:eild::f("ield") ; Fixes 147 words
 :B0X*?:eizm::f("eism") ; Fixes 96 words , but misspells Weizmann (First president of Israel). 
 :B0X*?:elavan::f("elevan") ; Fixes 16 words
@@ -3985,6 +3996,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:nnung::f("nning") ; Fixes 107 words
 :B0X*?:nominclat::f("nomenclat") ; Fixes 8 words 
 :B0X*?:nonom::f("nonym") ; Fixes 40 words
+:B0X*?:notiee::f("notice") ; Fixes 14 words 
 :B0X*?:notwwo::f("notewo") ; Fixes 6 words 
 :B0X*?:nouce::f("nounce") ; Fixes 47 words
 :B0X*?:nounch::f("nounc") ; Fixes 54 words
@@ -4345,6 +4357,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:ropiat::f("ropriat") ; Fixes 39 words
 :B0X*?:rowm::f("rown") ; Fixes 85 words
 :B0X*?:roximite::f("roximate") ; Fixes 8 words
+:B0X*?:rpoor::f("repor") ; Fixes 44 words 
 :B0X*?:rraige::f("rriage") ; Fixes 26 words
 :B0X*?:rshan::f("rtion") ; Fixes 84 words, but misspells darshan (Hinduism)
 :B0X*?:rshon::f("rtion") ; Fixes 84 words
@@ -4786,6 +4799,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:agains::f("against") ; Fixes 1 word
 :B0X:against who::f("against whom") ; Fixes 1 word
 :B0X:agre::f("agree") ; Fixes 1 word
+:B0X:ain`nt::f("ain't")  ; Fixes 1 word 
 :B0X:air tight::f("airtight") ; Fixes 1 word
 :B0X:aircrafts'::f("aircraft's") ; Fixes 1 word
 :B0X:aircrafts::f("aircraft") ; Fixes 1 word
@@ -4816,6 +4830,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:are meet::f("are met") ; Fixes 1 word
 :B0X:are renown::f("are renowned") ; Fixes 1 word
 :B0X:are the dominate::f("are the dominant") ; Fixes 1 word
+:B0X:aren`nt::f("aren't")  ; Fixes 1 word 
 :B0X:arms length::f("arm's length") ; Fixes 1 word
 :B0X:aslo::f("also") ; Fixes 1 word
 :B0X:atmospher::f("atmosphere") ; Fixes 1 word
@@ -4850,6 +4865,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:can breath::f("can breathe") ; Fixes 1 word
 :B0X:can't breath::f("can't breathe") ; Fixes 1 word
 :B0X:can't of::f("can't have") ; Fixes 1 word
+:B0X:can`nt::f("can't")  ; Fixes 1 word 
 :B0X:cant::f("can't") ; Fixes 1 word
 :B0X:carcas::f("carcass") ; Fixes 1 word
 :B0X:cash memory::f("cache memory") ; Fixes 1 word
@@ -4869,11 +4885,14 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:could breath::f("could breathe") ; Fixes 1 word
 :B0X:could of been::f("could have been") ; Fixes 1 word
 :B0X:couldn't breath::f("couldn't breathe") ; Fixes 1 word
+:B0X:couldn`nt::f("couldn't")  ; Fixes 1 word 
 :B0X:daily regiment::f("daily regimen") ; Fixes 1 word
+:B0X:daren`nt::f("daren't")  ; Fixes 1 word 
 :B0X:depending of::f("depending on") ; Fixes 1 word
 :B0X:depends of::f("depends on") ; Fixes 1 word
 :B0X:devels::f("delves") ; Fixes 1 word
 :B0X:dew to circumstances::f("due to circumstances") ; Fixes 1 word
+:B0X:didn`nt::f("didn't")  ; Fixes 1 word 
 :B0X:discreet data::f("discrete data") ; Fixes 1 word
 :B0X:discreet observation::f("discrete observation") ; Fixes 1 word
 :B0X:discreet trial::f("discrete trial") ; Fixes 1 word
@@ -4882,7 +4901,9 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:dispell::f("dispel") ; Fixes 1 word
 :B0X:dispells::f("dispels") ; Fixes 1 word
 :B0X:do to::f("due to") ; Fixes 1 word
+:B0X:doesn`nt::f("doesn't")  ; Fixes 1 word 
 :B0X:dolka::f("folks") ; Fixes 1 word 
+:B0X:don`nt::f("don't")  ; Fixes 1 word 
 :B0X:doub::f("doubt") ; Fixes 1 word
 :B0X:drafty of::f("draft of")
 :B0X:due two circumstances::f("due to circumstances") ; Fixes 1 word
@@ -4935,6 +4956,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:had swam::f("had swum") ; Fixes 1 word
 :B0X:had throve::f("had thriven") ; Fixes 1 word
 :B0X:had woke::f("had woken") ; Fixes 1 word
+:B0X:hadn`nt::f("hadn't")  ; Fixes 1 word 
 :B0X:happend::f("happened") ; Fixes 1 word
 :B0X:happended::f("happened") ; Fixes 1 word
 :B0X:happenned::f("happened") ; Fixes 1 word
@@ -4956,9 +4978,11 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:has trod::f("has trodden") ; Fixes 1 word
 :B0X:has woke::f("has woken") ; Fixes 1 word
 :B0X:hase::f("have") ; Fixes 1 word 
+:B0X:hasn`nt::f("hasn't")  ; Fixes 1 word 
 :B0X:hav::f("had") ; Fixes 1 word 
 :B0X:have ran::f("have run") ; Fixes 1 word
 :B0X:have swam::f("have swum") ; Fixes 1 word
+:B0X:haven`nt::f("haven't")  ; Fixes 1 word 
 :B0X:having ran::f("having run") ; Fixes 1 word
 :B0X:having swam::f("having swum") ; Fixes 1 word
 :B0X:he plead::f("he pleaded") ; Fixes 1 word
@@ -4998,6 +5022,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:is also know::f("is also known") ; Fixes 1 word
 :B0X:is consider::f("is considered") ; Fixes 1 word
 :B0X:is know::f("is known") ; Fixes 1 word
+:B0X:isn`nt::f("isn't")  ; Fixes 1 word 
 :B0X:it self::f("itself") ; Fixes 1 word
 :B0X:it's over hear::f("it's over here") ; Fixes 1 word
 :B0X:its a::f("it's a") ; Fixes 1 word
@@ -5094,13 +5119,16 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:memory leek::f("memory leak") ; Fixes 1 word
 :B0X:might of been::f("might have been") ; Fixes 1 word
 :B0X:might of::f("might have") ; Fixes 1 word
+:B0X:mightn`nt::f("mightn't")  ; Fixes 1 word 
 :B0X:more resent::f("more recent") ; Fixes 1 word
 :B0X:most resent::f("most recent") ; Fixes 1 word
 :B0X:mourning glory::f("morning glory") ; Fixes 1 word
 :B0X:must of been::f("must have been") ; Fixes 1 word
 :B0X:must of::f("must have") ; Fixes 1 word
+:B0X:mustn`nt::f("mustn't")  ; Fixes 1 word 
 :B0X:mysef::f("myself") ; Fixes 1 word
 :B0X:mysefl::f("myself") ; Fixes 1 word
+:B0X:needn`nt::f("needn't")  ; Fixes 1 word 
 :B0X:neither criteria::f("neither criterion") ; Fixes 1 word
 :B0X:neither phenomena::f("neither phenomenon") ; Fixes 1 word
 :B0X:nest one::f("next one")
@@ -5113,6 +5141,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:one in the same::f("one and the same") ; Fixes 1 word
 :B0X:one phenomena::f("one phenomenon") ; Fixes 1 word
 :B0X:opposit::f("opposite") ; Fixes 1 word
+:B0X:oughtn`nt::f("oughtn't")  ; Fixes 1 word 
 :B0X:our of::f("out of") ; Fixes 1 word
 :B0X:pail in comparison::f("pale in comparison") ; Fixes 1 word
 :B0X:past the test::f("passed the test") ; Fixes 1 word
@@ -5177,11 +5206,13 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:seen the whole seen::f("seen the whole scene") ; Fixes 1 word
 :B0X:sew and sew::f("so and so") ; Fixes 1 word
 :B0X:sewing discord::f("sowing discord") ; Fixes 1 word
+:B0X:shan`nt::f("shan't")  ; Fixes 1 word 
 :B0X:shear madness::f("sheer madness") ; Fixes 1 word
 :B0X:sherif::f("sheriff") ; Fixes 1 word
 :B0X:should not of::f("should not have") ; Fixes 1 word
 :B0X:should of been::f("should have been") ; Fixes 1 word
 :B0X:should of::f("should have") ; Fixes 1 word
+:B0X:shouldn`nt::f("shouldn't")  ; Fixes 1 word 
 :B0X:show resent::f("show recent") ; Fixes 1 word
 :B0X:sight hosting::f("site hosting") ; Fixes 1 word
 :B0X:sight maintenance::f("site maintenance") ; Fixes 1 word
@@ -5311,6 +5342,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:they;l::f("they'll") ; Fixes 1 word
 :B0X:they;r::f("they're") ; Fixes 1 word
 :B0X:they;v::f("they've") ; Fixes 1 word
+:B0X:they`nre::f("they're")  ; Fixes 1 word 
 :B0X:thi::f("the") ; Fixes 1 word 
 :B0X:thie::f("this") ; Fixes 1 word 
 :B0X:this lead to::f("this led to") ; Fixes 1 word
@@ -5361,6 +5393,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:was the dominate::f("was the dominant") ; Fixes 1 word
 :B0X:was tore::f("was torn") ; Fixes 1 word
 :B0X:was wrote::f("was written") ; Fixes 1 word
+:B0X:wasn`nt::f("wasn't")  ; Fixes 1 word 
 :B0X:waste deep in::f("waist deep in") ; Fixes 1 word
 :B0X:way fare::f("wayfare") ; Fixes 1 word
 :B0X:way the odds::f("weigh the odds") ; Fixes 1 word
@@ -5417,6 +5450,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:were the dominate::f("were the dominant") ; Fixes 1 word
 :B0X:were tore::f("were torn") ; Fixes 1 word
 :B0X:were wrote::f("were written") ; Fixes 1 word
+:B0X:weren`nt::f("weren't")  ; Fixes 1 word 
 :B0X:whan::f("when") ; Fixes 1 word 
 :B0X:wheel chair::f("wheelchair") ; Fixes 1 word
 :B0X:when ever::f("whenever") ; Fixes 1 word
@@ -5438,11 +5472,13 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:witha::f("with a") ; Fixes 1 word
 :B0X:withing::f("within") ; Fixes 1 word
 :B0X:won way::f("one way") ; Fixes 1 word
+:B0X:won`nt::f("won't")  ; Fixes 1 word 
 :B0X:wonderfull::f("wonderful") ; Fixes 1 word
 :B0X:worth while::f("worthwhile") ; Fixes 1 word
 :B0X:worth wile::f("worthwhile") ; Fixes 1 word
 :B0X:would of been::f("would have been") ; Fixes 1 word
 :B0X:would of::f("would have") ; Fixes 1 word
+:B0X:wouldn`nt::f("wouldn't")  ; Fixes 1 word 
 :B0X:wrest assured::f("rest assured") ; Fixes 1 word
 :B0X:wrest in peace::f("rest in peace") ; Fixes 1 word
 :B0X:write away::f("right away") ; Fixes 1 word
@@ -5463,6 +5499,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:you're goals::f("your goals") ; Fixes 1 word
 :B0X:you're journey::f("your journey") ; Fixes 1 word
 :B0X:you're self::f("yourself") ; Fixes 1 word
+:B0X:you`nre::f("you're")  ; Fixes 1 word 
 :B0X:your a::f("you're a") ; Fixes 1 word
 :B0X:your absent::f("you're absent") ; Fixes 1 word
 :B0X:your an::f("you're an") ; Fixes 1 word
@@ -5496,6 +5533,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?*:folor::f("color") ; Fixes 147 words 
 :B0X?*:iosn::f("ions") ; Fixes 3682 words 
 :B0X?*:ligy::f("lify") ; Fixes 37 words 
+:B0X?*:notece::f("notice") ; Fixes 14 words 
 :B0X?*:orror::f("error") ; Fixes 56 words , but misspells horror, added to protective word list, above. 
 :B0X?*:qit::f("quit") ; Fixes 112 words 
 :B0X?*:sxh::f("sch") ; Fixes 744 words 
@@ -5622,6 +5660,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?:gred::f("greed") ; Fixes 6 words
 :B0X?:gthe::f("g the") ; Fixes 1 word
 :B0X?:hace::f("hare") ; Fixes 9 words
+:B0X?:hanss::f("hanks") ; Fixes 14 words 
 :B0X?:haveng::f("having") ; Fixes 5 words 
 :B0X?:herad::f("heard") ; Fixes 5 words
 :B0X?:herefor::f("herefore") ; Fixes 2 words
@@ -5836,6 +5875,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:itn::f("ith") ; Fixes 70 words, Case sensitive, to not misspell ITN (Independent Television News) 
 :B0XC:ASS::f("ADD") ; Case-sensitive to fix acronym, but not word.
 :B0XC:Im::f("I'm") ; Fixes 1 word
+:B0XC:abel::f("able") ; Fixes 1 word Case sensitive to not misspel person's name. 
 :B0XC:copt::f("copy") ; Fixes 1 word, Case-sensitive, to not misspell Copt, An ancient Egyptian descendent.
 :B0XC:i::f("I") ; Fixes 1 word 
 :B0XC:may of::f("may have") ; Fixes 1 word
@@ -6083,5 +6123,3 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
 
-;:B0X:you`nre::f("you're")
-:B0X*?:rpoor::f("repor") ; Fixes 44 words 
