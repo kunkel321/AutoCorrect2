@@ -2,7 +2,6 @@
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
-#Include "PrivateParts.ahk"  ; <--- Specific to Steve's setup. If you see this, he forgot to remove it.
 #Include "DateTool.ahk"
 #Include "PrinterTool.ahk"
 #Include "HotstringLib.ahk"
