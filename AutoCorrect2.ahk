@@ -2,13 +2,14 @@
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
+#Include "PrivateParts.ahk"  ; <--- Specific to Steve's setup. If you see this, he forgot to remove it.
 #Include "DateTool.ahk"
 #Include "PrinterTool.ahk"
 #Include "HotstringLib.ahk"
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 12-28-2024
+; Update date: 1-16-2025
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -166,7 +167,6 @@ hh.Opt("-MinimizeBox +alwaysOnTop")
 try hh.BackColor := formColor ; This variable gets set at the top of the HotString Helper section. 
 FontColor := FontColor != "" ? "c" SubStr(fontColor, -6) : "" ; Ensure exactly one 'c' on the left. 
 hh.SetFont("s11 " FontColor)  ; This variable gets set at the top of the HotString Helper section. 
-
 
 ; -----  Trigger string parts ----
 hh.AddText('y4 w30', 'Options')
@@ -1805,6 +1805,7 @@ f(replace := "")
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
 ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
 keepText(KeepForLog, *) {  
+	KeepForLog := StrReplace(KeepForLog, "`n", "``n") ; Fixes triggers spanning two lines.
 	global lih := InputHook("B V I1 E T1", "{Backspace}") ; "logger input hook." T is time-out. T1 = 1 second.
 	lih.Start(), lih.Wait()
 	hyphen := (lih.EndKey = "Backspace")?  " << " : " -- "
@@ -1853,6 +1854,7 @@ OnBSLogger() {
         LogEntry := StrReplace(LogEntry, "  ", " ")
 
         dateStamp := "`n" A_YYYY "-" A_MM "-" A_DD
+		lastTrigger := StrReplace(lastTrigger, "`n", "``n") ; Fixes triggers spanning two lines.
         tabs := StrLen(lastTrigger)>14? "`t" : "`t`t" ; Adjust so that "--->" is in own column. 
         
         FileAppend(dateStamp " << " lastTrigger tabs "---> " LogEntry, ErrContextLog)
