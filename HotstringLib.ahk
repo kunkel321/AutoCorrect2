@@ -1,24 +1,7 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
 ; Library of HotStrings for AutoCorrect2.  Please note that the f() function calls require the function that is defined in the AutoCorrect2 code.
-; Library updated 1-16-2025
-
-; Loops for setting up sentence initial caps. The below will automatically capitalize words at the start of sentances.
-
-AutoCap:
-
-Loop 26
-	Hotstring(":C?*:. " . Chr(A_Index + 96),". " . Chr(A_Index + 64))
-Loop 26
-	Hotstring(":CR?*:! " . Chr(A_Index + 96),"! " . Chr(A_Index + 64))
-Loop 26
-	Hotstring(":C?*:? " . Chr(A_Index + 96),"? " . Chr(A_Index + 64))
-Loop 26
-	Hotstring(":C?*:`n" . Chr(A_Index + 96),"`n" . Chr(A_Index + 64))
-
-Return
-
-;
+; Library updated 2-7-2025
 
 ; ===== Trigger strings to nullify the potential misspellings that are indicated. ======
 ; Used the word "corrects" in place of fix to avoid double-counting these as potential fixes. 
@@ -62,8 +45,7 @@ Return
 :B0C:AutoCorrect:: ; Here for :B0X*:rre::f("re") ; which correct 8199 words. But... Is is needed?  
 
 /*
-Unfortunately, it doesn't work if the multi-fix item has :*: in the options.  So these can't be nullified.  
-If you hope to ever type any of these words, locate the corresponding autocorrect item and delete it. 
+Unfortunately, the "nullification effect" doesn't work if the multi-fix item has :*: in the options.  So these can't be nullified. If you hope to ever type any of these words, locate the corresponding autocorrect item and delete it. 
 :B0:Ahvenanmaa:: ; also :Jahvey:, :Wahvey:, :Yahve:, :Yahveh: (Hebrew names for God.) Here for :?*:ahve::have, which corrects 47 words.
 :B0:Basra:: ; (An oil city in Iraq) Here for :?*:asr::ase, which corrects 698 words.
 :B0:Datapoint:: ; For username Datapoint. Here for :?*:apoint::appoint, which corrects 30 words.
@@ -160,6 +142,7 @@ If you hope to ever type any of these words, locate the corresponding autocorrec
 :B0X?:clas::f("class") ; Fixes 8 words
 :B0X?:efull::f("eful") ; Fixes 74 words
 :B0X?:ficaly::f("fically") ; Fixes 20 words
+:B0X?:gnision::f("gnition") ; Fixes 9 words ; Allows :?:nision::nisation to exist below.
 ; ---- Items from accented list, but must be in no-sort section ----
 ::decollete::décolleté ; adj. (of a garment) having a low-cut neckline
 ::manana::mañana ; Spanish: Tomorrow. 
@@ -1182,7 +1165,6 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:had lead for::f("had led for") ; Fixes 1 word
 :B0X*:had lead the::f("had led the") ; Fixes 1 word
 :B0X*:had lead to::f("had led to") ; Fixes 1 word
-:B0X*:had meet::f("had met") ; Fixes 1 word
 :B0X*:had mislead::f("had misled") ; Fixes 1 word
 :B0X*:had overcame::f("had overcome") ; Fixes 1 word
 :B0X*:had overran::f("had overrun") ; Fixes 1 word
@@ -3411,6 +3393,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:dulgue::f("dulge") ; Fixes 23 words
 :B0X*?:dupicat::f("duplicat") ; Fixes 26 words
 :B0X*?:durig::f("during") ; Fixes 5 words
+:B0X*?:durrat::f("durat") ; Fixes 17 words 
 :B0X*?:durring::f("during") ; Fixes 5 words
 :B0X*?:duting::f("during") ; Fixes 5 words
 :B0X*?:eacll::f("ecall") ; Fixes 8 words
@@ -3975,6 +3958,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:neccesar::f("necessar") ; Fixes 9 words
 :B0X*?:neccessar::f("necessar") ; Fixes 9 words
 :B0X*?:necesar::f("necessar") ; Fixes 9 words
+:B0X*?:neciss::f("necess") ; Fixes 27 words 
 :B0X*?:nefica::f("neficia") ; Fixes 12 words
 :B0X*?:negociat::f("negotiat") ; Fixes 19 words
 :B0X*?:negota::f("negotia") ; Fixes 26 words
@@ -4898,6 +4882,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:colum::f("column") ; Fixes 1 word
 :B0X:come over hear::f("come over here") ; Fixes 1 word
 :B0X:come reign or shine::f("come rain or shine") ; Fixes 1 word
+:B0X:comparible::f("comparable") ; Fixes 1 word 
 :B0X:complement your work::f("compliment your work") ; Fixes 1 word
 :B0X:could breath::f("could breathe") ; Fixes 1 word
 :B0X:could of been::f("could have been") ; Fixes 1 word
@@ -4965,6 +4950,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:had forbad::f("had forbidden") ; Fixes 1 word
 :B0X:had forbade::f("had forbidden") ; Fixes 1 word
 :B0X:had know::f("had known") ; Fixes 1 word
+:B0X:had meet::f("had met") ; Fixes 1 word
 :B0X:had plead::f("had pleaded") ; Fixes 1 word
 :B0X:had ran::f("had run") ; Fixes 1 word
 :B0X:had rang::f("had rung") ; Fixes 1 word
@@ -5543,6 +5529,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:youv'e::f("you've") ; Fixes 1 word 
 :B0X:youve::f("you've") ; Fixes 1 word
 :B0X?*:actaul::f("actual") ; Fixes 40 words 
+:B0X?*:adaptib::f("adaptab") ; Fixes 9 words 
 :B0X?*:alyl::f("ally") ; Fixes 2691 words 
 :B0X?*:delimma::f("dilemma") ; Fixes 3 words 
 :B0X?*:discrict::f("district") ; Fixes 13 words 
@@ -5899,7 +5886,6 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0XC:nad::f("and") ; Fixes 1 word, Case-sensitive to not misspell NAD (A coenzyme present in most living cells)
 :B0XC:noe::f("now") ; Fixes 1 word 
 :B0XC:tou::f("you") ; Fixes 1 word Case sensitive because 'Time Of Use' acronym.
-
 ; ===== End of Main List ==========================
 ;------------------------------------------------------------------------------
 ; Accented English words, from, amongst others,
@@ -6129,11 +6115,22 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :C:tuesday::Tuesday
 :C:wednesday::Wednesday
 
+; Loops for setting up sentence initial caps. The below will automatically capitalize words at the start of sentences.
+Loop 26 { ; With help from rkingett 2-7-2025.
+	Hotstring(":C?*:. " Chr(A_Index + 96),". " Chr(A_Index + 64))
+	Hotstring(":C?*:.  " Chr(A_Index + 96),". " Chr(A_Index + 64))
+	Hotstring(":CR?*:! " Chr(A_Index + 96),"! " Chr(A_Index + 64))
+	Hotstring(":CR?*:!  " Chr(A_Index + 96),"! " Chr(A_Index + 64))
+	Hotstring(":C?*:? " Chr(A_Index + 96),"? " Chr(A_Index + 64))
+	Hotstring(":C?*:?  " Chr(A_Index + 96),"? " Chr(A_Index + 64))
+}
+
 ; Just some alphabetical lists of things.
 ::;fruits::Apple`nBanana`nCarrot`nDate`nEggplant`nFig`nGrape`nHoneydew`nIceberg lettuce`nJalapeno`nKiwi`nLemon`nMango`nNectarine`nOrange`nPapaya`nQuince`nRadish`nStrawberry`nTomato`nUgli fruit`nVanilla bean`nWatermelon`nXigua (Chinese watermelon)`nYellow pepper`nZucchini
 ::;animals::Aardvark`nButterfly`nCheetah`nDolphin`nElephant`nFrog`nGiraffe`nHippo`nIguana`nJaguar`nKangaroo`nLion`nMonkey`nNarwhal`nOwl`nPenguin`nQuail`nRabbit`nSnake`nTiger`nUmbrellabird`nVulture`nWolf`nX-ray fish`nYak`nZebra
 ::;colors::Amber`nBlue`nCrimson`nDenim`nEmerald`nFuchsia`nGold`nHarlequin`nIndigo`nJade`nKhaki`nLavender`nMagenta`nNavy`nOlive`nPink`nQuartz`nRed`nScarlet`nTurquoise`nUltramarine`nViolet`nWhite`nXanadu`nYellow`nZaffre
-::;colorhex::Red := {#}FF0000`nOrange := {#}FF7F00`nYellow := {#}FFFF00`nGreen := {#}00FF00`nBlue := {#}0000FF`nIndigo := {#}4B0082`nViolet := {#}8F00FF
+::;colorhex::Red := 0xFF0000`nOrange := 0xFF7F00`nYellow := 0xFFFF00`nGreen := 0x00FF00`nBlue := 0x0000FF`nIndigo := 0x4B0082`nViolet := 0x8F00FF`nBlack := 0x000000`nWhite := 0xFFFFFF`nRed := {#}FF0000`nOrange := {#}FF7F00`nYellow := {#}FFFF00`nGreen := {#}00FF00`nBlue := {#}0000FF`nIndigo := {#}4B0082`nViolet := {#}8F00FF `nBlack := {#}000000`nWhite := {#}FFFFFF`n
+
 ;################################################
 
 ;-------------------------------------------------------------------------------
