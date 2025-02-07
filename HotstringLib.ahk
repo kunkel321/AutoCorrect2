@@ -3,6 +3,23 @@
 ; Library of HotStrings for AutoCorrect2.  Please note that the f() function calls require the function that is defined in the AutoCorrect2 code.
 ; Library updated 1-16-2025
 
+; Loops for setting up sentence initial caps. The below will automatically capitalize words at the start of sentances.
+
+AutoCap:
+
+Loop 26
+	Hotstring(":C?*:. " . Chr(A_Index + 96),". " . Chr(A_Index + 64))
+Loop 26
+	Hotstring(":CR?*:! " . Chr(A_Index + 96),"! " . Chr(A_Index + 64))
+Loop 26
+	Hotstring(":C?*:? " . Chr(A_Index + 96),"? " . Chr(A_Index + 64))
+Loop 26
+	Hotstring(":C?*:`n" . Chr(A_Index + 96),"`n" . Chr(A_Index + 64))
+
+Return
+
+;
+
 ; ===== Trigger strings to nullify the potential misspellings that are indicated. ======
 ; Used the word "corrects" in place of fix to avoid double-counting these as potential fixes. 
 :B0*:horror:: ; Here for :?*:orror::error, which corrects 56 words.
