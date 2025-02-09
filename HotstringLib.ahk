@@ -5720,7 +5720,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?:maticas::f("matics") ; Fixes 26 words
 :B0X?:miantly::f("minately") ; Fixes 6 words
 :B0X?:mibly::f("mably") ; Fixes 16 words
-:B0X?:miliary::f("military") ; Fixes 4 words, but misspells miliary ()
+:B0X?:miliary::f("military") ; Fixes 4 words, but misspells miliary (Resembling millet seeds)
 :B0X?:morphysis::f("morphosis") ; Fixes 4 words
 :B0X?:motted::f("moted") ; Fixes 5 words
 :B0X?:mpley::f("mply") ; Fixes 13 words
@@ -6115,15 +6115,153 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :C:tuesday::Tuesday
 :C:wednesday::Wednesday
 
-; Loops for setting up sentence initial caps. The below will automatically capitalize words at the start of sentences.
-Loop 26 { ; With help from rkingett 2-7-2025.
-	Hotstring(":C?*:. " Chr(A_Index + 96),". " Chr(A_Index + 64))
-	Hotstring(":C?*:.  " Chr(A_Index + 96),". " Chr(A_Index + 64))
-	Hotstring(":CR?*:! " Chr(A_Index + 96),"! " Chr(A_Index + 64))
-	Hotstring(":CR?*:!  " Chr(A_Index + 96),"! " Chr(A_Index + 64))
-	Hotstring(":C?*:? " Chr(A_Index + 96),"? " Chr(A_Index + 64))
-	Hotstring(":C?*:?  " Chr(A_Index + 96),"? " Chr(A_Index + 64))
-}
+;-------------------------------------------------------------------------------
+; Strings for fixing sentence initial caps. Inspired by rkingett 2-7-2025.
+; The below will automatically capitalize words at the start of sentences.  
+;-------------------------------------------------------------------------------
+:B0X?*C:!  a::f("!  A") ; Fixes 1 word
+:B0X?*C:!  b::f("!  B") ; Fixes 1 word
+:B0X?*C:!  c::f("!  C") ; Fixes 1 word
+:B0X?*C:!  d::f("!  D") ; Fixes 1 word
+:B0X?*C:!  e::f("!  E") ; Fixes 1 word
+:B0X?*C:!  f::f("!  F") ; Fixes 1 word
+:B0X?*C:!  h::f("!  H") ; Fixes 1 word
+:B0X?*C:!  i::f("!  I") ; Fixes 1 word
+:B0X?*C:!  j::f("!  J") ; Fixes 1 word
+:B0X?*C:!  k::f("!  K") ; Fixes 1 word
+:B0X?*C:!  l::f("!  L") ; Fixes 1 word
+:B0X?*C:!  m::f("!  M") ; Fixes 1 word
+:B0X?*C:!  n::f("!  N") ; Fixes 1 word
+:B0X?*C:!  p::f("!  P") ; Fixes 1 word
+:B0X?*C:!  q::f("!  Q") ; Fixes 1 word
+:B0X?*C:!  r::f("!  R") ; Fixes 1 word
+:B0X?*C:!  s::f("!  S") ; Fixes 1 word
+:B0X?*C:!  t::f("!  T") ; Fixes 1 word
+:B0X?*C:!  u::f("!  U") ; Fixes 1 word
+:B0X?*C:!  v::f("!  V") ; Fixes 1 word
+:B0X?*C:!  w::f("!  W") ; Fixes 1 word
+:B0X?*C:!  x::f("!  X") ; Fixes 1 word
+:B0X?*C:!  y::f("!  Y") ; Fixes 1 word
+:B0X?*C:!  z::f("!  Z") ; Fixes 1 word
+:B0X?*C:! a::f("! A") ; Fixes 1 word
+:B0X?*C:! b::f("! B") ; Fixes 1 word
+:B0X?*C:! c::f("! C") ; Fixes 1 word
+:B0X?*C:! d::f("! D") ; Fixes 1 word
+:B0X?*C:! e::f("! E") ; Fixes 1 word
+:B0X?*C:! f::f("! F") ; Fixes 1 word
+:B0X?*C:! i::f("! I") ; Fixes 1 word
+:B0X?*C:! j::f("! J") ; Fixes 1 word
+:B0X?*C:! k::f("! K") ; Fixes 1 word
+:B0X?*C:! l::f("! L") ; Fixes 1 word
+:B0X?*C:! m::f("! M") ; Fixes 1 word
+:B0X?*C:! n::f("! N") ; Fixes 1 word
+:B0X?*C:! o::f("! O") ; Fixes 1 word
+:B0X?*C:! p::f("! P") ; Fixes 1 word
+:B0X?*C:! q::f("! Q") ; Fixes 1 word
+:B0X?*C:! r::f("! R") ; Fixes 1 word
+:B0X?*C:! s::f("! S") ; Fixes 1 word
+:B0X?*C:! t::f("! T") ; Fixes 1 word
+:B0X?*C:! u::f("! U") ; Fixes 1 word
+:B0X?*C:! v::f("! V") ; Fixes 1 word
+:B0X?*C:! w::f("! W") ; Fixes 1 word
+:B0X?*C:! x::f("! X") ; Fixes 1 word
+:B0X?*C:! y::f("! Y") ; Fixes 1 word
+:B0X?*C:! z::f("! Z") ; Fixes 1 word
+:B0X?*C:.  a::f(".  A") ; Fixes 1 word
+:B0X?*C:.  b::f(".  B") ; Fixes 1 word
+:B0X?*C:.  c::f(".  C") ; Fixes 1 word
+:B0X?*C:.  f::f(".  F") ; Fixes 1 word
+:B0X?*C:.  g::f(".  G") ; Fixes 1 word
+:B0X?*C:.  h::f(".  H") ; Fixes 1 word
+:B0X?*C:.  i::f(".  I") ; Fixes 1 word
+:B0X?*C:.  j::f(".  J") ; Fixes 1 word
+:B0X?*C:.  k::f(".  K") ; Fixes 1 word
+:B0X?*C:.  l::f(".  L") ; Fixes 1 word
+:B0X?*C:.  m::f(".  M") ; Fixes 1 word
+:B0X?*C:.  n::f(".  N") ; Fixes 1 word
+:B0X?*C:.  o::f(".  O") ; Fixes 1 word
+:B0X?*C:.  p::f(".  P") ; Fixes 1 word
+:B0X?*C:.  q::f(".  Q") ; Fixes 1 word
+:B0X?*C:.  r::f(".  R") ; Fixes 1 word
+:B0X?*C:.  s::f(".  S") ; Fixes 1 word
+:B0X?*C:.  t::f(".  T") ; Fixes 1 word
+:B0X?*C:.  u::f(".  U") ; Fixes 1 word
+:B0X?*C:.  v::f(".  V") ; Fixes 1 word
+:B0X?*C:.  w::f(".  W") ; Fixes 1 word
+:B0X?*C:.  x::f(".  X") ; Fixes 1 word
+:B0X?*C:.  y::f(".  Y") ; Fixes 1 word
+:B0X?*C:.  z::f(".  Z") ; Fixes 1 word
+:B0X?*C:. a::f(". A") ; Fixes 1 word
+:B0X?*C:. b::f(". B") ; Fixes 1 word
+:B0X?*C:. c::f(". C") ; Fixes 1 word
+:B0X?*C:. d::f(". D") ; Fixes 1 word
+:B0X?*C:. e::f(". E") ; Fixes 1 word
+:B0X?*C:. f::f(". F") ; Fixes 1 word
+:B0X?*C:. g::f(". G") ; Fixes 1 word
+:B0X?*C:. h::f(". H") ; Fixes 1 word
+:B0X?*C:. i::f(". I") ; Fixes 1 word
+:B0X?*C:. j::f(". J") ; Fixes 1 word
+:B0X?*C:. k::f(". K") ; Fixes 1 word
+:B0X?*C:. l::f(". L") ; Fixes 1 word
+:B0X?*C:. m::f(". M") ; Fixes 1 word
+:B0X?*C:. n::f(". N") ; Fixes 1 word
+:B0X?*C:. o::f(". O") ; Fixes 1 word
+:B0X?*C:. p::f(". P") ; Fixes 1 word
+:B0X?*C:. q::f(". Q") ; Fixes 1 word
+:B0X?*C:. r::f(". R") ; Fixes 1 word
+:B0X?*C:. s::f(". S") ; Fixes 1 word
+:B0X?*C:. u::f(". U") ; Fixes 1 word
+:B0X?*C:. v::f(". V") ; Fixes 1 word
+:B0X?*C:. w::f(". W") ; Fixes 1 word
+:B0X?*C:. x::f(". X") ; Fixes 1 word
+:B0X?*C:. y::f(". Y") ; Fixes 1 word
+:B0X?*C:. z::f(". Z") ; Fixes 1 word
+:B0X?*C:?  a::f("?  A") ; Fixes 1 word
+:B0X?*C:?  b::f("?  B") ; Fixes 1 word
+:B0X?*C:?  c::f("?  C") ; Fixes 1 word
+:B0X?*C:?  d::f("?  D") ; Fixes 1 word
+:B0X?*C:?  e::f("?  E") ; Fixes 1 word
+:B0X?*C:?  f::f("?  F") ; Fixes 1 word
+:B0X?*C:?  g::f("?  G") ; Fixes 1 word
+:B0X?*C:?  h::f("?  H") ; Fixes 1 word
+:B0X?*C:?  i::f("?  I") ; Fixes 1 word
+:B0X?*C:?  k::f("?  K") ; Fixes 1 word
+:B0X?*C:?  l::f("?  L") ; Fixes 1 word
+:B0X?*C:?  m::f("?  M") ; Fixes 1 word
+:B0X?*C:?  o::f("?  O") ; Fixes 1 word
+:B0X?*C:?  p::f("?  P") ; Fixes 1 word
+:B0X?*C:?  q::f("?  Q") ; Fixes 1 word
+:B0X?*C:?  r::f("?  R") ; Fixes 1 word
+:B0X?*C:?  s::f("?  S") ; Fixes 1 word
+:B0X?*C:?  t::f("?  T") ; Fixes 1 word
+:B0X?*C:?  u::f("?  U") ; Fixes 1 word
+:B0X?*C:?  v::f("?  V") ; Fixes 1 word
+:B0X?*C:?  w::f("?  W") ; Fixes 1 word
+:B0X?*C:?  x::f("?  X") ; Fixes 1 word
+:B0X?*C:?  y::f("?  Y") ; Fixes 1 word
+:B0X?*C:?  z::f("?  Z") ; Fixes 1 word
+:B0X?*C:? a::f("? A") ; Fixes 1 word
+:B0X?*C:? b::f("? B") ; Fixes 1 word
+:B0X?*C:? c::f("? C") ; Fixes 1 word
+:B0X?*C:? f::f("? F") ; Fixes 1 word
+:B0X?*C:? g::f("? G") ; Fixes 1 word
+:B0X?*C:? h::f("? H") ; Fixes 1 word
+:B0X?*C:? i::f("? I") ; Fixes 1 word
+:B0X?*C:? j::f("? J") ; Fixes 1 word
+:B0X?*C:? k::f("? K") ; Fixes 1 word
+:B0X?*C:? l::f("? L") ; Fixes 1 word
+:B0X?*C:? m::f("? M") ; Fixes 1 word
+:B0X?*C:? n::f("? N") ; Fixes 1 word
+:B0X?*C:? p::f("? P") ; Fixes 1 word
+:B0X?*C:? q::f("? Q") ; Fixes 1 word
+:B0X?*C:? r::f("? R") ; Fixes 1 word
+:B0X?*C:? s::f("? S") ; Fixes 1 word
+:B0X?*C:? t::f("? T") ; Fixes 1 word
+:B0X?*C:? u::f("? U") ; Fixes 1 word
+:B0X?*C:? w::f("? W") ; Fixes 1 word
+:B0X?*C:? x::f("? X") ; Fixes 1 word
+:B0X?*C:? y::f("? Y") ; Fixes 1 word
+:B0X?*C:? z::f("? Z") ; Fixes 1 word
 
 ; Just some alphabetical lists of things.
 ::;fruits::Apple`nBanana`nCarrot`nDate`nEggplant`nFig`nGrape`nHoneydew`nIceberg lettuce`nJalapeno`nKiwi`nLemon`nMango`nNectarine`nOrange`nPapaya`nQuince`nRadish`nStrawberry`nTomato`nUgli fruit`nVanilla bean`nWatermelon`nXigua (Chinese watermelon)`nYellow pepper`nZucchini
@@ -6136,4 +6274,3 @@ Loop 26 { ; With help from rkingett 2-7-2025.
 ;-------------------------------------------------------------------------------
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
-
