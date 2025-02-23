@@ -6,7 +6,7 @@
 ;======== DatePicker-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 2-22-2025.
+; The 'H' is for 'Holidays.'   Version: 2-23-2025.
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -20,6 +20,7 @@
 ; ToolTipOptions Class (also by Just Me) added later, see below.
 ; 2-21-2025 Added support for alternate date format as recommended by delio.
 ; 2-22-2025 Several changes to isHoliday function by kunkel321, using AI
+; 2-23-2025 Added holiday report scriptlets menu.  Again,, AI code.  Use with caution.
 
 ; Known issue:  With MonthCal, clicking next/last month arrows too fast enters 
 ; the date, rather than just scrolling dates. (Gets read as 'double click.')
@@ -29,34 +30,40 @@
 ; For future dates, type ";dX" where X is 1-9.
 ; For previous dates, type ";ddX" where X is 1-9.
 ; Information ToolTip shows for X seconds.  
-; Note:  Press Alt+; inplace of ; for the alternate date format
+; Note:  Press Alt+; inplace of ; for the alternate date format.
+;        example: Press Alt+;, then d, then 2, for day after tomorrow.
 
 ;======== Directions for Use: Popup Calendar ===================================
 ; Alt+Shift+D ----> Show calendar.
-; Press h (while calendar is active) ----> toggle list of holidays.
+; Press h (while calendar is active) ----> toggle list of holidays for shown months.
 ; Press t (while calendar is active) ----> go to today.
 ; Press 1-5 (while calendar is active) ----> Show this many months.
 ; Double-click a date, or press Enter, to type it.
 ; D-click/Enter while holding Alt key for alternate date format
+; D-Click/Enter while holding Shift key for menu of scriptlet holiday report tools.
 ; Calendar appears placed over active window.
 ; Waits for window to be active again before typing date.
 
 ; See IsHoliday() function, below, for array of custom holidays and how to add 
 ; your own custom holidays. Please remove any personal dates, and add your own.
 
-; See bottom of code for some fun scriptlets that generate lists of holidays. 
-; Uncomment scriptlets to use them.
-
 ; ===================================================================
 ;^Esc::ExitApp ; Ctrl+Esc to just kill the whole ding dang script. hide
 
+MyAutoCorrectFileName := "AutoCorrect2.exe"
 #HotIf WinActive("DateTool.ahk",) ; Can't use A_Var here.
 ^s:: ; Because this tool is #Included in AutoCorrect2, reload ac2 upon save. hide
 {	Send("^s") ; Save me.
 	MsgBox("Reloading...", "", "T0.3")
 	Sleep(250)
-	Run "AutoCorrect2.exe" ; <------------------------------------------------------- CHANGE To NAME of your AutoCorrect script? 
-	MsgBox("AutoCorrect2 reloaded.") ; Pops up then disappears super-quickly because of the reload.
+	If FileExist(MyAutoCorrectFileName) {
+      Run MyAutoCorrectFileName ; <------------------------------------------------------- CHANGE To NAME of your AutoCorrect script? 
+	   MsgBox("AutoCorrect2 reloaded.") ; Pops up then disappears super-quickly because of the reload.
+   }
+   else {
+      Reload
+	   MsgBox(A_ScriptName " reloaded.") ; Pops up then disappears super-quickly because of the reload.
+   }
 }  
 #HotIf
 
@@ -74,16 +81,21 @@ BorderColor := (strLen(formColor) > 8) ? subStr(formColor, strLen(formColor) - 5
 
 ;======== Calendar User Options ===========================================
 guiTitle := "DateTool-H"         ; change title if desired 
+monthCalHotkey := "!+d"          ; Hotkey: Alt+Shift+D.  Change as desired. 
 TypeOutFormat := "M-d-yyyy"      ; preferred date format for typing date in edit field
 TypeOutAltFormat := "yyyy-MM-dd" ; alternate preferred date format for typing 
 HolidayListFormat := "MMM-dd"    ; preferred date format for popup list
-ShowSingleHoliday := 1          ; show holiday when click on day (1 = yes / 0 = no)
-;BorderColor := "FF9966"          ; GUI background color
 MonthCount := 3                  ; default number of months to display vertically
+ShowSingleHoliday := 1           ; show holiday when click on day (1 = yes / 0 = no)
+MenuReportsAsToolTips := 1       ; show menu reports as tooltips (1 = tooltip / 0 = msgbox)
+ReportToolTipTimeout := 20       ; menu reports disappear afte this many seconds.
+;BorderColor := "FF9966"         ; GUI background color
+; User Note: If you have many holidays defined, the menu reports can be quite large,
+; so have 'MenuReportsAsToolTips:=0' or have a small font for tooltips (next section.) 
 
 ;======== ToolTip User Options ===========================================
 ToolTipOptions.Init()
-ToolTipOptions.SetFont("s14", "Calibri")
+ToolTipOptions.SetFont("s12", "Calibri")
 ToolTipOptions.SetMargins(5,5,5,5) ; Left, Top, Right, Bottom
 ;ToolTipOptions.SetColors("0xFFFFF0", "0x800000")
 ; ToolTipOptions.SetColors(BorderColor, "Default")
@@ -163,9 +175,6 @@ dateString(nOffset, AltForm) {  ; second par is 0=normal format, 1=alt format
    }
 } 
 
-
-
-
 ;======= Date HotString ToolTip =======================================
 ShowToolTip(nOffset, DatePicked)
 {  dateOffset := DatePicked
@@ -198,7 +207,7 @@ ShowToolTip(nOffset, DatePicked)
 } 
 ; ===================================================================
 
-!+d:: ; Show DateTool - H
+Hotkey(monthCalHotkey, MCRemake) ; Show DateTool - H
 MCRemake(*) 
 { ; Hotkey is Alt+Shift+D
    Local X, Y, W, H
@@ -220,7 +229,7 @@ MCRemake(*)
       OnMessage(0x004E, WM_NOTIFY, 0)
       MCGUI["MC"].OnNotify(-747, MCN_GETDAYSTATE)
       If (ShowSingleHoliday = 1)
-         MCGUI["MC"].OnEvent("Change", ShowOneHoliday)
+         MCGUI["MC"].OnEvent("Change", HandleDateChange)
       Set_CS_DBLCLKS(MCGUI["MC"].Hwnd)    ; needed to get WM_LBUTTONDBLCLK notifications for clicks on a MonthCal
       MCGUI.Show("x" X " y" Y)
       OnMessage(0x0203, WM_LBUTTONDBLCLK)
@@ -229,8 +238,21 @@ MCRemake(*)
 }
 
 ; ===================================================================
+HandleDateChange(*) {
+   ShowOneHoliday() ; Handle single holiday tooltip
+   ; Clear menu report tooltips if enabled
+   if MenuReportsAsToolTips {
+      ; Clear tooltips 3-6 (leaving 1-2 for other features)
+      loop 4 {
+         ToolTip(,,, A_Index + 2)
+      }
+   }
+}
+
+; ===================================================================
 #HotIf WinActive(guiTitle)
 ALt & Enter::SendDateAlt() ; For alt format date entry.
++Enter::ShowHolidayMenu() ; Shift+Enter to show menu
 h::doToggle() ; Calls function to popup list of holidays.  hide
 t::MCGUI["MC"].Value := A_Now ; Hotkey for 'Go to today.' hide
 1:: ; hide
@@ -324,10 +346,57 @@ WM_LBUTTONDBLCLK(*) {
    Local CtrlHwnd := 0
    MouseGetPos( , , , &CtrlHwnd, 2)
    If (CtrlHwnd = MCGUI["MC"].Hwnd) {
-      SendDate()
+      if GetKeyState("Shift") {
+         ToolTip(,,,"2")  ; Clear the holiday tooltip
+         ShowHolidayMenu()
+      } else {
+         SendDate()
+      }
       Return 0
    }
 }
+
+ShowHolidayMenu() {
+   try {
+      ; Clear any existing report tooltips
+      if MenuReportsAsToolTips {
+         ToolTip(,,,"3")  ; Clear menu report tooltip
+      }
+      
+      ; Verify we have a valid date selected
+      if !MCGUI["MC"].Value {
+         MsgBox("No date selected!")
+         return
+      }
+      
+      ; Get the holiday for the selected date
+      selectedDate := MCGUI["MC"].Value
+      holiday := isHoliday(selectedDate)
+      
+      ; Create the menu
+      holidayMenu := Menu()
+      
+      ; Add holiday-specific items only if a holiday is selected
+      if holiday {
+         holidayMenu.Add("Show Future Dates for '" holiday "'", ShowHolidayDates)
+         holidayMenu.Add("Jump to Next Year's '" holiday "'", NavigateToNextOccurrence)
+         holidayMenu.Add()  ; Add a separator
+      }
+      
+      ; Add general items always
+      holidayMenu.Add("Show All Holidays in " FormatTime(selectedDate, "yyyy"), ShowYearHolidays)
+      holidayMenu.Add("Show " FormatTime(selectedDate, "MMMM") " Holidays (20 Years)", ShowMonthHolidays)
+      holidayMenu.Add("Copy Holiday List for Custom Date Range...", ShowDateRangeHolidays)
+      ; Get the mouse position
+      MouseGetPos(&mX, &mY)
+      
+      ; Show the menu at mouse position
+      holidayMenu.Show(mX, mY)
+   } catch Error as err {
+      MsgBox("Error showing menu: " err.Message)
+   }
+}
+
 ; ===================================================================
 ; Process the MCN_GETDAYSTATE notification
 ; https://learn.microsoft.com/en-us/windows/win32/controls/mcn-getdaystate
@@ -806,72 +875,202 @@ Class ToolTipOptions {
          ToolTipOptions.Reset()
    }
 }
+; ------------------------- End of Just Me's ToolTipOptions class ------------------------------------------------------
 
-/* ; <---- uncomment-out to use below tools
-; ------------------------------------------------
-
-#^+1::{ ; Win+Ctrl+Shift+1: Check holidays for specific month over 20 years
-   myYear := '2020'
-   myMonth := '06'
-   daysInMonth := '30'  ; approximate number is fine...
-   monthReport := "  For Month " . myMonth . "`n`n"
+; The below functions are called from the popup menu that appears when Shift+Clicking 
+; a monthCal date, or update Shift+Enter, when monthCal gui is active.  The first
+; two functions only appear if the selected date is a holiday. 
+ShowHolidayDates(*) {
+   ; Get the holiday name from the clicked date
+   selectedDate := MCGUI["MC"].Value
+   holiday := isHoliday(selectedDate)
    
-   loop 20 {
-      myDate := myYear . myMonth
-      loop daysInMonth {
-         if (holiday := isHoliday(myDate)) {  
-               myFDate := FormatTime(myDate, "yyyy MMM dd ddd")
-               monthReport .= myFDate . ": " . holiday . "`n"
-         }
-         myDate := DateAdd(myDate, 1, "days")
-      }
-      myYear++
-   }
-   
-   MsgBox(monthReport)
-}
-; ----------------------------------------------
-
-#^+2::{ ; Win+Ctrl+Shift+2: Check all holidays this year
-   tyYear := A_Year  ; Set another 4 digit year, if desired
-   tyDate := tyYear
-   tyReport := "  For Year " . tyYear . "`n`n"
-   
-   loop 365 {
-      if (holiday := isHoliday(tyDate)) { 
-         ftyDate := FormatTime(tyDate, "ddd MMM dd")
-         tyReport .= ftyDate . ": " . holiday . "`n"
-      }
-      tyDate := DateAdd(tyDate, 1, "days")
-   }
-   
-   MsgBox(tyReport)
-}
-; ----------------------------------------------
-
-#^+3::{ ; Win+Ctrl+Shift+3: Find all dates for a specific holiday
-   syYear := 2025  ; Start year 
-   eyYear := 2045  ; End year 
-   holiStr := "Easter"
-   tyReport := "Occurrences of " . holiStr . "`nbetween " . syYear . " and " . eyYear . "`n`n"
+   ; Set up the year range
+   syYear := A_Year  ; Start from current year
+   eyYear := syYear + 20  ; Look ahead 20 years
+   thReport := ""
+   title := "Occurrences of " . holiday . "`nbetween " . syYear . " and " . eyYear
    loopDate := syYear . "0101000000"  ; Start from January 1st of start year
 
-   while true { ; Loop until we reach the end year
-      ; First check if we've exceeded our end year
-      currentYear := Integer(FormatTime(loopDate, "yyyy"))
-      if (currentYear > eyYear)
-         break
-         
-      if (holiday := isHoliday(loopDate)) { ; Check for holiday
-         if InStr(holiday, holiStr) {
-               thisFormDate := FormatTime(loopDate, "ddd yyyy MMM dd")
-               tyReport .= thisFormDate . ": " . holiday . "`n"
+   try {
+      while true {
+         ; Check if we've exceeded our end year
+         currentYear := Integer(FormatTime(loopDate, "yyyy"))
+         if (currentYear > eyYear)
+               break
+               
+         if (checkHoliday := isHoliday(loopDate)) {
+               if InStr(checkHoliday, holiday) {
+                  thisFormDate := FormatTime(loopDate, "ddd yyyy MMM dd")
+                  thReport .= thisFormDate . ": " . checkHoliday . "`n"
+               }
          }
+         loopDate := DateAdd(loopDate, 1, "days")
       }
-      loopDate := DateAdd(loopDate, 1, "days") ; Advance to next day
+      
+      ShowReport(title, thReport)
+   } catch Error as err {
+      MsgBox("Error processing dates: " err.Message)
    }
-
-   MsgBox(tyReport) ; Show results
 }
-; ----------------------------------------------
-*/
+
+ShowYearHolidays(*) {
+   try {
+      ; Get the year from the selected date
+      selectedDate := MCGUI["MC"].Value
+      selectedYear := FormatTime(selectedDate, "yyyy")
+      
+      ; Start with January 1st of selected year
+      tyDate := selectedYear . "0101"
+      title := "Holidays for " . selectedYear
+      content := ""
+      
+      loop 365 {
+         if (holiday := isHoliday(tyDate)) { 
+               ftyDate := FormatTime(tyDate, "ddd MMM dd")
+               content .= ftyDate . ": " . holiday . "`n"
+         }
+         tyDate := DateAdd(tyDate, 1, "days")
+      }
+      
+      ShowReport(title, content, 4)
+   } catch Error as err {
+      MsgBox("Error getting year holidays: " err.Message)
+   }
+}
+
+ShowMonthHolidays(*) {
+   ; Get the month from the selected date
+   selectedDate := MCGUI["MC"].Value
+   selectedMonth := FormatTime(selectedDate, "MM")
+   monthReport := ""
+   ; Start from current year
+   startYear := A_Year
+   daysInMonth := 31  ; Maximum days in a month
+   title := "  For Month " . FormatTime(selectedDate, "MMMM")
+   
+   try {
+      loop 20 {
+         myDate := startYear . selectedMonth
+         loop daysInMonth {
+               if (holiday := isHoliday(myDate)) {  
+                  myFDate := FormatTime(myDate, "yyyy MMM dd ddd")
+                  monthReport .= myFDate . ": " . holiday . "`n"
+               }
+               myDate := DateAdd(myDate, 1, "days")
+         }
+         startYear++
+      }
+      
+      ShowReport(title, monthReport)
+   } catch Error as err {
+      MsgBox("Error checking month holidays: " err.Message)
+   }
+}
+
+ShowDateRangeHolidays(*) {
+   try {
+      selectedDate := MCGUI["MC"].Value
+      defaultEnd := DateAdd(selectedDate, 90, "days")
+      
+      ; Format dates for input box default text
+      startStr := FormatTime(selectedDate, "yyyy-MM-dd")
+      endStr := FormatTime(defaultEnd, "yyyy-MM-dd")
+      
+      ; Get date range from user
+      if !(userInput := InputBox(
+         "Enter date range (YYYY-MM-DD to YYYY-MM-DD)", 
+         "Date Range", 
+         "w300 h130",
+         startStr " to " endStr
+      ).Value) {
+         return
+      }
+      
+      ; Parse input
+      dates := StrSplit(userInput, " to ")
+      if dates.Length != 2 {
+         MsgBox("Invalid input format!")
+         return
+      }
+      
+      ; Convert string dates to proper format
+      try {
+         dateParts1 := StrSplit(dates[1], "-")
+         dateParts2 := StrSplit(dates[2], "-")
+         
+         if (dateParts1.Length != 3 || dateParts2.Length != 3) {
+               throw Error("Invalid date format")
+         }
+         
+         startDate := dateParts1[1] dateParts1[2] dateParts1[3]
+         endDate := dateParts2[1] dateParts2[2] dateParts2[3]
+      } catch Error as err {
+         MsgBox("Invalid date format. Please use YYYY-MM-DD")
+         return
+      }
+   
+      ; Generate report
+      rangeReport := "Holidays from " dates[1] " to " dates[2] "`n`n"
+      currentDate := startDate
+      endStamp := endDate
+      
+      ; Calculate number of days between dates
+      dayCount := DateDiff(endStamp, startDate, "days")
+      
+      loop dayCount + 1 {  ; +1 to include the end date
+         if (holiday := isHoliday(currentDate)) {
+               rangeReport .= FormatTime(currentDate, "ddd yyyy MMM dd") ": " holiday "`n"
+         }
+         currentDate := DateAdd(currentDate, 1, "days")
+      }
+      
+      A_Clipboard := rangeReport
+      SoundBeep  ; Signal completion3-20-2025
+   } catch Error as err {
+      MsgBox("Error processing date range: " err.Message)
+   }
+}
+
+NavigateToNextOccurrence(*) {
+   try {
+      selectedDate := MCGUI["MC"].Value
+      currentYear := FormatTime(selectedDate, "yyyy")
+      holiday := isHoliday(selectedDate)
+      
+      ; Start checking from next year
+      checkDate := currentYear + 1 . FormatTime(selectedDate, "MM") . "01"
+      found := false
+      
+      ; Look ahead up to 2 years
+      loop 730 {
+         if (checkHoliday := isHoliday(checkDate)) {
+               if InStr(checkHoliday, holiday) {
+                  ; Navigate to the date
+                  MCGUI["MC"].Value := checkDate
+                  found := true
+                  break
+               }
+         }
+         checkDate := DateAdd(checkDate, 1, "days")
+      }
+      
+      if !found {
+         MsgBox("No occurrence found in next 2 years.")
+      }
+   } catch Error as err {
+      MsgBox("Error navigating to next occurrence: " err.Message)
+   }
+}
+
+ShowReport(title, content, tooltipNum := 3) {
+   if MenuReportsAsToolTips {
+      ; Get the mouse position for tooltip placement
+      MouseGetPos(&mX, &mY)
+      ToolTip(title "`n`n" content, mX + 20, mY + 20, tooltipNum)
+      ; Auto-hide tooltip after 30 seconds
+      SetTimer () => ToolTip(,,,tooltipNum), ReportToolTipTimeout * 1000
+   } else {
+      MsgBox(title "`n`n" content)
+   }
+}
