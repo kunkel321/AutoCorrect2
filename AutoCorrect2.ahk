@@ -8,7 +8,7 @@ SetTitleMatchMode("RegEx")
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 1-16-2025
+; Update date: 3-3-2025
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -16,14 +16,14 @@ TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
 
 if FileExist("colorThemeSettings.ini") {
-   settingsFile := "colorThemeSettings.ini"
-   ; --- Get current colors from ini file. 
-   fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
-   listColor := IniRead(settingsFile, "ColorSettings", "listColor")
-   formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+	settingsFile := "colorThemeSettings.ini"
+	; --- Get current colors from ini file. 
+	fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
+	listColor := IniRead(settingsFile, "ColorSettings", "listColor")
+	formColor := IniRead(settingsFile, "ColorSettings", "formColor")
 }
 else { ; Ini file not there, so use these color instead. 
-   fontColor := "0x1F1F1F", listColor := "0xFFFFFF", formColor := "0xE5E4E2"
+	fontColor := "0x1F1F1F", listColor := "0xFFFFFF", formColor := "0xE5E4E2"
 }
 
 ; Calculate contrasting text color for better readability of delta string and validation msgs.
@@ -190,7 +190,7 @@ ReplaceString := hh.AddEdit(listColor ' +Wrap y+1 xs h' hFactor + 100 ' w' wFact
 ComLbl := hh.AddText('xm y' hFactor + 182, 'Comment')
 ChkFunc := hh.AddCheckbox( 'vFunc, x+70 y' hFactor + 182, 'Make Function')
 	ChkFunc.OnEvent('Click', FormAsFunc)
-ComStr := hh.AddEdit(listColor ' cGreen vComStr xs y' hFactor + 200 ' w' wFactor) ; Remove greed, if desired.
+ComStr := hh.AddEdit(listColor ' cGreen vComStr xs y' hFactor + 200 ' w' wFactor) ; Remove green, if desired.
 
 ; ---- Buttons ----
 ButApp := hh.AddButton('xm y' hFactor + 234 ' w' (wFactor/6)-4 , 'Append')
@@ -470,69 +470,43 @@ NormalStartup(strT, strR) {	; If multiple spaces or `n present, probably not an 
 
 ; The "Exam" button triggers this function.  Most of this function is dedicated
 ; to comparing/parsing the trigger and replacement to populate the blue Delta String
-; Note:  We are using the term "Delta" so denote the change in the string, between trigger and replacement.
-ExamineWords(strT, strR) 
-{	SubTogSize(hFactor, wFactor) ; Incase size is 'Bigger,' make Smaller.
+; Note:  We are using the term "Delta" so denote the change in the string, between 
+; trigger and replacement. Logic was rewritten using AI in March 2025.
+ExamineWords(strT, strR) {
+	SubTogSize(hFactor, wFactor) ; Incase size is 'Bigger,' make Smaller.
 	hh.Show('Autosize yCenter') 
 
-	ostrT := strT, ostrR := strR ; Hold original str values (not arrays).
-	LenT := strLen(strT), LenR := strLen(strR) ; Need length of strings.
-
-	LoopNum := min(LenT, LenR)
-	strT := StrSplit(strT), strR := StrSplit(strR) ; Make into arrays.
-	Global beginning := "", typo := "", fix := "", ending := ""
-
-	If (ostrT = ostrR) ; trig/replacement the same
-		deltaString := "[ " ostrT " ]"
-	else { ; trig/replacement not the same, so find the difference
-		Loop LoopNum { ; find matching left substring.
-			bsubT := strT[A_Index] ; bsubT "beginniing subpart of trigger"
-			bsubR := strR[A_Index]
-			If (bsubT = bsubR) ; Keep adding letters until there's a difference.
-				beginning .= bsubT 
-			else
-				break
+	ostrT := strT, ostrR := strR ; Hold original str values
+    LenT := StrLen(strT), LenR := StrLen(strR)
+    
+    ; If trigger and replacement are identical
+    If (ostrT = ostrR) {
+        deltaString := "[ " ostrT " ]"
+	}
+    Else {
+		; Find matching prefix
+		i := 1
+		beginning := ""
+		While (i <= LenT && i <= LenR && SubStr(strT, i, 1) = SubStr(strR, i, 1)) {
+			beginning .= SubStr(strT, i, 1)
+			i++
 		}
-		Loop LoopNum { ; Reverse Loop, find matching right substring.
-			RevIndex := (LenT - A_Index) + 1
-			esubT := strT[RevIndex] ; esubT "ending of subpart of trigger"
-			RevIndex := (LenR - A_Index) + 1
-			esubR := strR[RevIndex]
-			If (esubT = esubR)  ; Keep adding letters until there's a difference.
-				ending := esubT ending
-			else
-				break
+		
+		; Find matching suffix (working backwards)
+		j := 0
+		ending := ""
+		While (j < LenT - i + 1 && j < LenR - i + 1 && 
+				SubStr(strT, LenT - j, 1) = SubStr(strR, LenR - j, 1)) {
+			ending := SubStr(strT, LenT - j, 1) . ending
+			j++
 		}
-
-		If (strLen(beginning) + strLen(ending)) > LoopNum { ; Overlap means repeated chars in trig or replacement.
-			If (LenT > LenR) { ; Trig is longer, so use T-R for str len.
-				delta := subStr(ending, 1, (LenT - LenR)) ; Left part of ending.  Right part of beginning would also work.
-				delta := " [ " delta " |  ] "
-			}
-			If (LenR > LenT) { ; Replacement is longer, so use R-T for str len.
-				delta := subStr(ending, 1, (LenR - LenT))
-				delta := " [  |  " delta " ] "
-			}
-		}
-		Else {
-			If strLen(beginning) > strLen(ending) { ; replace shorter string last
-				typo := StrReplace(ostrT, beginning, "")
-				typo := StrReplace(typo, ending, "")
-				fix := StrReplace(ostrR, beginning, "")
-				fix := StrReplace(fix, ending, "")
-			}
-			Else {
-				typo := StrReplace(ostrT, ending, "")
-				typo := StrReplace(typo, beginning, "")
-				fix := StrReplace(ostrR, ending, "")
-				fix := StrReplace(fix, beginning, "")
-			}
-			delta := " [ " typo " | " fix " ] "
-		}
-		deltaString := beginning delta ending
-
-	} ; ------------- finished creating delta string
-
+		
+		; Extract the differing middle parts
+		typo := SubStr(strT, i, LenT - i - j + 1)
+		fix := SubStr(strR, i, LenR - i - j + 1)
+	}
+    
+	deltaString := beginning " [ " typo " | " fix " ] " ending
 	TxtTypo.text := deltaString ; set label at top of form.
 
 	; Call filter function then come back here.
@@ -975,6 +949,8 @@ Appendit(tMyDefaultOpts, tTriggerString, tReplaceString) {
 	}	
 	Else { ; Plain vanilla, single-line, no function.
 		tMyDefaultOpts := StrReplace(tMyDefaultOpts, "X", "")
+		If (ComStr.text != "")
+			tComStr := " `; " ComStr.text
 		WholeStr := ":" tMyDefaultOpts ":" tTriggerString "::" tReplaceString tComStr
 	}
 			
@@ -1537,6 +1513,7 @@ class WordNetDictionary { ; Class was made by using AI.
     
         dictGui := Gui() ; Create GUI
         dictGui.SetFont(myBigFont, "Segoe UI")
+        dictGui.SetFont(fontColor)
         dictGui.BackColor := formColor
         dictGui.Add("Text", "y10", "Definition for: " word) ; Add word as title
         ; Use Edit control styled as text for the definition
@@ -1771,6 +1748,7 @@ lastTrigger := "No triggers logged yet." ; in case no autocorrects have been mad
 f(replace := "") 
 {	static HSInputBuffer := InputBuffer()
 	HSInputBuffer.Start()
+	;SoundBeep(1400, 300)
 	trigger := A_ThisHotkey, endchar := A_EndChar
 	Global lastTrigger := StrReplace(trigger, "B0X", "") "::" replace ; set 'lastTrigger' before removing options and colons.
 	trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1) ; use everything to right of 2nd colon. 
@@ -1804,6 +1782,7 @@ f(replace := "")
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
 ; Automatically logs if an autocorrect happens, and if I press Backspace within X seconds. 
 keepText(KeepForLog, *) {  
+	;SoundBeep
 	KeepForLog := StrReplace(KeepForLog, "`n", "``n") ; Fixes triggers spanning two lines.
 	global lih := InputHook("B V I1 E T1", "{Backspace}") ; "logger input hook." T is time-out. T1 = 1 second.
 	lih.Start(), lih.Wait()
