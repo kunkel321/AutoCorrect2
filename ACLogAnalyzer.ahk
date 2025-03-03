@@ -1,8 +1,8 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated:  12-20-2024
-Determines frequency of items in AutoCorrects Log file, then sorts by freq (or weight).  Date not factored in sort. There's no hotkey, just run the script.  It reports the top X hotstrings that were immediately followed by 'Backspace' (<<), and how many times they were used without backspacing (--)).  Sort one or the other, or sort by "weight."  Intended for use with kunkel321's 'AutoCorrect for v2.' Items are reported in Gui, as radio buttons.  User is given option to 'Go to' item in HotStringLibrary, open it in HotStringHelper2, and/or Cull from embedded log at the bottom.  Items culled from ACLog file will get added to the RemovedHotStrings file.  This helps us avoid inadvertently "re-adding" them later.  Fully functional script was written by current human (kunkel321), then totally refactored (with lots of debugging) using ClaudeAI. Then... More human parts were added.  Hellbent helped me workout how to "weigh" the analyzed items. It is important to note that this log analyzer reads/analyzes the autocorrection log that is created by the AutoCorrect2.ahk script.  Without ac2 logging your autocorrections, there will be nothing to analyze.  More recently (11-28-2024), the "ErrContextLog" functionality was added to hh2.  This AcLogAnalyzer script uses that log too.  So please use a version of AutoCorrect2.ahk that is no older than 11-28-2024. 
+                Updated:  3-3-2025
+Determines frequency of items in AutoCorrects Log file, then sorts by freq (or weight).  Date not factored in sort. There's no hotkey, just run the script.  It reports the top X hotstrings that were immediately followed by 'Backspace' (<<), and how many times they were used without backspacing (--)).  Sort one or the other, or sort by "weight."  Intended for use with kunkel321's 'AutoCorrect for v2.' Items are reported in Gui, as radio buttons.  User is given option to 'Go to' item in HotStringLibrary, open it in HotStringHelper2, and/or Cull from embedded log at the bottom.  Items culled from ACLog file will get added to the RemovedHotStrings file.  This helps us avoid inadvertently "re-adding" them later.  Fully functional script was written by current human (kunkel321), then totally refactored (with lots of debugging) using ClaudeAI. Then... More human parts were added.  Hellbent helped me workout how to "weigh" the analyzed items. It is important to note that this log analyzer reads/analyzes the autocorrection log that is created by the AutoCorrect2.ahk script.  Without ac2 logging your autocorrections, there will be nothing to analyze.  More recently (11-28-2024), the "ErrContextLog" functionality was added to hh2.  This AcLogAnalyzer script uses that log too.  So please use a version of AutoCorrect2.ahk that is no older than 11-28-2024. Tip: Quick access to context items: Click to select a radio button item, then right-click to see any context loggings.  You'll know which have context because the number of items is in brackets, for example: "Found 10 [5] << and 4-- for :*:whn::when" has 5 associated context items. 
 ===================================================
 */
 #SingleInstance Force
@@ -10,7 +10,7 @@ Determines frequency of items in AutoCorrects Log file, then sorts by freq (or w
 ^Esc::ExitApp ; Emergency kill switch: Ctrl+Esc
 
 ; ======= Settings =======================
-ShowX := 25             ; Show this many top results in report.
+ShowX := 24             ; Show this many top results in report.
 SortByBS := 1           ; Sort by "Backspaced" items or "Kept" items? (1=BS, 0=Kept)
 WeighItems := 1         ; Attempt to weigh items based on how problematic they are. (1=yes) Only applies if SortByBS is '1'.
 freqImportance := 20    ; Is it important for an item to be "high-frequency" when applying weight? (0 to ~50, where 0=not important)
@@ -159,10 +159,10 @@ PrepareReport(Report) {
     Loop Parse, Report, "`n" {
         if (A_Index <= ShowX && A_LoopField != "") {
 
-            contextCount := " [" IfHasContext(A_LoopField) "]"
+            contextCount := " [" IfHasContext(A_LoopField) "] "
             contextCount := StrReplace(contextCount, "[0]", "[_]")
             loopFldArr := StrSplit(A_LoopField, "<<")
-            thisLoopFld := loopFldArr[1] " <<" contextCount  loopFldArr[2]
+            thisLoopFld := loopFldArr[1] contextCount "<<" loopFldArr[2]
             trunkReport .=  thisLoopFld "`n"
 
 
@@ -198,6 +198,7 @@ AnalysisResults() {
         aca.AddText(,'The ' ShowX ' most frequntly Backspaced items are below.`nAnalyze in HH and Cull separately.  Culling adds`nitem to ' RemovedHsFile ' file.')
     else
         aca.AddText(,"The " ShowX " most frequntly KEPT items are below.`nYOU PROBABLY DON'T WANT TO CHANGE THESE!")
+        aca.AddText("y+2","(Select an item and right-click for context.)")
     global radioColor
     aca.SetFont('c' radioColor)
     CreateRadioButtons()
@@ -218,7 +219,8 @@ CreateRadioButtons() {
         If (WeighItems = 1) and (SortByBS = 1)
             citem := StrSplit(citem, " is weight for ->`t")[2] ; Don't display weight score.
         options := (idx = 1) ? 'vRadioGrp' : 'xs y+5'
-        aca.Add('Radio', options, "Found " citem)
+        aca.Add('Radio', options, "Found " citem).OnEvent("ContextMenu", seeContext)
+
     }
 }
 
@@ -284,7 +286,7 @@ seeContext(*) {
         contextLogContent := FileRead(errLog)
 
         If !InStr(contextLogContent, selItemTrigger)
-            contextItems := "No context items found"
+            contextItems := "No context found for this item."
         Else {
             loop parse contextLogContent, "`n" {
                 If InStr(A_LoopField, selItemTrigger) {
