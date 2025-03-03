@@ -2,13 +2,12 @@
 SetWorkingDir(A_ScriptDir)
 SetTitleMatchMode("RegEx")
 #Requires AutoHotkey v2+
-#Include "DateTool.ahk"
 #Include "PrinterTool.ahk"
 #Include "HotstringLib.ahk"
 
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;===============================================================================
-; Update date: 3-3-2025
+; Update date: 3-3-2025.1
 ; AutoCorrect for v2 thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -476,6 +475,7 @@ ExamineWords(strT, strR) {
 	SubTogSize(hFactor, wFactor) ; Incase size is 'Bigger,' make Smaller.
 	hh.Show('Autosize yCenter') 
 
+	beginning := "", typo := "", fix := "", ending := ""
 	ostrT := strT, ostrR := strR ; Hold original str values
     LenT := StrLen(strT), LenR := StrLen(strR)
     
@@ -486,7 +486,6 @@ ExamineWords(strT, strR) {
     Else {
 		; Find matching prefix
 		i := 1
-		beginning := ""
 		While (i <= LenT && i <= LenR && SubStr(strT, i, 1) = SubStr(strR, i, 1)) {
 			beginning .= SubStr(strT, i, 1)
 			i++
@@ -494,7 +493,6 @@ ExamineWords(strT, strR) {
 		
 		; Find matching suffix (working backwards)
 		j := 0
-		ending := ""
 		While (j < LenT - i + 1 && j < LenR - i + 1 && 
 				SubStr(strT, LenT - j, 1) = SubStr(strR, LenR - j, 1)) {
 			ending := SubStr(strT, LenT - j, 1) . ending
