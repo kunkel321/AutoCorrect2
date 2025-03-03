@@ -6,7 +6,7 @@
 ;======== DatePicker-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 2-23-2025.
+; The 'H' is for 'Holidays.'   Version: 3-3-2025.
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -39,7 +39,7 @@
 ; Press t (while calendar is active) ----> go to today.
 ; Press 1-5 (while calendar is active) ----> Show this many months.
 ; Double-click a date, or press Enter, to type it.
-; D-click/Enter while holding Alt key for alternate date format
+; D-click/Enter while holding Alt key for alternate date format.
 ; D-Click/Enter while holding Shift key for menu of scriptlet holiday report tools.
 ; Calendar appears placed over active window.
 ; Waits for window to be active again before typing date.
@@ -47,39 +47,27 @@
 ; See IsHoliday() function, below, for array of custom holidays and how to add 
 ; your own custom holidays. Please remove any personal dates, and add your own.
 
-; ===================================================================
+; ==============================================================================
 ;^Esc::ExitApp ; Ctrl+Esc to just kill the whole ding dang script. hide
 
-MyAutoCorrectFileName := "AutoCorrect2.exe"
+MyAutoCorrectFileName := "AutoCorrect2.exe" ; <------- CHANGE To NAME of your AutoCorrect script? 
 #HotIf WinActive("DateTool.ahk",) ; Can't use A_Var here.
 ^s:: ; Because this tool is #Included in AutoCorrect2, reload ac2 upon save. hide
 {	Send("^s") ; Save me.
 	MsgBox("Reloading...", "", "T0.3")
 	Sleep(250)
 	If FileExist(MyAutoCorrectFileName) {
-      Run MyAutoCorrectFileName ; <------------------------------------------------------- CHANGE To NAME of your AutoCorrect script? 
-	   MsgBox("AutoCorrect2 reloaded.") ; Pops up then disappears super-quickly because of the reload.
+      Run MyAutoCorrectFileName
+      MsgBox(MyAutoCorrectFileName " reloaded.") ; Pops up then disappears super-quickly because of the reload.
    }
    else {
       Reload
-	   MsgBox(A_ScriptName " reloaded.") ; Pops up then disappears super-quickly because of the reload.
+      MsgBox(A_ScriptName " reloaded.") ; Pops up then disappears super-quickly because of the reload.
    }
 }  
 #HotIf
 
-; ===================================================================
-
-if FileExist("colorThemeSettings.ini") {
-   settingsFile := "colorThemeSettings.ini"
-   ; --- Get current colors from ini file. 
-   formColor := IniRead(settingsFile, "ColorSettings", "formColor")
-}
-else { ; Ini file not there, so use these color instead. 
-   formColor := "E5E4E2"
-}
-BorderColor := (strLen(formColor) > 8) ? subStr(formColor, strLen(formColor) - 5, 6) : formColor
-
-;======== Calendar User Options ===========================================
+;======== Calendar User Options ================================================
 guiTitle := "DateTool-H"         ; change title if desired 
 monthCalHotkey := "!+d"          ; Hotkey: Alt+Shift+D.  Change as desired. 
 TypeOutFormat := "M-d-yyyy"      ; preferred date format for typing date in edit field
@@ -88,28 +76,30 @@ HolidayListFormat := "MMM-dd"    ; preferred date format for popup list
 MonthCount := 3                  ; default number of months to display vertically
 ShowSingleHoliday := 1           ; show holiday when click on day (1 = yes / 0 = no)
 MenuReportsAsToolTips := 1       ; show menu reports as tooltips (1 = tooltip / 0 = msgbox)
-ReportToolTipTimeout := 20       ; menu reports disappear afte this many seconds.
-;BorderColor := "FF9966"         ; GUI background color
+ReportToolTipTimeout := 20       ; reports tooltips disappear after this many seconds.
 ; User Note: If you have many holidays defined, the menu reports can be quite large,
 ; so have 'MenuReportsAsToolTips:=0' or have a small font for tooltips (next section.) 
+; ==============================================================================
 
-;======== ToolTip User Options ===========================================
-ToolTipOptions.Init()
-ToolTipOptions.SetFont("s12", "Calibri")
-ToolTipOptions.SetMargins(5,5,5,5) ; Left, Top, Right, Bottom
-;ToolTipOptions.SetColors("0xFFFFF0", "0x800000")
-; ToolTipOptions.SetColors(BorderColor, "Default")
-ToolTipOptions.SetColors("Default", "Default")
+if FileExist("colorThemeSettings.ini") {
+   settingsFile := "colorThemeSettings.ini"
+   ; --- Get current theme colors from ini file. 
+   formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+   ;fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
+}
+else { ; Ini file not there, so use these colors instead. 
+   formColor := "E5E4E2"   ; for ToolTip font and cal border... Won't affect monthCal
+   ;fontColor := "0x1F1F1F" ; for ToolTip font... Won't affect monthCal
+}
 
-;======== Global Variables ========================================
-TargetWindow := 0
-MCGUI := 0
-hlYear := A_YYYY
-hlMonth := A_MM
-HolidayList := ""
-toggle := false  ; Variable to keep track of tooltip state
+;======== ToolTip User Options =================================================
+ToolTipOptions.Init() ; Do not move.
+ToolTipOptions.SetFont("s12", "Calibri") ; Change as desired.
+ToolTipOptions.SetMargins(5,5,5,5) ; Left, Top, Right, Bottom.
+;ToolTipOptions.SetColors(formColor, fontColor) ; background, font : Use this for theme colors.
+ToolTipOptions.SetColors("Default", "Default") ; background, font
 
-;=========== Hotstrings =============================================
+;=========== Hotstrings ========================================================
 ; Warning:  The below StrReplace expects these hotstrings to have THESE names.  Edit with caution.
 :?*:;dd9:: ; For entering dates.
 :?*:;dd8:: ; all start with {semicolon}
@@ -129,14 +119,14 @@ toggle := false  ; Variable to keep track of tooltip state
 :?*:;d6::
 :?*:;d7::
 :?*:;d8::
-:?*:;d9::
-{  nOffset := StrReplace(A_ThisHotkey, ":?*:;d", "")
-   nOffset := StrReplace(nOffset, "d", "-") ; is second 'd' present, change to -.
+:?*:;d9:: {
+   nOffset := StrReplace(A_ThisHotkey, ":?*:;d", "") ; Remove first 'd' and other stuff.
+   nOffset := StrReplace(nOffset, "d", "-") ; If second 'd' present, change to -.
    dateString(nOffset, 0) ; second par is 0=normal format, 1=alt format
 }
 
-; code for when Alt key is used
-!;::
+; Code for when Alt key is used with semicolon.
+!;:: ; hide from hotkey tool
 startHook(*) {
 	Global dtih := InputHook('L4 V I2')
 	dtih.OnChar := dtih_Char
@@ -144,12 +134,11 @@ startHook(*) {
 }
 
 dtih_Char(dtih, char) {
-	;soundbeep
 	Global Chars .= char
    If RegExMatch(Chars, "(d|dd)[0-9]") {
-      nOffset := StrReplace(Chars, "dd", "-") ; dd means past date
-      nOffset := StrReplace(nOffset, "d", "") ; is second 'd' present, remove.
-      dateString(nOffset, 1)
+      nOffset := StrReplace(Chars, "dd", "-") ; 'dd' means past date, so neg offset
+      nOffset := StrReplace(nOffset, "d", "") ; if 'd' present, remove.
+      dateString(nOffset, 1) ; second par is 0=normal format, 1=alt format
 		dtih.Stop
 		Chars := ""
 	}
@@ -159,7 +148,7 @@ dtih_Char(dtih, char) {
 	}
 }
 
-dateString(nOffset, AltForm) {  ; second par is 0=normal format, 1=alt format
+dateString(nOffset, AltForm) {
    DatePicked := DateAdd(A_Now, nOffset, "D") ; Puts offset into date format.
    ShowToolTip(nOffset, DatePicked)
 
@@ -205,6 +194,11 @@ ShowToolTip(nOffset, DatePicked)
    DatePicked := ""
    nOffset := ""
 } 
+
+;======== Global Variables. Don't change =======================================
+TargetWindow := 0, MCGUI := 0, hlYear := A_YYYY, hlMonth := A_MM
+HolidayList := "", toggle := false  ; Variable to keep track of tooltip state
+
 ; ===================================================================
 
 Hotkey(monthCalHotkey, MCRemake) ; Show DateTool - H
@@ -223,7 +217,7 @@ MCRemake(*)
       ;MCGUI.SetFont("s14") ; <--- optional thicker border
       MCGUI.OnEvent("Close", MCGUIClose)
       MCGUI.OnEvent("Escape", MCGUIClose)
-      MCGUI.BackColor := BorderColor
+      MCGUI.BackColor := formColor
       OnMessage(0x004E, WM_NOTIFY)        ; needs to be called on control creation
       MCGUI.AddMonthCal("r" MonthCount " +0x01 vMC")
       OnMessage(0x004E, WM_NOTIFY, 0)
@@ -251,8 +245,8 @@ HandleDateChange(*) {
 
 ; ===================================================================
 #HotIf WinActive(guiTitle)
-ALt & Enter::SendDateAlt() ; For alt format date entry.
-+Enter::ShowHolidayMenu() ; Shift+Enter to show menu
+ALt & Enter::SendDateAlt() ; For alt format date entry. hide
++Enter::ShowHolidayMenu() ; Shift+Enter to show menu. hide
 h::doToggle() ; Calls function to popup list of holidays.  hide
 t::MCGUI["MC"].Value := A_Now ; Hotkey for 'Go to today.' hide
 1:: ; hide
@@ -467,7 +461,7 @@ SendDate() {
    If !WinWaitActive(TargetWindow, , 1)
       Return
    SendInput(Date)
-   SoundBeep ; Temporary send notification.
+   ;SoundBeep ; Temporary send notification.
 }
 
 SendDateAlt() {
@@ -477,8 +471,9 @@ SendDateAlt() {
    If !WinWaitActive(TargetWindow, , 1)
       Return
    SendInput(Date)
-   SoundBeep ; Temporary send notification.
+   ;SoundBeep ; Temporary send notification.
 }
+
 ; ===================================================================
 ; Function Name: isHoliday, (see links at top of code)
 ; Original Author: tidbit, Jun 11, 2020
@@ -512,6 +507,7 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
       EasterSunday(Date.Year, &EMon, &EDay)
       Eastern[Date.Year] := {EDay: EDay, EMon: EMon}
    }
+
    ; single space delimited, strictly
    ; ["month day-day dayName", "Day Text", start_year, end_year]
    ; if "dayName" = "absolute", "month" becomes "isLeapYear", and "day-day" is a number between 1-366
@@ -519,14 +515,18 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
    ; start_year and end_year are optional. If only one year is specified, it's treated as a single-year event
    Local Dates := [
       ["01 01", "New Year's Day"],
+      ; E.g. MLK day is always a Monday in Jan, and always falls from the 15th to the 21st. 
       ["01 15-21 Monday", "MLK Jr. Day"],
       ["02 02", "Groundhog Day"],
+      ; E.g. Valentines Day is always second month, 14th day. 
       ["02 14", "Valentines Day"],
       ["02 15-21 Monday", "Presidents Day"],
       ["02 29", "Leap Day"],
+      ["03 08-14 Sunday", "Daylight Savings Begins"], ; Second Sunday in March (Spring Ahead/Loose hour of sleep)
       ["03 14", "Pi Day"],
       ["03 17", "St. Patrick's Day"],
-      ["03 14", "Lunar Eclipse", 2025, 2025], ; Years make it a single-year event.  Remove after it's used. 
+      ; Years make it a single (or double)-year event.  Remove after it's used. 
+      ["03 14", "Lunar Eclipse", 2025, 2025], 
       ["03 20", "Spring Equinox", 2025, 2025],
       ["04 07-11", "Spring Break", 2025, 2025],
       ["04 22", "Earth Day"],
@@ -534,6 +534,7 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
       ["05 01", "May Day"],
       ["05 08-14 Sunday", "Mother's Day"],
       ["05 25-31 Monday", "Memorial Day"],
+      ; Juneteenth is celebrated on the 19th, or the nearest weekday (M or F) if the 19th is a weekend. 
       ["06 19 nearest", "Juneteenth"],
       ["06 15-21 Sunday", "Father's Day"],
       ["06 20", "Summer Solstice", 2025, 2025],
@@ -544,6 +545,7 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
       ["09 22", "Autumn Equinox", 2025, 2026], ; Happens on same date both years, so...
       ["10 08-15 Monday", "Indigenous Peoples Day"],
       ["10 31", "Halloween"],
+      ["11 01-07 Sunday", "Daylight Savings Ends"], ; First Sunday in November (Fall Behind/Gain hour of sleep)
       ["11 11 nearest", "Veterans Day"],
       ["11 22-28 Thursday", "Thanksgiving Day"],
       ["12 21", "Winter Solstice", 2025, 2026], ; Same date both years.
@@ -878,7 +880,7 @@ Class ToolTipOptions {
 ; ------------------------- End of Just Me's ToolTipOptions class ------------------------------------------------------
 
 ; The below functions are called from the popup menu that appears when Shift+Clicking 
-; a monthCal date, or update Shift+Enter, when monthCal gui is active.  The first
+; a monthCal date, or upon Shift+Enter, when monthCal gui is active.  The first
 ; two functions only appear if the selected date is a holiday. 
 ShowHolidayDates(*) {
    ; Get the holiday name from the clicked date
@@ -925,7 +927,7 @@ ShowYearHolidays(*) {
       title := "Holidays for " . selectedYear
       content := ""
       
-      loop 365 {
+      loop 365 { ; Will mis 'New Year's Eve' on Leapyears.  Do we care? 
          if (holiday := isHoliday(tyDate)) { 
                ftyDate := FormatTime(tyDate, "ddd MMM dd")
                content .= ftyDate . ": " . holiday . "`n"
@@ -1063,6 +1065,7 @@ NavigateToNextOccurrence(*) {
    }
 }
 
+; This function gets called from the above scriptlets. 
 ShowReport(title, content, tooltipNum := 3) {
    if MenuReportsAsToolTips {
       ; Get the mouse position for tooltip placement
