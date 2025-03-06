@@ -3,6 +3,10 @@ This started as a version of the 2007 AutoHotkey script, AutoCorrect.ahk, though
 
 _Stephen Kunkel (kunkel321)_
 
+# 3-6-2025 Major Update...
+- The AutoCorrect2 code (which is mostly for HotstringHelper2) was very messy and "Frankensteinish" from evolving over the years.  I used Claude AI to totally refactor it, implementing best practice for code organization, naming conventions, etc.  The last parts of the script (loggers and inputBuffer class) are now a separatee file that gets #Included.
+- I stil need to re-add most of the hotkey shortcuts for HH2.
+
 ## Hotstring Helper 2 – Quick Sheet
 ![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/WordListsForHH/GUI%20quicksheet.png))
 1.	The Options Box.  Hotstring options go here.
