@@ -1,11 +1,11 @@
-﻿#SingleInstance Force
+﻿; This is AutoCorrect2, with HotstringHelper2
+#SingleInstance Force
 #Requires AutoHotkey v2.0
 SetWorkingDir(A_ScriptDir)
 
 ; ========================================
-; AutoCorrect2 & HotStringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-6-2025
+; Version: 3-6-2025.1
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -85,6 +85,25 @@ class Config {
     static FontColor := "c0x1F1F1F"    ; Default - will be overridden if theme file exists
     static ListColor := "0xFFFFFF"     ; Default - will be overridden if theme file exists
 
+    ; Calculate brightness from form color
+    static CalculateBrightness() {
+        formColor := this.FormColor
+        
+        ; Convert hex string to number if needed
+        if Type(formColor) = "String" && InStr(formColor, "0x") {
+            formColor := Integer("0x" SubStr(formColor, 3))
+        }
+        
+        if formColor is Number {
+            r := (formColor >> 16) & 0xFF
+            g := (formColor >> 8) & 0xFF
+            b := formColor & 0xFF
+            this.Brightness := (r * 299 + g * 587 + b * 114) / 1000
+        }
+        
+        return this.Brightness
+    }
+
     ; Initialize with calculated values
     static Init() {
         ; Load color settings from theme file if it exists
@@ -97,9 +116,9 @@ class Config {
         }
 
         ; Calculate brightness and set dependent colors
-        CalculateBrightness()
-        this.ValidityDialogGreen := this.Brightness > 128 ? "cb8f3ab" : "c0d3803"
-        this.ValidityDialogRed := this.Brightness > 128 ?  "cfd7c73" : "cB90012"
+        this.CalculateBrightness()
+        this.ValidityDialogGreen := this.Brightness < 128 ? "cb8f3ab" : "c0d3803"
+        this.ValidityDialogRed := this.Brightness < 128 ?  "cfd7c73" : "cB90012"
         
         ; Calculate full path to word list
         this.WordListPath := this.WordListFolder "\" this.WordListFile
@@ -285,7 +304,7 @@ class UI {
         this.ListBackground := Config.ListColor != "" ? "Background" Config.ListColor : ""
         
         ; Set delta color based on brightness - defined once for the whole class
-        this.DeltaColor := Config.Brightness > 128 ? "00FFFF" : "191970" 
+        this.DeltaColor := Config.Brightness < 128 ? "00FFFF" : "191970" 
         
         ; Build UI sections
         this._CreateTriggerSection()
@@ -369,7 +388,7 @@ class UI {
         this.Controls["LeftTrimButton"] := this.MainForm.AddButton("xm h50 w" (Config.DefaultWidth / 8), ">>")
         
         this.MainForm.SetFont("s14")
-        deltaColor := brightness > 128 ? "191970" : "00FFFF"
+        deltaColor := Config.brightness < 128 ? "00FFFF" : "191970" 
         this.Controls["DeltaString"] := this.MainForm.AddText("center c" deltaColor " x+1 w" (Config.DefaultWidth * 3 / 4), Config.ScriptName)
         
         this.MainForm.SetFont("s10")
@@ -507,7 +526,7 @@ class UI {
         this.Controls["RightTrimButton"].OnEvent("Click", (*) => UIActions.TrimRight())
         
         this.Controls["BeginningRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
-        this.Controls["BeginningRadio"].OnEvent("ContextMenu", (*) => UIActions.ClearRadioButtons())
+        this.Controls["BeginningRadio"].OnEvent("ContextMenu", (*) => UIActions.ScriptNameClearRadioButtons())
         this.Controls["MiddleRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
         this.Controls["MiddleRadio"].OnEvent("ContextMenu", (*) => UIActions.ClearRadioButtons())
         this.Controls["EndingRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
@@ -525,7 +544,7 @@ class UI {
 	; Set up hotkeys specific to the HotString Helper form
 	static SetupFormHotkeys() {
 		; These hotkeys only apply when the form is active
-		HotIfWinActive "ahk_class " Config.ScriptName
+        HotIfWinActive "ahk_id " this.MainForm.Hwnd
 		
 		; Enter key behavior
 		Hotkey "$Enter", (*) => this.EnterKeyHandler()
@@ -2034,25 +2053,6 @@ class Utils {
 }
 
 ; =============== MAIN PROGRAM ===============
-
-; Determine screen brightness for contrast calculations
-CalculateBrightness(*) {
-    global brightness := 128  ; Default mid brightness
-    formColor := Config.FormColor
-    ; Convert hex string to number if needed
-    if Type(formColor) = "String" && InStr(formColor, "0x") {
-        formColor := Integer("0x" SubStr(formColor, 3))
-    }
-    if formColor is Number {
-        r := (formColor >> 16) & 0xFF
-        g := (formColor >> 8) & 0xFF
-        b := formColor & 0xFF
-        brightness := (r * 299 + g * 587 + b * 114) / 1000
-    }
-    ;MsgBox formColor "`n"  brightness
-    return brightness
-}
-
 
 ; Initialize UI components
 UI.Init()
