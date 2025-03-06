@@ -1,7 +1,7 @@
 ; AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality
-; Version: 3-6-2025
+; Version: 3-6-2025.1
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -229,10 +229,32 @@ class BackspaceContextLogger {
     }
 }
 
-;===============================================================================
-; Input Buffer Class
-; Used to buffer user input for keyboard capture
-;===============================================================================
+;================================================================================================
+/* InputBuffer Class by Descolada https://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865
+ * Note:  The mouse-relevant parts were removed by kunkel321, via ChatGPT4.
+ * InputBuffer can be used to buffer user input for keyboard, mouse, or both at once. 
+ * The default InputBuffer (via the main class name) is keyboard only, but new instances
+ * can be created via InputBuffer().
+ * 
+ * InputBuffer(keybd := true, mouse := false, timeout := 0)
+ *      Creates a new InputBuffer instance. If keybd/mouse arguments are numeric then the default 
+ *      InputHook settings are used, and if they are a string then they are used as the Option 
+ *      arguments for InputHook and HotKey functions. Timeout can optionally be provided to call
+ *      InputBuffer.Stop() automatically after the specified amount of milliseconds (as a failsafe).
+ * 
+ * InputBuffer.Start()               => initiates capturing input
+ * InputBuffer.Release()             => releases buffered input and continues capturing input
+ * InputBuffer.Stop(release := true) => releases buffered input and then stops capturing input
+ * InputBuffer.ActiveCount           => current number of Start() calls
+ *                                      Capturing will stop only when this falls to 0 (Stop() decrements it by 1)
+ * InputBuffer.SendLevel             => SendLevel of the InputHook
+ *                                      InputBuffers default capturing SendLevel is A_SendLevel+2, 
+ *                                      and key release SendLevel is A_SendLevel+1.
+ * InputBuffer.IsReleasing           => whether Release() is currently in action
+ * InputBuffer.Buffer                => current buffered input in an array
+ */
+;================================================================================================
+
 class InputBuffer {
     Buffer := []
     SendLevel := A_SendLevel + 2
