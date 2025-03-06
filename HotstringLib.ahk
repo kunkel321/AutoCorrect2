@@ -1,7 +1,10 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
 ; Library of HotStrings for AutoCorrect2.  Please note that the f() function calls require the function that is defined in the AutoCorrect2 code.
-; Library updated 2-7-2025
+; Library updated 3-6-2025
+
+; Ignore the debug function call.  If the f() definition is not present, this replacement text will appear in the error message.
+:B0XC:Ign0re Th!s STRing::f("Did you forget to '#Include' the AutoCorrectSystem.ahk file in AutoCorrect2?")
 
 ; ===== Trigger strings to nullify the potential misspellings that are indicated. ======
 ; Used the word "corrects" in place of fix to avoid double-counting these as potential fixes. 
@@ -143,6 +146,7 @@ Unfortunately, the "nullification effect" doesn't work if the multi-fix item has
 :B0X?:efull::f("eful") ; Fixes 74 words
 :B0X?:ficaly::f("fically") ; Fixes 20 words
 :B0X?:gnision::f("gnition") ; Fixes 9 words ; Allows :?:nision::nisation to exist below.
+:B0X?:withh::f("which")
 ; ---- Items from accented list, but must be in no-sort section ----
 ::decollete::décolleté ; adj. (of a garment) having a low-cut neckline
 ::manana::mañana ; Spanish: Tomorrow. 
@@ -1041,6 +1045,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:febuary::f("February") ; Fixes 1 word
 :B0X*:femail::f("female") ; Fixes 1 word
 :B0X*:feromone::f("pheromone") ; Fixes 1 word
+:B0X*:ffed::f("feed") ; Fixes 25 words 
 :B0X*:fianlly::f("finally") ; Fixes 1 word
 :B0X*:ficed::f("fixed") ; Fixes 1 word
 :B0X*:fiercly::f("fiercely") ; Fixes 1 word
@@ -1657,6 +1662,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:munnicipal::f("municipal") ; Fixes 16 words
 :B0X*:muscician::f("musician") ; Fixes 5 words
 :B0X*:mute point::f("moot point") ; Fixes 1 word
+:B0X*:mutli::f("multi") ; Fixes 366 words 
 :B0X*:myown::f("my own")
 :B0X*:myraid::f("myriad") ; Fixes 3 words
 :B0X*:mysogyn::f("misogyn") ; Fixes 10 words
@@ -1667,6 +1673,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:nazereth::f("Nazareth") ; Fixes 1 word
 :B0X*:near by::f("nearby") ; Fixes 1 word
 :B0X*:necessiat::f("necessitat") ; Fixes 6 words
+:B0X*:nedd::f("need") ; Fixes 53 words , but misspells neddy (informal name for a racehorse) 
 :B0X*:neeed::f("need") ; Fixes 53 words 
 :B0X*:neglib::f("negligib") ; Fixes 4 words
 :B0X*:negligab::f("negligib") ; Fixes 4 words
@@ -1745,6 +1752,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:onyl::f("only") ; Fixes 1 word
 :B0X*:open pour::f("open pore") ; Fixes 1 word
 :B0X*:openess::f("openness") ; Fixes 1 word
+:B0X*:opol::f("apol") ; Fixes 45 words 
 :B0X*:oponen::f("opponen") ; Fixes 4 words
 :B0X*:opose::f("oppose") ; Fixes 6 words
 :B0X*:oposi::f("opposi") ; Fixes 17 words
@@ -2847,6 +2855,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:accadem::f("academ") ; Fixes 32 words
 :B0X*?:acccus::f("accus") ; Fixes 37 words
 :B0X*?:acceller::f("acceler") ; Fixes 23 words
+:B0X*?:accelora::f("accelera") ; Fixes 24 words 
 :B0X*?:accensi::f("ascensi") ; Fixes 7 words
 :B0X*?:acceptib::f("acceptab") ; Fixes 10 words
 :B0X*?:accessab::f("accessib") ; Fixes 14 words
@@ -2867,6 +2876,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:actival::f("actical") ; Fixes 35 words 
 :B0X*?:acurac::f("accurac") ; Fixes 4 words
 :B0X*?:acustom::f("accustom") ; Fixes 17 words
+:B0X*?:acuua::f("actua") ; Fixes 53 words 
 :B0X*?:acys::f("acies") ; Fixes 101 words
 :B0X*?:adantag::f("advantag") ; Fixes 15 words
 :B0X*?:adaption::f("adaptation") ; Fixes 8 words
@@ -2915,6 +2925,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:alchol::f("alcohol") ;fixes 28 words
 :B0X*?:alcohal::f("alcohol") ; Fixes 28 words
 :B0X*?:alell::f("allel") ; Fixes 57 words
+:B0X*?:alezat::f("alizat") ; Fixes 345 words 
 :B0X*?:aliab::f("ailab") ; Fixes 23 words
 :B0X*?:alibit::f("abilit") ; Fixes 1110 words
 :B0X*?:alitv::f("lativ") ; Fixes 97 words
@@ -2923,6 +2934,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:alochol::f("alcohol") ; Fixes 28 words
 :B0X*?:alott::f("allott") ; Fixes 8 words
 :B0X*?:alowe::f("allowe") ; Fixes 24 words
+:B0X*?:alrrm::f("alarm") ; Fixes 17 words 
 :B0X*?:alsay::f("alway") ; Fixes 4 words 
 :B0X*?:alsitic::f("alistic") ; Fixes 98 words
 :B0X*?:altion::f("lation") ; Fixes 448 words
@@ -2937,6 +2949,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:amny::f("many") ; Fixes 8 words
 :B0X*?:analitic::f("analytic") ; Fixes 15 words
 :B0X*?:anbd::f("and") ; Fixes 2083 words
+:B0X*?:anciety::f("anxiety") ; Fixes 3 words 
 :B0X*?:angabl::f("angeabl") ; Fixes 16 words
 :B0X*?:angeing::f("anging") ; Fixes 38 words
 :B0X*?:anmd::f("and") ; Fixes 2083 words
@@ -3010,6 +3023,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:attenden::f("attendan") ; Fixes 7 words
 :B0X*?:attensi::f("attenti") ; Fixes 16 words
 :B0X*?:attentioin::f("attention") ; Fixes 5 words
+:B0X*?:attmpt::f("attempt") ; Fixes 11 words 
 :B0X*?:auclar::f("acular") ; Fixes 32 words
 :B0X*?:audiance::f("audience") ; Fixes 4 words
 :B0X*?:auther::f("author") ; Fixes 56 words
@@ -3151,6 +3165,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:clasic::f("classic") ; Fixes 38 words
 :B0X*?:clincial::f("clinical") ; Fixes 7 words
 :B0X*?:clomation::f("clamation") ; Fixes 10 words
+:B0X*?:closs::f("class") ; Fixes 167 words , but misspells Auchincloss. (United States writer born in 1917)
 :B0X*?:cment::f("cement") ; Fixes 88 words 
 :B0X*?:cmo::f("com") ; Fixes 1749 words
 :B0X*?:cna::f("can") ; Fixes 1019 words.  Misspells Pycnanthemum (mint), and Tridacna (giant clam).+
@@ -3268,7 +3283,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:credia::f("credita") ; Fixes 13 words
 :B0X*?:credida::f("credita") ; Fixes 13 words
 :B0X*?:criib::f("crib") ; Fixes 119 words
-:B0X*?:crti::f("criti") ; Fixes 59 words
+:B0X*?:crtic::f("critic") ; Fixes 62 words 
 :B0X*?:crusie::f("cruise") ; Fixes 9 words
 :B0X*?:crutia::f("crucia") ; Fixes 22 words
 :B0X*?:crystalisa::f("crystallisa") ; Fixes 5 words
@@ -3284,6 +3299,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:culure::f("culture") ; Fixes 48 words
 :B0X*?:curcuit::f("circuit") ; Fixes 14 words
 :B0X*?:cusotm::f("custom") ; Fixes 43 words
+:B0X*?:cutr::f("ctur") ; Fixes 217 words , but misspells executrix (a woman executor)
 :B0X*?:cutsom::f("custom") ; Fixes 43 words
 :B0X*?:cuture::f("culture") ; Fixes 48 words
 :B0X*?:cxan::f("can") ; Fixes 1015 words
@@ -3334,6 +3350,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:despira::f("despera") ; Fixes 9 words.
 :B0X*?:destory::f("destroy") ; Fixes 8 words.
 :B0X*?:detecab::f("detectab") ; Fixes 7 words
+:B0X*?:detree::f("degree") ; Fixes 12 words 
 :B0X*?:develeopr::f("developer") ; Fixes 6 words.
 :B0X*?:devellop::f("develop") ; Fixes 44 words.
 :B0X*?:developor::f("developer") ; Fixes 6 words
@@ -3591,6 +3608,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:folow::f("follow") ; Fixes 10 words
 :B0X*?:fomat::f("format") ; Fixes 72 words
 :B0X*?:fomed::f("formed") ; Fixes 37 words
+:B0X*?:fomm::f("from") ; Fixes 7 words 
 :B0X*?:fomr::f("form") ; Fixes 1269 words
 :B0X*?:foneti::f("phoneti") ; Fixes 24 words
 :B0X*?:fontrier::f("frontier") ; Fixes 6 words
@@ -3632,6 +3650,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:generatt::f("generat") ; Fixes 58 words
 :B0X*?:gestab::f("gestib") ; Fixes 19 words
 :B0X*?:giid::f("good") ; Fixes 31 words, but misspells Phalangiidae (typoe of Huntsman spider)
+:B0X*?:gixt::f("gist") ; Fixes 697 words 
 :B0X*?:glight::f("flight") ; Fixes 16 words
 :B0X*?:glph::f("glyph") ; Fixes 27 words
 :B0X*?:glua::f("gula") ; Fixes 174 words
@@ -3717,13 +3736,16 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:impliment::f("implement") ; Fixes 17 words
 :B0X*?:imploy::f("employ") ; Fixes 38 words
 :B0X*?:imporaant::f("important") ; Fixes 5 words 
+:B0X*?:imporat::f("importa") ; Fixes 21 words 
 :B0X*?:importen::f("importan") ; Fixes 10 words
 :B0X*?:imprion::f("imprison") ; Fixes 11 words
+:B0X*?:improbe::f("improve") ; Fixes 10 words 
 :B0X*?:incede::f("incide") ; Fixes 21 words
 :B0X*?:incidential::f("incidental") ; Fixes 6 words
 :B0X*?:incra::f("incre") ; Fixes 28 words
 :B0X*?:inctro::f("intro") ; Fixes 68 words
 :B0X*?:indeca::f("indica") ; Fixes 40 words
+:B0X*?:indend::f("intend") ; Fixes 29 words 
 :B0X*?:indite::f("indict") ; Fixes 22 words, but misspells indite (Produce a literaryÂ work)
 :B0X*?:indutr::f("industr") ; Fixes 59 words
 :B0X*?:indvidua::f("individua") ; Fixes 32 words
@@ -3786,7 +3808,6 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:ivle::f("ivel") ; Fixes 589 words, but misspells braaivleis (Type of S. Affrican BBQ)
 :B0X*?:iwll::f("will") ; Fixes 64 words
 :B0X*?:iwth::f("with") ; Fixes 56 words
-:B0X*?:jecutr::f("jectur") ; Fixes 8 words
 :B0X*?:jist::f("gist") ; Fixes 587 words
 :B0X*?:jstu::f("just") ; Fixes 83 words
 :B0X*?:jsut::f("just") ; Fixes 83 words
@@ -3802,6 +3823,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:knowleg::f("knowledg") ; Fixes 32 words
 :B0X*?:knwo::f("know") ; Fixes 66 words
 :B0X*?:kwno::f("know") ; Fixes 66 words
+:B0X*?:laas::f("leas") ; Fixes 149 words , but misspells plaas (Afrikaans for "farm") 
 :B0X*?:labat::f("laborat") ; Fixes 39 words
 :B0X*?:laeg::f("leag") ; Fixes 21 words
 :B0X*?:laguage::f("language") ; Fixes 12 words
@@ -4014,10 +4036,12 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:ntamp::f("ntemp") ; Fixes 52 words
 :B0X*?:ntfic::f("ntific") ; Fixes 28 words
 :B0X*?:ntifc::f("ntific") ; Fixes 28 words
+:B0X*?:ntiiv::f("nitiv") ; Fixes 36 words 
 :B0X*?:ntrui::f("nturi") ; Fixes 21 words
 :B0X*?:nucular::f("nuclear") ; Fixes 17 words
 :B0X*?:nuculear::f("nuclear") ; Fixes 17 words
 :B0X*?:nuei::f("nui") ; Fixes 37 words
+:B0X*?:numberical::f("numerical") ; Fixes 7 words 
 :B0X*?:nuptual::f("nuptial") ; Fixes 7 words
 :B0X*?:nvien::f("nven") ; Fixes 101 words
 :B0X*?:obedian::f("obedien") ; Fixes 11 words
@@ -4069,6 +4093,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:ooksd::f("ooked") ; Fixes 33 words 
 :B0X*?:oook::f("ook") ; Fixes 427 words
 :B0X*?:oparate::f("operate") ; Fixes 10 words
+:B0X*?:operact::f("operat") ; Fixes 95 words 
 :B0X*?:oportun::f("opportun") ; Fixes 14 words
 :B0X*?:opperat::f("operat") ; Fixes 58 words
 :B0X*?:oppertun::f("opportun") ; Fixes 14 words
@@ -4617,6 +4642,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:tlme::f("tleme") ; Fixes 21 words
 :B0X*?:tlye::f("tyle") ; Fixes 81 words
 :B0X*?:tned::f("nted") ; Fixes 288 words
+:B0X*?:todather::f("together") ; Fixes 6 words 
 :B0X*?:tofy::f("tify") ; Fixes 73 words
 :B0X*?:togani::f("tagoni") ; Fixes 25 words
 :B0X*?:toghether::f("together") ; Fixes 4 words
@@ -4740,6 +4766,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:wrok::f("work") ; Fixes 338 words
 :B0X*?:wtih::f("with") ; Fixes 56 words
 :B0X*?:wupp::f("supp") ; Fixes 168 words
+:B0X*?:xprct::f("xpect") ; Fixes 39 words 
 :B0X*?:yaer::f("year") ; Fixes 24 words
 :B0X*?:yearm::f("year") ; Fixes 24 words
 :B0X*?:yoiu::f("you") ; Fixes 51 words
@@ -5117,6 +5144,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:maid waves::f("made waves") ; Fixes 1 word
 :B0X:maltesian::f("Maltese") ; Fixes 1 word
 :B0X:manner born::f("manor born") ; Fixes 1 word
+:B0X:mayn::f("many") ; Fixes 1 word 
 :B0X:mear::f("mere") ; Fixes 1 word
 :B0X:memory cash::f("memory cache") ; Fixes 1 word
 :B0X:memory leek::f("memory leak") ; Fixes 1 word
@@ -5387,6 +5415,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:waisting opportunities::f("wasting opportunities") ; Fixes 1 word
 :B0X:waisting time::f("wasting time") ; Fixes 1 word
 :B0X:waive goodbye::f("wave goodbye") ; Fixes 1 word
+:B0X:was been::f("has been") ; Fixes 1 word 
 :B0X:was cable of::f("was capable of") ; Fixes 1 word
 :B0X:was establish::f("was established") ; Fixes 1 word
 :B0X:was extend::f("was extended") ; Fixes 1 word
@@ -5532,6 +5561,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?*:adaptib::f("adaptab") ; Fixes 9 words 
 :B0X?*:alyl::f("ally") ; Fixes 2691 words 
 :B0X?*:delimma::f("dilemma") ; Fixes 3 words 
+:B0X?*:difit::f("digit") ; Fixes 59 words 
 :B0X?*:discrict::f("district") ; Fixes 13 words 
 :B0X?*:elyl::f("ely") ; Fixes 1183 words 
 :B0X?*:folor::f("color") ; Fixes 147 words 
@@ -5866,6 +5896,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?:willingless::f("willingness") ; Fixes 2 words
 :B0X?:wordly::f("worldly") ; Fixes 3 words
 :B0X?:workd::f("works") ; Fixes 136 words 
+:B0X?:workh::f("worth") ; Fixes 13 words 
 :B0X?:wroet::f("wrote") ; Fixes 7 words
 :B0X?:wthe::f("w the") ; Fixes 1 word
 :B0X?:wya::f("way") ; Fixes 113 words
@@ -5877,15 +5908,19 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:btu::f("but") ; Fixes 1 word ; Not just replacing "btu", as that is a unit of heat.
 :B0X?C:hc::f("ch") ; Fixes 446 words ; :C: so not to break THC or LHC
 :B0X?C:itn::f("ith") ; Fixes 70 words, Case sensitive, to not misspell ITN (Independent Television News) 
+:B0XC*:wsa::f("was") ; Fixes 141 words Case sensitive incase it's a WA acronym
 :B0XC:ASS::f("ADD") ; Case-sensitive to fix acronym, but not word.
+:B0XC:Danial::f("Daniel") ; Fixes 1 word 
 :B0XC:Im::f("I'm") ; Fixes 1 word
 :B0XC:abel::f("able") ; Fixes 1 word Case sensitive to not misspel person's name. 
 :B0XC:copt::f("copy") ; Fixes 1 word, Case-sensitive, to not misspell Copt, An ancient Egyptian descendent.
+:B0XC:danial::f("denial") ; Fixes 1 word 
 :B0XC:i::f("I") ; Fixes 1 word 
 :B0XC:may of::f("may have") ; Fixes 1 word
 :B0XC:nad::f("and") ; Fixes 1 word, Case-sensitive to not misspell NAD (A coenzyme present in most living cells)
 :B0XC:noe::f("now") ; Fixes 1 word 
 :B0XC:tou::f("you") ; Fixes 1 word Case sensitive because 'Time Of Use' acronym.
+
 ; ===== End of Main List ==========================
 ;------------------------------------------------------------------------------
 ; Accented English words, from, amongst others,
@@ -6118,31 +6153,12 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 ;-------------------------------------------------------------------------------
 ; Strings for fixing sentence initial caps. Inspired by rkingett 2-7-2025.
 ; The below will automatically capitalize words at the start of sentences.  
+; It is noteworthy that these are each flagged with "Fixes 1 word."  But depending
+; how you at it, you could argue that each of the below sets fixes ANY/EVERY word!
+; There are 6 sets, and the current word list has 249k items, so about 1.5 million.
 ;-------------------------------------------------------------------------------
-:B0X?*C:!  a::f("!  A") ; Fixes 1 word
-:B0X?*C:!  b::f("!  B") ; Fixes 1 word
-:B0X?*C:!  c::f("!  C") ; Fixes 1 word
-:B0X?*C:!  d::f("!  D") ; Fixes 1 word
-:B0X?*C:!  e::f("!  E") ; Fixes 1 word
-:B0X?*C:!  f::f("!  F") ; Fixes 1 word
-:B0X?*C:!  h::f("!  H") ; Fixes 1 word
-:B0X?*C:!  i::f("!  I") ; Fixes 1 word
-:B0X?*C:!  j::f("!  J") ; Fixes 1 word
-:B0X?*C:!  k::f("!  K") ; Fixes 1 word
-:B0X?*C:!  l::f("!  L") ; Fixes 1 word
-:B0X?*C:!  m::f("!  M") ; Fixes 1 word
-:B0X?*C:!  n::f("!  N") ; Fixes 1 word
-:B0X?*C:!  p::f("!  P") ; Fixes 1 word
-:B0X?*C:!  q::f("!  Q") ; Fixes 1 word
-:B0X?*C:!  r::f("!  R") ; Fixes 1 word
-:B0X?*C:!  s::f("!  S") ; Fixes 1 word
-:B0X?*C:!  t::f("!  T") ; Fixes 1 word
-:B0X?*C:!  u::f("!  U") ; Fixes 1 word
-:B0X?*C:!  v::f("!  V") ; Fixes 1 word
-:B0X?*C:!  w::f("!  W") ; Fixes 1 word
-:B0X?*C:!  x::f("!  X") ; Fixes 1 word
-:B0X?*C:!  y::f("!  Y") ; Fixes 1 word
-:B0X?*C:!  z::f("!  Z") ; Fixes 1 word
+/*
+; Single-space-at-end-of-sentence ones
 :B0X?*C:! a::f("! A") ; Fixes 1 word
 :B0X?*C:! b::f("! B") ; Fixes 1 word
 :B0X?*C:! c::f("! C") ; Fixes 1 word
@@ -6167,30 +6183,6 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?*C:! x::f("! X") ; Fixes 1 word
 :B0X?*C:! y::f("! Y") ; Fixes 1 word
 :B0X?*C:! z::f("! Z") ; Fixes 1 word
-:B0X?*C:.  a::f(".  A") ; Fixes 1 word
-:B0X?*C:.  b::f(".  B") ; Fixes 1 word
-:B0X?*C:.  c::f(".  C") ; Fixes 1 word
-:B0X?*C:.  f::f(".  F") ; Fixes 1 word
-:B0X?*C:.  g::f(".  G") ; Fixes 1 word
-:B0X?*C:.  h::f(".  H") ; Fixes 1 word
-:B0X?*C:.  i::f(".  I") ; Fixes 1 word
-:B0X?*C:.  j::f(".  J") ; Fixes 1 word
-:B0X?*C:.  k::f(".  K") ; Fixes 1 word
-:B0X?*C:.  l::f(".  L") ; Fixes 1 word
-:B0X?*C:.  m::f(".  M") ; Fixes 1 word
-:B0X?*C:.  n::f(".  N") ; Fixes 1 word
-:B0X?*C:.  o::f(".  O") ; Fixes 1 word
-:B0X?*C:.  p::f(".  P") ; Fixes 1 word
-:B0X?*C:.  q::f(".  Q") ; Fixes 1 word
-:B0X?*C:.  r::f(".  R") ; Fixes 1 word
-:B0X?*C:.  s::f(".  S") ; Fixes 1 word
-:B0X?*C:.  t::f(".  T") ; Fixes 1 word
-:B0X?*C:.  u::f(".  U") ; Fixes 1 word
-:B0X?*C:.  v::f(".  V") ; Fixes 1 word
-:B0X?*C:.  w::f(".  W") ; Fixes 1 word
-:B0X?*C:.  x::f(".  X") ; Fixes 1 word
-:B0X?*C:.  y::f(".  Y") ; Fixes 1 word
-:B0X?*C:.  z::f(".  Z") ; Fixes 1 word
 :B0X?*C:. a::f(". A") ; Fixes 1 word
 :B0X?*C:. b::f(". B") ; Fixes 1 word
 :B0X?*C:. c::f(". C") ; Fixes 1 word
@@ -6216,6 +6208,78 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?*C:. x::f(". X") ; Fixes 1 word
 :B0X?*C:. y::f(". Y") ; Fixes 1 word
 :B0X?*C:. z::f(". Z") ; Fixes 1 word
+:B0X?*C:? a::f("? A") ; Fixes 1 word
+:B0X?*C:? b::f("? B") ; Fixes 1 word
+:B0X?*C:? c::f("? C") ; Fixes 1 word
+:B0X?*C:? f::f("? F") ; Fixes 1 word
+:B0X?*C:? g::f("? G") ; Fixes 1 word
+:B0X?*C:? h::f("? H") ; Fixes 1 word
+:B0X?*C:? i::f("? I") ; Fixes 1 word
+:B0X?*C:? j::f("? J") ; Fixes 1 word
+:B0X?*C:? k::f("? K") ; Fixes 1 word
+:B0X?*C:? l::f("? L") ; Fixes 1 word
+:B0X?*C:? m::f("? M") ; Fixes 1 word
+:B0X?*C:? n::f("? N") ; Fixes 1 word
+:B0X?*C:? p::f("? P") ; Fixes 1 word
+:B0X?*C:? q::f("? Q") ; Fixes 1 word
+:B0X?*C:? r::f("? R") ; Fixes 1 word
+:B0X?*C:? s::f("? S") ; Fixes 1 word
+:B0X?*C:? t::f("? T") ; Fixes 1 word
+:B0X?*C:? u::f("? U") ; Fixes 1 word
+:B0X?*C:? w::f("? W") ; Fixes 1 word
+:B0X?*C:? x::f("? X") ; Fixes 1 word
+:B0X?*C:? y::f("? Y") ; Fixes 1 word
+:B0X?*C:? z::f("? Z") ; Fixes 1 word
+*/
+; Double-space-at-end-of-sentence ones
+:B0X?*C:!  a::f("!  A") ; Fixes 1 word
+:B0X?*C:!  b::f("!  B") ; Fixes 1 word
+:B0X?*C:!  c::f("!  C") ; Fixes 1 word
+:B0X?*C:!  d::f("!  D") ; Fixes 1 word
+:B0X?*C:!  e::f("!  E") ; Fixes 1 word
+:B0X?*C:!  f::f("!  F") ; Fixes 1 word
+:B0X?*C:!  h::f("!  H") ; Fixes 1 word
+:B0X?*C:!  i::f("!  I") ; Fixes 1 word
+:B0X?*C:!  j::f("!  J") ; Fixes 1 word
+:B0X?*C:!  k::f("!  K") ; Fixes 1 word
+:B0X?*C:!  l::f("!  L") ; Fixes 1 word
+:B0X?*C:!  m::f("!  M") ; Fixes 1 word
+:B0X?*C:!  n::f("!  N") ; Fixes 1 word
+:B0X?*C:!  p::f("!  P") ; Fixes 1 word
+:B0X?*C:!  q::f("!  Q") ; Fixes 1 word
+:B0X?*C:!  r::f("!  R") ; Fixes 1 word
+:B0X?*C:!  s::f("!  S") ; Fixes 1 word
+:B0X?*C:!  t::f("!  T") ; Fixes 1 word
+:B0X?*C:!  u::f("!  U") ; Fixes 1 word
+:B0X?*C:!  v::f("!  V") ; Fixes 1 word
+:B0X?*C:!  w::f("!  W") ; Fixes 1 word
+:B0X?*C:!  x::f("!  X") ; Fixes 1 word
+:B0X?*C:!  y::f("!  Y") ; Fixes 1 word
+:B0X?*C:!  z::f("!  Z") ; Fixes 1 word
+:B0X?*C:.  a::f(".  A") ; Fixes 1 word
+:B0X?*C:.  b::f(".  B") ; Fixes 1 word
+:B0X?*C:.  c::f(".  C") ; Fixes 1 word
+:B0X?*C:.  f::f(".  F") ; Fixes 1 word
+:B0X?*C:.  g::f(".  G") ; Fixes 1 word
+:B0X?*C:.  h::f(".  H") ; Fixes 1 word
+:B0X?*C:.  i::f(".  I") ; Fixes 1 word
+:B0X?*C:.  j::f(".  J") ; Fixes 1 word
+:B0X?*C:.  k::f(".  K") ; Fixes 1 word
+:B0X?*C:.  l::f(".  L") ; Fixes 1 word
+:B0X?*C:.  m::f(".  M") ; Fixes 1 word
+:B0X?*C:.  n::f(".  N") ; Fixes 1 word
+:B0X?*C:.  o::f(".  O") ; Fixes 1 word
+:B0X?*C:.  p::f(".  P") ; Fixes 1 word
+:B0X?*C:.  q::f(".  Q") ; Fixes 1 word
+:B0X?*C:.  r::f(".  R") ; Fixes 1 word
+:B0X?*C:.  s::f(".  S") ; Fixes 1 word
+:B0X?*C:.  t::f(".  T") ; Fixes 1 word
+:B0X?*C:.  u::f(".  U") ; Fixes 1 word
+:B0X?*C:.  v::f(".  V") ; Fixes 1 word
+:B0X?*C:.  w::f(".  W") ; Fixes 1 word
+:B0X?*C:.  x::f(".  X") ; Fixes 1 word
+:B0X?*C:.  y::f(".  Y") ; Fixes 1 word
+:B0X?*C:.  z::f(".  Z") ; Fixes 1 word
 :B0X?*C:?  a::f("?  A") ; Fixes 1 word
 :B0X?*C:?  b::f("?  B") ; Fixes 1 word
 :B0X?*C:?  c::f("?  C") ; Fixes 1 word
@@ -6240,37 +6304,18 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?*C:?  x::f("?  X") ; Fixes 1 word
 :B0X?*C:?  y::f("?  Y") ; Fixes 1 word
 :B0X?*C:?  z::f("?  Z") ; Fixes 1 word
-:B0X?*C:? a::f("? A") ; Fixes 1 word
-:B0X?*C:? b::f("? B") ; Fixes 1 word
-:B0X?*C:? c::f("? C") ; Fixes 1 word
-:B0X?*C:? f::f("? F") ; Fixes 1 word
-:B0X?*C:? g::f("? G") ; Fixes 1 word
-:B0X?*C:? h::f("? H") ; Fixes 1 word
-:B0X?*C:? i::f("? I") ; Fixes 1 word
-:B0X?*C:? j::f("? J") ; Fixes 1 word
-:B0X?*C:? k::f("? K") ; Fixes 1 word
-:B0X?*C:? l::f("? L") ; Fixes 1 word
-:B0X?*C:? m::f("? M") ; Fixes 1 word
-:B0X?*C:? n::f("? N") ; Fixes 1 word
-:B0X?*C:? p::f("? P") ; Fixes 1 word
-:B0X?*C:? q::f("? Q") ; Fixes 1 word
-:B0X?*C:? r::f("? R") ; Fixes 1 word
-:B0X?*C:? s::f("? S") ; Fixes 1 word
-:B0X?*C:? t::f("? T") ; Fixes 1 word
-:B0X?*C:? u::f("? U") ; Fixes 1 word
-:B0X?*C:? w::f("? W") ; Fixes 1 word
-:B0X?*C:? x::f("? X") ; Fixes 1 word
-:B0X?*C:? y::f("? Y") ; Fixes 1 word
-:B0X?*C:? z::f("? Z") ; Fixes 1 word
 
 ; Just some alphabetical lists of things.
 ::;fruits::Apple`nBanana`nCarrot`nDate`nEggplant`nFig`nGrape`nHoneydew`nIceberg lettuce`nJalapeno`nKiwi`nLemon`nMango`nNectarine`nOrange`nPapaya`nQuince`nRadish`nStrawberry`nTomato`nUgli fruit`nVanilla bean`nWatermelon`nXigua (Chinese watermelon)`nYellow pepper`nZucchini
 ::;animals::Aardvark`nButterfly`nCheetah`nDolphin`nElephant`nFrog`nGiraffe`nHippo`nIguana`nJaguar`nKangaroo`nLion`nMonkey`nNarwhal`nOwl`nPenguin`nQuail`nRabbit`nSnake`nTiger`nUmbrellabird`nVulture`nWolf`nX-ray fish`nYak`nZebra
 ::;colors::Amber`nBlue`nCrimson`nDenim`nEmerald`nFuchsia`nGold`nHarlequin`nIndigo`nJade`nKhaki`nLavender`nMagenta`nNavy`nOlive`nPink`nQuartz`nRed`nScarlet`nTurquoise`nUltramarine`nViolet`nWhite`nXanadu`nYellow`nZaffre
 ::;colorhex::Red := 0xFF0000`nOrange := 0xFF7F00`nYellow := 0xFFFF00`nGreen := 0x00FF00`nBlue := 0x0000FF`nIndigo := 0x4B0082`nViolet := 0x8F00FF`nBlack := 0x000000`nWhite := 0xFFFFFF`nRed := {#}FF0000`nOrange := {#}FF7F00`nYellow := {#}FFFF00`nGreen := {#}00FF00`nBlue := {#}0000FF`nIndigo := {#}4B0082`nViolet := {#}8F00FF `nBlack := {#}000000`nWhite := {#}FFFFFF`n
+::;alpha::Alpha`nBravo`nCharlie`nDelta`nEcho`nFoxtrot`nGolf`nHotel`nIndia`nJuliett`nKilo`nLima`nMike`nNovember`nOscar`nPapa`nQuebec`nRomeo`nSierra`nTango`nUniform`nVictor`nWhiskey`nX-ray`nYankee`nZulu
 
 ;################################################
 
 ;-------------------------------------------------------------------------------
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
+
+
