@@ -1,7 +1,7 @@
 ; AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality
-; Version: 3-5-2025
+; Version: 3-6-2025
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -418,6 +418,44 @@ StringAndFixReport(caller := "Button") {
     fixRepGui.OnEvent("Escape", (*) => fixRepGui.Destroy())
     
     return fixRepGui ; Return the GUI object for reference
+}
+
+; ==============================================================================
+;       AUto-COrrect TWo COnsecutive CApitals
+; This version by forum user Ntepa. Updated 8-7-2023.
+; https://www.autohotkey.com/boards/viewtopic.php?p=533067#p533067
+; Minor edits added by kunkel321 2-7-2024
+
+fix_consecutive_caps()
+fix_consecutive_caps() {
+; Hotstring only works if CapsLock is off.
+	HotIf (*) => !GetKeyState("CapsLock", "T")
+	loop 26 {
+		char1 := Chr(A_Index + 64)
+		loop 26 {
+			char2 := Chr(A_Index + 64)
+			; Create hotstring for every possible combination of two letter capital letters.
+			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2))
+		}
+	}
+	HotIf
+	; Third letter is checked using InputHook.
+	fix(char1, char2, *) {
+		;ih := InputHook("V I101 L1")
+		ih := InputHook("V I101 L1 T.3")
+		ih.OnEnd := OnEnd
+		ih.Start()
+		OnEnd(ih) {
+			char3 := ih.Input
+			if (char3 ~= "[A-Z]")  ; If char is UPPERcase alpha.
+				Hotstring "Reset"
+			else if (char3 ~= "[a-z]")  ; If char is lowercase alpha.
+			|| (char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") ; <--- Remove this line to prevent correction of those 2-letter words.
+			{	SendInput("{BS 2}" StrLower(char2) char3)
+				SoundBeep(800, 80) ; Case fix announcent. 
+			}
+		}
+	}
 }
 
 ; Extra thing not really related to AutoCorrect2.
