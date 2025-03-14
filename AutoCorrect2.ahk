@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-6-2025.1
+; Version: 3-13-2025.1
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -30,10 +30,12 @@ SetWorkingDir(A_ScriptDir)
 class Config {
     ; ===== General Configuration =====
     static ScriptName := "AutoCorrect2.ahk"
+    static HHWindowTitle := "AutoCorrect2"
     static HotstringLibrary := "HotstringLib.ahk"
     static RemovedHsFile := "RemovedHotstrings.txt"
     static AutoCorrectsLogFile := "AutoCorrectsLog.txt"
     static ErrContextLog := "ErrContextLog.txt"
+    static ACLogAnalyzer := "AcLogAnalyzer.exe"
     static CODE_ERROR_LOG := ""
     static CODE_DEBUG_LOG := ""
     
@@ -174,11 +176,12 @@ EditThisScript(*) {
 		msgbox 'cannot run ' Config.ScriptName
 }
 
-
 OpenHotstringLibrary(*) {
     Run A_ScriptDir "\Code.exe " A_ScriptDir "\" Config.HotstringLibrary
 }
 
+; PrinterTool is #Included, so we could call the function directly, but we should 
+; get an error if the script ever wasn't included.  Sending the hotkey prevents this.
 RunPrinterTool(*) {
     Send "!+p"
 }
@@ -291,7 +294,7 @@ class UI {
     ; Initialize and build the main UI
     static Init() {
         ; Create main GUI
-        this.MainForm := Gui("", Config.ScriptName)
+        this.MainForm := Gui("", Config.HHWindowTitle)
         this.MainForm.Opt("-MinimizeBox +AlwaysOnTop")
         
         try this.MainForm.BackColor := Config.FormColor
@@ -389,7 +392,7 @@ class UI {
         
         this.MainForm.SetFont("s14")
         deltaColor := Config.brightness < 128 ? "00FFFF" : "191970" 
-        this.Controls["DeltaString"] := this.MainForm.AddText("center c" deltaColor " x+1 w" (Config.DefaultWidth * 3 / 4), Config.ScriptName)
+        this.Controls["DeltaString"] := this.MainForm.AddText("center c" deltaColor " x+1 w" (Config.DefaultWidth * 3 / 4), "")
         
         this.MainForm.SetFont("s10")
         this.Controls["RightTrimButton"] := this.MainForm.AddButton("x+1 h50 w" (Config.DefaultWidth / 8), "<<")
@@ -437,8 +440,8 @@ class UI {
 				icon: ""
 			},
 			{
-				text: "  Analyze AutoCorrection Log", 
-				action: (*) => Run("AcLogAnalyzer.exe"),
+				text: "  Analyze AutoCorrection Log !^+Q", 
+				action: (*) => Run(Config.AcLogAnalyzer),
 				icon: A_ScriptDir "\Icons\AcAnalysis.ico"
 			},
 			{
@@ -457,7 +460,7 @@ class UI {
 				icon: ""
 			},
 			{
-				text: "  Analyze Manual Correction Log", 
+				text: "  Analyze Manual Correction Log #^+Q", 
 				action: (*) => Run("MCLogger.exe /script MCLogger.ahk analyze"),
 				icon: A_ScriptDir "\Icons\JustLog.ico"
 			},
@@ -1238,7 +1241,7 @@ class UIActions {
     
     ; Open the hotstring library in the editor
     static OpenHotstringLibrary() {
-        if WinActive(Config.ScriptName) {
+        if WinActive(Config.HHWindowTitle) {
             UI.MainForm.Hide()
             A_Clipboard := State.ClipboardOld
         }
@@ -1944,6 +1947,7 @@ class Utils {
         if RegExMatch(clipContent, hsRegex, &hotstr) {
             UI.Controls["TriggerEdit"].Text := hotstr.Trig
             UI.Controls["OptionsEdit"].Value := hotstr.Opts
+            UI.Controls["FunctionCheck"].Value := Config.MakeFuncByDefault
             
             Sleep(200)  ; prevents intermittent error
             
@@ -2084,7 +2088,7 @@ Debug(message) {
 }
 
 ;===============================================================================
-#HotIf WinActive(Config.ScriptName) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" )
+#HotIf WinActive(Config.HHWindowTitle) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" )
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.  ; hide
 {
 	Send("^s") ; Save me.
@@ -2096,3 +2100,4 @@ Debug(message) {
 #HotIf
 ;===============================================================================
 
+!^+q::Run(Config.AcLogAnalyzer)
