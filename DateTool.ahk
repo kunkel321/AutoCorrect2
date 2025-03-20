@@ -3,10 +3,10 @@
 
 ;  Gets included with AutoCorrect2 via #Include.
 
-;======== DatePicker-H =========================================================
+;======== DateTool-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 3-13-2025.
+; The 'H' is for 'Holidays.'   Version: 3-19-2025.
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -18,21 +18,35 @@
 ; Entire code converted to AHK v2 by Just Me.
 ; https://www.autohotkey.com/boards/viewtopic.php?f=82&t=123895
 ; ToolTipOptions Class (also by Just Me) added later, see below.
-; 2-21-2025 Added support for alternate date format as recommended by delio.
-; 2-22-2025 Several changes to isHoliday function by kunkel321, using AI
-; 2-23-2025 Added holiday report scriptlets menu.  Again,, AI code.  Use with caution.
-; 3-13-2025 CaptInsano added support for 'Original_year' which shows holiday's age. 
-
-; Known issue:  With MonthCal, clicking next/last month arrows too fast enters
-; the date, rather than just scrolling dates. (Gets read as 'double click.')
+; Feb-2025 
+; -Added support for alternate date format as recommended by delio.
+; -Changes to isHoliday function, holiday report scriptlets, by kunkel321.
+; March 2025 
+; -CaptInsano added support for 'Original_year' which shows holiday's age. 
+; -CaptInsano-led enhancement of hotstring options, weeks, months, years,
+; 2-digit numbers support, "next Tuesday", etc.
+; https://www.autohotkey.com/boards/viewtopic.php?p=599890#p599834
 
 ;======== Directions for Use: Date HotStrings===================================
-; For today, type ";d0" (semicolon dee zero) into edit field.
-; For future dates, type ";dX" where X is 1-9.
-; For previous dates, type ";ddX" where X is 1-9.
+; For today, type ";d" (semicolon dee) into edit field, then press space.
+; Format is:       d[|d|-][##][d|we|mo|yr|u|m|t|w|r|f|s]
+;   ;d            date tool
+;   ;blank or -   adding or subtracting. An extra d also means subtract.
+;   ##            up to 2 digits to add or subtract
+;   d|we|mo|yr    increment by days, weeks, months, or years.  if omitted, assumes days
+;   u|m|t|w|r|f|s weekday shortcuts (u=Sun, m=Mon, t=Tue, w=Wed, r=Thu, f=Fri, s=Sat)
+;   examples:
+;   ;d-10d        will subtract 10 days
+;   ;dd10d        will subtract 10 days
+;   ;d2mo         will add 2 months
+;   ;d2yr         will add 2 years
+;   ;dw           date for Wednesday this week (this Wednesday)
+;   ;d1r          date for Thursday next week (next Thursday)
+;   ;d4m          date for Monday in four weeks
+;   ;d-2t         date for Tuesday of the week before last
 ; Information ToolTip shows for X seconds.
 ; Note:  Press Alt+; inplace of ; for the alternate date format.
-;        example: Press Alt+;, then d, then 2, for day after tomorrow.
+; example: Press Alt+;, then d, then 2, for day after tomorrow.
 
 ;======== Directions for Use: Popup Calendar ===================================
 ; Alt+Shift+D ----> Show calendar.
@@ -49,8 +63,13 @@
 ; your own custom holidays. Please remove any personal dates, and add your own.
 
 ; ==============================================================================
-;^Esc::ExitApp ; Ctrl+Esc to just kill the whole ding dang script. hide
+; Known issue: With MonthCal, clicking next/last month arrows too fast enters
+; the date, rather than just scrolling dates. (Gets read as 'double-click.')
 
+; Caveat: Claude AI was used in several places, so reuse the code with cauton.
+
+; ==============================================================================
+; GET RID OF this #HotIf section if you are using DateTool as a stand-alone app. 
 MyAutoCorrectFileName := "AutoCorrect2.exe" ; <------- CHANGE To NAME of your AutoCorrect script?
 #HotIf WinActive("DateTool.ahk",) ; Can't use A_Var here.
 ^s:: ; Because this tool is #Included in AutoCorrect2, reload ac2 upon save. hide
@@ -71,8 +90,8 @@ MyAutoCorrectFileName := "AutoCorrect2.exe" ; <------- CHANGE To NAME of your Au
 ;======== Calendar User Options ================================================
 guiTitle := "DateTool-H"            ; change title if desired
 monthCalHotkey := "!+d"             ; Hotkey: Alt+Shift+D.  Change as desired.
-;TypeOutFormat := "M-d-yyyy"        ; preferred date format for typing date in edit field
-TypeOutFormat := "dd-MMM-yyyy"      ; preferred date format for typing date in edit field
+; ypeOutFormat := "dd-MMM-yyyy"       ; preferred date format for typing date in edit field
+TypeOutFormat := "M-d-yyyy"         ; preferred date format for typing date in edit field
 TypeOutAltFormat := "yyyy-MM-dd"    ; alternate preferred date format for typing
 HolidayListFormat := "MMM-dd"       ; preferred date format for popup list
 MonthCount := 3                     ; default number of months to display vertically
@@ -100,105 +119,543 @@ else { ; Ini file not there, so use these colors instead.
 
 ;======== ToolTip User Options =================================================
 ToolTipOptions.Init() ; Do not move.
-ToolTipOptions.SetFont("s12", "Calibri") ; Change as desired.
+ToolTipOptions.SetFont("s13", "Calibri") ; Change as desired.
 ToolTipOptions.SetMargins(5, 5, 5, 5) ; Left, Top, Right, Bottom.
 ;ToolTipOptions.SetColors(formColor, fontColor) ; background, font : Use this for theme colors.
 ToolTipOptions.SetColors("Default", "Default") ; background, font
 
 ;=========== Hotstrings ========================================================
-; Warning:  The below StrReplace expects these hotstrings to have THESE names.  Edit with caution.
-:?*:;dd9:: ; For entering dates.
-:?*:;dd8:: ; all start with {semicolon}
-:?*:;dd7:: ; ddn = in the past, n days.
-:?*:;dd6:: ; dn = future by n days.
-:?*:;dd5::
-:?*:;dd4::
-:?*:;dd3::
-:?*:;dd2::
-:?*:;dd1:: ; yesterday
-:?*:;d0:: ; ;d0 = today
-:?*:;d1:: ; tomorrow
-:?*:;d2:: ; day after tomorrow
-:?*:;d3:: ; etc.
-:?*:;d4::
-:?*:;d5::
-:?*:;d6::
-:?*:;d7::
-:?*:;d8::
-:?*:;d9:: {
-    nOffset := StrReplace(A_ThisHotkey, ":?*:;d", "") ; Remove first 'd' and other stuff.
-    nOffset := StrReplace(nOffset, "d", "-") ; If second 'd' present, change to -.
-    dateString(nOffset, 0) ; second par is 0=normal format, 1=alt format
+:?*B0:;d:: {
+    sMode := "standard"
+    sFormat := TypeOutFormat
+    SendDateHS(sFormat, sMode)
 }
 
-; Code for when Alt key is used with semicolon.
-!;:: ; hide from hotkey tool
-startHook(*) {
-    global dtih := InputHook('L4 V I2')
-    dtih.OnChar := dtih_Char
-    dtih.Start
+!;:: { ; hide
+    sMode := "alternate"
+    sFormat := TypeOutAltFormat
+    SendDateHS(sFormat, sMode)
 }
 
-dtih_Char(dtih, char) {
-    global Chars .= char
-    if RegExMatch(Chars, "(d|dd)[0-9]") {
-        nOffset := StrReplace(Chars, "dd", "-") ; 'dd' means past date, so neg offset
-        nOffset := StrReplace(nOffset, "d", "") ; if 'd' present, remove.
-        dateString(nOffset, 1) ; second par is 0=normal format, 1=alt format
-        dtih.Stop
-        Chars := ""
+KeysReturn(sOptions := "", sEnd := "{Any}") {
+    ih := InputHook(sOptions)
+    ih.KeyOpt(sEnd, "E")
+    ih.Start()
+    ih.Wait()
+    return ih.Input
+}
+
+SendDateHS(sFormat, sMode) {
+    if sMode = "standard" {
+        sInput := KeysReturn("L5 V1 I2", "{Space}{Enter}.") ; max is 5 characters to return e.g. '-10nw'.
+        MyDate := GetMyDate(sInput, sFormat)
+        
+        ; Check if the result is the original input (indicating an error or invalid character)
+        if (MyDate = ";d" sInput) {
+            ; Do nothing - leave the original input in place
+            return
+        }
+        
+        ; For standard format, we need to remove ";d" plus the input code
+        iInput := StrLen(sInput)
+        SendInput("{backspace " iInput + 3 "}" MyDate)  ; +3 for ";d"
+    } else {
+        ; For alternate format
+        sTest := KeysReturn("L1", "{Any}")
+        if sTest = "d" {
+            sInput := KeysReturn("L5 V1 I2", "{Space}{Enter}.") ; max is 5 characters to return e.g. '-10nw'.
+            MyDate := GetMyDate(sInput, sFormat)
+            
+            ; Check if the result is the original input (indicating an error or invalid character)
+            if (MyDate = ";d" sInput) {
+                ; In alternate mode, just send "d" since we haven't sent ";d" yet
+                SendInput("d" sInput)
+                return
+            }
+            
+            ; For alternate format, we only need to remove "d" plus the input code
+            ; The ";" character hasn't been typed - it was triggered by Alt+;
+            iInput := StrLen(sInput)
+            SendInput("{backspace " iInput + 1 "}" MyDate)  ; +1 for just "d"
+        } else {
+            ; User pressed Alt+; followed by something other than "d"
+            SendInput(";" sTest)
+            return
+        }
     }
-    else if (StrLen(Chars) > 3) {
-        dtih.Stop
-        Chars := ""
+}
+
+GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
+    ; Store current date components
+    Y := SubStr(A_Now, 1, 4)
+    M := SubStr(A_Now, 5, 2)
+    D := SubStr(A_Now, 7, 2)
+    
+    ; Debug log
+    Debug("GetMyDate input: " sCode)
+    
+    ; Check for invalid characters upfront
+    ; Valid characters: digits, period indicators (d, we, mo, yr), weekdays (u, m, t, w, r, f, s), and "-"
+    validChars := "0123456789dwemoryrumtwrfs-"
+    
+    ; Check each character in the input
+    for i, char in StrSplit(sCode) {
+        if (!InStr(validChars, char)) {
+            Debug("Invalid character detected: " char)
+            return ";d" sCode  ; Return the original input without processing
+        }
+    }
+    
+    ; Check for subtraction indicator
+    iBack := 0
+    sDateOpts := sCode
+    if SubStr(sDateOpts, 1, 1) = "-" || SubStr(sDateOpts, 1, 1) = "d" {
+        iBack := 1
+        sDateOpts := SubStr(sDateOpts, 2)
+    }
+    
+    ; Initialize variables
+    isWeekday := false
+    weekdayChar := ""
+    numericPart := ""
+    sPeriod := "d"  ; Default to days
+    
+    ; Parse the input
+    len := StrLen(sDateOpts)
+    
+    ; CRITICAL FIX: Check for 2-character period indicators FIRST
+    if (len >= 2) {
+        lastTwo := SubStr(sDateOpts, len-1, 2)
+        
+        if (lastTwo = "we" || lastTwo = "mo" || lastTwo = "yr") {
+            ; This is a period indicator, not a weekday
+            if (lastTwo = "we")
+                sPeriod := "we"  ; weeks
+            else if (lastTwo = "mo")
+                sPeriod := "mo"  ; months
+            else if (lastTwo = "yr")
+                sPeriod := "yr"  ; years
+                
+            numericPart := SubStr(sDateOpts, 1, len - 2)
+            
+            ; Handle empty numeric part
+            if (numericPart = "")
+                numericPart := "0"
+                
+            ; Convert to number
+            try {
+                iOff := numericPart + 0
+                if (iBack)
+                    iOff := -iOff
+            } catch Error as err {
+                iOff := 0
+            }
+            
+            Debug("Parsed period indicator: " lastTwo ", numericPart: " numericPart ", iOff: " iOff)
+        }
+        ; Not a 2-character period, continue with other checks
+        else if (len = 1) {
+            lastChar := sDateOpts
+            
+            ; Check if it's a weekday
+            if InStr("umtwrfs", lastChar) {
+                isWeekday := true
+                weekdayChar := lastChar
+                numericPart := "0"  ; This week
+                iOff := 0
+                Debug("Parsed single weekday: " weekdayChar)
+            } else {
+                ; Just a number, assume days
+                try {
+                    iOff := lastChar + 0
+                    if (iBack)
+                        iOff := -iOff
+                } catch Error as err {
+                    iOff := 0
+                }
+                Debug("Parsed single digit: iOff=" iOff)
+            }
+        } 
+        else {
+            ; Check if last character is 'd' for days
+            lastChar := SubStr(sDateOpts, len, 1)
+            
+            if (lastChar = "d") {
+                sPeriod := "d"   ; days
+                numericPart := SubStr(sDateOpts, 1, len - 1)
+                Debug("Parsed days indicator: d, numericPart: " numericPart)
+            }
+            ; Check if last character is a weekday indicator
+            else if InStr("umtwrfs", lastChar) {
+                isWeekday := true
+                weekdayChar := lastChar
+                numericPart := SubStr(sDateOpts, 1, len - 1)
+                Debug("Parsed weekday: " weekdayChar ", numericPart: " numericPart)
+            } else {
+                ; No recognized indicator, assume entire string is numeric for days
+                sPeriod := "d"
+                numericPart := sDateOpts
+                Debug("Parsed numeric only: " numericPart)
+            }
+            
+            ; Handle empty numeric part
+            if (numericPart = "")
+                numericPart := "0"
+                
+            ; Convert to number
+            try {
+                iOff := numericPart + 0
+                if (iBack)
+                    iOff := -iOff
+            } catch Error as err {
+                iOff := 0
+            }
+        }
+    } else if (len = 1) {
+        ; Handle single character case (e.g., "f" for Friday)
+        lastChar := sDateOpts
+        
+        ; Check if it's a weekday
+        if InStr("umtwrfs", lastChar) {
+            isWeekday := true
+            weekdayChar := lastChar
+            numericPart := "0"  ; This week
+            iOff := 0
+            Debug("Parsed single weekday: " weekdayChar)
+        } else {
+            ; Just a number, assume days
+            try {
+                iOff := lastChar + 0
+                if (iBack)
+                    iOff := -iOff
+            } catch Error as err {
+                iOff := 0
+            }
+            Debug("Parsed single digit: iOff=" iOff)
+        }
+    } else {
+        ; Empty input, assume today
+        iOff := 0
+        Debug("Empty input, using today")
+    }
+    
+    Debug("Final parsing: sPeriod=" sPeriod ", iOff=" iOff ", isWeekday=" isWeekday)
+    
+    ; Calculate the date based on the period and offset
+    try {
+        if (isWeekday) {
+            ; Map weekday character to day of week (1-7)
+            targetDay := 0
+            switch weekdayChar {
+                case "u": targetDay := 1  ; Sunday
+                case "m": targetDay := 2  ; Monday
+                case "t": targetDay := 3  ; Tuesday
+                case "w": targetDay := 4  ; Wednesday
+                case "r": targetDay := 5  ; Thursday
+                case "f": targetDay := 6  ; Friday
+                case "s": targetDay := 7  ; Saturday
+                default: throw Error("Invalid weekday", -1)
+            }
+            
+            ; Get current day of week
+            currentDay := A_WDay
+            
+            ; Calculate days to add/subtract based on offset
+            if (iOff = 0) {
+                ; For "this week" (current week)
+                daysToAdd := (targetDay - currentDay)
+                
+                ; If the target day has already passed this week, keep it in the past
+                ; This means using negative days to go backwards
+                ; We don't want to wrap to next week
+                
+                Debug("This week calculation: targetDay=" targetDay ", currentDay=" currentDay ", raw diff=" daysToAdd)
+            }
+            else {
+                ; For any other offset (next week, 2 weeks from now, etc.)
+                
+                ; Start from same day of week as today
+                daysToAdd := 0
+                
+                ; Add the appropriate number of weeks
+                daysToAdd += (iOff * 7)
+                
+                ; Adjust to target day within that week
+                dayDiff := (targetDay - currentDay)
+                daysToAdd += dayDiff
+                
+                Debug("Future week calculation: targetDay=" targetDay ", currentDay=" currentDay ", weekOffset=" iOff ", dayDiff=" dayDiff)
+            }
+            
+            Debug("Weekday calculation: target day=" targetDay ", current day=" currentDay ", final days to add=" daysToAdd)
+            
+            ; Calculate the target date
+            DatePicked := DateAdd(A_Now, daysToAdd, "D")
+            Debug("Weekday calculation result: final date=" DatePicked)
+        } else {
+            ; Handle standard date formats
+            switch sPeriod {
+                case "d":
+                    DatePicked := DateAdd(A_Now, iOff, "D")
+                    Debug("Days calculation: iOff=" iOff ", final date=" DatePicked)
+                    
+                case "we":  ; weeks
+                    DatePicked := DateAdd(A_Now, iOff * 7, "D")
+                    Debug("Weeks calculation: iOff=" iOff ", final date=" DatePicked)
+                    
+                case "yr":  ; years
+                    ; SPECIAL HANDLING FOR YEARS - Don't use DateAdd
+                    Debug("Year calculation: iOff=" iOff)
+                    
+                    ; Directly modify the year components
+                    newYear := Integer(Y) + iOff
+                    Debug("New year: " newYear)
+                    
+                    ; Build the new date
+                    YearDate := newYear . M . D
+                    
+                    ; Handle leap year edge case (Feb 29 in non-leap years)
+                    if (M = "02" && D = "29" && !((Mod(newYear, 4) = 0 && Mod(newYear, 100) != 0) || Mod(newYear, 400) = 0))
+                        YearDate := newYear . "0228"
+                    
+                    ; Add the time portion
+                    DatePicked := YearDate . SubStr(A_Now, 9)
+                    Debug("Final year date: " DatePicked)
+                    
+                case "mo":  ; months
+                    ; Calculate target month and year
+                    targetMonth := Integer(M) + iOff
+                    yearOffset := 0
+                    
+                    while (targetMonth > 12) {
+                        targetMonth -= 12
+                        yearOffset++
+                    }
+                    
+                    while (targetMonth < 1) {
+                        targetMonth += 12
+                        yearOffset--
+                    }
+                    
+                    newYear := Integer(Y) + yearOffset
+                    newMonth := Format("{:02d}", targetMonth)
+                    
+                    ; Build the new date
+                    MonthDate := newYear . newMonth . D
+                    
+                    ; Handle month length issues (e.g., Jan 31 -> Feb 28)
+                    dayInMonth := DaysInMonth(targetMonth, newYear)
+                    if (Integer(D) > dayInMonth)
+                        MonthDate := newYear . newMonth . Format("{:02d}", dayInMonth)
+                    
+                    ; Add the time portion
+                    DatePicked := MonthDate . SubStr(A_Now, 9)
+                    Debug("Months calculation: new month=" newMonth ", new year=" newYear ", final date=" DatePicked)
+                    
+                default:
+                    DatePicked := DateAdd(A_Now, iOff, "D")
+                    Debug("Default calculation: iOff=" iOff ", final date=" DatePicked)
+            }
+        }
+    } catch Error as err {
+        LogError("Date calculation error: " err.Message)
+        return ";d" sCode
+    }
+    
+    ; Format the date and display tooltip
+    try {
+        MyDate := FormatTime(DatePicked, sFormat)
+        Debug("Final formatted date: " MyDate)
+        
+        ; Only pass targetDay if it's a weekday format
+        if (isWeekday)
+            ShowToolTip(DatePicked, iOff, sPeriod, sCode, sFormat, isWeekday, targetDay)
+        else
+            ShowToolTip(DatePicked, iOff, sPeriod, sCode, sFormat, isWeekday)
+            
+        return MyDate
+    } catch Error as err {
+        LogError("Date formatting error: " err.Message)
+        return ";d" sCode
     }
 }
 
-dateString(nOffset, AltForm) {
-    DatePicked := DateAdd(A_Now, nOffset, "D") ; Puts offset into date format.
-    ShowToolTip(nOffset, DatePicked)
+; Helper function to determine days in a month
+DaysInMonth(month, year) {
+    static daysPerMonth := [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    
+    if (month = 2 && ((Mod(year, 4) = 0 && Mod(year, 100) != 0) || Mod(year, 400) = 0))
+        return 29  ; February in a leap year
+    
+    return daysPerMonth[month]
+}
 
-    if (AltForm = 0) {
-        MyDate := FormatTime(DatePicked, TypeOutFormat)
-        SendInput(MyDate)   ; This types out the date.
+ShowToolTip(sDatePicked, iOff, sPeriod, sCode, sFormat, isWeekday := false, targetDay := 0) {
+    ; Configuration options
+    EmbedKeysInTip := 1
+    EmbedHolidayInTip := 1
+    EmbedDateInTip := 0
+    MultiLineTip := 1
+    
+    ; Get date components
+    Y := SubStr(A_Now, 1, 4)
+    M := SubStr(A_Now, 5, 2)
+    D := SubStr(A_Now, 7, 2)
+    mY := SubStr(sDatePicked, 1, 4)
+    mM := SubStr(sDatePicked, 5, 2)
+    mD := SubStr(sDatePicked, 7, 2)
+    
+    ; Default format for display
+    baseDate := FormatTime(sDatePicked, sFormat)
+    
+    ; Create context-specific format based on period type
+    if (isWeekday) {
+        ; Get weekday name
+        weekdayName := FormatTime(sDatePicked, "dddd")
+        
+        ; Weekday format with appropriate context
+        if (iOff = 0) {
+            contextLabel := " this week"
+        } else if (iOff = 1) {
+            contextLabel := " next week"
+        } else if (iOff = 2) {
+            contextLabel := " after next"
+        } else if (iOff > 2) {
+            contextLabel := " in " iOff " weeks"
+        } else if (iOff = -1) {
+            contextLabel := " last week"
+        } else if (iOff = -2) {
+            contextLabel := " week before last"
+        } else {
+            contextLabel := " " (-iOff) " weeks ago"
+        }
+        
+        formattedDate := weekdayName contextLabel
+    }
+    else if (sPeriod = "mo") {
+        ; Month format
+        if (iOff = 0)
+            contextLabel := " (this month)"
+        else if (iOff = 1)
+            contextLabel := " (next month)"
+        else if (iOff > 1)
+            contextLabel := " (in " iOff " months)"
+        else if (iOff = -1)
+            contextLabel := " (last month)"
+        else
+            contextLabel := " (" (-iOff) " months ago)"
+            
+        formattedDate := FormatTime(sDatePicked, "MMMM yyyy") contextLabel
+    }
+    else if (sPeriod = "yr") {
+        ; Year format
+        yearDiff := mY - Y
+        if (yearDiff = 0)
+            contextLabel := " (this year)"
+        else if (yearDiff = 1)
+            contextLabel := " (next year)"
+        else if (yearDiff > 1)
+            contextLabel := " (in " yearDiff " years)"
+        else if (yearDiff = -1)
+            contextLabel := " (last year)"
+        else
+            contextLabel := " (" (-yearDiff) " years ago)"
+            
+        formattedDate := FormatTime(sDatePicked, "yyyy") contextLabel
+    }
+    else if (sPeriod = "we") {
+        ; Week format
+        if (iOff = 0)
+            contextLabel := " (this week)"
+        else if (iOff = 1)
+            contextLabel := " (next week)"
+        else if (iOff = 2)
+            contextLabel := " (week after next)"
+        else if (iOff > 2)
+            contextLabel := " (in " iOff " weeks)"
+        else if (iOff = -1)
+            contextLabel := " (last week)"
+        else if (iOff = -2)
+            contextLabel := " (week before last)"
+        else
+            contextLabel := " (" (-iOff) " weeks ago)"
+            
+        formattedDate := "Week of " FormatTime(sDatePicked, "MMM d") contextLabel
     }
     else {
-        MyDate := FormatTime(DatePicked, TypeOutAltFormat)
-        ;msgbox "myDate " MyDate "`ndatePicked " DatePicked "`nnOffset " nOffset
-        SendInput("{BS " StrLen(nOffset) + 1 "}")    ; This backspaces the 'd0'
-        SendInput(MyDate)   ; This types out the date.
+        ; Day format (default)
+        vNow := SubStr(A_Now, 1, 8)
+        daysOffset := DateDiff(sDatePicked, vNow, "days")
+        
+        if (daysOffset = 0)
+            contextLabel := " (today)"
+        else if (daysOffset = 1)
+            contextLabel := " (tomorrow)"
+        else if (daysOffset > 1 && daysOffset <= 7)
+            contextLabel := " (in " daysOffset " days)"
+        else if (daysOffset > 7 && daysOffset <= 14)
+            contextLabel := " (next week)"
+        else if (daysOffset > 14)
+            contextLabel := " (in " Round(daysOffset/7) " weeks)"
+        else if (daysOffset = -1)
+            contextLabel := " (yesterday)"
+        else if (daysOffset >= -7 && daysOffset < 0)
+            contextLabel := " (" (-daysOffset) " days ago)"
+        else if (daysOffset >= -14 && daysOffset < -7)
+            contextLabel := " (last week)"
+        else
+            contextLabel := " (" Round((-daysOffset)/7) " weeks ago)"
+            
+        formattedDate := FormatTime(sDatePicked, "dddd, MMM d") contextLabel
     }
-}
+    
+    ; Check if it's a weekend
+    DayOfWeek := FormatTime(sDatePicked, "dddd")
+    WeekEndPrefix := (DayOfWeek = "Saturday" || DayOfWeek = "Sunday") ? "WEEKEND --> " : ""
 
-;======= Date HotString ToolTip =======================================
-ShowToolTip(nOffset, DatePicked) {
-    dateOffset := DatePicked
-    vNow := SubStr(A_Now, 1, 8)
-    dateOffset := DateDiff(dateOffset, vNow, "days")
-    WdayArr := [6, 5, 4, 3, 2, 1, 0] ; Determine days until Saturday, for suffixes below.
-    daysTillSat := WdayArr[A_Wday]
-    fromSat := -1 * (daysTillSat - dateOffset)
-    MySuffix := ""
-    if (nOffset = 0)
-        MySuffix := " -- Today"
-    ; Use Saturday this week as a constant in determining the following suffixes.
-    if (fromSat > 0)
-        MySuffix := " next week"
-    if (fromSat > 8)
-        MySuffix := ", week after next"
-    if (fromSat < -7)
-        MySuffix := " last week"
-    if (fromSat < -14)
-        MySuffix := ", week before last"
-    DatePicked := DateAdd(DatePicked, 0, "D") ; Puts it in proper date format.
-    HoliTip := (isHoliday(DatePicked) != "") ? isHoliday(DatePicked) . " ---> " : ""
-    DayOfWeek := FormatTime(DatePicked, "dddd")
-    WeekEndTip := (DayOfWeek = "Saturday") || (DayOfWeek = "Sunday") ? "Weekend ---> " : ""
+    ; Build tooltip text based on configuration options
+    sTip := ""
+    
+    ; Add keys if enabled
+    if (EmbedKeysInTip) {
+        sTipArr := StrSplit("[;d" sCode "]")
+        for char in sTipArr
+            sTip .= char " " ; Space them out for easier viewing.
+        ; Add separator based on multiline setting
+        if (MultiLineTip)
+            sTip .= Chr(10) ; Chr(10) is 'newline.'
+        else
+            sTip .= " "
+    }
+
+    ; Add holiday if enabled
+    if (EmbedHolidayInTip) && (isHoliday(sDatePicked) != ""){
+        sTip .= HoliTip := isHoliday(sDatePicked)
+        ; Add separator based on multiline setting
+        if (MultiLineTip)
+            sTip .= Chr(10)
+        else
+            sTip .= " ---> "
+    }
+    
+    ; Add formatted date with weekend indicator
+    sTip .= WeekEndPrefix formattedDate
+    
+    ; Add base date format if enabled
+    if (EmbedDateInTip) {
+        ; Add separator based on multiline setting
+        if (MultiLineTip)
+            sTip .= Chr(10)
+        else
+            sTip .= " | "
+            
+        sTip .= baseDate
+    }
+    
     if CaretGetPos(&ttx, &tty)
-        ToolTip(HoliTip "" WeekEndTip "" DayOfWeek "" MySuffix, ttx + 10, tty + 25, "3") ; Set location of tooltip here.
-    SetTimer () => ToolTip(, , , "3"), -2500 ; Disable tooltip in this many milisecs.
-    DatePicked := ""
-    nOffset := ""
+        ToolTip(sTip, ttx + 10, tty + 25, "3")
+    
+    SetTimer () => ToolTip(, , , "3"), -3500  ; Disable tooltip in this many milisecs.
 }
 
 ;======== Global Variables. Don't change =======================================
@@ -260,8 +717,6 @@ t:: MCGUI["MC"].Value := A_Now ; Hotkey for 'Go to today.' hide
 5:: ; ChangeM  CNumber() ; Shows this many months. (1-5) ; hide
 #HotIf
 ; ===================================================================
-
-
 
 ChangeMCNumber(*) ; Reopens calendar with specified number of months.
 {
@@ -339,13 +794,15 @@ MCGuiClose(*) {
     global toggle := false
 }
 ; ===================================================================
+
 WM_KEYDOWN(W, *) {
     if (W = 0x0D) { ; VK_RETURN => ENTER key
-        SendDate()
+        SendDateCal()
         return 0
     }
 }
 ; ===================================================================
+
 WM_LBUTTONDBLCLK(*) {
     local CtrlHwnd := 0
     MouseGetPos(, , , &CtrlHwnd, 2)
@@ -354,7 +811,7 @@ WM_LBUTTONDBLCLK(*) {
             ToolTip(, , , "2")  ; Clear the holiday tooltip
             ShowHolidayMenu()
         } else {
-            SendDate()
+            SendDateCal()
         }
         return 0
     }
@@ -375,22 +832,31 @@ ShowHolidayMenu() {
 
         ; Get the holiday for the selected date
         selectedDate := MCGUI["MC"].Value
-        holiday := isHoliday(selectedDate)
-
+        holidayText := isHoliday(selectedDate)
+        
         ; Create the menu
         holidayMenu := Menu()
-
-        ; Add holiday-specific items only if a holiday is selected
-        if holiday {
-            holidayMenu.Add("Show Future Dates for '" holiday "'", ShowHolidayDates)
-            holidayMenu.Add("Jump to Next Year's '" holiday "'", NavigateToNextOccurrence)
-            holidayMenu.Add()  ; Add a separator
+        
+        ; Add holiday-specific items only if holidays exist
+        if holidayText {
+            ; Split the holiday text into individual holidays
+            holidays := StrSplit(holidayText, "`n")
+            
+            ; Add menu items for each individual holiday
+            for holiday in holidays {
+                if holiday {  ; Skip empty entries
+                    holidayMenu.Add("Show Future Dates for '" holiday "'", ShowHolidayDatesHandler)
+                    holidayMenu.Add("Jump to Next Year's '" holiday "'", NavigateToNextOccurrenceHandler)
+                    holidayMenu.Add()  ; Add a separator after each holiday's entries
+                }
+            }
         }
 
         ; Add general items always
         holidayMenu.Add("Show All Holidays in " FormatTime(selectedDate, "yyyy"), ShowYearHolidays)
         holidayMenu.Add("Show " FormatTime(selectedDate, "MMMM") " Holidays (20 Years)", ShowMonthHolidays)
         holidayMenu.Add("Copy Holiday List for Custom Date Range...", ShowDateRangeHolidays)
+        
         ; Get the mouse position
         MouseGetPos(&mX, &mY)
 
@@ -399,6 +865,19 @@ ShowHolidayMenu() {
     } catch Error as err {
         MsgBox("Error showing menu: " err.Message)
     }
+}
+
+; Handler functions to pass the specific holiday to the actual functions
+ShowHolidayDatesHandler(ItemName, ItemPos, MyMenu) {
+    ; Extract the holiday name from the menu item text
+    holiday := RegExReplace(ItemName, "^Show Future Dates for '|'$", "")
+    ShowHolidayDates(holiday)
+}
+
+NavigateToNextOccurrenceHandler(ItemName, ItemPos, MyMenu) {
+    ; Extract the holiday name from the menu item text
+    holiday := RegExReplace(ItemName, "^Jump to Next Year's '|'$", "")
+    NavigateToNextOccurrence(holiday)
 }
 
 ; ===================================================================
@@ -461,7 +940,7 @@ DIM(Date) { ; get the number of days in the month of Date
     return (SubStr(Date, 7, 2) + 0)
 }
 ; ===================================================================
-SendDate() {
+SendDateCal() {
     if !GetKeyState("Alt")
         local Date := FormatTime(MCGUI["MC"].Value, TypeOutFormat)
     else
@@ -492,6 +971,7 @@ SendDateAlt() {
 ; -- got rid of 'Business only' parameter
 ; -- added beginning and end year
 ; -- added "nearest weekday" option
+; CaptInsano added 'orginal_year' feature, mar 13, 2025
 ; ===================================================================
 IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
     static Eastern := Map()
@@ -551,6 +1031,7 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         ["06 20", "Summer Solstice", 2025],
         ["06 21", "Summer Solstice", 2026],
         ["07 04", "Independence Day"],
+        ["08 25", "Anniversary", , , 2000], ;       <---------- Specific to kunkel321, remove.
         ["09 01-07 Monday", "Labor Day"],
         ["09 22", "Autumn Equinox", 2025, 2026], ; Happens on same date both years, so...
         ["10 31", "Halloween"],
@@ -897,10 +1378,16 @@ class ToolTipOptions {
 ; The below functions are called from the popup menu that appears when Shift+Clicking
 ; a monthCal date, or upon Shift+Enter, when monthCal gui is active.  The first
 ; two functions only appear if the selected date is a holiday.
-ShowHolidayDates(*) {
-    ; Get the holiday name from the clicked date
-    selectedDate := MCGUI["MC"].Value
-    holiday := isHoliday(selectedDate)
+; Modified to accept a specific holiday name
+ShowHolidayDates(holiday := "") {
+    ; If no holiday provided, try to get it from the selected date
+    if (holiday = "") {
+        selectedDate := MCGUI["MC"].Value
+        holiday := isHoliday(selectedDate)
+        ; If there are multiple holidays, just use the first one
+        if InStr(holiday, "`n")
+            holiday := StrSplit(holiday, "`n")[1]
+    }
 
     ; Set up the year range
     syYear := A_Year  ; Start from current year
@@ -919,7 +1406,7 @@ ShowHolidayDates(*) {
             if (checkHoliday := isHoliday(loopDate)) {
                 if InStr(checkHoliday, holiday) {
                     thisFormDate := FormatTime(loopDate, "ddd yyyy MMM dd")
-                    thReport .= thisFormDate . ": " . checkHoliday . "`n"
+                    thReport .= thisFormDate . ": " . holiday . "`n"
                 }
             }
             loopDate := DateAdd(loopDate, 1, "days")
@@ -928,6 +1415,45 @@ ShowHolidayDates(*) {
         ShowReport(title, thReport)
     } catch Error as err {
         MsgBox("Error processing dates: " err.Message)
+    }
+}
+
+; Modified to accept a specific holiday name
+NavigateToNextOccurrence(holiday := "") {
+    try {
+        selectedDate := MCGUI["MC"].Value
+        currentYear := FormatTime(selectedDate, "yyyy")
+        
+        ; If no holiday provided, try to get it from the selected date
+        if (holiday = "") {
+            holiday := isHoliday(selectedDate)
+            ; If there are multiple holidays, just use the first one
+            if InStr(holiday, "`n")
+                holiday := StrSplit(holiday, "`n")[1]
+        }
+
+        ; Start checking from next year
+        checkDate := currentYear + 1 . FormatTime(selectedDate, "MM") . "01"
+        found := false
+
+        ; Look ahead up to 2 years
+        loop 730 {
+            if (checkHoliday := isHoliday(checkDate)) {
+                if InStr(checkHoliday, holiday) {
+                    ; Navigate to the date
+                    MCGUI["MC"].Value := checkDate
+                    found := true
+                    break
+                }
+            }
+            checkDate := DateAdd(checkDate, 1, "days")
+        }
+
+        if !found {
+            MsgBox("No occurrence of '" holiday "' found in next 2 years.")
+        }
+    } catch Error as err {
+        MsgBox("Error navigating to next occurrence: " err.Message)
     }
 }
 
@@ -1049,37 +1575,6 @@ ShowDateRangeHolidays(*) {
     }
 }
 
-NavigateToNextOccurrence(*) {
-    try {
-        selectedDate := MCGUI["MC"].Value
-        currentYear := FormatTime(selectedDate, "yyyy")
-        holiday := isHoliday(selectedDate)
-
-        ; Start checking from next year
-        checkDate := currentYear + 1 . FormatTime(selectedDate, "MM") . "01"
-        found := false
-
-        ; Look ahead up to 2 years
-        loop 730 {
-            if (checkHoliday := isHoliday(checkDate)) {
-                if InStr(checkHoliday, holiday) {
-                    ; Navigate to the date
-                    MCGUI["MC"].Value := checkDate
-                    found := true
-                    break
-                }
-            }
-            checkDate := DateAdd(checkDate, 1, "days")
-        }
-
-        if !found {
-            MsgBox("No occurrence found in next 2 years.")
-        }
-    } catch Error as err {
-        MsgBox("Error navigating to next occurrence: " err.Message)
-    }
-}
-
 ; This function gets called from the above scriptlets.
 ShowReport(title, content, tooltipNum := 3) {
     if MenuReportsAsToolTips {
@@ -1092,3 +1587,22 @@ ShowReport(title, content, tooltipNum := 3) {
         MsgBox(title "`n`n" content)
     }
 }
+
+; SoundBeep 1200, 150 ; temporary restart notification.
+; SoundBeep 1800, 150
+; SoundBeep 1400, 150
+; ; Helper functions for conditional logging
+; ; Warning: These function names also appear in the AutoCorrect2.ahk code. 
+; ; Only use these if DateTool is running separately from ac2. 
+; ERROR_LOG := 1
+; DEBUG_LOG := 1
+; LogError(message) {
+;     if (ERROR_LOG) {
+;         FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
+;     }
+; }
+; Debug(message) {
+;     if (DEBUG_LOG) {
+;         FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
+;     }
+; }
