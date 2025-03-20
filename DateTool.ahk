@@ -2,11 +2,12 @@
 #Requires AutoHotkey v2+
 
 ;  Gets included with AutoCorrect2 via #Include.
+;  But it is okay to run this as a stand-alone app, if preferred.  
 
 ;======== DateTool-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 3-19-2025.
+; The 'H' is for 'Holidays.'   Version: 3-20-2025.
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -102,6 +103,8 @@ sAddOptions := ""
 ; sAddOptions := sAddOptions . "4 "    ; adds the week numbers to the calendar
 ; sAddOptions := sAddOptions . "8 "    ; prevents circling today's date
 ; sAddOptions := sAddOptions . "16 "   ; prevents showing today's date at bottom
+ERROR_LOG := 1  ; The log functions are at the very bottom of this file. 
+DEBUG_LOG := 0  ; 1 = yes log, 0 = no don't
 ; User Note: If you have many holidays defined, the menu reports can be quite large,
 ; so have 'MenuReportsAsToolTips:=0' or have a small font for tooltips (next section.)
 ; ==============================================================================
@@ -192,7 +195,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
     D := SubStr(A_Now, 7, 2)
     
     ; Debug log
-    Debug("GetMyDate input: " sCode)
+    DTDebug("GetMyDate input: " sCode)
     
     ; Check for invalid characters upfront
     ; Valid characters: digits, period indicators (d, we, mo, yr), weekdays (u, m, t, w, r, f, s), and "-"
@@ -201,7 +204,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
     ; Check each character in the input
     for i, char in StrSplit(sCode) {
         if (!InStr(validChars, char)) {
-            Debug("Invalid character detected: " char)
+            DTDebug("Invalid character detected: " char)
             return ";d" sCode  ; Return the original input without processing
         }
     }
@@ -251,7 +254,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
                 iOff := 0
             }
             
-            Debug("Parsed period indicator: " lastTwo ", numericPart: " numericPart ", iOff: " iOff)
+            DTDebug("Parsed period indicator: " lastTwo ", numericPart: " numericPart ", iOff: " iOff)
         }
         ; Not a 2-character period, continue with other checks
         else if (len = 1) {
@@ -263,7 +266,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
                 weekdayChar := lastChar
                 numericPart := "0"  ; This week
                 iOff := 0
-                Debug("Parsed single weekday: " weekdayChar)
+                DTDebug("Parsed single weekday: " weekdayChar)
             } else {
                 ; Just a number, assume days
                 try {
@@ -273,7 +276,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
                 } catch Error as err {
                     iOff := 0
                 }
-                Debug("Parsed single digit: iOff=" iOff)
+                DTDebug("Parsed single digit: iOff=" iOff)
             }
         } 
         else {
@@ -283,19 +286,19 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
             if (lastChar = "d") {
                 sPeriod := "d"   ; days
                 numericPart := SubStr(sDateOpts, 1, len - 1)
-                Debug("Parsed days indicator: d, numericPart: " numericPart)
+                DTDebug("Parsed days indicator: d, numericPart: " numericPart)
             }
             ; Check if last character is a weekday indicator
             else if InStr("umtwrfs", lastChar) {
                 isWeekday := true
                 weekdayChar := lastChar
                 numericPart := SubStr(sDateOpts, 1, len - 1)
-                Debug("Parsed weekday: " weekdayChar ", numericPart: " numericPart)
+                DTDebug("Parsed weekday: " weekdayChar ", numericPart: " numericPart)
             } else {
                 ; No recognized indicator, assume entire string is numeric for days
                 sPeriod := "d"
                 numericPart := sDateOpts
-                Debug("Parsed numeric only: " numericPart)
+                DTDebug("Parsed numeric only: " numericPart)
             }
             
             ; Handle empty numeric part
@@ -321,7 +324,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
             weekdayChar := lastChar
             numericPart := "0"  ; This week
             iOff := 0
-            Debug("Parsed single weekday: " weekdayChar)
+            DTDebug("Parsed single weekday: " weekdayChar)
         } else {
             ; Just a number, assume days
             try {
@@ -331,15 +334,15 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
             } catch Error as err {
                 iOff := 0
             }
-            Debug("Parsed single digit: iOff=" iOff)
+            DTDebug("Parsed single digit: iOff=" iOff)
         }
     } else {
         ; Empty input, assume today
         iOff := 0
-        Debug("Empty input, using today")
+        DTDebug("Empty input, using today")
     }
     
-    Debug("Final parsing: sPeriod=" sPeriod ", iOff=" iOff ", isWeekday=" isWeekday)
+    DTDebug("Final parsing: sPeriod=" sPeriod ", iOff=" iOff ", isWeekday=" isWeekday)
     
     ; Calculate the date based on the period and offset
     try {
@@ -369,7 +372,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
                 ; This means using negative days to go backwards
                 ; We don't want to wrap to next week
                 
-                Debug("This week calculation: targetDay=" targetDay ", currentDay=" currentDay ", raw diff=" daysToAdd)
+                DTDebug("This week calculation: targetDay=" targetDay ", currentDay=" currentDay ", raw diff=" daysToAdd)
             }
             else {
                 ; For any other offset (next week, 2 weeks from now, etc.)
@@ -384,32 +387,32 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
                 dayDiff := (targetDay - currentDay)
                 daysToAdd += dayDiff
                 
-                Debug("Future week calculation: targetDay=" targetDay ", currentDay=" currentDay ", weekOffset=" iOff ", dayDiff=" dayDiff)
+                DTDebug("Future week calculation: targetDay=" targetDay ", currentDay=" currentDay ", weekOffset=" iOff ", dayDiff=" dayDiff)
             }
             
-            Debug("Weekday calculation: target day=" targetDay ", current day=" currentDay ", final days to add=" daysToAdd)
+            DTDebug("Weekday calculation: target day=" targetDay ", current day=" currentDay ", final days to add=" daysToAdd)
             
             ; Calculate the target date
             DatePicked := DateAdd(A_Now, daysToAdd, "D")
-            Debug("Weekday calculation result: final date=" DatePicked)
+            DTDebug("Weekday calculation result: final date=" DatePicked)
         } else {
             ; Handle standard date formats
             switch sPeriod {
                 case "d":
                     DatePicked := DateAdd(A_Now, iOff, "D")
-                    Debug("Days calculation: iOff=" iOff ", final date=" DatePicked)
+                    DTDebug("Days calculation: iOff=" iOff ", final date=" DatePicked)
                     
                 case "we":  ; weeks
                     DatePicked := DateAdd(A_Now, iOff * 7, "D")
-                    Debug("Weeks calculation: iOff=" iOff ", final date=" DatePicked)
+                    DTDebug("Weeks calculation: iOff=" iOff ", final date=" DatePicked)
                     
                 case "yr":  ; years
                     ; SPECIAL HANDLING FOR YEARS - Don't use DateAdd
-                    Debug("Year calculation: iOff=" iOff)
+                    DTDebug("Year calculation: iOff=" iOff)
                     
                     ; Directly modify the year components
                     newYear := Integer(Y) + iOff
-                    Debug("New year: " newYear)
+                    DTDebug("New year: " newYear)
                     
                     ; Build the new date
                     YearDate := newYear . M . D
@@ -420,7 +423,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
                     
                     ; Add the time portion
                     DatePicked := YearDate . SubStr(A_Now, 9)
-                    Debug("Final year date: " DatePicked)
+                    DTDebug("Final year date: " DatePicked)
                     
                 case "mo":  ; months
                     ; Calculate target month and year
@@ -450,22 +453,22 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
                     
                     ; Add the time portion
                     DatePicked := MonthDate . SubStr(A_Now, 9)
-                    Debug("Months calculation: new month=" newMonth ", new year=" newYear ", final date=" DatePicked)
+                    DTDebug("Months calculation: new month=" newMonth ", new year=" newYear ", final date=" DatePicked)
                     
                 default:
                     DatePicked := DateAdd(A_Now, iOff, "D")
-                    Debug("Default calculation: iOff=" iOff ", final date=" DatePicked)
+                    DTDebug("Default calculation: iOff=" iOff ", final date=" DatePicked)
             }
         }
     } catch Error as err {
-        LogError("Date calculation error: " err.Message)
+        DTLogError("Date calculation error: " err.Message)
         return ";d" sCode
     }
     
     ; Format the date and display tooltip
     try {
         MyDate := FormatTime(DatePicked, sFormat)
-        Debug("Final formatted date: " MyDate)
+        DTDebug("Final formatted date: " MyDate)
         
         ; Only pass targetDay if it's a weekday format
         if (isWeekday)
@@ -475,7 +478,7 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
             
         return MyDate
     } catch Error as err {
-        LogError("Date formatting error: " err.Message)
+        DTLogError("Date formatting error: " err.Message)
         return ";d" sCode
     }
 }
@@ -1588,21 +1591,14 @@ ShowReport(title, content, tooltipNum := 3) {
     }
 }
 
-; SoundBeep 1200, 150 ; temporary restart notification.
-; SoundBeep 1800, 150
-; SoundBeep 1400, 150
-; ; Helper functions for conditional logging
-; ; Warning: These function names also appear in the AutoCorrect2.ahk code. 
-; ; Only use these if DateTool is running separately from ac2. 
-; ERROR_LOG := 1
-; DEBUG_LOG := 1
-; LogError(message) {
-;     if (ERROR_LOG) {
-;         FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
-;     }
-; }
-; Debug(message) {
-;     if (DEBUG_LOG) {
-;         FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
-;     }
-; }
+; Helper functions for conditional logging
+DTLogError(message) {
+    if (ERROR_LOG) {
+        FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
+    }
+}
+DTDebug(message) {
+    if (DEBUG_LOG) {
+        FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
+    }
+}
