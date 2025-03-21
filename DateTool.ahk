@@ -25,48 +25,66 @@
 ; March 2025 
 ; -CaptInsano added support for 'Original_year' which shows holiday's age. 
 ; -CaptInsano-led enhancement of hotstring options, weeks, months, years,
-; 2-digit numbers support, "next Tuesday", etc.
+; 2-digit numbers support, "next Tuesday", etc, and onboard help.
 ; https://www.autohotkey.com/boards/viewtopic.php?p=599890#p599834
 
-;======== Directions for Use: Date HotStrings===================================
-; For today, type ";d" (semicolon dee) into edit field, then press space.
-; Format is:       d[|d|-][##][d|we|mo|yr|u|m|t|w|r|f|s]
-;   ;d            date tool
-;   ;blank or -   adding or subtracting. An extra d also means subtract.
-;   ##            up to 2 digits to add or subtract
-;   d|we|mo|yr    increment by days, weeks, months, or years.  if omitted, assumes days
-;   u|m|t|w|r|f|s weekday shortcuts (u=Sun, m=Mon, t=Tue, w=Wed, r=Thu, f=Fri, s=Sat)
-;   examples:
-;   ;d-10d        will subtract 10 days
-;   ;dd10d        will subtract 10 days
-;   ;d2mo         will add 2 months
-;   ;d2yr         will add 2 years
-;   ;dw           date for Wednesday this week (this Wednesday)
-;   ;d1r          date for Thursday next week (next Thursday)
-;   ;d4m          date for Monday in four weeks
-;   ;d-2t         date for Tuesday of the week before last
-; Information ToolTip shows for X seconds.
-; Note:  Press Alt+; inplace of ; for the alternate date format.
-; example: Press Alt+;, then d, then 2, for day after tomorrow.
+;======== Directions for Use: Date Hotstrings ==================================
+sHSHelp :=
+    (
+        "
+Keystroke format    [Alt+;d|;d][d|-][##][d|we|mo|yr|u|m|t|w|r|f|s] followed by {Space}, {Enter}, or {Period(.)}
+;d | Alt+;d         Invokes the date tool hotstring. Starting with ; will insert the standard date format.
+                    Starting with Alt+; will insert the alternate date format. 
+d|-                 Optional.  Include to go backwards in time. Blank = forwards in time.
+##                  Optional.  Up to 2 digits to add or subtract vs. today.  Blank or 0 = today.
+d|we|mo|yr|         Optional.  If blank, assumes days. Increment by days, weeks, months, or years.
+u|m|t|w|r|f|s                  Or by weekdays (u=Sun, m=Mon, t=Tue, w=Wed, r=Thu, f=Fri, s=Sat).
+    
+Examples:
+Keystroke   Date Code   Date Result (vs Today)
+---------   ---------   ----------------------
+;d          Blank       Today
+;d0         0           Today
+;d10d       10d         Adds 10 days 
+;d10        10          Adds 10 days
+;dd10d      d10d        Subtracts 10 days
+;d-10d      -10d        Subtracts 10 days
+;dd10we     d10we       Subtracts 10 weeks
+;d2yr       2yr         Adds 2 years
+;dw         w           Wednesday of this week (this Wednesday)
+;d0w        0w          Wednesday of this week (this Wednesday)
+;d1r        1r          Thursday next week (next Thursday)
+;d4m        4m          Monday in four weeks
+;d-2t       -2t         Tuesday of the week before last
+
+;dh         h           Summons the help GUI."
+    )
 
 ;======== Directions for Use: Popup Calendar ===================================
-; Alt+Shift+D ----> Show calendar.
-; Press h (while calendar is active) ----> toggle list of holidays for shown months.
-; Press t (while calendar is active) ----> go to today.
-; Press 1-5 (while calendar is active) ----> Show this many months.
-; Double-click a date, or press Enter, to type it.
-; D-click/Enter while holding Alt key for alternate date format.
-; D-Click/Enter while holding Shift key for menu of scriptlet holiday report tools.
-; Calendar appears placed over active window.
-; Waits for window to be active again before typing date.
+sMCHelp :=
+    (
+        "
+Alt+Shift+D ---> Show calendar.
+Bold dates have holidays.  Click to show holiday (if enabled).
+Press h (while calendar is active) ---> Toggle list of holidays for shown months.
+Press t (while calendar is active) ---> Go to today.
+Press 1-5 (while calendar is active) ---> Show this many months.
+Double-click a date, or press Enter  ---> Type date.
+D-click/Enter while holding Alt key ---> Type date with alternate format.
+D-Click/Enter while holding Shift key ---> Show menu of scriptlet holiday report tools.
 
-; See IsHoliday() function, below, for array of custom holidays and how to add
-; your own custom holidays. Please remove any personal dates, and add your own.
+Calendar appears placed over active window.
+Waits for window to be active again before typing date.
 
+See IsHoliday() function, for array of custom holidays and how to add
+your own custom holidays. Please remove any personal dates, and add your own.
+
+Known issue: With MonthCal, clicking next/last month arrows too fast enters
+the date, rather than just scrolling dates. Gets read as 'double-click.'
+
+Press F1 while monthCal is showing ----> Summons the help GUI."
+    )
 ; ==============================================================================
-; Known issue: With MonthCal, clicking next/last month arrows too fast enters
-; the date, rather than just scrolling dates. (Gets read as 'double-click.')
-
 ; Caveat: Claude AI was used in several places, so reuse the code with cauton.
 
 ; ==============================================================================
@@ -91,7 +109,7 @@ MyAutoCorrectFileName := "AutoCorrect2.exe" ; <------- CHANGE To NAME of your Au
 ;======== Calendar User Options ================================================
 guiTitle := "DateTool-H"            ; change title if desired
 monthCalHotkey := "!+d"             ; Hotkey: Alt+Shift+D.  Change as desired.
-; ypeOutFormat := "dd-MMM-yyyy"       ; preferred date format for typing date in edit field
+; TypeOutFormat := "dd-MMM-yyyy"       ; preferred date format for typing date in edit field
 TypeOutFormat := "M-d-yyyy"         ; preferred date format for typing date in edit field
 TypeOutAltFormat := "yyyy-MM-dd"    ; alternate preferred date format for typing
 HolidayListFormat := "MMM-dd"       ; preferred date format for popup list
@@ -128,14 +146,15 @@ ToolTipOptions.SetMargins(5, 5, 5, 5) ; Left, Top, Right, Bottom.
 ToolTipOptions.SetColors("Default", "Default") ; background, font
 
 ;=========== Hotstrings ========================================================
+
 :?*B0:;d:: {
-    sMode := "standard"
+    global sMode := "standard"
     sFormat := TypeOutFormat
     SendDateHS(sFormat, sMode)
 }
 
 !;:: { ; hide
-    sMode := "alternate"
+    global sMode := "alternate"
     sFormat := TypeOutAltFormat
     SendDateHS(sFormat, sMode)
 }
@@ -145,47 +164,49 @@ KeysReturn(sOptions := "", sEnd := "{Any}") {
     ih.KeyOpt(sEnd, "E")
     ih.Start()
     ih.Wait()
-    return ih.Input
+    aKeyRet := [ih.Input,ih.EndReason,ih.EndKey]
+    return aKeyRet
 }
 
 SendDateHS(sFormat, sMode) {
-    if sMode = "standard" {
-        sInput := KeysReturn("L5 V1 I2", "{Space}{Enter}.") ; max is 5 characters to return e.g. '-10nw'.
-        MyDate := GetMyDate(sInput, sFormat)
-        
-        ; Check if the result is the original input (indicating an error or invalid character)
-        if (MyDate = ";d" sInput) {
-            ; Do nothing - leave the original input in place
-            return
-        }
-        
-        ; For standard format, we need to remove ";d" plus the input code
-        iInput := StrLen(sInput)
-        SendInput("{backspace " iInput + 3 "}" MyDate)  ; +3 for ";d"
-    } else {
-        ; For alternate format
-        sTest := KeysReturn("L1", "{Any}")
+    if sMode = "alternate" { ;for alternate format, first need to check if it's ;d or ;other
+        sTest := KeysReturn("L1", "{Any}")[1]
         if sTest = "d" {
-            sInput := KeysReturn("L5 V1 I2", "{Space}{Enter}.") ; max is 5 characters to return e.g. '-10nw'.
-            MyDate := GetMyDate(sInput, sFormat)
-            
-            ; Check if the result is the original input (indicating an error or invalid character)
-            if (MyDate = ";d" sInput) {
-                ; In alternate mode, just send "d" since we haven't sent ";d" yet
-                SendInput("d" sInput)
-                return
-            }
-            
-            ; For alternate format, we only need to remove "d" plus the input code
-            ; The ";" character hasn't been typed - it was triggered by Alt+;
-            iInput := StrLen(sInput)
-            SendInput("{backspace " iInput + 1 "}" MyDate)  ; +1 for just "d"
+            SendInput(";d")
         } else {
             ; User pressed Alt+; followed by something other than "d"
             SendInput(";" sTest)
             return
         }
     }
+    aInput := KeysReturn("L5 V1 I2", "{Space}{Enter}.") ; max is 5 characters to return e.g. '-10we'.
+    sInput := aInput[1]
+    sEnd := aInput[2]
+    sEndKey := aInput[3]
+    if sInput = "h" { ;help is called
+        SendInput("{BackSpace 4}")
+        mygui := Gui("AlwaysOnTop", "DateTool Hotstring Help")
+        mygui.SetFont("s10", "Courier New")
+        mygui.Add("Text", , sHSHelp)
+        mygui.Show
+        mygui.OnEvent("Escape", (*) => mygui.Hide())
+        return
+    }
+    MyDate := GetMyDate(sInput, sFormat)
+    ; Check if the result is the original input (indicating an error or invalid character)
+    if (MyDate = ";d" sInput) {
+        if sMode = "standard" { ; Do nothing - leave the original input in place
+            return
+        } else { ; In alternate mode, just send "d" since we haven't sent ";d" yet
+            SendInput("d" sInput)
+            return
+        }
+    }
+    iInput := StrLen(sInput)
+    if sEnd = "Max" ;change # of backspaces and include the EndKey depending on how KeysReturn was ended.
+        SendInput("{backspace " iInput + 2 "}" MyDate "{" sEndKey "}")  ; +2 for ";d"
+    if sEnd = "EndKey"
+        SendInput("{backspace " iInput + 3 "}" MyDate "{" sEndKey "}")  ; +3 for ";d plus ending character"
 }
 
 GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
@@ -624,6 +645,8 @@ ShowToolTip(sDatePicked, iOff, sPeriod, sCode, sFormat, isWeekday := false, targ
         sTipArr := StrSplit("[;d" sCode "]")
         for char in sTipArr
             sTip .= char " " ; Space them out for easier viewing.
+        If (sMode = "alternate")
+            sTip := StrReplace(sTip, "`;", "Alt + `;") ; If Alt was pressed, indicate so.
         ; Add separator based on multiline setting
         if (MultiLineTip)
             sTip .= Chr(10) ; Chr(10) is 'newline.'
@@ -718,8 +741,18 @@ t:: MCGUI["MC"].Value := A_Now ; Hotkey for 'Go to today.' hide
 3:: ; hide
 4:: ; hide
 5:: ; ChangeM  CNumber() ; Shows this many months. (1-5) ; hide
+F1::monthCalHelp()
 #HotIf
 ; ===================================================================
+
+monthCalHelp(*) {
+    mygui := Gui("AlwaysOnTop", "DateTool Hotstring Help")
+    mygui.SetFont("s10", "Courier New")
+    mygui.Add("Text", , sMCHelp)
+    mygui.Show
+    mygui.OnEvent("Escape", (*) => mygui.Hide())
+    return
+}
 
 ChangeMCNumber(*) ; Reopens calendar with specified number of months.
 {
