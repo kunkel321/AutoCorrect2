@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-13-2025.1
+; Version: 3-26-2025 
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -20,9 +20,9 @@ SetWorkingDir(A_ScriptDir)
 ; =============== INCLUDES ===============
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
+#Include "PrivateParts.ahk"  ; <--- Specific to kunkel321's setup. If you see this, he forgot to remove it.
 #Include "DateTool.ahk"           ;  Calendar tool with holidays -- Optional
 #Include "PrinterTool.ahk"        ;  Shows list of installed printers -- Optional 
-
 ; =============== CONFIGURATION ===============
 ; The configuration is centralized here for easier modification
 
@@ -49,7 +49,7 @@ class Config {
     ; ===== GUI Sizing =====
     static HeightSizeIncrease := 300
     static WidthSizeIncrease := 400
-    static DefaultWidth := 366
+    static DefaultWidth := 366 ; 366 recommended.
 
     ; ===== Symbols for Visual Display =====
     static PilcrowSymbol := "¶"      ; Symbol for Enter
@@ -66,7 +66,7 @@ class Config {
     ; ===== AutoCorrect Options =====
     static DefaultAutoCorrectOpts := "B0X" ; Default options for autocorrect entries
     static MakeFuncByDefault := 1          ; Check "Make Function" box by default?
-    static AutoCommentFixesAndMisspells := 1 ; Add "Fixes X words, but misspells Y" comments?
+    static AutoCommentWithFreqAndStats := 1 ; Add "Web Freq X | Fixes Y words, but misspells Z" comments?
     static AutoEnterNewEntry := 1          ; Auto-enter the new replacement in active field?
     
     ; ===== Word Lists =====
@@ -408,16 +408,13 @@ class UI {
         this.Controls["UndoButton"].Enabled := false
         
         ; Add match list labels and edit boxes
-        this.MainForm.SetFont("s12")
-        this.Controls["TriggerMatchLabel"] := this.MainForm.AddText("center y+4 h25 xm w" Config.DefaultWidth / 2, "Misspells")
-        this.Controls["ReplacementMatchLabel"] := this.MainForm.AddText("center h25 x+5 w" Config.DefaultWidth / 2, "Fixes")
+        this.Controls["TriggerFreqLabel"] := this.MainForm.AddText("center y+4 h25 xm w" Config.DefaultWidth / 2, "Web Freq [0]")
+        this.Controls["ReplacementFreqLabel"] := this.MainForm.AddText("center h25 x+5 w" Config.DefaultWidth / 2, "Web Freq [0]")
+        this.Controls["TriggerMatchLabel"] := this.MainForm.AddText("center y+-2 h25 xm w" Config.DefaultWidth / 2, "Misspells [0]")
+        this.Controls["ReplacementMatchLabel"] := this.MainForm.AddText("center h25 x+5 w" Config.DefaultWidth / 2, "Fixes [0]")
         
-        this.Controls["TriggerMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " y+1 xm h" Config.HeightSizeIncrease " w" Config.DefaultWidth / 2)
+        this.Controls["TriggerMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " y+0 xm h" Config.HeightSizeIncrease " w" Config.DefaultWidth / 2)
         this.Controls["ReplacementMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " x+5 h" Config.HeightSizeIncrease " w" Config.DefaultWidth / 2)
-        
-        ; Add word list info
-        this.MainForm.SetFont("bold s8")
-        this.Controls["WordListLabel"] := this.MainForm.AddText("center xm y+1 h14 w" Config.DefaultWidth, "Assigned word list: " Config.WordListName)
     }
     
     ; Create the control pane (initially hidden)
@@ -529,7 +526,7 @@ class UI {
         this.Controls["RightTrimButton"].OnEvent("Click", (*) => UIActions.TrimRight())
         
         this.Controls["BeginningRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
-        this.Controls["BeginningRadio"].OnEvent("ContextMenu", (*) => UIActions.ScriptNameClearRadioButtons())
+        this.Controls["BeginningRadio"].OnEvent("ContextMenu", (*) => UIActions.ClearRadioButtons())
         this.Controls["MiddleRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
         this.Controls["MiddleRadio"].OnEvent("ContextMenu", (*) => UIActions.ClearRadioButtons())
         this.Controls["EndingRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
@@ -598,11 +595,12 @@ class UI {
             this.Controls["MiddleRadio"],
             this.Controls["EndingRadio"],
             this.Controls["UndoButton"],
+            this.Controls["TriggerFreqLabel"],
+            this.Controls["ReplacementFreqLabel"],
             this.Controls["TriggerMatchLabel"],
             this.Controls["ReplacementMatchLabel"],
             this.Controls["TriggerMatchesEdit"],
-            this.Controls["ReplacementMatchesEdit"],
-            this.Controls["WordListLabel"]
+            this.Controls["ReplacementMatchesEdit"]
         ]
     }
     
@@ -1002,6 +1000,31 @@ class UIActions {
         ; Save match counts to state
         State.TriggerMatches := triggerMatches
         State.ReplacementMatches := replacementMatches
+
+        ; Calculate and display word frequencies
+        if (triggerFilteredList != "" && triggerFilteredList != "Comparison`nword list`nnot found") {
+            ; Ensure data is loaded
+            if (!WordFrequency.isLoaded) {
+                WordFrequency.LoadSync()
+            }
+            
+            triggerFreq := WordFrequency.CalculateFrequency(triggerFilteredList)
+            UI.Controls["TriggerFreqLabel"].Text := "Web Freq [" WordFrequency.FormatFrequency(triggerFreq) "]"
+        } else {
+            UI.Controls["TriggerFreqLabel"].Text := "Web Freq [0 mil]"
+        }
+
+        if (replacementFilteredList != "" && replacementFilteredList != "Comparison`nword list`nnot found") {
+            ; Ensure data is loaded
+            if (!WordFrequency.isLoaded) {
+                WordFrequency.LoadSync()
+            }
+            
+            replacementFreq := WordFrequency.CalculateFrequency(replacementFilteredList)
+            UI.Controls["ReplacementFreqLabel"].Text := "Web Freq [" WordFrequency.FormatFrequency(replacementFreq) "]"
+        } else {
+            UI.Controls["ReplacementFreqLabel"].Text := "Web Freq [0 mil]"
+        }
     }
     
     ; Examine the words - analyze the differences between trigger and replacement
@@ -1342,8 +1365,25 @@ class UIActions {
         ; Get comment text from form
         commentInput := UI.Controls["CommentEdit"].Text
         
+
+
+
         ; Generate auto-comment about fixes and misspellings if enabled
-        if State.ReplacementMatches > 0 && Config.AutoCommentFixesAndMisspells = 1 {
+        if State.ReplacementMatches > 0 && Config.AutoCommentWithFreqAndStats = 1 {
+            ; Ensure word frequency data is loaded
+            if !WordFrequency.isLoaded {
+                WordFrequency.Initialize()
+            }
+            ; Calculate web frequency for replacement matches
+            replacementFreq := 0
+            if UI.Controls["ReplacementMatchesEdit"].Value != "" {
+                replacementFreq := WordFrequency.CalculateFrequency(UI.Controls["ReplacementMatchesEdit"].Value)
+            }
+            
+            ; Format frequency in millions with 2 decimal places
+            formattedFreq := WordFrequency.FormatFrequency(replacementFreq)
+            
+            ; Build comment about misspellings
             misspellsText := UI.Controls["TriggerMatchesEdit"].Value
             
             if State.TriggerMatches > 3 {
@@ -1354,7 +1394,8 @@ class UIActions {
                 misspellsText := ", but misspells " misspellsText
             }
             
-            autoComment := "Fixes " State.ReplacementMatches " words " misspellsText
+            ; Create the complete auto-comment with web frequency
+            autoComment := "Web Freq " formattedFreq " | Fixes " State.ReplacementMatches " words " misspellsText
             autoComment := StrReplace(autoComment, "Fixes 1 words ", "Fixes 1 word ")
         }
         
@@ -1928,6 +1969,9 @@ class Utils {
         ; Check if the call comes from command line
         global A_Args
         if A_Args.Length > 0 {
+            ; Ensure frequency data is loaded synchronously before processing the argument
+            WordFrequency.LoadSync()
+            
             A_Clipboard := A_Args[1]
             A_Args := []  ; Clear arguments after use
         }
@@ -1938,11 +1982,11 @@ class Utils {
         }
         
         ; Check for hotstring pattern in clipboard
-        hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<fCom>\h*;\h*(?:\bFIXES\h*\d+\h*WORDS?\b)?(?:\h;)?\h*(?<mCom>.*))?$"
-        ; Awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
-	    ; The regex will detect, and parse, a hotstring, whether normal, or embedded in an f() function. 
+        hsRegex := "(?Jim)^:(?<Opts>[^:]*):(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comment>\h*;.*)?$"
+        ; AI-modified version of awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
+                
         clipContent := Trim(A_Clipboard, " `t`n`r")
-        
+                
         ; If clipboard contains a hotstring, parse it
         if RegExMatch(clipContent, hsRegex, &hotstr) {
             UI.Controls["TriggerEdit"].Text := hotstr.Trig
@@ -1956,7 +2000,29 @@ class Utils {
             
             hotstr.Repl := Trim(hotstr.Repl, '"')
             UI.Controls["ReplacementEdit"].Text := hotstr.Repl
-            UI.Controls["CommentEdit"].Text := hotstr.mCom
+            
+            ; Process the comment to extract only the manual part
+            if (hotstr.Comment) {
+                ; Second regex to parse the comment portion
+                commentRegex := "(?i)\h*;\h*(?:(?<WebFreq>Web\h*Freq\h*\d+\.\d+)(?:\h*\|\h*)?)?(?:(?<Fixes>Fixes\h*\d+\h*Words?))?(?<Manual>.*$)"
+                
+                if RegExMatch(hotstr.Comment, commentRegex, &comment) {
+                    ; If manual part starts with ", but", keep it (this is part of the misspell notation)
+                    manualComment := comment.Manual
+                    if (manualComment && (InStr(manualComment, ", but") = 1 || InStr(manualComment, ",but") = 1)) {
+                        UI.Controls["CommentEdit"].Text := Trim(manualComment)
+                    } else if (manualComment && Trim(manualComment) != "") {
+                        UI.Controls["CommentEdit"].Text := Trim(manualComment)
+                    } else {
+                        UI.Controls["CommentEdit"].Text := ""
+                    }
+                } else {
+                    ; If comment regex doesn't match, use the whole comment (legacy support)
+                    UI.Controls["CommentEdit"].Text := Trim(StrReplace(hotstr.Comment, ";", ""))
+                }
+            } else {
+                UI.Controls["CommentEdit"].Text := ""
+            }
             
             State.OrigReplacement := hotstr.Repl
             
@@ -2056,10 +2122,198 @@ class Utils {
     }
 }
 
+; Add this new class in the file, before the main program section
+
+; =============== WORD FREQUENCY FUNCTIONALITY ===============
+
+class WordFrequency {
+    static wordFreqMap := Map()
+    static isLoaded := false
+    static isLoading := false
+    static EXPECTED_WORD_COUNT := 88916
+    static DATA_FILE := A_ScriptDir "\WordListsForHH\unigram_freq_list_filtered_88k.csv"
+    
+    ; Initialize word frequency data
+    static Initialize() {
+        if (!this.isLoaded && !this.isLoading) {
+            this.isLoading := true
+            Debug("Starting to load word frequency data")
+            return this.LoadWordFrequencies()
+        }
+        return this.isLoaded
+    }
+    
+    ; Load word frequencies from CSV file
+    static LoadWordFrequencies() {
+        try {
+            ; Clear existing data
+            this.wordFreqMap.Clear()
+            
+            filePath := this.DATA_FILE
+            Debug("Reading word frequency CSV file: " filePath)
+            
+            ; Process the file directly from disk, one line at a time
+            wordCount := 0
+            duplicateCount := 0
+            skippedLines := 0
+            
+            ; Check if file exists
+            if (!FileExist(filePath)) {
+                LogError("Word frequency file not found: " filePath)
+                this.isLoading := false
+                return false
+            }
+            
+            ; Open the file for reading
+            file := FileOpen(filePath, "r")
+            if (!file) {
+                LogError("Could not open word frequency file: " filePath)
+                this.isLoading := false
+                return false
+            }
+            
+            ; Read line by line
+            while !file.AtEOF {
+                line := file.ReadLine()
+                
+                ; Skip empty lines
+                if (line = "" || line = "`r")
+                    continue
+                
+                ; Split the line into word and frequency
+                commaPos := InStr(line, ",")
+                if (commaPos) {
+                    word := Trim(SubStr(line, 1, commaPos - 1))
+                    freqStr := Trim(SubStr(line, commaPos + 1))
+                    
+                    ; Skip lines with empty frequencies
+                    if (word = "" || freqStr = "") {
+                        skippedLines++
+                        continue
+                    }
+                    
+                    ; Convert frequency to number
+                    freq := Number(freqStr)
+                    if (freq = 0 && freqStr != "0") {
+                        skippedLines++
+                        continue
+                    }
+                    
+                    ; Convert word to lowercase for consistency
+                    word := StrLower(word)
+                    
+                    ; Check for duplicates
+                    if (this.wordFreqMap.Has(word)) {
+                        duplicateCount++
+                        ; For duplicates, add the frequencies together
+                        this.wordFreqMap[word] += freq
+                    } else {
+                        ; Add new word
+                        this.wordFreqMap[word] := freq
+                        wordCount++
+                    }
+                }
+            }
+            
+            ; Close the file
+            file.Close()
+            
+            Debug("Word frequency data loaded - Unique words: " wordCount)
+            Debug("Duplicate entries found: " duplicateCount)
+            Debug("Skipped lines: " skippedLines)
+            
+            this.isLoaded := true
+            this.isLoading := false
+            return true
+        }
+        catch Error as err {
+            LogError("Error loading word frequency file: " err.Message)
+            this.isLoading := false
+            return false
+        }
+    }
+
+    ; Add a synchronous loading method to the WordFrequency class
+    static LoadSync() {
+        if (!this.isLoaded) {
+            this.isLoading := true
+            result := this.LoadWordFrequencies()
+            this.isLoading := false
+            this.isLoaded := result
+            return result
+        }
+        return true
+    }
+    
+    ; Calculate total frequency for a list of words
+    static CalculateFrequency(wordList) {
+        ; Ensure data is loaded
+        if (!this.isLoaded) {
+            Debug("WordFrequency: Data not loaded when CalculateFrequency was called")
+            if (!this.LoadSync()) {
+                LogError("Failed to initialize frequency data for calculation")
+                return 0
+            }
+        }
+        
+        ; Handle empty input
+        if (wordList = "") {
+            Debug("WordFrequency: Empty word list provided to CalculateFrequency")
+            return 0
+        }
+        
+        ; Process word list
+        totalFreq := 0
+        wordList := Trim(wordList)
+        
+        ; Count words for debugging
+        wordCount := 0
+        foundCount := 0
+        
+        ; Split by newlines
+        words := StrSplit(wordList, "`n")
+        
+        ; Process each word
+        for word in words {
+            ; Clean the word (remove whitespace)
+            cleanWord := Trim(word)
+            
+            ; Skip empty words
+            if (cleanWord = "")
+                continue
+                
+            wordCount++
+            
+            ; Convert to lowercase for case-insensitive comparison
+            cleanWord := StrLower(cleanWord)
+            
+            ; Look up the word in the frequency map
+            if (this.wordFreqMap.Has(cleanWord)) {
+                freq := this.wordFreqMap[cleanWord]
+                totalFreq += freq
+                foundCount++
+            }
+        }
+        
+        Debug("WordFrequency: Processed " wordCount " words, found " foundCount " in frequency database")
+        Debug("WordFrequency: Total frequency calculated: " totalFreq)
+        
+        return totalFreq
+    }
+        
+    ; Format frequency in millions with 2 decimal places
+    static FormatFrequency(freq) {
+        return Format("{:.2f}", freq / 1000000)
+    }
+}
+
 ; =============== MAIN PROGRAM ===============
 
 ; Initialize UI components
 UI.Init()
+
+; Initialize word frequency data in the background
+SetTimer(() => WordFrequency.Initialize(), -2000)  ; Start loading 2 seconds after script startup
 
 ; Set up form-specific hotkeys
 UI.SetupFormHotkeys()
