@@ -20,6 +20,7 @@ SetWorkingDir(A_ScriptDir)
 ; =============== INCLUDES ===============
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
+#Include "PrivateParts.ahk"  ; <--- Specific to kunkel321's setup. If you see this, he forgot to remove it.
 #Include "DateTool.ahk"           ;  Calendar tool with holidays -- Optional
 #Include "PrinterTool.ahk"        ;  Shows list of installed printers -- Optional 
 ; =============== CONFIGURATION ===============
@@ -29,7 +30,7 @@ SetWorkingDir(A_ScriptDir)
 class Config {
     ; ===== General Configuration =====
     static ScriptName := "AutoCorrect2.ahk"
-    static HHWindowTitle := "AutoCorrect2"
+    static HHWindowTitle := "HotstringHelper2"
     static HotstringLibrary := "HotstringLib.ahk"
     static RemovedHsFile := "RemovedHotstrings.txt"
     static AutoCorrectsLogFile := "AutoCorrectsLog.txt"
@@ -946,13 +947,20 @@ class UIActions {
         ; Update trigger matches display
         UI.Controls["TriggerMatchesEdit"].Value := triggerFilteredList
         UI.Controls["TriggerMatchLabel"].Text := "Misspells [" triggerMatches "]"
-        
+
         ; Update trigger label based on matches
-        if triggerMatches > 0 {
+        if State.IsBoilerplate {
+            ; For boilerplate text, always show "Trigger String"
+            UI.Controls["TriggerLabel"].Text := "Trigger String"
+            UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
+        } else if triggerText = " " || triggerText = "" {
+            ; For empty trigger, show "Trigger String" 
+            UI.Controls["TriggerLabel"].Text := "Trigger String"
+            UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
+        } else if triggerMatches > 0 {
             UI.Controls["TriggerLabel"].Text := "Misspells [" triggerMatches "] words"
             UI.Controls["TriggerLabel"].SetFont("cRed")
-        }
-        else if triggerMatches = 0 {
+        } else if triggerMatches = 0 {
             UI.Controls["TriggerLabel"].Text := "No Misspellings found."
             UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
         }
@@ -1010,7 +1018,7 @@ class UIActions {
             triggerFreq := WordFrequency.CalculateFrequency(triggerFilteredList)
             UI.Controls["TriggerFreqLabel"].Text := "Web Freq [" WordFrequency.FormatFrequency(triggerFreq) "]"
         } else {
-            UI.Controls["TriggerFreqLabel"].Text := "Web Freq [0 mil]"
+            UI.Controls["TriggerFreqLabel"].Text := "Web Freq [0]"
         }
 
         if (replacementFilteredList != "" && replacementFilteredList != "Comparison`nword list`nnot found") {
@@ -1022,7 +1030,7 @@ class UIActions {
             replacementFreq := WordFrequency.CalculateFrequency(replacementFilteredList)
             UI.Controls["ReplacementFreqLabel"].Text := "Web Freq [" WordFrequency.FormatFrequency(replacementFreq) "]"
         } else {
-            UI.Controls["ReplacementFreqLabel"].Text := "Web Freq [0 mil]"
+            UI.Controls["ReplacementFreqLabel"].Text := "Web Freq [0]"
         }
     }
     
@@ -1333,13 +1341,13 @@ class UIActions {
 		if appendOption
 			this.ValidityDialog.Add("Text", "", "==============================`nAppend HotString Anyway?")
 			
-		appendButton := this.ValidityDialog.Add("Button", "", "Append Anyway")
+		appendButton := this.ValidityDialog.Add("Button", "Default", "Append Anyway")
 		appendButton.OnEvent("Click", (*) => (this.AppendHotstring(UI.Controls["OptionsEdit"].Text, UI.Controls["TriggerEdit"].Text, UI.Controls["ReplacementEdit"].Text), this.ValidityDialog.Destroy()))
 		
 		if !appendOption
 			appendButton.Visible := false
 			
-		closeButton := this.ValidityDialog.Add("Button", "x+5 Default", "Close")
+		closeButton := this.ValidityDialog.Add("Button", "x+5 ", "Close")
 		closeButton.OnEvent("Click", (*) => this.ValidityDialog.Destroy())
 		
 		; Add lookup button if needed
@@ -1979,7 +1987,13 @@ class Utils {
             Send("^c")
             ClipWait(0.3)
         }
-        
+
+        ; Add this check for empty clipboard
+        if (Trim(A_Clipboard) = "") {
+            ; Ensure the trigger label shows "Trigger String" for empty selection
+            UI.Controls["TriggerLabel"].Text := "Trigger String"
+            UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
+        }
         ; Check for hotstring pattern in clipboard
         hsRegex := "(?Jim)^:(?<Opts>[^:]*):(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comment>\h*;.*)?$"
         ; AI-modified version of awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
@@ -2057,6 +2071,9 @@ class Utils {
     
     ; Handle normal startup when clipboard doesn't contain a hotstring
     static HandleNormalStartup(content) {
+        ; Reset IsBoilerplate flag
+        State.IsBoilerplate := 0
+
         ; Determine if this is boilerplate text or a typo
         if (StrLen(content) - StrLen(StrReplace(content, " ")) > 2) || InStr(content, "`n") {
             ; Likely boilerplate text
@@ -2065,6 +2082,10 @@ class Utils {
             
             State.IsBoilerplate := 1
             UI.Controls["FunctionCheck"].Value := 0  ; Don't make multi-line items into functions
+            
+            ; Also add this line to set the label correctly
+            UI.Controls["TriggerLabel"].Text := "Trigger String"
+            UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
             
             ; Generate acronym from first letters if configured
             if Config.FirstLettersToInclude > 0 {
