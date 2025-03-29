@@ -20,7 +20,7 @@ SetWorkingDir(A_ScriptDir)
 ; =============== INCLUDES ===============
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
-#Include "PrivateParts.ahk"  ; <--- Specific to kunkel321's setup. If you see this, he forgot to remove it.
+#Include "PrivateParts.ahk"   ; <--- Specific to kunkel321's setup. If you see this, he forgot to remove it.
 #Include "DateTool.ahk"           ;  Calendar tool with holidays -- Optional
 #Include "PrinterTool.ahk"        ;  Shows list of installed printers -- Optional 
 ; =============== CONFIGURATION ===============
@@ -30,14 +30,14 @@ SetWorkingDir(A_ScriptDir)
 class Config {
     ; ===== General Configuration =====
     static ScriptName := "AutoCorrect2.ahk"
-    static HHWindowTitle := "HotstringHelper2"
+    static HHWindowTitle := "HotstringHelper2" ; Appears in title bar of HotstringHelper window. 
     static HotstringLibrary := "HotstringLib.ahk"
     static RemovedHsFile := "RemovedHotstrings.txt"
     static AutoCorrectsLogFile := "AutoCorrectsLog.txt"
     static ErrContextLog := "ErrContextLog.txt"
     static ACLogAnalyzer := "AcLogAnalyzer.exe"
-    static CODE_ERROR_LOG := ""
-    static CODE_DEBUG_LOG := ""
+    static CODE_ERROR_LOG := 0 ; Set to 1 for error logging. 
+    static CODE_DEBUG_LOG := 0 ; Set to 1 for copious debug logging (recommended: 0)
     
     ; ===== Activation Hotkey =====
     static ActivationHotkey := "#h"  ; Win+h
@@ -53,8 +53,8 @@ class Config {
 
     ; ===== Symbols for Visual Display =====
     static PilcrowSymbol := "¶"      ; Symbol for Enter
-    static DotSymbol := "• "         ; Symbol for Space
-    static TabSymbol := "⟹ "        ; Symbol for Tab
+    static DotSymbol := "• "         ; Symbol for Space. "Dot-space" allows better wrapping.
+    static TabSymbol := "⟹ "        ; Symbol for Tab. "Arrow-space" allows better wrapping.
     
     ; ===== Multi-word Entry Options =====
     static DefaultBoilerPlateOpts := ""    ; Options for boilerplate/template triggers
@@ -80,7 +80,7 @@ class Config {
     static ValidityDialogFont := "s15"
     
     ; ===== Editor =====
-    static DefaultEditor := "Notepad.exe"
+    static DefaultEditor := "Notepad.exe" ; This is backup, incase VSCode is not found.
 
     ; ===== Appearance =====
     static FormColor := "0xE5E4E2"     ; Default - will be overridden if theme file exists
@@ -140,9 +140,15 @@ class Config {
 Config.Init()
 
 ; =============== TRAY MENU SETUP ===============
+
 SetupTrayMenu() {
     acMenu := A_TrayMenu
     acMenu.Delete
+    acMenu.SetColor("Silver")
+    
+    acMenu.Add(Config.ScriptName, (*) => False)
+    acMenu.SetIcon(Config.ScriptName, "Icons\AhkBluePsicon.ico")
+    acMenu.Default := Config.ScriptName
     
     acMenu.Add("Edit This Script", (*) => EditThisScript())
     acMenu.SetIcon("Edit This Script", "Icons\edit-Blue.ico")
@@ -152,6 +158,9 @@ SetupTrayMenu() {
     
     acMenu.Add("Run Printer Tool", (*) => RunPrinterTool())
     acMenu.SetIcon("Run Printer Tool", "Icons\printer-Blue.ico")
+    
+    acMenu.Add("Show Calendar", (*) => RunDateTool())
+    acMenu.SetIcon("Show Calendar", "Icons\calendar-Blue.ico")
     
     acMenu.Add("System Up Time", (*) => UpTime())
     acMenu.SetIcon("System Up Time", "Icons\clock-Blue.ico")
@@ -164,8 +173,23 @@ SetupTrayMenu() {
     
     acMenu.Add("Exit Script", (*) => ExitApp())
     acMenu.SetIcon("Exit Script", "icons/exit-Blue.ico")
-    
-    acMenu.SetColor("Silver")
+
+    acMenu.Add("Start with Windows", (*) => StartUpAC()) ; Add menu item at the bottom.
+    if FileExist(A_Startup "\" Config.ScriptName ".lnk")
+        acMenu.Check("Start with Windows")
+    ; This function is only accessed via the systray menu item.  It toggles adding/removing
+    ; link to this script in Windows Start up folder.  Applies custom icon too.
+    StartUpAC(*) {	
+        if FileExist(A_Startup "\" Config.ScriptName ".lnk") {
+            FileDelete(A_Startup "\" Config.ScriptName ".lnk")
+            MsgBox("" Config.ScriptName " will NO LONGER auto start with Windows.",, 4096)
+        } Else {
+            FileCreateShortcut(A_WorkingDir "\" Config.ScriptName ".exe", A_Startup "\" Config.ScriptName ".lnk"
+            , A_WorkingDir, "", "", A_ScriptDir "\Icons\AhkBluePsicon.ico")
+            MsgBox(Config.ScriptName " will now auto start with Windows.",, 4096)
+        }
+        Reload()
+    }
 }
 
 ^+e:: ; Open AutoCorrect2 script in VSCode
@@ -180,10 +204,13 @@ OpenHotstringLibrary(*) {
     Run A_ScriptDir "\Code.exe " A_ScriptDir "\" Config.HotstringLibrary
 }
 
-; PrinterTool is #Included, so we could call the function directly, but we should 
+; PrinterTool and DateTool are #Included, so we could call the functions directly, but we should 
 ; get an error if the script ever wasn't included.  Sending the hotkey prevents this.
 RunPrinterTool(*) {
     Send "!+p"
+}
+RunDateTool(*) {
+    Send "!+d"
 }
 
 !+u:: ; Uptime -- time since Windows restart
@@ -1371,12 +1398,10 @@ class UIActions {
         
         ; Get comment text from form
         commentInput := UI.Controls["CommentEdit"].Text
-        
-
-
-
+    
         ; Generate auto-comment about fixes and misspellings if enabled
-        if State.ReplacementMatches > 0 && Config.AutoCommentWithFreqAndStats = 1 {
+        ; if State.ReplacementMatches > 0 && Config.AutoCommentWithFreqAndStats = 1 {
+        if Config.AutoCommentWithFreqAndStats = 1 {
             ; Ensure word frequency data is loaded
             if !WordFrequency.isLoaded {
                 WordFrequency.Initialize()
@@ -1401,9 +1426,15 @@ class UIActions {
                 misspellsText := ", but misspells " misspellsText
             }
             
+            ;msgbox formattedFreq "`n" State.ReplacementMatches
             ; Create the complete auto-comment with web frequency
-            autoComment := "Web Freq " formattedFreq " | Fixes " State.ReplacementMatches " words " misspellsText
+            If (formattedFreq != 0.00)
+                autoComment := "Web Freq " formattedFreq " | Fixes " State.ReplacementMatches " words " misspellsText
+            else
+                autoComment := "Fixes " State.ReplacementMatches " words " misspellsText
+
             autoComment := StrReplace(autoComment, "Fixes 1 words ", "Fixes 1 word ")
+            autoComment := StrReplace(autoComment, "Fixes 0 words ", "Fixes 1 word ") ; <--- catches grammar items
         }
         
         ; Add function part if needed. Combine the parts into a single- or multi-line hotstring.
@@ -1994,10 +2025,12 @@ class Utils {
             UI.Controls["TriggerLabel"].Text := "Trigger String"
             UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
         }
-        ; Check for hotstring pattern in clipboard
-        hsRegex := "(?Jim)^:(?<Opts>[^:]*):(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comment>\h*;.*)?$"
-        ; AI-modified version of awesome regex by andymbody: https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100
-                
+        
+        ; Check for hotstring pattern in clipboard - using the updated regex
+        hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
+        comRegEx := "i);\h*(?<Freq>WEB\h+FREQ\h+\d+\.\d+)?[\h,|]*(?<Fix>\bFIXES\h*\d+\h*WORDS?\b)?[\h,|]*(?<mCom>.*)$"
+        ; Awesome regexes written by Andy:  https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100#p600938
+        
         clipContent := Trim(A_Clipboard, " `t`n`r")
                 
         ; If clipboard contains a hotstring, parse it
@@ -2015,23 +2048,19 @@ class Utils {
             UI.Controls["ReplacementEdit"].Text := hotstr.Repl
             
             ; Process the comment to extract only the manual part
-            if (hotstr.Comment) {
-                ; Second regex to parse the comment portion
-                commentRegex := "(?i)\h*;\h*(?:(?<WebFreq>Web\h*Freq\h*\d+\.\d+)(?:\h*\|\h*)?)?(?:(?<Fixes>Fixes\h*\d+\h*Words?))?(?<Manual>.*$)"
-                
-                if RegExMatch(hotstr.Comment, commentRegex, &comment) {
-                    ; If manual part starts with ", but", keep it (this is part of the misspell notation)
-                    manualComment := comment.Manual
-                    if (manualComment && (InStr(manualComment, ", but") = 1 || InStr(manualComment, ",but") = 1)) {
-                        UI.Controls["CommentEdit"].Text := Trim(manualComment)
-                    } else if (manualComment && Trim(manualComment) != "") {
+            if (hotstr.Comm) {
+                ; Use the new regex to parse the comment portion
+                if RegExMatch(hotstr.Comm, comRegEx, &comment) {
+                    ; Extract the manual part of the comment
+                    manualComment := comment.mCom
+                    if (manualComment && Trim(manualComment) != "") {
                         UI.Controls["CommentEdit"].Text := Trim(manualComment)
                     } else {
                         UI.Controls["CommentEdit"].Text := ""
                     }
                 } else {
                     ; If comment regex doesn't match, use the whole comment (legacy support)
-                    UI.Controls["CommentEdit"].Text := Trim(StrReplace(hotstr.Comment, ";", ""))
+                    UI.Controls["CommentEdit"].Text := Trim(StrReplace(hotstr.Comm, ";", ""))
                 }
             } else {
                 UI.Controls["CommentEdit"].Text := ""
@@ -2068,7 +2097,7 @@ class Utils {
         ; Show UI
         UI.MainForm.Show("AutoSize yCenter")
     }
-    
+        
     ; Handle normal startup when clipboard doesn't contain a hotstring
     static HandleNormalStartup(content) {
         ; Reset IsBoilerplate flag
@@ -2362,7 +2391,7 @@ Debug(message) {
 }
 
 ;===============================================================================
-#HotIf WinActive(Config.HHWindowTitle) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" )
+#HotIf WinActive(Config.ScriptName) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" )
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.  ; hide
 {
 	Send("^s") ; Save me.
