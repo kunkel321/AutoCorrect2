@@ -1,4 +1,4 @@
-; AutoCorrectSystem.ahk
+; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality
 ; Version: 3-6-2025.1
@@ -6,7 +6,14 @@
 ;===============================================================================
 ;                         AutoCorrect System Module
 ;===============================================================================
-
+; Master switch to enable/disable logging globally
+; Setting this to 0 will:
+; 1. Disable the autocorrection log (AutoCorrectsLog.txt)
+; 2. Disable the backspace context logger (ErrContextLog.txt)
+; 3. Skip all logging operations but maintain other functionality
+; This can improve performance and reduce disk writes for users
+; who don't need the logging features
+Global EnableLogging := 1
 ; Configuration parameters - can be set from main script
 Global IsRecent := 0            ; Flag to track if a hot string was recently triggered
 Global lastTrigger := "No triggers logged yet." ; Tracks the last used trigger
@@ -33,7 +40,7 @@ beepOnCorrection := 1        ; Beep when the f() function is used.
 ;                  Backspace Context Logger Settings
 ;===============================================================================
 precedingWordCount := 6      ; Cache this many words for context logging.
-followingWordCount := 5     ; Wait for this many additional words before logging.
+followingWordCount := 4     ; Wait for this many additional words before logging.
 beepOnContexLog := 1         ; Beep when an "on BS" error is logged.
 
 ;===============================================================================
@@ -72,19 +79,21 @@ f(replace := "") {
     If (beepOnCorrection = 1)
         SoundBeep(900, 60) ; Notification of replacement.
         
-    SetTimer(keepText.bind(LastTrigger), -1)
-
-    ; For onBsLogger function.
-    Global IsRecent := 1 ; Set IsRecent, then change back in 1 second.
-    setTimer (*) => IsRecent := 0, -1000 ; run only once, in 1 second.
+    ; Only set up logging if it's enabled
+    if (EnableLogging = 1) {
+        SetTimer(keepText.bind(LastTrigger), -1)
+        ; For onBsLogger function.
+        Global IsRecent := 1 ; Set IsRecent, then change back in 1 second.
+        setTimer (*) => IsRecent := 0, -1000 ; run only once, in 1 second.
+    }
 }
 
 ;===============================================================================
-; Automatically logs if an autocorrect happens, and if the user presses 
-; Backspace within the specified timeout
+; Automatically logs (if enabled) if an autocorrect happens, and if the 
+; user presses Backspace within the specified timeout
 ;===============================================================================
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
-keepText(KeepForLog, *) {
+keepText(KeepForLog, *) {       
     KeepForLog := StrReplace(KeepForLog, "`n", "``n") ; Fixes triggers spanning two lines.
     global lih := InputHook("B V I1 E T1", "{Backspace}") ; "logger input hook." T is time-out. T1 = 1 second.
     lih.Start()
@@ -115,6 +124,10 @@ class BackspaceContextLogger {
     
     ; Start the logger
     static Start() {
+        ; Don't start if logging is disabled globally
+        if (EnableLogging = 0)
+            return
+
         if (this.isRunning)
             return
             
@@ -129,6 +142,14 @@ class BackspaceContextLogger {
     
     ; Process and format the log entry
     static LogContent() {
+        ; Skip logging if globally disabled
+        if (EnableLogging = 0) {
+            this.waitingForExtra := false
+            this.extraWordsCount := 0
+            this.WordArr := []
+            SetTimer(this.timeoutTimer, 0)
+            return
+        }
         if !this.waitingForExtra  ; Don't proceed if we're no longer waiting
             return
             
@@ -353,7 +374,11 @@ class InputBuffer {
 StringAndFixReport(caller := "Button") {
     ; Handle different cases based on caller parameter
     if (caller = "lastTrigger") {
-        thisMessage := "Last logged trigger:`n`n" lastTrigger
+        if (EnableLogging = 0) {
+            thisMessage := "*Logging is currently disabled*`nEnable logging by setting`nEnableLogging := 1`nin AutoCorrectSystem.ahk"
+        } else {
+            thisMessage := "Last logged trigger:`n`n" lastTrigger
+        }
         buttPos := ""
         windowTitle := "Last Triggered Hotstring"
     }
@@ -361,7 +386,7 @@ StringAndFixReport(caller := "Button") {
         ; Generate hotstring statistics report
         try {
             HsLibContents := FileRead(Config.HotstringLibrary)
-            thisOptions := "", regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0
+            thisOptions := "", regulars := 0, begins := 0, middles := 0, ends := 0, fixes := 0, entries := 0, freq := 0
             
             Loop Parse HsLibContents, '`n' {
                 If SubStr(Trim(A_LoopField),1,1) != ':'
@@ -381,6 +406,10 @@ StringAndFixReport(caller := "Button") {
                     
                 If RegExMatch(A_LoopField, 'Fixes\h*\K\d+', &fn) ; Extract fix count from comments  
                     fixes += fn[]
+                    
+                ; Extract web frequency value from comments
+                If RegExMatch(A_LoopField, 'Web Freq\h*\K[\d\.]+', &wf)
+                    freq += wf[]
             }
             
             ; Format numbers with commas
@@ -406,11 +435,13 @@ StringAndFixReport(caller := "Button") {
             '`n    Word Ends:`t`t' numberFormat(ends)
             '`n================================'
             '`n   Total Entries:`t`t' numberFormat(entries)
-            '`n   Potential Fixes:`t`t' numberFormat(fixes) 
+            '`n   Potential Fixes:`t`t' numberFormat(fixes)
+            '`n   Web Frequency:`t`t' numberFormat(Round(freq)) 'm'
             )
         }
-        catch as e {
-            thisMessage := "Could not read hotstring library`n" e.Message
+        catch Error as err {
+            thisMessage := "Could not read hotstring library`n" err.Message
+            LogError("StringAndFixReport: " err.Message)
         }
         
         buttPos := "x90"
@@ -457,6 +488,7 @@ fix_consecutive_caps() {
 		loop 26 {
 			char2 := Chr(A_Index + 64)
 			; Create hotstring for every possible combination of two letter capital letters.
+            ;If (char1 char2 != "CO")
 			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2))
 		}
 	}
