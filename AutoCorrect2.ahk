@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-26-2025 
+; Version: 3-30-2025 
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -20,7 +20,6 @@ SetWorkingDir(A_ScriptDir)
 ; =============== INCLUDES ===============
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
-#Include "PrivateParts.ahk"   ; <--- Specific to kunkel321's setup. If you see this, he forgot to remove it.
 #Include "DateTool.ahk"           ;  Calendar tool with holidays -- Optional
 #Include "PrinterTool.ahk"        ;  Shows list of installed printers -- Optional 
 ; =============== CONFIGURATION ===============
@@ -443,7 +442,7 @@ class UI {
         this.Controls["TriggerMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " y+0 xm h" Config.HeightSizeIncrease " w" Config.DefaultWidth / 2)
         this.Controls["ReplacementMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " x+5 h" Config.HeightSizeIncrease " w" Config.DefaultWidth / 2)
     }
-    
+        
     ; Create the control pane (initially hidden)
     static _CreateControlPane() {
         ; Configuration for control panel buttons
@@ -451,49 +450,61 @@ class UI {
         
         this.MainForm.SetFont("s10")
         
-		; Define available actions for the control panel
-		this.controlButtons := [
-			{
-				text: "Open HotString Library", 
-				action: (*) => UIActions.OpenHotstringLibrary(),
-				icon: ""
-			},
-			{
-				text: "Open AutoCorrection Log", 
-				action: (*) => Run(Config.AutoCorrectsLogFile),
-				icon: ""
-			},
-			{
-				text: "  Analyze AutoCorrection Log !^+Q", 
-				action: (*) => Run(Config.AcLogAnalyzer),
-				icon: A_ScriptDir "\Icons\AcAnalysis.ico"
-			},
-			{
-				text: "Open Backspace Context Log", 
-				action: (*) => Run(Config.ErrContextLog),
-				icon: ""
-			},
-			{
-				text: "Open Removed HotStrings List", 
-				action: (*) => Run(Config.RemovedHsFile),
-				icon: ""
-			},
-			{
-				text: "Open Manual Correction Log", 
-				action: (*) => Run("MCLog.txt"),
-				icon: ""
-			},
-			{
-				text: "  Analyze Manual Correction Log #^+Q", 
-				action: (*) => Run("MCLogger.exe /script MCLogger.ahk analyze"),
-				icon: A_ScriptDir "\Icons\JustLog.ico"
-			},
-			{
-				text: "Report HotStrings and Potential Fixes", 
-				action: (*) => StringAndFixReport(),
-				icon: ""
-			}
-		]
+        ; Initialize the buttons array
+        this.controlButtons := []
+        
+        ; Add always-present buttons first
+        this.controlButtons.Push({
+            text: "Open HotString Library", 
+            action: (*) => UIActions.OpenHotstringLibrary(),
+            icon: ""
+        })
+        
+        ; Add log-related buttons only if logging is enabled
+        if (IsSet(EnableLogging) && EnableLogging = 1) {
+            this.controlButtons.Push({
+                text: "Open AutoCorrection Log", 
+                action: (*) => Run(Config.AutoCorrectsLogFile),
+                icon: ""
+            })
+            
+            this.controlButtons.Push({
+                text: "  Analyze AutoCorrection Log !^+Q", 
+                action: (*) => Run(Config.AcLogAnalyzer),
+                icon: A_ScriptDir "\Icons\AcAnalysis.ico"
+            })
+            
+            this.controlButtons.Push({
+                text: "Open Backspace Context Log", 
+                action: (*) => Run(Config.ErrContextLog),
+                icon: ""
+            })
+            
+            this.controlButtons.Push({
+                text: "Open Removed HotStrings List", 
+                action: (*) => Run(Config.RemovedHsFile),
+                icon: ""
+            })
+        }
+        
+        ; Add remaining buttons regardless of logging status
+        this.controlButtons.Push({
+            text: "Open Manual Correction Log", 
+            action: (*) => Run("MCLog.txt"),
+            icon: ""
+        })
+        
+        this.controlButtons.Push({
+            text: "  Analyze Manual Correction Log #^+Q", 
+            action: (*) => Run("MCLogger.exe /script MCLogger.ahk analyze"),
+            icon: A_ScriptDir "\Icons\JustLog.ico"
+        })
+        
+        this.controlButtons.Push({
+            text: "Report HotStrings and Potential Fixes", 
+            action: (*) => StringAndFixReport(),
+            icon: ""
+        })
         
         ; Check if color theme settings exist, add theme button if they do
         if FileExist("colorThemeSettings.ini") {
@@ -501,7 +512,7 @@ class UI {
                 text: "  Change Color Theme", 
                 action: (*) => Run("ColorThemeInt.exe /script ColorThemeInt.ahk analyz"),
                 icon: A_ScriptDir "\Icons\msn butterfly.ico"
-		})
+            })
         }
         
         ; Create all buttons based on configuration
@@ -517,7 +528,6 @@ class UI {
             this.Controls["ControlButtons"].Push(button)
         }
     }
-    
     ; Set icon for a button
     static _SetButtonIcon(ButtonCtrl, IconFile) {
         hIcon := DllCall("LoadImage", "Ptr", 0, "Str", IconFile, "UInt", 1, "Int", 24, "Int", 24, "UInt", 0x10) 
