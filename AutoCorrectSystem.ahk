@@ -1,7 +1,7 @@
 ; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
-; Contains the logger and backspace detection functionality
-; Version: 3-6-2025.1
+; Contains the logger and backspace detection functionality and other things
+; Version: 3-28-2025
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -14,22 +14,6 @@
 ; This can improve performance and reduce disk writes for users
 ; who don't need the logging features
 Global EnableLogging := 1
-; Configuration parameters - can be set from main script
-Global IsRecent := 0            ; Flag to track if a hot string was recently triggered
-Global lastTrigger := "No triggers logged yet." ; Tracks the last used trigger
-
-; Logger file paths - these should match settings in the main script
-AutoCorrectsLogFile := A_ScriptDir "\AutoCorrectsLog.txt"
-ErrContextLog := A_ScriptDir "\ErrContextLog.txt"
-
-; Create log files if they don't exist
-If not FileExist(AutoCorrectsLogFile)
-    FileAppend("This will be the log of all autocorrections.`n", AutoCorrectsLogFile)
-If not FileExist(ErrContextLog)
-    FileAppend(
-        "This will be the log of extended context information for backspaced autocorrections.`n"
-        "Date Y-M-D`titem`t`t`tcontext`n"
-        "===============================================", ErrContextLog)
 
 ;===============================================================================
 ;                    Autocorrection Logger Settings
@@ -43,6 +27,25 @@ precedingWordCount := 6      ; Cache this many words for context logging.
 followingWordCount := 4     ; Wait for this many additional words before logging.
 beepOnContexLog := 1         ; Beep when an "on BS" error is logged.
 
+;===============================================================================
+
+; Logger file paths - these should match settings in the main script
+If EnableLogging {
+    ; AutoCorrectsLogFile := A_ScriptDir "\AutoCorrectsLog.txt"
+    ; ErrContextLog := A_ScriptDir "\ErrContextLog.txt"
+    ; Create log files if they don't exist
+    If not FileExist(Config.AutoCorrectsLogFile)
+        FileAppend("This will be the log of all autocorrections.`n", Config.AutoCorrectsLogFile)
+    If not FileExist(Config.ErrContextLog)
+        FileAppend(
+            "This will be the log of extended context information for backspaced autocorrections.`n"
+            "Date Y-M-D`titem`t`t`tcontext`n"
+            "===============================================", Config.ErrContextLog)
+}
+
+;================== Variable Declarations ======================================
+Global IsRecent := 0  ; Flag to track if a hot string was recently triggered
+Global lastTrigger := "No triggers logged yet." ; Tracks the last used trigger
 ;===============================================================================
 ; The main autocorrection logger f() function
 ; This function is called by all the f-style hotstrings in the library
@@ -103,7 +106,7 @@ keepText(KeepForLog, *) {
     hyphen := (lih.EndKey = "Backspace") ? " << " : " -- "
     
     ; Log the autocorrection with timestamp and hyphen style
-    FileAppend("`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog, AutoCorrectsLogFile)
+    FileAppend("`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog, Config.AutoCorrectsLogFile)
 }
 #MaxThreadsPerHotkey 1
 
@@ -179,7 +182,7 @@ class BackspaceContextLogger {
         tabs := StrLen(formattedTrigger) > 14 ? "`t" : "`t`t"
         
         ; Write to the log file
-        FileAppend(dateStamp " << " formattedTrigger tabs "---> " this.LogEntry, ErrContextLog)
+        FileAppend(dateStamp " << " formattedTrigger tabs "---> " this.LogEntry, Config.ErrContextLog)
         
         ; Play sound notification if enabled
         If (beepOnContexLog = 1)
@@ -427,7 +430,7 @@ StringAndFixReport(caller := "Button") {
             thisMessage := ( 
             'The ' Config.HotstringLibrary ' component of`n'
             Config.ScriptName ' contains the following '
-            '`n Autocorrect hotstring totals.'
+            '`n Autocorrect hotstring stats.'
             '`n================================'
             '`n    Regular Autocorrects:`t' numberFormat(regulars)
             '`n    Word Beginnings:`t`t' numberFormat(begins)
@@ -436,7 +439,7 @@ StringAndFixReport(caller := "Button") {
             '`n================================'
             '`n   Total Entries:`t`t' numberFormat(entries)
             '`n   Potential Fixes:`t`t' numberFormat(fixes)
-            '`n   Web Frequency:`t`t' numberFormat(Round(freq)) 'm'
+            '`n   Web Freq Billions:`t`t' numberFormat(Round(freq/1000,2))
             )
         }
         catch Error as err {
