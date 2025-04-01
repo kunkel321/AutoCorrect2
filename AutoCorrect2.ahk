@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-30-2025 
+; Version: 4-1-2025  
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -1460,7 +1460,8 @@ class UIActions {
         else if InStr(replacementText, "`n") {
             ; Multi-line format
             options := StrReplace(StrReplace(options, "B0", ""), "X", "")
-            openParenth := SubStr(replacementText, -1) = "`t" ? "(RTrim0`n" : "(`n"
+            ; If last char of replacement text is tab or space, include 'RTrim0'.
+            openParenth := SubStr(replacementText, -1) = "`t" || SubStr(replacementText, -1) = " " ? "(RTrim0`n" : "(`n"
             
             wholeString := ":" options ":" triggerText "::" commentText "`n" openParenth replacementText "`n)"
         }
