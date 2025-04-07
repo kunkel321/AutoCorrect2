@@ -1,7 +1,7 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated:  3-14-2025
+                Updated:  4-7-2025 
 =====================================================
 Determines frequency of items in AutoCorrects Log file, then sorts by frequency (or weight).
 Date not factored in sort. Reports the top X hotstrings that were immediately followed
@@ -181,9 +181,9 @@ class ACLogAnalyzer {
     ; Get description of current report type
     static GetReportTypeDescription() {
         if (this.Config.WeighItems = 1) && (this.Config.SortByBS = 1)
-            return "Top " this.Config.ShowX " weighted"
+            return "Top " this.Config.ShowX " weighted errant"
         else if (this.Config.SortByBS = 1)
-            return "Top " this.Config.ShowX " backspaced"
+            return "Top " this.Config.ShowX " backspaced errant"
         else
             return "Top " this.Config.ShowX " kept"
     }
@@ -262,10 +262,6 @@ class ACLogAnalyzer {
             ; Sort report by number (descending)
             sortedReport := Sort(Sort(report, "/U"), "NR")
             
-            ; Copy to clipboard if configured
-            if (this.Config.AddFulltoClipBrd = 1)
-                A_Clipboard := sortedReport
-            
             ; Extract top entries for display
             trunkReport := ""
             Loop Parse sortedReport, "`n" {
@@ -282,6 +278,10 @@ class ACLogAnalyzer {
                     break
                 }
             }
+            
+            ; Copy to clipboard if configured
+            if (this.Config.AddFulltoClipBrd = 1)
+                A_Clipboard := sortedReport
             
             return StrSplit(RTrim(trunkReport, "`n"), "`n")
         } catch Error as err {
@@ -567,7 +567,17 @@ class ACLogAnalyzer {
                 FileAppend(cullItemAndDate, this.Config.ScriptFiles.RemovedHsFile)
             }
             
-            ; Read and rewrite log file without the culled item
+            ; Extract hotstring trigger and replacement for matching context log entries
+            selItemArr := StrSplit(itemToCull, ":")
+            selItemTrigger := ""
+            
+            ; Make sure we have enough parts to form a valid hotstring trigger
+            if (selItemArr.Length >= 5) {
+                ; selItemTrigger := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
+                selItemTrigger := ":" selItemArr[3] "::"
+            }
+            
+            ; Read and rewrite main log file without the culled item
             thisFileContents := FileRead(this.Config.ScriptFiles.ACLog)
             newFileContents := ""
             
@@ -581,8 +591,35 @@ class ACLogAnalyzer {
             FileDelete(this.Config.ScriptFiles.ACLog)
             while (FileExist(this.Config.ScriptFiles.ACLog))
                 Sleep(10)
-                
+                    
             FileAppend(newFileContents, this.Config.ScriptFiles.ACLog)
+            
+            ; Now handle the context log if the trigger is valid
+            if (selItemTrigger != "" && FileExist(this.Config.ScriptFiles.ErrLog)) {
+                ; Read and rewrite context log file without the culled item's contexts
+                contextFileContents := FileRead(this.Config.ScriptFiles.ErrLog)
+                newContextContents := ""
+                
+                for contextLine in StrSplit(contextFileContents, "`n") {
+                    if (contextLine != "") {
+                        if (!InStr(contextLine, selItemTrigger))
+                            newContextContents .= contextLine "`n"
+                    }
+                }
+                
+                try {
+                    FileDelete(this.Config.ScriptFiles.ErrLog)
+                    while (FileExist(this.Config.ScriptFiles.ErrLog))
+                        Sleep(10)
+                        
+                    FileAppend(newContextContents, this.Config.ScriptFiles.ErrLog)
+                    Debug("Removed " selItemTrigger " entries from context log")
+                } catch Error as err {
+                    LogError("Error rewriting context log: " err.Message)
+                    ; Continue anyway as the main log was updated successfully
+                }
+            }
+            
             SoundBeep()
             
             this.ConfirmGui.Destroy()
@@ -630,14 +667,18 @@ class ACLogAnalyzer {
     }
 }
 
-; ======= Suggestion Feature for ACLogAnalyzer =======
+; ======= Enhanced Suggestion Feature for ACLogAnalyzer with Word Frequency =======
 /*
-This code implements the "Suggest" button functionality for ACLogAnalyzer.
+This code enhances the "Suggest" button functionality for ACLogAnalyzer.
+It integrates the word frequency functionality from wordFrequencyTotaller.ahk
+to display web frequency data for suggested hotstring fixes.
+
 When a user selects an errant hotstring and clicks "Suggest", this code will:
 1. Analyze the problematic hotstring
 2. Generate variations by adding letters to the beginning/end
 3. Evaluate each variation for matches, misspellings, and validity issues
-4. Present results in a dashboard interface
+4. Calculate web frequency data for each suggestion
+5. Present results in a dashboard interface with frequency information
 */
 
 class HotstringSuggester {
@@ -647,12 +688,16 @@ class HotstringSuggester {
     static CurrentHotstring := ""
     static Suggestions := []
     static WordListPath := ""
+    static FreqDataFile := "WordListsForHH\unigram_freq_list_filtered_88k.csv"
+    static WordFreqMap := Map()
     static CommonLetters := "etaoinsrhdlucmfywgpbvkjxqz" ; Most common letters in English
     static Config := {
         FormColor: "Default",      ; Will be set based on ACLogAnalyzer config
         FontColor: "Default",      ; Will be set based on ACLogAnalyzer config
-        ProgressColor: "c1b7706"   ; Will be set based on ACLogAnalyzer config
+        ProgressColor: "c1b7706",  ; Will be set based on ACLogAnalyzer config
+        ListColor: "Default"       ; Will be set based on ACLogAnalyzer config
     }
+    static FreqDataLoaded := false
     
     ; Initialize the suggester with necessary data
     static Init(hotstring, wordListPath) {
@@ -686,6 +731,14 @@ class HotstringSuggester {
             this._LoadWordList()
         }
         
+        ; Update to 20% - Loading frequency data
+        progress.bar.Value := 20
+        progress.gui.Title := "Loading frequency data..."
+        
+        if (!this.FreqDataLoaded) {
+            this._LoadWordFrequencies(this.FreqDataFile)
+        }
+        
         ; Update to 30% - Parsing hotstring
         progress.bar.Value := 30
         progress.gui.Title := "Parsing hotstring..."
@@ -714,6 +767,87 @@ class HotstringSuggester {
             MsgBox("Could not parse the hotstring: " hotstring)
             if progress && IsObject(progress.gui)
                 progress.gui.Destroy()
+        }
+    }
+    
+    ; Load word frequencies from CSV file
+    static _LoadWordFrequencies(filePath) {
+        try {
+            ; Clear existing data
+            this.WordFreqMap.Clear()
+            
+            ; Check if file exists
+            if (!FileExist(filePath)) {
+                Debug("Frequency data file not found: " filePath)
+                return false
+            }
+            
+            ; Process the file directly from disk, one line at a time
+            wordCount := 0
+            duplicateCount := 0
+            skippedLines := 0
+            
+            ; Open the file for reading
+            file := FileOpen(filePath, "r")
+            if (!file) {
+                Debug("Could not open frequency data file: " filePath)
+                return false
+            }
+            
+            ; Read line by line
+            while !file.AtEOF {
+                line := file.ReadLine()
+                
+                ; Skip empty lines
+                if (line = "" || line = "`r")
+                    continue
+                
+                ; Split the line into word and frequency
+                commaPos := InStr(line, ",")
+                if (commaPos) {
+                    word := Trim(SubStr(line, 1, commaPos - 1))
+                    freqStr := Trim(SubStr(line, commaPos + 1))
+                    
+                    ; Skip lines with empty frequencies
+                    if (word = "" || freqStr = "") {
+                        skippedLines++
+                        continue
+                    }
+                    
+                    ; Convert frequency to number
+                    freq := Number(freqStr)
+                    if (freq = 0 && freqStr != "0") {
+                        skippedLines++
+                        continue
+                    }
+                    
+                    ; Convert word to lowercase for consistency
+                    word := StrLower(word)
+                    
+                    ; Check for duplicates
+                    if (this.WordFreqMap.Has(word)) {
+                        duplicateCount++
+                        ; For duplicates, add the frequencies together
+                        this.WordFreqMap[word] += freq
+                    } else {
+                        ; Add new word
+                        this.WordFreqMap[word] := freq
+                        wordCount++
+                    }
+                }
+            }
+            
+            ; Close the file
+            file.Close()
+            
+            Debug("Word frequency data loaded - Words: " wordCount)
+            
+            this.FreqDataLoaded := true
+            return true
+        }
+        catch Error as err {
+            Debug("Error loading frequency data: " err.Message)
+            return false
         }
     }
     
@@ -753,7 +887,7 @@ class HotstringSuggester {
                 this.LoadedWordList.Push(A_LoopReadLine)
             }
         } catch Error as err {
-            MsgBox("Error loading word list: " err.Message)
+            Debug("Error loading word list: " err.Message)
         }
     }
                 
@@ -781,6 +915,12 @@ class HotstringSuggester {
         ; Add the original as reference
         this._AddOriginalAsSuggestion(hsInfo)
         
+        ; Update progress to 85% - Calculating frequencies
+        if (progress && IsObject(progress.bar))
+            progress.bar.Value := 85, progress.gui.Title := "Calculating web frequencies..."
+            
+        ; Calculate web frequencies for all suggestions
+        this._CalculateFrequenciesForSuggestions()
     }
 
     ; Analyze words to find patterns and letter frequencies
@@ -844,11 +984,6 @@ class HotstringSuggester {
                 pos += StrLen(lcReplacement)
             }
         }
-        
-        ; Debug counts
-        ; Debug("Found " . matchInfo.words.Length . " words containing '" . lcReplacement . "'")
-        ; Debug("Preceding letters: " . this._MapToString(matchInfo.preceding))
-        ; Debug("Following letters: " . this._MapToString(matchInfo.following))
         
         return matchInfo
     }
@@ -945,13 +1080,93 @@ class HotstringSuggester {
             replacement: replacement,
             description: description,
             fixCount: fixCount,
-            hotstring: ":" options ":" trigger "::" replacement
+            hotstring: ":" options ":" trigger "::" replacement,
+            webFrequency: 0  ; Will be calculated later
         })
     }
 
     ; Helper method to check if a suggestion would fix at least one word
     static _CountFixesForSuggestion(options, trigger, replacement) {
         return this._FindMatches(replacement, options).Length
+    }
+    
+    ; Calculate web frequencies for all suggestions
+    static _CalculateFrequenciesForSuggestions() {
+        ; Skip if frequency data not loaded
+        if (!this.FreqDataLoaded) {
+            Debug("Frequency data not loaded, skipping frequency calculations")
+            return
+        }
+        
+        ; Process each suggestion
+        for idx, suggestion in this.Suggestions {
+            ; Call the frequency calculation function for the replacement
+            webFreq := this._CalculateHotstringFrequency(suggestion)
+            
+            ; Update the suggestion object with the frequency
+            suggestion.webFrequency := webFreq
+        }
+    }
+    
+    ; Calculate frequency for a single hotstring suggestion
+    static _CalculateHotstringFrequency(suggestion) {
+        ; Parse the replacement to determine hotstring type
+        hsInfo := {
+            replacement: suggestion.replacement,
+            isBeginning: InStr(suggestion.options, "*") && !InStr(suggestion.options, "?"),
+            isEnding: !InStr(suggestion.options, "*") && InStr(suggestion.options, "?"),
+            isMiddle: InStr(suggestion.options, "*") && InStr(suggestion.options, "?")
+        }
+        
+        ; Find matching words based on the hotstring type
+        matchingWords := this._FindMatchesForFrequency(hsInfo)
+        
+        ; Calculate total frequency
+        totalFreq := 0
+        
+        for idx, word in matchingWords {
+            if (this.WordFreqMap.Has(word))
+                totalFreq += this.WordFreqMap[word]
+        }
+        
+        return totalFreq
+    }
+    
+    ; Find matches for frequency calculation
+    static _FindMatchesForFrequency(hsInfo) {
+        matches := []
+        lcReplacement := StrLower(hsInfo.replacement)
+        
+        if (!lcReplacement || !this.WordFreqMap.Count)
+            return matches
+        
+        ; Iterate through the word frequency map to find matches
+        for word, freq in this.WordFreqMap {
+            ; Skip processing if word is empty
+            if (word = "")
+                continue
+                
+            if (hsInfo.isMiddle && InStr(word, lcReplacement)) {
+                matches.Push(word)
+            } else if (hsInfo.isBeginning && SubStr(word, 1, StrLen(lcReplacement)) = lcReplacement) {
+                matches.Push(word)
+            } else if (hsInfo.isEnding) {
+                ; Check if the word ends with the replacement
+                wordLength := StrLen(word)
+                replLength := StrLen(lcReplacement)
+                
+                if (wordLength >= replLength) {
+                    endPortion := SubStr(word, wordLength - replLength + 1)
+                    if (endPortion = lcReplacement) {
+                        matches.Push(word)
+                    }
+                }
+            } else if (!hsInfo.isBeginning && !hsInfo.isEnding && !hsInfo.isMiddle && word = lcReplacement) {
+                matches.Push(word)
+            }
+        }
+        
+        return matches
     }
     
     ; Helper method to convert a Map to a string for debugging
@@ -984,6 +1199,16 @@ class HotstringSuggester {
         return matches
     }
     
+    ; Format web frequency for display
+    static _FormatWebFrequency(freq) {
+        ; Return 0 if frequency is 0
+        if (freq = 0)
+            return "0"
+            
+        ; Format in millions with 2 decimal places
+        return Format("{:.2f}m", freq / 1000000)
+    }
+    
     static _ShowSimpleProgress(title, message := "Processing...") {
         ; Create a simple progress GUI
         progressGui := Gui("+AlwaysOnTop -MinimizeBox -SysMenu")
@@ -1003,68 +1228,6 @@ class HotstringSuggester {
         return {gui: progressGui, bar: progressBar}
     }
     
-    static _CheckValidity(options, trigger, replacement) {
-        ; Check for empty strings
-        if (trigger = "" || replacement = "")
-            return "Empty trigger or replacement"
-            
-        ; Check if trigger and replacement are identical
-        if (trigger = replacement)
-            return "Trigger and replacement are identical"
-            
-        ; Try to find duplicate or conflicting hotstrings
-        try {
-            hsLibPath := A_ScriptDir "\HotstringLib.ahk"
-            if (FileExist(hsLibPath)) {
-                fileContent := FileRead(hsLibPath)
-                
-                ; Look for exact duplicates
-                if (InStr(fileContent, ":" options ":" trigger "::"))
-                    return "Duplicate trigger exists"
-                    
-                ; More comprehensive check for potential conflicts
-                ; For word-middle hotstrings
-                if (InStr(options, "*") && InStr(options, "?")) {
-                    ; Search for word-middle hotstrings that might conflict
-                    RegExMatch(fileContent, "i):(?P<Opts>[^\:]*\*[^\:]*\?[^\:]*|\?[^\:]*\*[^\:]*):(?P<Trig>[^:]+)::", &match)
-                    if (IsObject(match) && match.Count() > 0) {
-                        if (InStr(match["Trig"], trigger) || InStr(trigger, match["Trig"]))
-                            return "Potential word-middle conflict"
-                    }
-                } 
-                ; For word-beginning hotstrings
-                else if (InStr(options, "*")) {
-                    ; Search for word-beginning hotstrings that might conflict
-                    RegExMatch(fileContent, "i):(?P<Opts>[^\:]*\*[^\:]*):(?P<Trig>[^:]+)::", &match)
-                    if (IsObject(match) && match.Count() > 0) {
-                        if (SubStr(trigger, 1, StrLen(match["Trig"])) = match["Trig"] || 
-                            SubStr(match["Trig"], 1, StrLen(trigger)) = trigger)
-                            return "Potential word-beginning conflict"
-                    }
-                } 
-                ; For word-ending hotstrings
-                else if (InStr(options, "?")) {
-                    ; Search for word-ending hotstrings that might conflict
-                    RegExMatch(fileContent, "i):(?P<Opts>[^\:]*\?[^\:]*):(?P<Trig>[^:]+)::", &match)
-                    if (IsObject(match) && match.Count() > 0) {
-                        if (SubStr(trigger, -StrLen(match["Trig"]) + 1) = match["Trig"] || 
-                            SubStr(match["Trig"], -StrLen(trigger) + 1) = trigger)
-                            return "Potential word-ending conflict"
-                    }
-                }
-                
-                ; Check for function-based hotstrings (f() calls)
-                RegExMatch(fileContent, "i):" options ":" trigger "::f\([^\)]+\)", &match)
-                if (IsObject(match) && match.Count() > 0)
-                    return "Duplicate trigger exists (function-based hotstring)"
-            }
-        } catch Error as err {
-            return "Error checking validity: " err.Message
-        }
-        
-        return "No issues found" ; No issues found - return explicit string
-    }
-    
     static _ShowSuggestionDashboard(hsInfo) {
         ; Create new suggestion window
         this.SuggestGui := Gui()
@@ -1072,7 +1235,7 @@ class HotstringSuggester {
         this.SuggestGui.BackColor := this.Config.FormColor
         
         ; Calculate total width based on column widths
-        totalWidth := 580
+        totalWidth := 650 ; Increased to add space for frequency column
         
         ; Title and original hotstring info - adjusted width to match ListView
         this.SuggestGui.Add("Text", "w" totalWidth, "Original hotstring: " . this.CurrentHotstring)
@@ -1080,8 +1243,8 @@ class HotstringSuggester {
                                             hsInfo.isBeginning ? "Word-Beginning" : 
                                             hsInfo.isEnding ? "Word-Ending" : "Regular"))
         
-        ; Create a ListView with only three columns (removed Misspells column)
-        columnHeaders := ["Suggestion", "Description", "Fixes"]
+        ; Create a ListView with four columns (added Web Freq column)
+        columnHeaders := ["Suggestion", "Description", "Fixes", "Web Freq"]
         
         ; Use list color for ListView background
         listViewOpts := "w" totalWidth " r15 Grid"
@@ -1090,23 +1253,29 @@ class HotstringSuggester {
             
         listView := this.SuggestGui.Add("ListView", listViewOpts, columnHeaders)
         
-        ; Set column widths as specified
+        ; Set column widths
         listView.ModifyCol(1, 175)  ; Suggestion
-        listView.ModifyCol(2, 300)  ; Description
+        listView.ModifyCol(2, 250)  ; Description
         listView.ModifyCol(3, 75)   ; Fixes
+        listView.ModifyCol(4, 100)  ; Web Frequency
         
-        ; Populate the ListView without misspells data
+        ; Populate the ListView with frequency data
         for idx, suggestion in this.Suggestions {
+            ; Format the web frequency
+            formattedFreq := this._FormatWebFrequency(suggestion.webFrequency)
+            
             ; Add suggestion to the ListView
             listView.Add(, 
                 suggestion.hotstring,
                 suggestion.description,
-                suggestion.fixCount
+                suggestion.fixCount,
+                formattedFreq
             )
         }
         
-        ; Set numeric sort for Fixes column
+        ; Set numeric sort for Fixes and Web Freq columns
         listView.ModifyCol(3, "Integer")  ; Sort Fixes column as numbers
+        listView.ModifyCol(4, "Float")    ; Sort Web Freq column as numbers
         
         ; Add text and selected suggestion edit box with theme colors
         this.SuggestGui.Add("Text", "y+10", "Selected suggestion:")
@@ -1209,12 +1378,9 @@ class HotstringSuggester {
                 return
             }
             
-            ; Hide suggestions dashboard when 'Send to HH' is pressed?
-            ; this.SuggestGui.Hide()
-            
             Run(myACFileBaseName ".exe /script " ACLogAnalyzer.Config.ScriptFiles.ACScript " " hotstring)
         } catch Error as err {
-            MsgBox("Error sending to HotString Helper: " err.Message)
+            Debug("Error sending to HotString Helper: " err.Message)
             
             ; Show the GUI again if there was an error
             this.SuggestGui.Show()
@@ -1234,6 +1400,7 @@ class HotstringSuggester {
     }
 }
 
+; Handler function for the Suggest button in ACLogAnalyzer
 SuggestAlternativesHandler(*) {
     result := ACLogAnalyzer.ProcessSelectedItem()
     if (!result)
@@ -1248,7 +1415,7 @@ SuggestAlternativesHandler(*) {
         hotstringPart := RegExReplace(fullItem, ".*for\s+(.*)$", "$1")
     }
     else if InStr(fullItem, "<<") || InStr(fullItem, "--") {
-        ; Extract based on the format with counts
+        ; Extract just the hotstring part
         hotstringPart := RegExReplace(fullItem, ".*for\s+(.*)$", "$1")
     }
     else {
@@ -1271,7 +1438,7 @@ SuggestAlternativesHandler(*) {
         ; Initialize the suggester
         HotstringSuggester.Init(hotstringPart, wordListPath)
     } catch Error as err {
-        MsgBox("Error initializing Suggestion feature: " err.Message)
+        Debug("Error initializing Suggestion feature: " err.Message)
         
         ; Show the main report GUI again if there was an error
         if (IsObject(ACLogAnalyzer.ACAGui))
@@ -1279,7 +1446,9 @@ SuggestAlternativesHandler(*) {
     }
 }
 
+; Assign the handler to ACLogAnalyzer
 ACLogAnalyzer.SuggestAlternatives := SuggestAlternativesHandler
+
 ; ======= Utility Functions =======
 
 ; Helper functions for conditional logging
