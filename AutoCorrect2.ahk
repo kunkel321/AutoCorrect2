@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 4-1-2025  
+; Version: 4-10-2025  
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -506,6 +506,15 @@ class UI {
             icon: ""
         })
         
+        ; Check if Suggester tool is present, add button.
+        if FileExist("Suggester.exe") {
+            this.controlButtons.Push({
+                text: "Hotstring Suggester Tool", 
+                action: (*) => Run("Suggester.exe"),
+                icon: ""
+            })
+        }
+
         ; Check if color theme settings exist, add theme button if they do
         if FileExist("colorThemeSettings.ini") {
             this.controlButtons.Push({
@@ -1222,6 +1231,13 @@ class UIActions {
         triggerText := UI.Controls["TriggerEdit"].Text
         replacementText := UI.Controls["ReplacementEdit"].Text
         
+        ; If Alt is pressed, send to Suggester tool
+        if GetKeyState("Alt") {
+            this.SendToSuggester(options, triggerText, replacementText)
+            return
+        }
+        
+        ; Existing code for Append functionality
         result := Validation.ValidateHotstring(options, triggerText, replacementText)
         
         if !InStr(result.combinedMsg, Config.ValidOkMessage, , , 3) {
@@ -1306,6 +1322,36 @@ class UIActions {
         A_Clipboard := State.ClipboardOld
     }
     
+    ; Send current hotstring to Suggester tool
+    static SendToSuggester(options, triggerText, replacementText) {
+        ; Construct the hotstring
+        hotstringFull := ":" options ":" triggerText "::" replacementText
+        
+        ; Log what we're sending to Suggester
+        Debug("Sending from HH2 to Suggester: " hotstringFull)
+        
+        ; Run the Suggester tool with the hotstring as parameter
+        try {
+            ; Check if Suggester.exe exists
+            if FileExist(A_ScriptDir "\Suggester.exe") {
+                Run(A_ScriptDir '\Suggester.exe /script Suggester.ahk "' hotstringFull '"')
+            }
+            ; Check if Suggester.ahk exists (as fallback)
+            else if FileExist(A_ScriptDir "\Suggester.ahk") {
+                Run('AutoHotkey.exe "' A_ScriptDir '\Suggester.ahk" "' hotstringFull '"')
+            }
+            else {
+                MsgBox("Error: Suggester tool not found. Make sure Suggester.exe or Suggester.ahk is in the current directory.")
+            }
+        } catch Error as err {
+            LogError("Error launching Suggester tool: " err.Message)
+            MsgBox("Error launching Suggester tool: " err.Message)
+        }
+        
+        ; Keep the HH2 form open
+        UI.MainForm.Show()
+    }
+
     ; Open the hotstring library in the editor
     static OpenHotstringLibrary() {
         if WinActive(Config.HHWindowTitle) {
@@ -1656,7 +1702,7 @@ class Validation {
                     ; Check for word-beginning conflicts
                     if (InStr(currentOpts, "*") && currentTrig = SubStr(triggerText, 1, StrLen(currentTrig))) ||
                        (InStr(options, "*") && triggerText = SubStr(currentTrig, 1, StrLen(triggerText))) {
-                        validHotDupes .= "`nWord Beginning conflict found at line " A_Index ", where one of the strings is a subset of the other. Whichever appears last will never be expanded.`n---> " A_LoopField
+                        validHotDupes .= "`nWord Beginning conflict found at line " A_Index ", where one of the strings is a subcomponent of the other. Whichever appears last will never be expanded.`n---> " A_LoopField
                         result.showLookupBox := 1
                         continue
                     }
@@ -1664,7 +1710,7 @@ class Validation {
                     ; Check for word-ending conflicts
                     if (InStr(currentOpts, "?") && currentTrig = SubStr(triggerText, -StrLen(currentTrig))) ||
                        (InStr(options, "?") && triggerText = SubStr(currentTrig, -StrLen(triggerText))) {
-                        validHotDupes .= "`nWord Ending conflict found at line " A_Index ", where one of the strings is a superset of the other. The longer of the strings should appear before the other, in your code.`n---> " A_LoopField
+                        validHotDupes .= "`nWord Ending conflict found at line " A_Index ", where one of the strings is a supercomponent of the other. The longer of the strings should appear before the other, in your code.`n---> " A_LoopField
                         result.showLookupBox := 1
                         continue
                     }
