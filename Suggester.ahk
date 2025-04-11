@@ -330,7 +330,7 @@ class HotstringSuggester {
         
         if (RegExMatch(hotstring, hsRegex, &match)) {
             result := {
-                options: match.Opts,
+                options: StrReplace(match.Opts, 'B0X', ''),
                 trigger: match.Trig,
                 replacement: StrReplace(match.Repl, '"', ''),
                 comment: match.mCom
