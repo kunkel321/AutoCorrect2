@@ -20,7 +20,6 @@ SetWorkingDir(A_ScriptDir)
 ; =============== INCLUDES ===============
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
-#Include "PrivateParts.ahk"   ; <--- Specific to kunkel321's setup. If you see this, he forgot to remove it.
 #Include "DateTool.ahk"           ;  Calendar tool with holidays -- Optional
 #Include "PrinterTool.ahk"        ;  Shows list of installed printers -- Optional 
 ; =============== CONFIGURATION ===============
@@ -377,8 +376,8 @@ class UI {
 		this.MainForm.SetFont("s9")
 		
 		; Add size toggle and symbols toggle buttons
-		this.Controls["SizeToggle"] := this.MainForm.AddButton("x+75 yp-5 h8 +notab", "Make Bigger")
-		this.Controls["SymbolToggle"] := this.MainForm.AddButton("x+5 h8 +notab", "+ Symbols")
+		this.Controls["SizeToggle"] := this.MainForm.AddButton("x+75 yp-5 h8", "Make Bigger")
+		this.Controls["SymbolToggle"] := this.MainForm.AddButton("x+5 h8", "+ Symbols")
 		
 		; Reset font size
 		this.MainForm.SetFont(Config.DefaultFontSize)
@@ -406,11 +405,11 @@ class UI {
         buttonWidth := (Config.DefaultWidth / 6) - 4
         
         this.Controls["AppendButton"] := this.MainForm.AddButton("xm y234 w" buttonWidth, "Append")
-        this.Controls["CheckButton"] := this.MainForm.AddButton("+notab x+5 y234 w" buttonWidth, "Check")
-        this.Controls["ExamButton"] := this.MainForm.AddButton("+notab x+5 y234 w" buttonWidth, "Exam")
-        this.Controls["SpellButton"] := this.MainForm.AddButton("+notab x+5 y234 w" buttonWidth, "Spell")
-        this.Controls["LookButton"] := this.MainForm.AddButton("+notab x+5 y234 w" buttonWidth, "Look")
-        this.Controls["CancelButton"] := this.MainForm.AddButton("+notab x+5 y234 w" buttonWidth, "Cancel")
+        this.Controls["CheckButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "Check")
+        this.Controls["ExamButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "Exam")
+        this.Controls["SpellButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "Spell")
+        this.Controls["LookButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "Look")
+        this.Controls["CancelButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "Cancel")
     }
     
      ; Create the examination pane (initially hidden)
@@ -2429,8 +2428,18 @@ SetTimer(() => WordFrequency.Initialize(), -2000)  ; Start loading 2 seconds aft
 ; Set up form-specific hotkeys
 UI.SetupFormHotkeys()
 
-; Register activation hotkey
-Hotkey(Config.ActivationHotkey, (*) => Utils.CheckClipboard())
+; Register activation hotkey with a delay
+SetTimer(RegisterHotkeyDelayed, -2000)  ; 3-second delay
+
+; Add this function somewhere appropriate, perhaps near your other helper functions
+RegisterHotkeyDelayed() {
+    try {
+        Hotkey(Config.ActivationHotkey, (*) => Utils.CheckClipboard())
+        Debug("Successfully registered activation hotkey after delay: " Config.ActivationHotkey)
+    } catch Error as err {
+        LogError("Failed to register delayed activation hotkey: " err.Message)
+    }
+}
 
 ; Check command line arguments
 if A_Args.Length > 0
@@ -2440,7 +2449,8 @@ if A_Args.Length > 0
 TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
 ;TrayTip("HotString Helper 2", "Running - Press " Config.ActivationHotkey " to activate", 10)
 
-; Helper functions for conditional logging
+; Helper functions for conditional error/debug logging.  
+; This is not for "End user" purposes, it is for mainstaining the code. 
 LogError(message) {
     if (Config.CODE_ERROR_LOG) {
         FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "error_debug_log.txt")
@@ -2477,24 +2487,24 @@ class HelpSystem {
     ; Initialize help texts for all controls
     static Init() {
         ; Main edit controls
-        this.helpTexts["OptionsEdit"] := "This is the Options edit box.`nOptions control how the hotstring behaves.`n`nCommon options:`n--------------------------`n* = no end character needed`n? = trigger inside other words`nC = case sensitive`nB0 = don't backspace the trigger`nX = Execute code instead of typing."
+        this.helpTexts["OptionsEdit"] := "This is the Options edit box.`nOptions control how the hotstring behaves.`n`nCommon options:`n--------------------------`n* = no end character needed`n? = trigger inside other words`nC = case sensitive`nB0 = don't backspace the trigger`nX = Execute code instead of typing.`n`nDon't use below with f() function:`n--------------------------`nSI = send input mode`nSE = send event mode`nKn = set key delay (n is a digit)`nO = omit end char`nR = send as raw"
         
-        this.helpTexts["TriggerEdit"] := "This is the Trigger string edit box.`n`nThe text entered here is what will be watched-for and will trigger the hotstring replacement.`n`nFor AutoCorrect entries, this will usually be a misspelled word or word-part.`n`nFor boilerplate template entries, this will be an easy to remember acronym or short string. When multiple lines of text are selected, and the hotkey is pressed, an acronym is auto-generated.`n`nWhen making AutoCorrect entries, the number of potential misspellings will be shown in red above the editbox."
+        this.helpTexts["TriggerEdit"] := "This is the Trigger string edit box.`n`nThe text entered here is what will be watched-for and will trigger the hotstring replacement.`n`nFor AutoCorrect entries, this will usually be a misspelled word or word-part.`n`nFor boilerplate template entries, this will be an easy to remember acronym or short string. When multiple lines of text, or more than three words, are selected, and the hotkey is pressed, an acronym is auto-generated from the first letter of the first words. Try it with this paragraph :) Optionally assign a default prefix character in the variables near the top of the code.`n`nWhen making AutoCorrect entries, the number of potential misspellings will be shown in red above the editbox.`n`nPressing Shift+Left jumps to trigger box and moves cursor to home position."
         
         this.helpTexts["ReplacementEdit"] := "This is the Replacement edit box.`n`nThe text entered here will replace the trigger text when the hotstring is activated.`n`nFor AutoCorrect items, this will be a corrected spelling, but for boilerplate template items, this will be the actual boilerplate text."
         
-        this.helpTexts["CommentEdit"] := "This is the Comment edit box.`n`nComments are added to the hotstring as inline AHK comments. They are useful for documenting what the hotstring does.`n`nFor AutoCorrect items: Web-Frequency totals and Potential Fixes are (optionally) automatically added to the comments."
+        this.helpTexts["CommentEdit"] := "This is the Comment edit box.`n`nComments are added to the hotstring as in-line AHK comments. They are useful for documenting what the hotstring does.`n`nFor AutoCorrect items: Web-Frequency totals and Potential Fixes are (optionally) automatically added to the comments."
         
         ; Buttons and checkboxes
         this.helpTexts["SizeToggle"] := "Toggle button to make the replacement text area larger or smaller.`n`nThis mostly applies to large boilerplate texts, not autocorrects.`n`nThe amount of increase can be customized in the code."
         
         this.helpTexts["SymbolToggle"] := "Toggle button to show special characters: spaces, tabs, and line breaks as visible symbols.`n`nThe symbols used can be customized in the code.`n`nTip: Including a space with the Pilcrow or Dot allows more natural text-wrapping in the Replacement box.`n`nThis mostly applies to large boilerplate texts, not autocorrects."
         
-        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarification, and InputBuffering."
+        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarification, and InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls."
         
-        this.helpTexts["AppendButton"] := "Adds the current hotstring to your library file and reloads the script.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem. If there is a problem, user is given the option to append anyway.`n`nShift+Click:`ncopy to clipboard instead.`n`nCtrl+Click:`nappend without closing or reloading`n`nAlt+Click:`nsend hotstring to Suggester Tool."
+        this.helpTexts["AppendButton"] := "Adds the current hotstring to your library file and reloads the script.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem. If there is a problem, user is given the option to append anyway.`n`nShift+Click:`nCopies to clipboard instead.`n`nCtrl+Click:`nAppends without closing or reloading`n`nAlt+Click:`nSends hotstring to Suggester Tool.`n`nPressing Enter will also append the new hotstring and restart the script, but not when the replacement box is focused.  In that case, pressing Enter just types a new line."
         
-        this.helpTexts["CheckButton"] := "Validates the hotstring without adding it to your library.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem."
+        this.helpTexts["CheckButton"] := "Validates the hotstring without adding it to your library.`n`nThere is a `'Look up`' button.  Select the hotstring from the report and click button to go to string in library in default editor using Ctrl+F.  If line number is selected, Ctrl+G will be used to goto line number.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem."
         
         this.helpTexts["ExamButton"] := "Opens the Exam Pane to analyze the trigger and replacement which is useful for creating multi-match autocorrect entries.`n`nRight-click to access the Secret Control Panel."
         
@@ -2515,11 +2525,45 @@ class HelpSystem {
         
         this.helpTexts["EndingRadio"] := "Sets the AutoCorrect hotstring to match word endings (adds ? option)."
         
-        this.helpTexts["UndoButton"] := "Undoes the last trim operation.`n`nShift+Click to reset to original words."
+        this.helpTexts["UndoButton"] := "Undoes the last trim operation.`n`nShift+Click to reset to original words.`n`nCtrl+Z or Shift+Ctrl+Z also works."
         
-        this.helpTexts["TriggerMatchesEdit"] := "Shows words that contain the trigger string based on selected match type.`n`nThese are potential words that would be erroneously `"mis-corrected`" by this hotstring.`n`nThe Web-Frequency total is based on the Kaggle.com list is the 1/3 Million Most Frequent English Words on the Web. The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-mis-corrected words are high-frequency words.`n`nThe Fixes number is simply the number of words in the list."
+        this.helpTexts["TriggerMatchesEdit"] := "Shows words that contain the trigger string based on selected match type.`n`nThese are potential words that would be erroneously `"mis-corrected`" by this hotstring.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-mis-corrected words are high-frequency words.`n`nThe Fixes number is simply the number of words in the list."
         
-        this.helpTexts["ReplacementMatchesEdit"] := "Shows words that contain the replacement string based on selected match type.`nThese are potential words that could be fixed by this AutoCorrect hotstring.`n`nThe Web-Frequency total is based on the Kaggle.com list is the 1/3 Million Most Frequent English Words on the Web. The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-fixed words are high-frequency words.`n`nThe Fixes number is simply the number of words in the list."
+        this.helpTexts["ReplacementMatchesEdit"] := "Shows words that contain the replacement string based on selected match type.`nThese are potential words that could be fixed by this AutoCorrect hotstring.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-fixed words are high-frequency words.`n`nThe Fixes number is simply the number of words in the list."
+        ; Control Panel buttons
+        for index, buttonConfig in UI.controlButtons {
+            switch buttonConfig.text {
+                case "Open HotString Library":
+                    this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located."
+                    
+                case "Open AutoCorrection Log":
+                    this.helpTexts["ControlButton_ACLog"] := "Opens the AutoCorrectsLog.txt file.`n`nThis log contains a record of all autocorrections made using the f() function, including whether a correction was backspaced (indicating a possible error).`n`nThe date of each logged item is present and date and item are separated with a hyphen.`n`n<< = Backspace was pressed`n-- = Backspace not pressed.`n`nThe ACLog file is analyzed by AcLogAnalyer.  Manually handling the log file is usually not needed."
+                    
+                case "  Analyze AutoCorrection Log !^+Q":
+                    this.helpTexts["ControlButton_ACAnalyze"] := "Runs the AutoCorrection Log Analyzer tool.`n`nThis tool analyzes your autocorrection log to identify problematic autocorrect items that you frequently backspace after triggering.`n`nThe hotkey Alt+Ctrl+Shift+Q can also be used to launch this tool.`n`nThe most-frequent errant hotstrings are returned as radio buttons in a report.`n`nSeveral actions can be taken on an item."
+                    
+                case "Open Backspace Context Log":
+                    this.helpTexts["ControlButton_BSLog"] := "Opens the Error Context Log file.`n`nThis log contains detailed context information around autocorrection errors, showing what was typed before and after a problematic correction.`n`nThe context log items are accessed via the AcLogAnaylzer report, to help the user figure out why a particular AutoCorrect entry is problematic.`n`nIt is usually not necessary to access the log directly."
+                    
+                case "Open Removed HotStrings List":
+                    this.helpTexts["ControlButton_RemovedHS"] := "Opens the RemovedHotstrings.txt file.`n`nThis file keeps track of hotstrings that have been removed in the past.`n`nThis helps present the user from reintrocuding a hotstring that was found to be problematic in the past.`n`nThe HH2 Validaton mechanism warns the user before appending a previously-removed string to the library.`n`nThe MCLogger will try not to log manual corrections that correspond to the errant string."
+                    
+                case "Open Manual Correction Log":
+                    this.helpTexts["ControlButton_MCLog"] := "Opens the Manual Correction Log file (MCLog.txt).`n`nThis log contains records of corrections you've made manually, which might be candidates for new autocorrect entries.`n`nThe log is accessed by the Manual Correction Log Anayzer.`n`nIt is usually not necessary to access the log directly."
+                    
+                case "  Analyze Manual Correction Log #^+Q":
+                    this.helpTexts["ControlButton_MCAnalyze"] := "Runs the Manual Correction Log Analyzer tool.`n`nThis tool helps identify patterns in your manual corrections that might be good candidates for new autocorrect entries.`n`nThe hotkey Win+Ctrl+Shift+Q can also be used to start the analysis process.`n`nIt is recommended to have the logger run in the background, to `"catch`" your manual corrections.`n`nA sophisticated series of events is used for this.  Please see the user manual."
+                    
+                case "Report HotStrings and Potential Fixes":
+                    this.helpTexts["ControlButton_Report"] := "Generates a report showing statistics about your hotstring library.`n`nThis includes counts of different types of autocorrect entries and the total number of potential word fixes.`n`nThe total `"Web Frequency`" total is given, though anaylyzing this total number is less imporant that anaylyzing the WF of particular individual hotstrings."
+                    
+                case "Hotstring Suggester Tool":
+                    this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.`n`nThe Suggester tool is usually accessed via Shift+Clicking the Append button, or via the AcLogAnalyer report."
+                    
+                case "  Change Color Theme":
+                    this.helpTexts["ControlButton_Theme"] := "Opens the Color Theme customization tool.`n`nThis allows you to change the colors of the HotstringHelper interface (was well as other apps)to match your preferences."
+            }
+        }
     }
     
     static ShowHelp(showGeneral := false) {
@@ -2530,16 +2574,56 @@ class HelpSystem {
         ; Get the currently focused control
         focusedControl := showGeneral ? "" : this.GetFocusedControl()
         
+        ; Determine if panes are visible by checking if controls are visible
+        examPaneVisible := UI.Controls["DeltaString"].Visible
+        controlPaneVisible := UI.Controls["ControlPanelLabel"].Visible
+        
         ; Determine help text based on focused control
         if focusedControl && this.helpTexts.Has(focusedControl) {
-            helpTitle := "Help for " focusedControl
+            ; Format the title based on the control type
+            if InStr(focusedControl, "ControlButton_") {
+                ; For control panel buttons, extract a clean title
+                buttonType := StrReplace(focusedControl, "ControlButton_", "")
+                
+                ; Make title more user-friendly
+                switch buttonType {
+                    case "OpenLibrary":
+                        helpTitle := "Help for 'Open HotString Library' button"
+                    case "ACLog":
+                        helpTitle := "Help for 'AutoCorrection Log' button"
+                    case "ACAnalyze":
+                        helpTitle := "Help for 'Analyze AutoCorrection Log' button"
+                    case "BSLog":
+                        helpTitle := "Help for 'Backspace Context Log' button"
+                    case "RemovedHS":
+                        helpTitle := "Help for 'Removed HotStrings List' button"
+                    case "MCLog":
+                        helpTitle := "Help for 'Manual Correction Log' button"
+                    case "MCAnalyze":
+                        helpTitle := "Help for 'Analyze Manual Correction Log' button"
+                    case "Report":
+                        helpTitle := "Help for 'Report HotStrings' button"
+                    case "Suggester":
+                        helpTitle := "Help for 'Hotstring Suggester Tool' button"
+                    case "Theme":
+                        helpTitle := "Help for 'Change Color Theme' button"
+                    default:
+                        helpTitle := "Help for Control Panel Button"
+                }
+            } else {
+                helpTitle := "Help for " focusedControl
+            }
+            
             helpText := this.helpTexts[focusedControl]
         } else {
             helpTitle := "HotString Helper Help"
-            helpText := "This is the Hotstring Helper 2.0 main window.`n`n"
-                    . "Use this tool to create and analyze hotstrings for AutoCorrect2.`n`n"
-                    . "Press F1 while focusing on a specific control for more detailed help.`n`n"
-                    . "Press Tab to move between controls or Shift+Tab to move backwards."
+            helpText := "This is the Hotstring Helper 2.0 main window.`n`nUse this tool to create and analyze hotstrings for AutoCorrect2. Some of the functionality is for making AutoCorrect items, and some is for making boilerplate template items.`n`nPress F1 while focusing on a specific control for more detailed help.`n`nPress Tab to move between controls or Shift+Tab to move backwards."
+            
+            If (examPaneVisible)
+                helpText .= "`n`n`t------------------`n`nAt the bottom is the Exam Pane.`n`nThe Blue text is the Delta String and shows what parts of the trigger /replacement are unique vs. which parts are shared.`n`nFor example: crea[s|t]ion`n`nshows the change of:`ncreasion ---> creation."
+                
+            If (controlPaneVisible)
+                helpText .= "`n`n`t------------------`n`nAt the bottom is the `"Control Pane.`"`n`nIt contains buttons to launch several script-related tools and other things.  Some items are only show conditionally.  The bottom `'Suggester`' and `'Color Theme`' buttons are only displayed if the corresponding apps are present in the AutoCorrect folder.  The log-related buttons are only displayed if logging is enabled at the top of the AutoCorrectSystem.ahk file."
         }
         
         ; Create help GUI
@@ -2560,9 +2644,10 @@ class HelpSystem {
         ; Set up event handlers
         this.helpGui.OnEvent("Escape", (*) => this.helpGui.Destroy())
     }
-        
+            
     ; Get the name of the currently focused control
     static GetFocusedControl() {
+        ; First check main controls
         for ctrlName, ctrl in UI.Controls {
             try {
                 if ctrl.Focused {
@@ -2573,33 +2658,46 @@ class HelpSystem {
                 continue
             }
         }
-        return ""
-    }
-    
-    ; Make all controls in the UI tabbable
-    static MakeControlsTabbable() {
-        for ctrlName, ctrl in UI.Controls {
-            try {
-                ; Skip controls that shouldn't be tabbable
-                if InStr(ctrlName, "Label") || InStr(ctrlName, "String") {
+        
+        ; Then check Control Panel buttons
+        if UI.Controls.Has("ControlButtons") && IsObject(UI.Controls["ControlButtons"]) {
+            for index, button in UI.Controls["ControlButtons"] {
+                try {
+                    if button.Focused {
+                        ; Map the button to its help text key based on text content
+                        buttonText := button.Text
+                        
+                        ; This switch would be cleaner with a map, but we'll use if/else for clarity
+                        if InStr(buttonText, "Open HotString Library")
+                            return "ControlButton_OpenLibrary"
+                        else if InStr(buttonText, "Open AutoCorrection Log")
+                            return "ControlButton_ACLog"
+                        else if InStr(buttonText, "Analyze AutoCorrection Log")
+                            return "ControlButton_ACAnalyze"
+                        else if InStr(buttonText, "Open Backspace Context Log")
+                            return "ControlButton_BSLog"
+                        else if InStr(buttonText, "Open Removed HotStrings List")
+                            return "ControlButton_RemovedHS"
+                        else if InStr(buttonText, "Open Manual Correction Log")
+                            return "ControlButton_MCLog"
+                        else if InStr(buttonText, "Analyze Manual Correction Log")
+                            return "ControlButton_MCAnalyze"
+                        else if InStr(buttonText, "Report HotStrings")
+                            return "ControlButton_Report"
+                        else if InStr(buttonText, "Hotstring Suggester Tool")
+                            return "ControlButton_Suggester"
+                        else if InStr(buttonText, "Change Color Theme")
+                            return "ControlButton_Theme"
+                    }
+                } catch {
                     continue
                 }
-                
-                ; Enable tabstop for the control if it has the option
-                try {
-                    ctrl.Opt("-TabStop")  ; First remove it to avoid errors
-                    ctrl.Opt("+TabStop")  ; Then add it
-                } catch {
-                    ; Ignore errors for controls that don't support TabStop
-                }
-            } catch Error as err {
-                Debug("Error making control tabbable: " ctrlName " - " err.Message)
             }
         }
+        return ""
     }
 }
 
 ; In UI.Init() function, add after UI._SetupEventHandlers():
 HelpSystem.Init()
-HelpSystem.MakeControlsTabbable()
 
