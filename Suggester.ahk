@@ -1,7 +1,7 @@
 ﻿/*
 =====================================================
             HOTSTRING SUGGESTER TOOL
-                Created:  4-10-2025 
+                Updated:  4-24-2025 
 =====================================================
 Analyzes hotstrings and suggests trimmed/modified alternatives
 that might be better matches. This standalone tool can be called
@@ -14,11 +14,16 @@ alternative versions of the hotstring that might be more effective.
 For example, analyzing a word-middle item like ":*?:cna::can" will find 
 strings that precede or follow "can" in real words, and suggest
 hotstrings like ":*?:ecna::ecan" or ":*?:cnat::cant".
+
+Tip: If UpdateClipboard = 1, the 'Send to HH' button is never needed.
+Simply select an item, then activate HotStringHelper via hotkey #h.
 */
 
 #SingleInstance Force
 #Requires AutoHotkey v2+
 TraySetIcon("imageres.dll",254) ; icon for 'add new column'
+
+
 
 ; ======= Configuration =======
 class Config {
@@ -34,6 +39,7 @@ class Config {
     ; Behavior options
     static AutoCloseForm := 0       ; 0 = Keep form open after sending to HH, 1 = Auto-close
     static MaxSuggestions := 26     ; Maximum number of suggestions per type (beginning/ending)
+    static UpdateClipboard := 1     ; When selecting list item, send it to clipboard
     static EnableLogError := 0 
     static EnableDebug := 0 
 
@@ -1019,6 +1025,8 @@ class HotstringSuggester {
         if (rowNum > 0) {
             ; Get the hotstring value directly from the ListView row
             selectedHs.Value := listView.GetText(rowNum, 1)  ; Column 1 contains the hotstring
+            If (Config.UpdateClipboard = 1)
+                A_Clipboard := selectedHs.Value
         }
     }
     
