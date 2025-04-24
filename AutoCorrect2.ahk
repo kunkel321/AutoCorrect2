@@ -20,6 +20,7 @@ SetWorkingDir(A_ScriptDir)
 ; =============== INCLUDES ===============
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
+#Include "PrivateParts.ahk"   ; <--- Specific to kunkel321's setup. If you see this, he forgot to remove it.
 #Include "DateTool.ahk"           ;  Calendar tool with holidays -- Optional
 #Include "PrinterTool.ahk"        ;  Shows list of installed printers -- Optional 
 ; =============== CONFIGURATION ===============
@@ -2102,7 +2103,8 @@ class Utils {
             clipContent := Trim(A_Clipboard, " `t`n`r")
             hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
             
-            if (clipContent != "" && RegExMatch(clipContent, hsRegex, &hotstr)) {
+            if (clipContent != "" && RegExMatch(clipContent, hsRegex, &hotstr)) 
+            && WinActive("Hotstring Suggester - Results") {
                 ; Clipboard already contains a valid hotstring, no need to copy text
                 Debug("Found hotstring in clipboard: " clipContent)
             } 
