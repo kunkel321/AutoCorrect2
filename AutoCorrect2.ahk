@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 4-11-2025  
+; Version: 4-24-2025  
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -361,10 +361,10 @@ class UI {
         
         ; Add the option and trigger input fields
         this.Controls["OptionsEdit"] := this.MainForm.AddEdit(this.ListBackground " yp+20 xm+2 w70 h24")
-        this.Controls["TriggerEdit"] := this.MainForm.AddEdit(this.ListBackground " x+18 w" Config.DefaultWidth - 86)
+        this.Controls["TriggerEdit"] := this.MainForm.AddEdit(this.ListBackground " x+18 w" Config.DefaultWidth - 91)
 
         ; Add the help button
-        this.Controls["HelpButton"] := this.MainForm.AddButton("x" (Config.DefaultWidth - 6) " y2 w25 h20", "?")
+        this.Controls["HelpButton"] := this.MainForm.AddButton("x" (Config.DefaultWidth - 10) " y2 w25 h20", "?")
         this.Controls["HelpButton"].OnEvent("Click", (*) => HelpSystem.ShowHelp(true))
     }
     
@@ -377,7 +377,7 @@ class UI {
 		
 		; Add size toggle and symbols toggle buttons
 		this.Controls["SizeToggle"] := this.MainForm.AddButton("x+75 yp-5 h8", "Make Bigger")
-		this.Controls["SymbolToggle"] := this.MainForm.AddButton("x+5 h8", "+ Symbols")
+		this.Controls["SymbolToggle"] := this.MainForm.AddButton("x+5 h8", "Show Symbols")
 		
 		; Reset font size
 		this.MainForm.SetFont(Config.DefaultFontSize)
@@ -621,7 +621,7 @@ class UI {
 
 	; Handler for Enter key
 	static EnterKeyHandler() {
-		if this.Controls["SymbolToggle"].Text = "- Symbols"
+		if this.Controls["SymbolToggle"].Text = "Hide Symbols"
 			return
 		else if this.Controls["ReplacementEdit"].Focused
 			Send("{Enter}")
@@ -741,8 +741,8 @@ class UIActions {
     
     ; Toggle symbol display in replacement text
     static ToggleSymbols() {
-        if UI.Controls["SymbolToggle"].Text = "+ Symbols" {
-            UI.Controls["SymbolToggle"].Text := "- Symbols"
+        if UI.Controls["SymbolToggle"].Text = "Show Symbols" {
+            UI.Controls["SymbolToggle"].Text := "Hide Symbols"
             
             replaceText := UI.Controls["ReplacementEdit"].Text
             
@@ -757,8 +757,8 @@ class UIActions {
             
             State.SymbolsVisible := 1
         }
-        else if UI.Controls["SymbolToggle"].Text = "- Symbols" {
-            UI.Controls["SymbolToggle"].Text := "+ Symbols"
+        else if UI.Controls["SymbolToggle"].Text = "Hide Symbols" {
+            UI.Controls["SymbolToggle"].Text := "Show Symbols"
             
             replaceText := UI.Controls["ReplacementEdit"].Text
             
@@ -1458,9 +1458,8 @@ class UIActions {
         
         ; Get comment text from form
         commentInput := UI.Controls["CommentEdit"].Text
-    
+
         ; Generate auto-comment about fixes and misspellings if enabled
-        ; if State.ReplacementMatches > 0 && Config.AutoCommentWithFreqAndStats = 1 {
         if Config.AutoCommentWithFreqAndStats = 1 {
             ; Ensure word frequency data is loaded
             if !WordFrequency.isLoaded {
@@ -1475,18 +1474,40 @@ class UIActions {
             ; Format frequency in millions with 2 decimal places
             formattedFreq := WordFrequency.FormatFrequency(replacementFreq)
             
-            ; Build comment about misspellings
-            misspellsText := UI.Controls["TriggerMatchesEdit"].Value
+            ; Get content from the TriggerMatchesEdit box and properly trim whitespace
+            triggerMatchesContent := Trim(UI.Controls["TriggerMatchesEdit"].Value, " `t`n`r")
             
-            if State.TriggerMatches > 3 {
-                misspellsText := ", but misspells " State.TriggerMatches " words !!! "
+            ; Count the number of words in the edit box
+            wordCount := 0
+            if (triggerMatchesContent != "") {
+                ; Split by newlines and count non-empty lines
+                Loop Parse, triggerMatchesContent, "`n", "`r" {
+                    trimmedLine := Trim(A_LoopField, " `t")
+                    if (trimmedLine != "")
+                        wordCount++
+                }
             }
-            else if misspellsText != "" {
-                misspellsText := SubStr(StrReplace(misspellsText, "`n", " (), "), 1, -2) ". "
+            
+            ; Build misspellsText based on TriggerMatchesEdit content
+            if wordCount > 3 {
+                misspellsText := ", but misspells " wordCount " words !!! "
+            }
+            else if wordCount > 0 {
+                ; For 3 or fewer words, collect and format them explicitly
+                wordList := ""
+                Loop Parse, triggerMatchesContent, "`n", "`r" {
+                    trimmedLine := Trim(A_LoopField, " `t")
+                    if (trimmedLine != "")
+                        wordList .= trimmedLine " (), "
+                }
+                ; Remove trailing ", " and add period
+                misspellsText := SubStr(wordList, 1, -2) ". "
                 misspellsText := ", but misspells " misspellsText
             }
+            else {
+                misspellsText := ""
+            }
             
-            ;msgbox formattedFreq "`n" State.ReplacementMatches
             ; Create the complete auto-comment with web frequency
             If (formattedFreq != 0.00)
                 autoComment := "Web Freq " formattedFreq " | Fixes " State.ReplacementMatches " words " misspellsText
@@ -1502,8 +1523,13 @@ class UIActions {
             ; Function format
             options := "B0X" StrReplace(StrReplace(options, "B0", ""), "X", "")
             
-            if commentInput != "" || autoComment != ""
+            if commentInput != "" || autoComment != "" {
                 commentText := " `; " autoComment commentInput
+                commentText := StrReplace(commentText, "words ,", "words,") ; <--- removes erroneous space
+                commentText := StrReplace(commentText, "word ,", "word,") ; <--- removes erroneous space
+                commentText := StrReplace(commentText, "word .", "word.") ; <--- removes erroneous space
+                commentText := StrReplace(commentText, "words .", "words.") ; <--- removes erroneous space
+            }
                 
             wholeString := ":" options ":" triggerText "::f(`"" replacementText "`")" commentText
         }
@@ -2062,9 +2088,6 @@ class Utils {
         ; Reset state
         State.Reset()
         
-        ; Clear clipboard
-        A_Clipboard := ""
-        
         ; Check if the call comes from command line
         global A_Args
         if A_Args.Length > 0 {
@@ -2075,25 +2098,27 @@ class Utils {
             A_Args := []  ; Clear arguments after use
         }
         else {
-            ; Copy selected text
-            Send("^c")
-            ClipWait(0.3)
+            ; Check if current clipboard already contains a hotstring
+            clipContent := Trim(A_Clipboard, " `t`n`r")
+            hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
+            
+            if (clipContent != "" && RegExMatch(clipContent, hsRegex, &hotstr)) {
+                ; Clipboard already contains a valid hotstring, no need to copy text
+                Debug("Found hotstring in clipboard: " clipContent)
+            } 
+            else {
+                ; Clear clipboard and copy selected text
+                A_Clipboard := ""
+                Send("^c")
+                ClipWait(0.3)
+            }
         }
 
-        ; Add this check for empty clipboard
-        if (Trim(A_Clipboard) = "") {
-            ; Ensure the trigger label shows "Trigger String" for empty selection
-            UI.Controls["TriggerLabel"].Text := "Trigger String"
-            UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
-        }
-        
-        ; Check for hotstring pattern in clipboard - using the updated regex
+        ; Check for hotstring pattern in clipboard
+        clipContent := Trim(A_Clipboard, " `t`n`r")
         hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
         comRegEx := "i);\h*(?<Freq>WEB\h+FREQ\h+\d+\.\d+)?[\h,|]*(?<Fix>\bFIXES\h*\d+\h*WORDS?\b)?[\h,|]*(?<mCom>.*)$"
-        ; Awesome regexes written by Andy:  https://www.autohotkey.com/boards/viewtopic.php?f=82&t=125100#p600938
         
-        clipContent := Trim(A_Clipboard, " `t`n`r")
-                
         ; If clipboard contains a hotstring, parse it
         if RegExMatch(clipContent, hsRegex, &hotstr) {
             UI.Controls["TriggerEdit"].Text := hotstr.Trig
@@ -2493,7 +2518,7 @@ class HelpSystem {
         
         this.helpTexts["ReplacementEdit"] := "This is the Replacement edit box.`n`nThe text entered here will replace the trigger text when the hotstring is activated.`n`nFor AutoCorrect items, this will be a corrected spelling, but for boilerplate template items, this will be the actual boilerplate text."
         
-        this.helpTexts["CommentEdit"] := "This is the Comment edit box.`n`nComments are added to the hotstring as in-line AHK comments. They are useful for documenting what the hotstring does.`n`nFor AutoCorrect items: Web-Frequency totals and Potential Fixes are (optionally) automatically added to the comments."
+        this.helpTexts["CommentEdit"] := "This is the Comment edit box.`n`nComments are added to the hotstring as in-line AHK comments. They are useful for documenting what the hotstring does.`n`nFor AutoCorrect items: Web-Frequency totals and Potential Fixes are (optionally) automatically added to the comments.`n`nAuto comments also inclue a flag for potential misspellings.  If there are fewer than four words, the words are listed.  If more, the number of words is given. Tip: To prevent this flag from being added, delete any words from the Misspells box before appending."
         
         ; Buttons and checkboxes
         this.helpTexts["SizeToggle"] := "Toggle button to make the replacement text area larger or smaller.`n`nThis mostly applies to large boilerplate texts, not autocorrects.`n`nThe amount of increase can be customized in the code."
@@ -2506,38 +2531,38 @@ class HelpSystem {
         
         this.helpTexts["CheckButton"] := "Validates the hotstring without adding it to your library.`n`nThere is a `'Look up`' button.  Select the hotstring from the report and click button to go to string in library in default editor using Ctrl+F.  If line number is selected, Ctrl+G will be used to goto line number.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem."
         
-        this.helpTexts["ExamButton"] := "Opens the Exam Pane to analyze the trigger and replacement which is useful for creating multi-match autocorrect entries.`n`nRight-click to access the Secret Control Panel."
+        this.helpTexts["ExamButton"] := "Opens the Exam Pane to analyze the trigger and replacement which is useful for creating multi-match autocorrect entries.`n`nRight-click to access the Secret Control Panel.`n`nIf pane is open, button text will change to `"Done`"."
         
         this.helpTexts["SpellButton"] := "Uses Google's 'Did you mean...' to check spelling of the replacement text."
         
         this.helpTexts["LookButton"] := "Looks up selected text in the onboard WordNet dictionary.`n`nRight-click to search GCIDE online."
         
-        this.helpTexts["CancelButton"] := "Closes the form without saving changes."
+        this.helpTexts["CancelButton"] := "Closes the form without saving changes.`n`nThis will also replace the previous clipboad content."
         
         ; Exam pane controls
-        this.helpTexts["LeftTrimButton"] := "Removes one character from the beginning of both trigger and replacement.`n`nGood for use with word-end or word-middle AutoCorrect items. More trimming means it will match (fix) more words, but it also increased that risk of confounding misspellings."
+        this.helpTexts["LeftTrimButton"] := "Removes one character from the beginning of both trigger and replacement.`n`nGood for use with word-end or word-middle AutoCorrect items. More trimming means it will match (fix) more words, but it also increases the risk of confounding misspellings."
         
-        this.helpTexts["RightTrimButton"] := "Removes one character from the end of both trigger and replacement.`n`nGood for use with word-beginning or word-middle AutoCorrect items. More trimming means it will match (fix) more words, but it also increased that risk of confounding misspellings."
+        this.helpTexts["RightTrimButton"] := "Removes one character from the end of both trigger and replacement.`n`nGood for use with word-beginning or word-middle AutoCorrect items. More trimming means it will match (fix) more words, but it also increases the risk of confounding misspellings."
         
-        this.helpTexts["BeginningRadio"] := "Sets the AutoCorrect hotstring to match word beginnings (adds * option)."
+        this.helpTexts["BeginningRadio"] := "Sets the AutoCorrect hotstring to match word beginnings (adds * option).`n`nFor example `"app`" matches:`n-app`n-apple`n-application`n`nBut does not match:`n-zapp`n-snapple"
         
-        this.helpTexts["MiddleRadio"] := "Sets the AutoCorrect hotstring to match anywhere in words (adds *? options)."
+        this.helpTexts["MiddleRadio"] := "Sets the AutoCorrect hotstring to match anywhere in words (adds *? options).`n`nFor example `"app`" matches:`n-app`n-apple`n-application`n-zapp`n-snapple"
         
-        this.helpTexts["EndingRadio"] := "Sets the AutoCorrect hotstring to match word endings (adds ? option)."
+        this.helpTexts["EndingRadio"] := "Sets the AutoCorrect hotstring to match word endings (adds ? option).`n`nFor example `"ap`" matches:`n-zap`n-backstrap`n-ASAP`n`nBut does not match:`n-apple`n-sappling"
         
         this.helpTexts["UndoButton"] := "Undoes the last trim operation.`n`nShift+Click to reset to original words.`n`nCtrl+Z or Shift+Ctrl+Z also works."
         
-        this.helpTexts["TriggerMatchesEdit"] := "Shows words that contain the trigger string based on selected match type.`n`nThese are potential words that would be erroneously `"mis-corrected`" by this hotstring.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-mis-corrected words are high-frequency words.`n`nThe Fixes number is simply the number of words in the list."
+        this.helpTexts["TriggerMatchesEdit"] := "Shows words that contain the trigger string based on selected match type.`n`nThese are words that would be erroneously `"mis-corrected`" by this hotstring.  I.e., if you typed it correctly, the correct spelling would get changed.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-mis-corrected words are high-frequency words.`n`nThe Misspels number is simply the number of words in the list."
         
-        this.helpTexts["ReplacementMatchesEdit"] := "Shows words that contain the replacement string based on selected match type.`nThese are potential words that could be fixed by this AutoCorrect hotstring.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-fixed words are high-frequency words.`n`nThe Fixes number is simply the number of words in the list."
+        this.helpTexts["ReplacementMatchesEdit"] := "Shows words that contain the replacement string, based on selected match type.`nThese are potential words that could be fixed by this AutoCorrect hotstring.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-fixed words are high-frequency words.`n`nThe Fixes number is simply the number of words in the list.`n`nThe goal is mostly to trim the word and adjust the radio buttons such that the maximum number of words appear in this box, while none appear in the Misspells box."
         ; Control Panel buttons
         for index, buttonConfig in UI.controlButtons {
             switch buttonConfig.text {
                 case "Open HotString Library":
-                    this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located."
+                    this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located.`n`nTip:  When adopting a newer version of the HotstringLib.ahk file from https://github.com/kunkel321/AutoCorrect2, it is recommended to use the Duplicate String ExtracterFor v2.ahk tool.  This will allow you to not lose any custom hotstrings that you have, yourself, added."
                     
                 case "Open AutoCorrection Log":
-                    this.helpTexts["ControlButton_ACLog"] := "Opens the AutoCorrectsLog.txt file.`n`nThis log contains a record of all autocorrections made using the f() function, including whether a correction was backspaced (indicating a possible error).`n`nThe date of each logged item is present and date and item are separated with a hyphen.`n`n<< = Backspace was pressed`n-- = Backspace not pressed.`n`nThe ACLog file is analyzed by AcLogAnalyer.  Manually handling the log file is usually not needed."
+                    this.helpTexts["ControlButton_ACLog"] := "Opens the AutoCorrectsLog.txt file.`n`nThis log contains a record of all autocorrections made using the f() function, including whether a correction was backspaced (indicating a possible error).`n`nThe date of each logged item is present and date and item are separated with a hyphen.`n`n<< = Backspace was pressed`n-- = Backspace not pressed.`n`nThe ACLog file is analyzed by AcLogAnalyer.  Manually handling the log file is usually not needed.`n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MCLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the AutoCorrectSystem.ahk file, and change Global EnableLogging := 1 to 0."
                     
                 case "  Analyze AutoCorrection Log !^+Q":
                     this.helpTexts["ControlButton_ACAnalyze"] := "Runs the AutoCorrection Log Analyzer tool.`n`nThis tool analyzes your autocorrection log to identify problematic autocorrect items that you frequently backspace after triggering.`n`nThe hotkey Alt+Ctrl+Shift+Q can also be used to launch this tool.`n`nThe most-frequent errant hotstrings are returned as radio buttons in a report.`n`nSeveral actions can be taken on an item."
@@ -2549,7 +2574,7 @@ class HelpSystem {
                     this.helpTexts["ControlButton_RemovedHS"] := "Opens the RemovedHotstrings.txt file.`n`nThis file keeps track of hotstrings that have been removed in the past.`n`nThis helps present the user from reintrocuding a hotstring that was found to be problematic in the past.`n`nThe HH2 Validaton mechanism warns the user before appending a previously-removed string to the library.`n`nThe MCLogger will try not to log manual corrections that correspond to the errant string."
                     
                 case "Open Manual Correction Log":
-                    this.helpTexts["ControlButton_MCLog"] := "Opens the Manual Correction Log file (MCLog.txt).`n`nThis log contains records of corrections you've made manually, which might be candidates for new autocorrect entries.`n`nThe log is accessed by the Manual Correction Log Anayzer.`n`nIt is usually not necessary to access the log directly."
+                    this.helpTexts["ControlButton_MCLog"] := "Opens the Manual Correction Log file (MCLog.txt).`n`nThis log contains records of corrections you've made manually, which might be candidates for new autocorrect entries.`n`nThe log is accessed by the Manual Correction Log Anayzer.`n`nIt is usually not necessary to access the log directly.`n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MCLog.txt files.  The purpose of these is to log and analyze your own typing experiences."
                     
                 case "  Analyze Manual Correction Log #^+Q":
                     this.helpTexts["ControlButton_MCAnalyze"] := "Runs the Manual Correction Log Analyzer tool.`n`nThis tool helps identify patterns in your manual corrections that might be good candidates for new autocorrect entries.`n`nThe hotkey Win+Ctrl+Shift+Q can also be used to start the analysis process.`n`nIt is recommended to have the logger run in the background, to `"catch`" your manual corrections.`n`nA sophisticated series of events is used for this.  Please see the user manual."
@@ -2617,10 +2642,10 @@ class HelpSystem {
             helpText := this.helpTexts[focusedControl]
         } else {
             helpTitle := "HotString Helper Help"
-            helpText := "This is the Hotstring Helper 2.0 main window.`n`nUse this tool to create and analyze hotstrings for AutoCorrect2. Some of the functionality is for making AutoCorrect items, and some is for making boilerplate template items.`n`nPress F1 while focusing on a specific control for more detailed help.`n`nPress Tab to move between controls or Shift+Tab to move backwards."
+            helpText := "This is the Hotstring Helper 2.0 main window.`n`nUse this tool to create and analyze hotstrings for AutoCorrect2. Some of the functionality is for making AutoCorrect items, and some is for making boilerplate template items.`n`nPress F1 while focusing on a specific control for more detailed help.`n`nPress Tab to move between controls or Shift+Tab to move backwards.`n`nGet the latest AutoCorrect2 suite from https://github.com/kunkel321/AutoCorrect2."
             
             If (examPaneVisible)
-                helpText .= "`n`n`t------------------`n`nAt the bottom is the Exam Pane.`n`nThe Blue text is the Delta String and shows what parts of the trigger /replacement are unique vs. which parts are shared.`n`nFor example: crea[s|t]ion`n`nshows the change of:`ncreasion ---> creation."
+                helpText .= "`n`n`t------------------`n`nAt the bottom is the `"Exam Pane.`"`n`nThe Blue text is the Delta String and shows which parts of the trigger /replacement are unique vs. which parts are shared.`n`nFor example:`n`ncrea[s|t]ion`nshows the change of:`ncreasion ---> creation.`n`nt[eh|he]`nshows the change of:`nteh ---> the.`n`n[sp|ps]ych`nshows the change of:`nspych ---> psych."
                 
             If (controlPaneVisible)
                 helpText .= "`n`n`t------------------`n`nAt the bottom is the `"Control Pane.`"`n`nIt contains buttons to launch several script-related tools and other things.  Some items are only show conditionally.  The bottom `'Suggester`' and `'Color Theme`' buttons are only displayed if the corresponding apps are present in the AutoCorrect folder.  The log-related buttons are only displayed if logging is enabled at the top of the AutoCorrectSystem.ahk file."
