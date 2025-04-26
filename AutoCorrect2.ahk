@@ -20,9 +20,9 @@ SetWorkingDir(A_ScriptDir)
 ; =============== INCLUDES ===============
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
-#Include "PrivateParts.ahk"   ; <--- Specific to kunkel321's setup. If you see this, he forgot to remove it.
-#Include "DateTool.ahk"           ;  Calendar tool with holidays -- Optional
-#Include "PrinterTool.ahk"        ;  Shows list of installed printers -- Optional 
+#Include "DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
+#Include "PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
+#Include "DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
 ; =============== CONFIGURATION ===============
 ; The configuration is centralized here for easier modification
 
@@ -2446,6 +2446,9 @@ class WordFrequency {
 
 ; =============== MAIN PROGRAM ===============
 
+TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
+;TrayTip("HotString Helper 2", "Running - Press " Config.ActivationHotkey " to activate", 10)
+
 ; Initialize UI components
 UI.Init()
 
@@ -2472,9 +2475,6 @@ RegisterHotkeyDelayed() {
 if A_Args.Length > 0
     Utils.CheckClipboard()
 
-; Information about current script location
-TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
-;TrayTip("HotString Helper 2", "Running - Press " Config.ActivationHotkey " to activate", 10)
 
 ; Helper functions for conditional error/debug logging.  
 ; This is not for "End user" purposes, it is for mainstaining the code. 

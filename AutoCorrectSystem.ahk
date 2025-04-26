@@ -1,7 +1,7 @@
-; This is AutoCorrectSystem.ahk
+﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 3-28-2025
+; Version: 4-1-2025 
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -13,27 +13,18 @@
 ; 3. Skip all logging operations but maintain other functionality
 ; This can improve performance and reduce disk writes for users
 ; who don't need the logging features
-Global EnableLogging := 1
+
+Global EnableLogging := 1   ; Main switch.
 
 ;===============================================================================
-;                    Autocorrection Logger Settings
-;===============================================================================
-beepOnCorrection := 1        ; Beep when the f() function is used.
-
-;===============================================================================
-;                  Backspace Context Logger Settings
-;===============================================================================
-precedingWordCount := 6      ; Cache this many words for context logging.
-followingWordCount := 4     ; Wait for this many additional words before logging.
-beepOnContexLog := 1         ; Beep when an "on BS" error is logged.
-
+Global beepOnCorrection := 1        ; Beep when the f() function is used.
+Global precedingWordCount := 6      ; Cache this many words for context logging.
+Global followingWordCount := 4      ; Wait for this many additional words before logging.
+Global beepOnContexLog := 1         ; Beep when an "on BS" error is logged.
 ;===============================================================================
 
-; Logger file paths - these should match settings in the main script
+; Logger file paths are set in Class Config in AutoCorrect2.ahk.
 If EnableLogging {
-    ; AutoCorrectsLogFile := A_ScriptDir "\AutoCorrectsLog.txt"
-    ; ErrContextLog := A_ScriptDir "\ErrContextLog.txt"
-    ; Create log files if they don't exist
     If not FileExist(Config.AutoCorrectsLogFile)
         FileAppend("This will be the log of all autocorrections.`n", Config.AutoCorrectsLogFile)
     If not FileExist(Config.ErrContextLog)
@@ -46,6 +37,7 @@ If EnableLogging {
 ;================== Variable Declarations ======================================
 Global IsRecent := 0  ; Flag to track if a hot string was recently triggered
 Global lastTrigger := "No triggers logged yet." ; Tracks the last used trigger
+
 ;===============================================================================
 ; The main autocorrection logger f() function
 ; This function is called by all the f-style hotstrings in the library
@@ -513,22 +505,4 @@ fix_consecutive_caps() {
 			}
 		}
 	}
-}
-
-; Extra thing not really related to AutoCorrect2.
-;##################### WINDOW MOVER ##########################
-^!Lbutton:: ; Ctrl+Alt+Left Mouse Click to drag a window
-{
-	SetWinDelay(-1) ; Sets time between moves. -1 = no time
-	CoordMode("Mouse", "Screen")
-	WinGetPos(&BwX, &BwY, , , "A") ; Begin window X Y coord.
-	WinRestore("A") ; Unmaximizes window.
-	MouseGetPos(&BmX, &BmY) ; Begin mouse X Y coord
-	while GetKeyState("Lbutton", "P") ; While left mouse button is held down.
-	{	MouseGetPos(&CmX, &CmY) ; Keep getting current mouse X Y
-		WinMove((BwX+CmX-BmX), (BwY+CmY-BmY), , , "A")
-	} 
-	SetWinDelay 100
-	CoordMode("Mouse", "Window") ; Put back, because window is mostly the default.
-Return
 }
