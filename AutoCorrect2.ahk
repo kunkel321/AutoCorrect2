@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 4-24-2025  
+; Version: 5-3-2025   
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -802,11 +802,15 @@ class UIActions {
             
             State.TrigNeedle_Orig := newTrigger
             UI.Controls["UndoButton"].Enabled := true
+        } else if State.ExamPaneOpen {
+            ; If the Exam pane is open but we didn't detect a letter addition,
+            ; update the original value to keep in sync
+            State.TrigNeedle_Orig := newTrigger
         }
         
         this.FilterWordLists()
     }
-    
+        
     ; Update the function checkbox status based on options
     static FormAsFunction() {
         if UI.Controls["FunctionCheck"].Value = 1 {
@@ -1180,6 +1184,7 @@ class UIActions {
             
             State.OrigTrigger := UI.Controls["TriggerEdit"].Text
             State.OrigReplacement := UI.Controls["ReplacementEdit"].Text
+            State.TrigNeedle_Orig := UI.Controls["TriggerEdit"].Text  ; Make sure this line is present
             
             this.ExamineWords(State.OrigTrigger, State.OrigReplacement)
             this.FilterWordLists()
@@ -1429,13 +1434,13 @@ class UIActions {
 		if appendOption
 			this.ValidityDialog.Add("Text", "", "==============================`nAppend HotString Anyway?")
 			
-		appendButton := this.ValidityDialog.Add("Button", "Default", "Append Anyway")
+		appendButton := this.ValidityDialog.Add("Button",, "Append Anyway")
 		appendButton.OnEvent("Click", (*) => (this.AppendHotstring(UI.Controls["OptionsEdit"].Text, UI.Controls["TriggerEdit"].Text, UI.Controls["ReplacementEdit"].Text), this.ValidityDialog.Destroy()))
 		
 		if !appendOption
 			appendButton.Visible := false
 			
-		closeButton := this.ValidityDialog.Add("Button", "x+5 ", "Close")
+		closeButton := this.ValidityDialog.Add("Button", "x+5 Default", "Close")
 		closeButton.OnEvent("Click", (*) => this.ValidityDialog.Destroy())
 		
 		; Add lookup button if needed
@@ -1530,6 +1535,7 @@ class UIActions {
                 commentText := StrReplace(commentText, "word ,", "word,") ; <--- removes erroneous space
                 commentText := StrReplace(commentText, "word .", "word.") ; <--- removes erroneous space
                 commentText := StrReplace(commentText, "words .", "words.") ; <--- removes erroneous space
+                commentText := StrReplace(commentText, "(). (", "(") ; <--- removes erroneous parenths
             }
                 
             wholeString := ":" options ":" triggerText "::f(`"" replacementText "`")" commentText
@@ -2099,17 +2105,13 @@ class Utils {
             A_Args := []  ; Clear arguments after use
         }
         else {
-            ; Check if current clipboard already contains a hotstring
-            clipContent := Trim(A_Clipboard, " `t`n`r")
+            ; Check if Suggester tool is active and clipboard contains a hotstring
             hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
+            clipContent := Trim(A_Clipboard, " `t`n`r")
             
-            if (clipContent != "" && RegExMatch(clipContent, hsRegex, &hotstr)) 
-            && WinActive("Hotstring Suggester - Results") {
-                ; Clipboard already contains a valid hotstring, no need to copy text
-                Debug("Found hotstring in clipboard: " clipContent)
-            } 
-            else {
-                ; Clear clipboard and copy selected text
+            if !(WinActive("Hotstring Suggester - Results") && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
+                ; If Suggester not active or clipboard doesn't contain a hotstring, 
+                ; clear clipboard and copy selected text
                 A_Clipboard := ""
                 Send("^c")
                 ClipWait(0.3)
@@ -2165,13 +2167,28 @@ class Utils {
                 UI.Controls["EndingRadio"].Value := 1
             else
                 UI.Controls["MiddleRadio"].Value := 1
-                
+            
+            ; Always close Control Pane and open Exam Pane
+            ; This ensures proper state management
+            UIActions.ShowHideControlPane(false)
+            State.ControlPaneOpen := 0
+            
+            UI.Controls["ExamButton"].Text := "Done"
+            UIActions.ShowHideExamPane(true)
+            State.ExamPaneOpen := 1
+            
             UIActions.ExamineWords(hotstr.Trig, hotstr.Repl)
-        }
-        else {
-            ; No hotstring pattern found, handle as normal text
-            State.TrigNeedle_Orig := A_Clipboard
-            this.HandleNormalStartup(A_Clipboard)
+            
+            ; Reset history for add-a-letter feature
+            State.TriggerHistory := []
+            State.ReplacementHistory := []
+            UI.Controls["UndoButton"].Enabled := false
+            
+            ; Force synchronization for add-a-letter functionality
+            UIActions.OnTriggerChanged()
+        } else {
+            ; Handle normal startup when clipboard doesn't contain a hotstring
+            Utils.HandleNormalStartup(A_Clipboard)
         }
         
         ; Reset trigger matches for validation
