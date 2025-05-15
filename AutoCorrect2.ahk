@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-3-2025   
+; Version: 5-15-2025  
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -780,37 +780,44 @@ class UIActions {
     static OnTriggerChanged() {
         newTrigger := UI.Controls["TriggerEdit"].Text
         
-        ; If trigger has changed and exam pane is open, update replacement correspondingly
-        if newTrigger != State.TrigNeedle_Orig && State.ExamPaneOpen {
-            ; Check if letter was added on the left
-            if State.TrigNeedle_Orig = SubStr(newTrigger, 2) {
-                State.TriggerHistory.Push(UI.Controls["TriggerEdit"].Text)
-                State.ReplacementHistory.Push(UI.Controls["ReplacementEdit"].Text)
-                
-                ; Add same character to left of replacement
-                UI.Controls["ReplacementEdit"].Value := SubStr(newTrigger, 1, 1) UI.Controls["ReplacementEdit"].Text
+        ; Only process add-a-letter functionality if Exam pane is open
+        if (State.ExamPaneOpen && State.TrigNeedle_Orig != "" && newTrigger != "") {
+            ; Check if exactly one letter was added (length increased by exactly 1)
+            if (StrLen(newTrigger) == StrLen(State.TrigNeedle_Orig) + 1) {
+                ; Check if letter was added on the left
+                if (State.TrigNeedle_Orig == SubStr(newTrigger, 2)) {
+                    State.TriggerHistory.Push(UI.Controls["TriggerEdit"].Text)
+                    State.ReplacementHistory.Push(UI.Controls["ReplacementEdit"].Text)
+                    
+                    ; Add same character to left of replacement
+                    UI.Controls["ReplacementEdit"].Value := SubStr(newTrigger, 1, 1) UI.Controls["ReplacementEdit"].Text
+                    UI.Controls["UndoButton"].Enabled := true
+                    Debug("Letter added to left: " SubStr(newTrigger, 1, 1))
+                }
+                ; Check if letter was added on the right
+                else if (State.TrigNeedle_Orig == SubStr(newTrigger, 1, StrLen(newTrigger) - 1)) {
+                    State.TriggerHistory.Push(UI.Controls["TriggerEdit"].Text)
+                    State.ReplacementHistory.Push(UI.Controls["ReplacementEdit"].Text)
+                    
+                    ; Add same character to right of replacement
+                    UI.Controls["ReplacementEdit"].Text := UI.Controls["ReplacementEdit"].Text SubStr(newTrigger, -1)
+                    UI.Controls["UndoButton"].Enabled := true
+                    Debug("Letter added to right: " SubStr(newTrigger, -1))
+                }
             }
             
-            ; Check if letter was added on the right
-            if State.TrigNeedle_Orig = SubStr(newTrigger, 1, StrLen(newTrigger) - 1) {
-                State.TriggerHistory.Push(UI.Controls["TriggerEdit"].Text)
-                State.ReplacementHistory.Push(UI.Controls["ReplacementEdit"].Text)
-                
-                ; Add same character to right of replacement
-                UI.Controls["ReplacementEdit"].Text := UI.Controls["ReplacementEdit"].Text SubStr(newTrigger, -1)
-            }
-            
+            ; Update original value to keep in sync
             State.TrigNeedle_Orig := newTrigger
-            UI.Controls["UndoButton"].Enabled := true
-        } else if State.ExamPaneOpen {
-            ; If the Exam pane is open but we didn't detect a letter addition,
-            ; update the original value to keep in sync
+        } else if (State.ExamPaneOpen) {
+            ; If the Exam pane is open but conditions aren't right for add-a-letter,
+            ; just update the original value
             State.TrigNeedle_Orig := newTrigger
         }
         
+        ; Always filter word lists when trigger changes
         this.FilterWordLists()
     }
-        
+            
     ; Update the function checkbox status based on options
     static FormAsFunction() {
         if UI.Controls["FunctionCheck"].Value = 1 {
@@ -849,10 +856,13 @@ class UIActions {
         UI.Controls["TriggerEdit"].Value := SubStr(UI.Controls["TriggerEdit"].Value, 2)
         UI.Controls["ReplacementEdit"].Value := SubStr(UI.Controls["ReplacementEdit"].Value, 2)
         
+        ; Update original trigger value to prevent add-a-letter from triggering
+        State.TrigNeedle_Orig := UI.Controls["TriggerEdit"].Value
+        
         UI.Controls["UndoButton"].Enabled := true
-        this.OnTriggerChanged()
+        this.FilterWordLists()
     }
-    
+
     ; Trim one character from the right of trigger and replacement
     static TrimRight() {
         ; Save current state for undo
@@ -866,8 +876,11 @@ class UIActions {
         UI.Controls["TriggerEdit"].Value := SubStr(triggerText, 1, StrLen(triggerText) - 1)
         UI.Controls["ReplacementEdit"].Value := SubStr(replacementText, 1, StrLen(replacementText) - 1)
         
+        ; Update original trigger value to prevent add-a-letter from triggering
+        State.TrigNeedle_Orig := UI.Controls["TriggerEdit"].Value
+        
         UI.Controls["UndoButton"].Enabled := true
-        this.OnTriggerChanged()
+        this.FilterWordLists()
     }
     
     ; Undo the last edit operation
