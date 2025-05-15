@@ -1,7 +1,7 @@
 ﻿/*
 =====================================================
             HOTSTRING SUGGESTER TOOL
-                Updated:  4-24-2025 
+                Updated:  5-10-2025 
 =====================================================
 Analyzes hotstrings and suggests trimmed/modified alternatives
 that might be better matches. This standalone tool can be called
@@ -911,15 +911,19 @@ class HotstringSuggester {
     ; Show the suggestion dashboard with results
     static _ShowSuggestionDashboard(hsInfo) {
         ; Create new suggestion window
-        this.SuggestGui := Gui(, "Hotstring Suggester - Results")
+        this.SuggestGui := Gui("+AlwaysOnTop", "Hotstring Suggester - Results")
         this.SuggestGui.SetFont("s12 c" (this.Config.FontColor ? this.Config.FontColor : ""))
         this.SuggestGui.BackColor := this.Config.FormColor
+        
+        ; Add "Keep window on top" checkbox at the top
+        keepOnTopCheck := this.SuggestGui.Add("Checkbox", "xm y10 Checked", "Keep window on top")
+        keepOnTopCheck.OnEvent("Click", (*) => this._ToggleAlwaysOnTop(keepOnTopCheck))
         
         ; Calculate total width based on column widths
         totalWidth := 660 ; Increased to add space for misspellings column
         
         ; Title and original hotstring info - adjusted width to match ListView
-        this.SuggestGui.Add("Text", "w" totalWidth, "Original hotstring: [ " . this.CurrentHotstring
+        this.SuggestGui.Add("Text", "y+10 w" totalWidth, "Original hotstring: [ " . this.CurrentHotstring
                                             " ]    Type: " . (hsInfo.isMiddle ? "Word-Middle" : 
                                             hsInfo.isBeginning ? "Word-Beginning" : 
                                             hsInfo.isEnding ? "Word-Ending" : "Regular"))
@@ -971,29 +975,15 @@ class HotstringSuggester {
             
         selectedHs := this.SuggestGui.Add("Edit", editOpts, "")
         
-        ; Add action buttons - centered within total width
+        ; Add a single close button centered
         buttonY := "y+8"
-        buttonWidth := 180
-        buttonSpacing := (totalWidth - (buttonWidth * 3)) / 2  ; Space between buttons
-        
-        sendToHHButton := this.SuggestGui.Add("Button", buttonY " x10 w" buttonWidth, "Send to HH")
-        sendToHHButton.OnEvent("Click", this._SendToHotStringHelperHandler.Bind(this, selectedHs))
-        
-        copyButton := this.SuggestGui.Add("Button", "x+" buttonSpacing " w" buttonWidth, "Copy to Clipboard")
-        copyButton.OnEvent("Click", this._CopyToClipboardHandler.Bind(this, selectedHs))
-        
-        closeButton := this.SuggestGui.Add("Button", "x+" buttonSpacing " w" buttonWidth, "Close")
+        closeButton := this.SuggestGui.Add("Button", buttonY " x" (totalWidth/2 - 90) " w180", "Close")
         closeButton.OnEvent("Click", this._CloseGuiHandler.Bind(this))
-        
-        ; Add auto-close checkbox
-        autoCloseCheck := this.SuggestGui.Add("Checkbox", "xm y+10", "Auto-close after sending to HH")
-        autoCloseCheck.Value := this.Config.AutoCloseForm
-        autoCloseCheck.OnEvent("Click", (*) => this.Config.AutoCloseForm := autoCloseCheck.Value)
         
         ; Update selected hotstring when item is selected
         listView.OnEvent("ItemSelect", this._ItemSelectHandler.Bind(this, listView, selectedHs))
         
-        ; Double-click to select and send to HH
+        ; Double-click behavior - just select the item
         listView.OnEvent("DoubleClick", this._DoubleClickHandler.Bind(this, listView))
         
         ; Show the GUI
@@ -1006,13 +996,12 @@ class HotstringSuggester {
         }
     }
 
-    ; Handler functions for button events
-    static _SendToHotStringHelperHandler(selectedHs, *) {
-        this._SendToHotStringHelper(selectedHs.Value)
-    }
-    
-    static _CopyToClipboardHandler(selectedHs, *) {
-        this._CopyToClipboard(selectedHs.Value)
+    ; Toggle the always on top status of the window
+    static _ToggleAlwaysOnTop(checkControl) {
+        if checkControl.Value = 1
+            WinSetAlwaysOnTop(1, this.SuggestGui)
+        else
+            WinSetAlwaysOnTop(0, this.SuggestGui)
     }
     
     static _CloseGuiHandler(*) {
@@ -1036,8 +1025,10 @@ class HotstringSuggester {
             ; Get the hotstring value directly from the ListView row
             hotstring := listView.GetText(rowNum, 1)  ; Column 1 contains the hotstring
             
-            ; Call the send method but don't pass through to ExitApp
-            this._SendToHotStringHelper(hotstring)
+            ; Just make sure it's selected and in the clipboard
+            listView.Modify(rowNum, "Select Focus")
+            If (Config.UpdateClipboard = 1)
+                A_Clipboard := hotstring
         }
     }
     
