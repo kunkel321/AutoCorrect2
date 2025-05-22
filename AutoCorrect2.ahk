@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-15-2025  
+; Version: 5-22-2025  
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AT.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -17,20 +17,19 @@ SetWorkingDir(A_ScriptDir)
 
 ; =============== INCLUDES ===============
 ; These files need to be in the same directory or properly referenced
-; =============== INCLUDES ===============
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
+#Include "PrivateParts.ahk"   ; <--- Specific to kunkel321's setup. If you see this line, he forgot to remove it.
 #Include "DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
 #Include "PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
 #Include "DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
+
 ; =============== CONFIGURATION ===============
 ; The configuration is centralized here for easier modification
-
-; In the Config class
 class Config {
     ; ===== General Configuration =====
     static ScriptName := "AutoCorrect2.ahk"
-    static HHWindowTitle := "HotstringHelper2" ; Appears in title bar of HotstringHelper window. 
+    static HHWindowTitle := A_UserName "'s HotstringHelper2" ; Appears in title bar of HotstringHelper window.  Change as desired. 
     static HotstringLibrary := "HotstringLib.ahk"
     static RemovedHsFile := "RemovedHotstrings.txt"
     static AutoCorrectsLogFile := "AutoCorrectsLog.txt"
@@ -140,7 +139,6 @@ class Config {
 Config.Init()
 
 ; =============== TRAY MENU SETUP ===============
-
 SetupTrayMenu() {
     acMenu := A_TrayMenu
     acMenu.Delete
@@ -317,6 +315,7 @@ class UI {
     static Controls := Map()
     static ListBackground := ""
     static DeltaColor := ""
+    static CommentColor := ""
     
     ; Initialize and build the main UI
     static Init() {
@@ -334,7 +333,8 @@ class UI {
         this.ListBackground := Config.ListColor != "" ? "Background" Config.ListColor : ""
         
         ; Set delta color based on brightness - defined once for the whole class
-        this.DeltaColor := Config.Brightness < 128 ? "00FFFF" : "191970" 
+        ; this.DeltaColor := Config.Brightness < 128 ? "00FFFF" : "191970" 
+        ; this.CommentColor := Config.Brightness < 128 ? "00ff22" : "005a17" 
         
         ; Build UI sections
         this._CreateTriggerSection()
@@ -398,7 +398,8 @@ class UI {
 		; Set background color for edit controls (same as in other sections)
 		this.ListBackground := Config.ListColor != "" ? "Background" Config.ListColor : ""
 		
-		this.Controls["CommentEdit"] := this.MainForm.AddEdit(this.ListBackground " cGreen xs y200 w" Config.DefaultWidth)
+        CommentColor := Config.Brightness < 128 ? "00ff22" : "005a17" 
+		this.Controls["CommentEdit"] := this.MainForm.AddEdit(this.ListBackground " c" CommentColor " xs y200 w" Config.DefaultWidth)
 	}
     
     ; Create the action buttons
@@ -575,6 +576,7 @@ class UI {
         ; Exam pane events
         this.Controls["LeftTrimButton"].OnEvent("Click", (*) => UIActions.TrimLeft())
         this.Controls["RightTrimButton"].OnEvent("Click", (*) => UIActions.TrimRight())
+        this.Controls["DeltaString"].OnEvent("Click", (*) => UIActions.UpdateDeltaString())
         
         this.Controls["BeginningRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
         this.Controls["BeginningRadio"].OnEvent("ContextMenu", (*) => UIActions.ClearRadioButtons())
@@ -704,6 +706,15 @@ class UIActions {
         }
         
         State.ExamPaneOpen := visible
+    }
+
+    static UpdateDeltaString() {
+        ; Get current trigger and replacement values
+        triggerText := UI.Controls["TriggerEdit"].Text
+        replacementText := UI.Controls["ReplacementEdit"].Text
+        
+        ; Recalculate and update the delta string
+        this.ExamineWords(triggerText, replacementText)
     }
     
     ; Shows or hides the control pane controls
