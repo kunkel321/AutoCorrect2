@@ -2133,7 +2133,8 @@ class Utils {
             hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
             clipContent := Trim(A_Clipboard, " `t`n`r")
             
-            if !(WinActive("Hotstring Suggester - Results") && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
+            ; if !(WinActive("Hotstring Suggester - Results") && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
+            if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
                 ; If Suggester not active or clipboard doesn't contain a hotstring, 
                 ; clear clipboard and copy selected text
                 A_Clipboard := ""
