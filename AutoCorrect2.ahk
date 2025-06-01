@@ -5,9 +5,9 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-22-2025  
+; Version: 5-31-2025  
 ; Author: kunkel321
-; In March 2025 it got a major refactor/rewrite using Claude AT.  
+; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -74,8 +74,6 @@ class Config {
     
     ; ===== Validity Dialog =====
     static ValidOkMessage := "-no problems found"
-    ; static ValidityDialogGreen := ""   ; Will be set during initialization
-    ; static ValidityDialogRed := ""     ; Will be set during initialization
     static ValidityDialogFont := "s15"
     
     ; ===== Editor =====
@@ -198,11 +196,16 @@ EditThisScript(*) {
 		msgbox 'cannot run ' Config.ScriptName
 }
 
+!q::msgbox "debug: " A_ScriptDir "\Code.exe "
+
 OpenHotstringLibrary(*) {
-    Run A_ScriptDir "\Code.exe " A_ScriptDir "\" Config.HotstringLibrary
+    Try
+        Run Config.EditorPath " "  Config.HotstringLibrary
+    Catch
+        msgbox 'cannot run ' Config.ScriptName
 }
 
-; PrinterTool and DateTool are #Included, so we could call the functions directly, but we should 
+; PrinterTool and DateTool are #Included, so we could call the functions directly, but we would 
 ; get an error if the script ever wasn't included.  Sending the hotkey prevents this.
 RunPrinterTool(*) {
     Send "!+p"
@@ -414,7 +417,7 @@ class UI {
         this.Controls["CancelButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "Cancel")
     }
     
-     ; Create the examination pane (initially hidden)
+    ; Create the examination pane (initially hidden)
     static _CreateExamPane() {
         ; Set font for delta string display
         this.MainForm.SetFont("s10")
@@ -1406,7 +1409,7 @@ class UIActions {
             Sleep(100)
             counter++
             
-            if counter > 40 {
+            if counter > 80 {
                 MsgBox("Cannot seem to open Library.`nMaybe an 'admin rights' issue?")
                 return
             }
