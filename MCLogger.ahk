@@ -19,6 +19,10 @@ Persistent
 ; file every X minutes. The log also saves to file on exit.  Moving the cursor 
 ; or left-clicking resets the cache and closes the tooltip. 
 ; ==============================================================================
+; Related tool:  Users of MS Word VBA may be interested in the code here
+; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
+; Which monitors the correction (via r-click) of misspelled words and logs them.
+; ==============================================================================
 
 ;========= LOGGER OPTIONS ====================================================== 
 showEachHotString := 1        ; Show a Tooltip every time a HotString pattern is captured.  1=yes / 0=no 
