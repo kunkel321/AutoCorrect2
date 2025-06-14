@@ -7,7 +7,7 @@
 ;======== DateTool-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 3-20-2025.
+; The 'H' is for 'Holidays.'   Version: 6-14-2025
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -84,6 +84,7 @@ the date, rather than just scrolling dates. Gets read as 'double-click.'
 
 Press F1 while monthCal is showing ----> Summons the help GUI."
     )
+
 ; ==============================================================================
 ; Caveat: Claude AI was used in several places, so reuse the code with cauton.
 
@@ -106,16 +107,19 @@ MyAutoCorrectFileName := "AutoCorrect2.exe" ; <------- CHANGE To NAME of your Au
 }
 #HotIf
 
-;======== Calendar User Options ================================================
+;======== DateTool User Options ================================================
 guiTitle := "DateTool-H"            ; change title if desired
-monthCalHotkey := "!+d"             ; Hotkey: Alt+Shift+D.  Change as desired.
+monthCalHotkey := "!+d"             ; Hotkey: Alt+Shift+D.  Change as desired. 
+; if monthCalHotkey is changed here, must also update RunDateTool() in AutoCorrect2.ahk. 
 ; TypeOutFormat := "dd-MMM-yyyy"       ; preferred date format for typing date in edit field
 TypeOutFormat := "M-d-yyyy"         ; preferred date format for typing date in edit field
 TypeOutAltFormat := "yyyy-MM-dd"    ; alternate preferred date format for typing
 HolidayListFormat := "MMM-dd"       ; preferred date format for popup list
 MonthCount := 3                     ; default number of months to display vertically
-ShowSingleHoliday := 1              ; show holiday when click on day (1 = yes / 0 = no)
+ShowHotstringToolTips := 1          ; shows a popup with info about entered date (1 = yes / 0 = no)
+; See ShowToolTip() function for more customization options.
 MenuReportsAsToolTips := 1          ; show menu reports as tooltips (1 = tooltip / 0 = msgbox)
+ShowSingleHoliday := 1              ; show holiday when click on day (1 = yes / 0 = no)
 ReportToolTipTimeout := 20          ; reports tooltips disappear after this many seconds.
 sAddOptions := ""
 ; sAddOptions := sAddOptions . "4 "    ; adds the week numbers to the calendar
@@ -185,11 +189,11 @@ SendDateHS(sFormat, sMode) {
     sEndKey := aInput[3]
     if sInput = "h" { ;help is called
         SendInput("{BackSpace 4}")
-        mygui := Gui("AlwaysOnTop", "DateTool Hotstring Help")
-        mygui.SetFont("s10", "Courier New")
-        mygui.Add("Text", , sHSHelp)
-        mygui.Show
-        mygui.OnEvent("Escape", (*) => mygui.Hide())
+        myHSgui := Gui("AlwaysOnTop", "DateTool Hotstring Help")
+        myHSgui.SetFont("s10", "Courier New")
+        myHSgui.Add("Text", , sHSHelp)
+        myHSgui.Show
+        myHSgui.OnEvent("Escape", (*) => myHSgui.Hide())
         return
     }
     MyDate := GetMyDate(sInput, sFormat)
@@ -491,11 +495,13 @@ GetMyDate(sCode, sFormat := "MM-dd-yyyy") {
         MyDate := FormatTime(DatePicked, sFormat)
         DTDebug("Final formatted date: " MyDate)
         
-        ; Only pass targetDay if it's a weekday format
-        if (isWeekday)
-            ShowToolTip(DatePicked, iOff, sPeriod, sCode, sFormat, isWeekday, targetDay)
-        else
-            ShowToolTip(DatePicked, iOff, sPeriod, sCode, sFormat, isWeekday)
+        If (ShowHotstringToolTips) { ; User can disable tooltip function altogether, is desired.
+            ; Only pass targetDay if it's a weekday format
+            if (isWeekday)
+                ShowToolTip(DatePicked, iOff, sPeriod, sCode, sFormat, isWeekday, targetDay)
+            else
+                ShowToolTip(DatePicked, iOff, sPeriod, sCode, sFormat, isWeekday)
+        }
             
         return MyDate
     } catch Error as err {
@@ -516,123 +522,138 @@ DaysInMonth(month, year) {
 
 ShowToolTip(sDatePicked, iOff, sPeriod, sCode, sFormat, isWeekday := false, targetDay := 0) {
     ; Configuration options
-    EmbedKeysInTip := 1
+    EmbedKeysInTip := 1 ; e.g. [ ; d 3 w e ]
     EmbedHolidayInTip := 1
+    EmbedContextInTip := 1 ; e.g. next week, last month, etc
     EmbedDateInTip := 0
     MultiLineTip := 1
     
     ; Get date components
     Y := SubStr(A_Now, 1, 4)
-    M := SubStr(A_Now, 5, 2)
-    D := SubStr(A_Now, 7, 2)
+    ; M := SubStr(A_Now, 5, 2) ; not currently used, but keep incase we need later
+    ; D := SubStr(A_Now, 7, 2) ; not currently used, but keep incase we need later
     mY := SubStr(sDatePicked, 1, 4)
-    mM := SubStr(sDatePicked, 5, 2)
-    mD := SubStr(sDatePicked, 7, 2)
+    ; mM := SubStr(sDatePicked, 5, 2) ; not currently used, but keep incase we need later
+    ; mD := SubStr(sDatePicked, 7, 2) ; not currently used, but keep incase we need later
     
     ; Default format for display
     baseDate := FormatTime(sDatePicked, sFormat)
     
-    ; Create context-specific format based on period type
-    if (isWeekday) {
-        ; Get weekday name
-        weekdayName := FormatTime(sDatePicked, "dddd")
-        
-        ; Weekday format with appropriate context
-        if (iOff = 0) {
-            contextLabel := " this week"
-        } else if (iOff = 1) {
-            contextLabel := " next week"
-        } else if (iOff = 2) {
-            contextLabel := " after next"
-        } else if (iOff > 2) {
-            contextLabel := " in " iOff " weeks"
-        } else if (iOff = -1) {
-            contextLabel := " last week"
-        } else if (iOff = -2) {
-            contextLabel := " week before last"
-        } else {
-            contextLabel := " " (-iOff) " weeks ago"
+    If (EmbedContextInTip) {
+        ; Create context-specific format based on period type
+        if (isWeekday) {
+            ; Get weekday name
+            weekdayName := FormatTime(sDatePicked, "dddd")
+            
+            ; Weekday format with appropriate context
+            if (iOff = 0) {
+                contextLabel := " this week"
+            } else if (iOff = 1) {
+                contextLabel := " next week"
+            } else if (iOff = 2) {
+                contextLabel := " after next"
+            } else if (iOff > 2) {
+                contextLabel := " in " iOff " weeks"
+            } else if (iOff = -1) {
+                contextLabel := " last week"
+            } else if (iOff = -2) {
+                contextLabel := " week before last"
+            } else {
+                contextLabel := " " (-iOff) " weeks ago"
+            }
+            
+            formattedDate := weekdayName contextLabel
         }
-        
-        formattedDate := weekdayName contextLabel
-    }
-    else if (sPeriod = "mo") {
-        ; Month format
-        if (iOff = 0)
-            contextLabel := " (this month)"
-        else if (iOff = 1)
-            contextLabel := " (next month)"
-        else if (iOff > 1)
-            contextLabel := " (in " iOff " months)"
-        else if (iOff = -1)
-            contextLabel := " (last month)"
-        else
-            contextLabel := " (" (-iOff) " months ago)"
+        else if (sPeriod = "mo") {
+            ; Month format
+            if (iOff = 0)
+                contextLabel := " (this month)"
+            else if (iOff = 1)
+                contextLabel := " (next month)"
+            else if (iOff > 1)
+                contextLabel := " (in " iOff " months)"
+            else if (iOff = -1)
+                contextLabel := " (last month)"
+            else
+                contextLabel := " (" (-iOff) " months ago)"
+                
+            formattedDate := FormatTime(sDatePicked, "MMMM yyyy") contextLabel
+        }
+        else if (sPeriod = "yr") {
+            ; Year format
+            yearDiff := mY - Y
+            if (yearDiff = 0)
+                contextLabel := " (this year)"
+            else if (yearDiff = 1)
+                contextLabel := " (next year)"
+            else if (yearDiff > 1)
+                contextLabel := " (in " yearDiff " years)"
+            else if (yearDiff = -1)
+                contextLabel := " (last year)"
+            else
+                contextLabel := " (" (-yearDiff) " years ago)"
+                
+            formattedDate := FormatTime(sDatePicked, "yyyy") contextLabel
+        }
+        else if (sPeriod = "we") {
+            ; Week format
+            if (iOff = 0)
+                contextLabel := " (this week)"
+            else if (iOff = 1)
+                contextLabel := " (next week)"
+            else if (iOff = 2)
+                contextLabel := " (week after next)"
+            else if (iOff > 2)
+                contextLabel := " (in " iOff " weeks)"
+            else if (iOff = -1)
+                contextLabel := " (last week)"
+            else if (iOff = -2)
+                contextLabel := " (week before last)"
+            else
+                contextLabel := " (" (-iOff) " weeks ago)"
+                
+            formattedDate := "Week of " FormatTime(sDatePicked, "MMM d") contextLabel
+        }
+        else {
+            ; Day format (default)
+            vNow := SubStr(A_Now, 1, 8)
+            daysOffset := DateDiff(sDatePicked, vNow, "days")
             
-        formattedDate := FormatTime(sDatePicked, "MMMM yyyy") contextLabel
+            if (daysOffset = 0)
+                contextLabel := " (today)"
+            else if (daysOffset = 1)
+                contextLabel := " (tomorrow)"
+            else if (daysOffset > 1 && daysOffset <= 7)
+                contextLabel := " (in " daysOffset " days)"
+            else if (daysOffset > 7 && daysOffset <= 14)
+                contextLabel := " (next week)"
+            else if (daysOffset > 14)
+                contextLabel := " (in " Round(daysOffset/7) " weeks)"
+            else if (daysOffset = -1)
+                contextLabel := " (yesterday)"
+            else if (daysOffset >= -7 && daysOffset < 0)
+                contextLabel := " (" (-daysOffset) " days ago)"
+            else if (daysOffset >= -14 && daysOffset < -7)
+                contextLabel := " (last week)"
+            else
+                contextLabel := " (" Round((-daysOffset)/7) " weeks ago)"
+                
+            formattedDate := FormatTime(sDatePicked, "dddd, MMM d") contextLabel
+        }
     }
-    else if (sPeriod = "yr") {
-        ; Year format
-        yearDiff := mY - Y
-        if (yearDiff = 0)
-            contextLabel := " (this year)"
-        else if (yearDiff = 1)
-            contextLabel := " (next year)"
-        else if (yearDiff > 1)
-            contextLabel := " (in " yearDiff " years)"
-        else if (yearDiff = -1)
-            contextLabel := " (last year)"
-        else
-            contextLabel := " (" (-yearDiff) " years ago)"
-            
-        formattedDate := FormatTime(sDatePicked, "yyyy") contextLabel
+    else { ; EmbedContextInTip = 0
+        if (isWeekday) ; Get weekday name
+            formattedDate := FormatTime(sDatePicked, "dddd")
+        else if (sPeriod = "mo") ; Month format
+            formattedDate := FormatTime(sDatePicked, "MMMM yyyy") 
+        else if (sPeriod = "yr") ; Year format
+            formattedDate := FormatTime(sDatePicked, "yyyy") 
+        else if (sPeriod = "we") ; Week format
+            formattedDate := "Week of " FormatTime(sDatePicked, "MMM d") 
+        else ; Day format (default)
+            formattedDate := FormatTime(sDatePicked, "dddd, MMM d")
     }
-    else if (sPeriod = "we") {
-        ; Week format
-        if (iOff = 0)
-            contextLabel := " (this week)"
-        else if (iOff = 1)
-            contextLabel := " (next week)"
-        else if (iOff = 2)
-            contextLabel := " (week after next)"
-        else if (iOff > 2)
-            contextLabel := " (in " iOff " weeks)"
-        else if (iOff = -1)
-            contextLabel := " (last week)"
-        else if (iOff = -2)
-            contextLabel := " (week before last)"
-        else
-            contextLabel := " (" (-iOff) " weeks ago)"
-            
-        formattedDate := "Week of " FormatTime(sDatePicked, "MMM d") contextLabel
-    }
-    else {
-        ; Day format (default)
-        vNow := SubStr(A_Now, 1, 8)
-        daysOffset := DateDiff(sDatePicked, vNow, "days")
-        
-        if (daysOffset = 0)
-            contextLabel := " (today)"
-        else if (daysOffset = 1)
-            contextLabel := " (tomorrow)"
-        else if (daysOffset > 1 && daysOffset <= 7)
-            contextLabel := " (in " daysOffset " days)"
-        else if (daysOffset > 7 && daysOffset <= 14)
-            contextLabel := " (next week)"
-        else if (daysOffset > 14)
-            contextLabel := " (in " Round(daysOffset/7) " weeks)"
-        else if (daysOffset = -1)
-            contextLabel := " (yesterday)"
-        else if (daysOffset >= -7 && daysOffset < 0)
-            contextLabel := " (" (-daysOffset) " days ago)"
-        else if (daysOffset >= -14 && daysOffset < -7)
-            contextLabel := " (last week)"
-        else
-            contextLabel := " (" Round((-daysOffset)/7) " weeks ago)"
-            
-        formattedDate := FormatTime(sDatePicked, "dddd, MMM d") contextLabel
-    }
-    
+
     ; Check if it's a weekend
     DayOfWeek := FormatTime(sDatePicked, "dddd")
     WeekEndPrefix := (DayOfWeek = "Saturday" || DayOfWeek = "Sunday") ? "WEEKEND --> " : ""
@@ -690,32 +711,49 @@ HolidayList := "", toggle := false  ; Variable to keep track of tooltip state
 ; ===================================================================
 
 Hotkey(monthCalHotkey, MCRemake) ; Show DateTool - H
-MCRemake(*) { ; Hotkey is Alt+Shift+D
+MCRemake(*) {
     local X, Y, W, H
     global MCGUI, TargetWindow
-    if (MCGUI)
+    if (MCGUI) {
+        MCGUIClose() ; Causes hotkey to work like toggle.
         return
-    if (TargetWindow := WinExist("A")) {
+    }
+    TargetWindow := WinExist("A") ; First try to get active window
+    
+    validWindow := false 
+    if (TargetWindow) { ; Check if we have a valid window and it's not the taskbar
+        try {
+            windowClass := WinGetClass("A")
+            validWindow := windowClass && !InStr(windowClass, "Shell_") && windowClass != "Progman"
+        } catch {
+            validWindow := false
+        }
+    }
+
+    if (validWindow) {
         WinGetPos(&X, &Y, &W, &H, TargetWindow)
         X := X + (W * 0.30)
         Y := Y + (H * 0.04)
         MCGUI := Gui("-MinimizeBox +LastFound +ToolWindow +Owner" TargetWindow, guiTitle)
-        ; MCGUI := Gui("-MinimizeBox +LastFound -caption +Owner" TargetWindow, guiTitle)
-        ;MCGUI.SetFont("s14") ; <--- optional thicker border
-        MCGUI.OnEvent("Close", MCGUIClose)
-        MCGUI.OnEvent("Escape", MCGUIClose)
-        MCGUI.BackColor := formColor
-        OnMessage(0x004E, WM_NOTIFY)        ; needs to be called on control creation
-        MCGUI.AddMonthCal("r" MonthCount " +0x01 vMC " sAddOptions)
-        OnMessage(0x004E, WM_NOTIFY, 0)
-        MCGUI["MC"].OnNotify(-747, MCN_GETDAYSTATE)
-        if (ShowSingleHoliday = 1)
-            MCGUI["MC"].OnEvent("Change", HandleDateChange)
-        Set_CS_DBLCLKS(MCGUI["MC"].Hwnd)    ; needed to get WM_LBUTTONDBLCLK notifications for clicks on a MonthCal
-        MCGUI.Show("x" X " y" Y)
-        OnMessage(0x0203, WM_LBUTTONDBLCLK)
-        OnMessage(0x0100, WM_KEYDOWN)
+    } else { ; Default position when taskbar is active or no window exists
+        X := A_ScreenWidth / 2 - 150  ; Center horizontally
+        Y := 200 ; near top
+        MCGUI := Gui("+AlwaysOnTop -MinimizeBox +LastFound +ToolWindow", guiTitle)
     }
+    
+    MCGUI.OnEvent("Close", MCGUIClose)
+    MCGUI.OnEvent("Escape", MCGUIClose)
+    MCGUI.BackColor := formColor
+    OnMessage(0x004E, WM_NOTIFY)        ; needs to be called on control creation
+    MCGUI.AddMonthCal("r" MonthCount " +0x01 vMC " sAddOptions)
+    OnMessage(0x004E, WM_NOTIFY, 0)
+    MCGUI["MC"].OnNotify(-747, MCN_GETDAYSTATE)
+    if (ShowSingleHoliday = 1)
+        MCGUI["MC"].OnEvent("Change", HandleDateChange)
+    Set_CS_DBLCLKS(MCGUI["MC"].Hwnd)    ; needed to get WM_LBUTTONDBLCLK notifications for clicks on a MonthCal
+    MCGUI.Show("x" X " y" Y)
+    OnMessage(0x0203, WM_LBUTTONDBLCLK)
+    OnMessage(0x0100, WM_KEYDOWN)
 }
 
 ; ===================================================================
@@ -740,17 +778,17 @@ t:: MCGUI["MC"].Value := A_Now ; Hotkey for 'Go to today.' hide
 2:: ; hide
 3:: ; hide
 4:: ; hide
-5:: ; ChangeM  CNumber() ; Shows this many months. (1-5) ; hide
-F1::monthCalHelp()
+5:: ChangeMCNumber() ; Shows this many months. (1-5) ; hide
+F1::monthCalHelp() ; hide
 #HotIf
 ; ===================================================================
 
 monthCalHelp(*) {
-    mygui := Gui("AlwaysOnTop", "DateTool Hotstring Help")
-    mygui.SetFont("s10", "Courier New")
-    mygui.Add("Text", , sMCHelp)
-    mygui.Show
-    mygui.OnEvent("Escape", (*) => mygui.Hide())
+    myMCgui := Gui("AlwaysOnTop", "DateTool monthCal Help")
+    myMCgui.SetFont("s10", "Courier New")
+    myMCgui.Add("Text", , sMCHelp)
+    myMCgui.Show
+    myMCgui.OnEvent("Escape", (*) => myMCgui.Hide())
     return
 }
 
@@ -1066,7 +1104,7 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         ["06 15-21 Sunday", "Father's Day"],
         ["06 20", "Summer Solstice", 2025],
         ["06 21", "Summer Solstice", 2026],
-        ["07 04", "Independence Day"],
+        ["07 04", "Independence Day", , , 1776],
         ["08 25", "Anniversary", , , 2000], ;       <---------- Specific to kunkel321, remove.
         ["09 01-07 Monday", "Labor Day"],
         ["09 22", "Autumn Equinox", 2025, 2026], ; Happens on same date both years, so...
