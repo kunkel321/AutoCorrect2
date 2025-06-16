@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 6-16-2025   
+; Version: 6-16-2025-PM
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -1614,18 +1614,38 @@ class UIActions {
         oldClipboard := ClipboardAll()
         
         try {
-            ; Hide main form first
+            ; Close any validity dialogs that might still be open
+            if IsObject(UIActions.ValidityDialog) {
+                try {
+                    UIActions.ValidityDialog.Destroy()
+                    Sleep(50)
+                } catch {
+                    ; Dialog already closed, ignore
+                }
+            }
+            
+            ; Hide main form
             UI.MainForm.Hide()
             
-            ; Wait for target window to be active again
-            if !WinWaitActive(State.TargetWindow, , 3) {  ; 3 second timeout
-                Debug("AutoEnterNewReplacement: Target window failed to become active")
+            ; Wait a bit longer for any dialogs to close
+            Sleep(100)
+            
+            ; Try to activate target window
+            try {
+                WinActivate(State.TargetWindow)
+            } catch Error as err {
+                Debug("AutoEnterNewReplacement: Could not activate target window: " err.Message)
+            }
+            
+            ; Wait for target window to be active, with longer timeout
+            if !WinWaitActive(State.TargetWindow, , 5) {  ; Increased to 5 seconds
+                Debug("AutoEnterNewReplacement: Target window failed to become active within timeout")
                 A_Clipboard := oldClipboard
                 return
             }
             
-            ; Small delay to ensure window is fully active
-            Sleep(100)
+            ; Additional delay to ensure window is fully active and ready
+            Sleep(150)
             
             ; NOW copy the current selection
             A_Clipboard := ""
@@ -1640,6 +1660,8 @@ class UIActions {
             ; Remove whitespace for comparison
             State.OrigTriggerTypo := Trim(State.OrigTriggerTypo)
             currentSelection := Trim(A_Clipboard)
+            
+            Debug("AutoEnterNewReplacement: Comparing - orig: '" State.OrigTriggerTypo "' current: '" currentSelection "'")
             
             ; Check if the original text is still selected and unchanged
             if (State.OrigTriggerTypo = currentSelection && 
