@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-31-2025  
+; Version: 6-16-2025   
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -19,10 +19,14 @@ SetWorkingDir(A_ScriptDir)
 ; These files need to be in the same directory or properly referenced
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
-#Include "PrivateParts.ahk"   ; <--- Specific to kunkel321's setup. If you see this line, he forgot to remove it.
 #Include "DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
 #Include "PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
 #Include "DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
+
+;=============== PERSONAL ITEMS =================
+; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
+; The "*i" prevents an error if the file doesn't exist.
+#Include "*i PersonalHotstrings.ahk" ;  -- Optional
 
 ; =============== CONFIGURATION ===============
 ; The configuration is centralized here for easier modification
@@ -196,8 +200,6 @@ EditThisScript(*) {
 		msgbox 'cannot run ' Config.ScriptName
 }
 
-!q::msgbox "debug: " A_ScriptDir "\Code.exe "
-
 OpenHotstringLibrary(*) {
     Try
         Run Config.EditorPath " "  Config.HotstringLibrary
@@ -251,7 +253,7 @@ SetTimer(() => BackspaceContextLogger.Start(), 1000)  ; Start after 1 second del
 ; Note: Your hotstrings are defined in HotstringLib.ahk and call the f() function
 ; from AutoCorrectSystem.ahk when triggered.
 ; Example hotstring:
-; :B0X:teh::f("the") ; Fixes 1 word
+; :B0X:teh::f("the") 
 
 ; =============== GLOBAL VARIABLES ===============
 ; These variables track state throughout the application
@@ -1606,31 +1608,62 @@ class UIActions {
         }
     }
     
-	; Auto-enter the replacement in the active document
-	static AutoEnterNewReplacement() {
-		A_Clipboard := ""
-		Send("^c")
-		Errorlevel := !ClipWait(0.3)
-		
-		; Remove whitespace
-		State.OrigTriggerTypo := Trim(State.OrigTriggerTypo)
-		hasSpace := SubStr(A_Clipboard, -1) = " " ? " " : ""
-		A_Clipboard := Trim(A_Clipboard)
-		
-		; Check if the original text is still selected and unchanged
-		if State.OrigTriggerTypo = A_Clipboard && State.OrigTriggerTypo = UI.Controls["TriggerEdit"].Text {
-			; No need to reference validityDialog here, as it's handled in ShowValidityDialog
-			
-			; Hide main form
-			UI.MainForm.Hide()
-			
-			; Wait for target window to be active again
-			WinWaitActive(State.TargetWindow)
-			
-			; Send the replacement
-			Send(UI.Controls["ReplacementEdit"].Text hasSpace)
-		}
-	}
+    ; Auto-enter the replacement in the active document
+    static AutoEnterNewReplacement() {
+        ; Save current clipboard
+        oldClipboard := ClipboardAll()
+        
+        try {
+            ; Hide main form first
+            UI.MainForm.Hide()
+            
+            ; Wait for target window to be active again
+            if !WinWaitActive(State.TargetWindow, , 3) {  ; 3 second timeout
+                Debug("AutoEnterNewReplacement: Target window failed to become active")
+                A_Clipboard := oldClipboard
+                return
+            }
+            
+            ; Small delay to ensure window is fully active
+            Sleep(100)
+            
+            ; NOW copy the current selection
+            A_Clipboard := ""
+            Send("^c")
+            
+            if !ClipWait(1.0) {
+                Debug("AutoEnterNewReplacement: ClipWait timeout - no text copied")
+                A_Clipboard := oldClipboard
+                return
+            }
+            
+            ; Remove whitespace for comparison
+            State.OrigTriggerTypo := Trim(State.OrigTriggerTypo)
+            currentSelection := Trim(A_Clipboard)
+            
+            ; Check if the original text is still selected and unchanged
+            if (State.OrigTriggerTypo = currentSelection && 
+                State.OrigTriggerTypo = UI.Controls["TriggerEdit"].Text) {
+                
+                ; Determine if we need to preserve trailing space
+                hasSpace := (A_Clipboard != "" && SubStr(A_Clipboard, -1) = " ") ? " " : ""
+                
+                ; Send the replacement text
+                replacementText := UI.Controls["ReplacementEdit"].Text hasSpace
+                Send(replacementText)
+                
+                Debug("AutoEnterNewReplacement: Successfully entered replacement: " replacementText)
+            } else {
+                Debug("AutoEnterNewReplacement: Selection mismatch - orig: '" State.OrigTriggerTypo "' current: '" currentSelection "'")
+            }
+            
+        } catch Error as err {
+            LogError("AutoEnterNewReplacement: Error - " err.Message)
+        } finally {
+            ; Always restore clipboard
+            A_Clipboard := oldClipboard
+        }
+    }
 }
 
 ; =============== HOTSTRING VALIDATION ===============
@@ -2132,13 +2165,12 @@ class Utils {
             A_Args := []  ; Clear arguments after use
         }
         else {
-            ; Check if Suggester tool is active and clipboard contains a hotstring
+            ; Check if Suggester Tool or MCLogger are active and clipboard contains a hotstring
             hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
             clipContent := Trim(A_Clipboard, " `t`n`r")
             
-            ; if !(WinActive("Hotstring Suggester - Results") && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
             if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
-                ; If Suggester not active or clipboard doesn't contain a hotstring, 
+                ; If Suggester/MCL not active or clipboard doesn't contain a hotstring, 
                 ; clear clipboard and copy selected text
                 A_Clipboard := ""
                 Send("^c")
@@ -2148,6 +2180,7 @@ class Utils {
 
         ; Check for hotstring pattern in clipboard
         clipContent := Trim(A_Clipboard, " `t`n`r")
+        ; Regexes based on those from AndyNBody.
         hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
         comRegEx := "i);\h*(?<Freq>WEB\h+FREQ\h+\d+\.\d+)?[\h,|]*(?<Fix>\bFIXES\h*\d+\h*WORDS?\b)?[\h,|]*(?<mCom>.*)$"
         
@@ -2303,8 +2336,6 @@ class Utils {
         UIActions.FilterWordLists()
     }
 }
-
-; Add this new class in the file, before the main program section
 
 ; =============== WORD FREQUENCY FUNCTIONALITY ===============
 
@@ -2534,8 +2565,8 @@ Debug(message) {
     }
 }
 
-!^+q::Run(Config.AcLogAnalyzer)
- 
+!^+q::Run(Config.AcLogAnalyzer) ; Run AutoCorrection Log Analyzer tool.
+
 ;===============================================================================
 #HotIf WinActive(Config.ScriptName) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" ) ; If this file is open and active.
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.  ; hide
@@ -2548,7 +2579,7 @@ Debug(message) {
 }
 
 #HotIf WinActive(Config.HHWindowTitle) ; Only if hh2 window is active.
-F1::HelpSystem.ShowHelp() ; Show help for whatever window control is focused.
+F1::HelpSystem.ShowHelp() ; Show help for whatever window control is focused. ; hide
 
 #HotIf
 
