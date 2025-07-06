@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 6-16-2025-PM
+; Version: 6-27-2025
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -19,13 +19,13 @@ SetWorkingDir(A_ScriptDir)
 ; These files need to be in the same directory or properly referenced
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
-#Include "DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
-#Include "PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
-#Include "DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
+; The "*i" prevents an error if the file doesn't exist.
+#Include "*i DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
+#Include "*i PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
+#Include "*i DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
 
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
-; The "*i" prevents an error if the file doesn't exist.
 #Include "*i PersonalHotstrings.ahk" ;  -- Optional
 
 ; =============== CONFIGURATION ===============
@@ -155,10 +155,10 @@ SetupTrayMenu() {
     
     acMenu.Add("Hotstring Library", (*) => OpenHotstringLibrary())
     acMenu.SetIcon("Hotstring Library", "Icons\library-Blue.ico")
-    
+   
     acMenu.Add("Run Printer Tool", (*) => RunPrinterTool())
     acMenu.SetIcon("Run Printer Tool", "Icons\printer-Blue.ico")
-    
+
     acMenu.Add("Show Calendar", (*) => RunDateTool())
     acMenu.SetIcon("Show Calendar", "Icons\calendar-Blue.ico")
     
@@ -204,7 +204,7 @@ OpenHotstringLibrary(*) {
     Try
         Run Config.EditorPath " "  Config.HotstringLibrary
     Catch
-        msgbox 'cannot run ' Config.ScriptName
+        msgbox 'cannot run ' Config.EditorPath ' or cannot run ' Config.HotstringLibrary
 }
 
 ; PrinterTool and DateTool are #Included, so we could call the functions directly, but we would 
@@ -336,10 +336,6 @@ class UI {
         
         ; Set background color for edit controls - defined once for the whole class
         this.ListBackground := Config.ListColor != "" ? "Background" Config.ListColor : ""
-        
-        ; Set delta color based on brightness - defined once for the whole class
-        ; this.DeltaColor := Config.Brightness < 128 ? "00FFFF" : "191970" 
-        ; this.CommentColor := Config.Brightness < 128 ? "00ff22" : "005a17" 
         
         ; Build UI sections
         this._CreateTriggerSection()
@@ -525,6 +521,13 @@ class UI {
                 icon: ""
             })
         }
+
+        ; Open github in web browser
+        this.controlButtons.Push({
+            text: "  Go to GitHub Repository", 
+            action: (*) => Run("https://github.com/kunkel321/AutoCorrect2"),
+            icon: A_ScriptDir "\Icons\GitHubLogo.ico"
+        })
 
         ; Check if color theme settings exist, add theme button if they do
         if FileExist("colorThemeSettings.ini") {
@@ -2754,6 +2757,8 @@ class HelpSystem {
         ; Create help GUI
         this.helpGui := Gui("AlwaysOnTop", helpTitle)
         this.helpGui.SetFont("s10", "Courier New")
+        fontColor := Config.FontColor != "" ? "c" SubStr(Config.FontColor, -6) : ""
+        this.helpGui.SetFont(fontColor)
         this.helpGui.BackColor := Config.FormColor
         
         ; Use an Edit control for selectable text, styled as a label
