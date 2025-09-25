@@ -7,7 +7,7 @@
 ;======== DateTool-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 6-14-2025
+; The 'H' is for 'Holidays.'   Version: 9-25-2025
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -28,6 +28,7 @@
 ; 2-digit numbers support, "next Tuesday", etc, and onboard help.
 ; https://www.autohotkey.com/boards/viewtopic.php?p=599890#p599834
 
+; MARK: Help
 ;======== Directions for Use: Date Hotstrings ==================================
 sHSHelp :=
     (
@@ -107,7 +108,8 @@ MyAutoCorrectFileName := "AutoCorrect2.exe" ; <------- CHANGE To NAME of your Au
 }
 #HotIf
 
-;======== DateTool User Options ================================================
+; MARK: User Options
+; ========================================================
 guiTitle := "DateTool-H"            ; change title if desired
 monthCalHotkey := "!+d"             ; Hotkey: Alt+Shift+D.  Change as desired. 
 ; if monthCalHotkey is changed here, must also update RunDateTool() in AutoCorrect2.ahk. 
@@ -149,7 +151,8 @@ ToolTipOptions.SetMargins(5, 5, 5, 5) ; Left, Top, Right, Bottom.
 ;ToolTipOptions.SetColors(formColor, fontColor) ; background, font : Use this for theme colors.
 ToolTipOptions.SetColors("Default", "Default") ; background, font
 
-;=========== Hotstrings ========================================================
+; MARK: Hotstring/Hotkey 
+;===================================================================
 
 :?*B0:;d:: {
     global sMode := "standard"
@@ -530,11 +533,7 @@ ShowToolTip(sDatePicked, iOff, sPeriod, sCode, sFormat, isWeekday := false, targ
     
     ; Get date components
     Y := SubStr(A_Now, 1, 4)
-    ; M := SubStr(A_Now, 5, 2) ; not currently used, but keep incase we need later
-    ; D := SubStr(A_Now, 7, 2) ; not currently used, but keep incase we need later
     mY := SubStr(sDatePicked, 1, 4)
-    ; mM := SubStr(sDatePicked, 5, 2) ; not currently used, but keep incase we need later
-    ; mD := SubStr(sDatePicked, 7, 2) ; not currently used, but keep incase we need later
     
     ; Default format for display
     baseDate := FormatTime(sDatePicked, sFormat)
@@ -615,28 +614,25 @@ ShowToolTip(sDatePicked, iOff, sPeriod, sCode, sFormat, isWeekday := false, targ
             formattedDate := "Week of " FormatTime(sDatePicked, "MMM d") contextLabel
         }
         else {
-            ; Day format (default)
-            vNow := SubStr(A_Now, 1, 8)
-            daysOffset := DateDiff(sDatePicked, vNow, "days")
-            
-            if (daysOffset = 0)
+            ; Day format (default) - FIX: Use iOff directly instead of DateDiff
+            if (iOff = 0)
                 contextLabel := " (today)"
-            else if (daysOffset = 1)
+            else if (iOff = 1)
                 contextLabel := " (tomorrow)"
-            else if (daysOffset > 1 && daysOffset <= 7)
-                contextLabel := " (in " daysOffset " days)"
-            else if (daysOffset > 7 && daysOffset <= 14)
+            else if (iOff > 1 && iOff <= 7)
+                contextLabel := " (in " iOff " days)"
+            else if (iOff > 7 && iOff <= 14)
                 contextLabel := " (next week)"
-            else if (daysOffset > 14)
-                contextLabel := " (in " Round(daysOffset/7) " weeks)"
-            else if (daysOffset = -1)
+            else if (iOff > 14)
+                contextLabel := " (in " Round(iOff/7) " weeks)"
+            else if (iOff = -1)
                 contextLabel := " (yesterday)"
-            else if (daysOffset >= -7 && daysOffset < 0)
-                contextLabel := " (" (-daysOffset) " days ago)"
-            else if (daysOffset >= -14 && daysOffset < -7)
+            else if (iOff >= -7 && iOff < -1)
+                contextLabel := " (" (-iOff) " days ago)"
+            else if (iOff >= -14 && iOff < -7)
                 contextLabel := " (last week)"
             else
-                contextLabel := " (" Round((-daysOffset)/7) " weeks ago)"
+                contextLabel := " (" Round((-iOff)/7) " weeks ago)"
                 
             formattedDate := FormatTime(sDatePicked, "dddd, MMM d") contextLabel
         }
@@ -705,6 +701,7 @@ ShowToolTip(sDatePicked, iOff, sPeriod, sCode, sFormat, isWeekday := false, targ
     SetTimer () => ToolTip(, , , "3"), -3500  ; Disable tooltip in this many milisecs.
 }
 
+; MARK: MonthCal GUI
 ;======== Global Variables. Don't change =======================================
 TargetWindow := 0, MCGUI := 0, hlYear := A_YYYY, hlMonth := A_MM
 HolidayList := "", toggle := false  ; Variable to keep track of tooltip state
@@ -768,6 +765,7 @@ HandleDateChange(*) {
     }
 }
 
+; MARK: MonthCal Nav.
 ; ===================================================================
 #HotIf WinActive(guiTitle)
 ALt & Enter:: SendDateAlt() ; For alt format date entry. hide
@@ -1072,6 +1070,7 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         Eastern[Date.Year] := { EDay: EDay, EMon: EMon }
     }
 
+    ; MARK: Holiday Define.
     ; single space delimited, strictly
     ; ["month day-day dayName", "Day Text", start_year, end_year, original_year]
     ; if "dayName" = "absolute", "month" becomes "isLeapYear", and "day-day" is a number between 1-366
@@ -1092,17 +1091,15 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         ["03 14", "Pi Day"],
         ["03 17", "St. Patrick's Day"],
         ; Years make it a single (or double)-year event.  Remove after it's used.
-        ["03 14", "Lunar Eclipse", 2025],
+        ;["03 14", "Lunar Eclipse", 2025],
         ["03 20", "Spring Equinox", 2025, 2026],
         ;["03 17-21", "Spring Break", 2025],
-        ["04 07-11", "Spring Break", 2025],
         ["04 15", "Tax Day"],
         ["05 08-14 Sunday", "Mother's Day"],
         ["05 25-31 Monday", "Memorial Day"],
         ; Juneteenth is celebrated on the 19th, or the nearest weekday (M or F) if the 19th is a weekend.
-        ["06 19 nearest", "Juneteenth"],
+        ["06 19 nearest", "Juneteenth", , , 1866],
         ["06 15-21 Sunday", "Father's Day"],
-        ["06 20", "Summer Solstice", 2025],
         ["06 21", "Summer Solstice", 2026],
         ["07 04", "Independence Day", , , 1776],
         ["08 25", "Anniversary", , , 2000], ;       <---------- Specific to kunkel321, remove.
@@ -1112,10 +1109,8 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         ["11 01-07 Sunday", "Daylight Savings Ends"], ; First Sunday in November (Fall Behind/Gain hour of sleep)
         ["11 11 nearest", "Veterans Day"],
         ["11 22-28 Thursday", "Thanksgiving Day"],
-        ["11 23-29 Friday", "Thanksgiving Extra"],
         ["12 21", "Winter Solstice", 2025, 2026], ; Same date both years.
         ["12 25", "Christmas Day"],
-        ["12 26", "Christmas Extra", 2025],
         [EMon " " EDay, "Easter"] ; No comma after last array element :)
     ]
 
@@ -1210,7 +1205,7 @@ EasterSunday(Year, &Month, &Day) {
 }
 
 ;####################################################################
-
+; MARK: ToolTip Options
 ; Below is another tool...  Also made by by Just Me !!! :)
 ; ========== Class ToolTipOptions - 2023-09-10 ==================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=113308
@@ -1449,6 +1444,7 @@ class ToolTipOptions {
 }
 ; ------------------------- End of Just Me's ToolTipOptions class ------------------------------------------------------
 
+; MARK: Scriptlets
 ; The below functions are called from the popup menu that appears when Shift+Clicking
 ; a monthCal date, or upon Shift+Enter, when monthCal gui is active.  The first
 ; two functions only appear if the selected date is a holiday.
@@ -1662,6 +1658,7 @@ ShowReport(title, content, tooltipNum := 3) {
     }
 }
 
+; MARK: DEBUGGING FUNC.
 ; Helper functions for conditional logging
 DTLogError(message) {
     if (ERROR_LOG) {
@@ -1673,3 +1670,4 @@ DTDebug(message) {
         FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
     }
 }
+; MARK: END
