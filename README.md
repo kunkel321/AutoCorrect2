@@ -3,12 +3,17 @@ This started as a version of the 2007 AutoHotkey script, AutoCorrect.ahk, though
 
 _Stephen Kunkel (kunkel321)_
 
+# Start Here.
+Run: Core/AutoCorrect2.exe
+Then press Win+H
+
 # Contributors.
 It's worth noting that only one other person -- Robert -- has contributed code _via the GitHub push mechanism_, but many others have made **significant** contributions by other means (usually the AutoHotkey forums).  I'll list them here, but they can also be found in the code comments of the various ahk files in the repository. 
 
 ## March 6, 2025 Major Update...
 - The AutoCorrect2 code (which is mostly for HotstringHelper2) was very messy and "Frankensteinish" from evolving over the years.  I used Claude AI to totally refactor it, implementing best practice for code organization, naming conventions, etc.  The last parts of the script (loggers and inputBuffer class) are now a separate file that gets #Included.  So, _AutoCorrect2.ahk, AutoCorrectSystem.ahk, and HotstringLib.ahk_ must all be present for it to work. 
-- I still need to re-add most of the hotkey shortcuts for HH2.
+## Update to Folder Structure...
+- The main folder was cluttered with tons of folders, so I used Claude again to suggest the most sensible way to use subfolders.  The downside is that many of the tools call each other.  All those bits of code were easier when everything was in the same folder.  They now have for point to different locations.  I think I got it all working though.  I do think it is better organized like this.  
 
 ## Hotstring Helper 2 – Quick Sheet
 ![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/WordListsForHH/GUI%20quicksheet.png))
@@ -39,3 +44,6 @@ Note that boilerplate items are never created with function calls.
 22.	The Word List Label simply shows what the currently-set comparison word list is.  (This is the list from which the Misspells and Fixes lists are derived.)
 
 Please see the User Manual for more information. 
+
+# Icon on main AutoCorrect2 parent folder:
+- The files in the sub folders all use relative folder paths, so you should be able to unzip the AutoCorrect2.zip and put the folder anywhere.  Note however that the Desktop.ini that Windows uses to hold custom icon info has to be an absolute path.  Mine is "IconResource=D:\AutoHotkey\MasterScript\AutoCorrect2\Resources\Icons\AhkBluePsicon.ico,0".  You should change that do your own path. 
