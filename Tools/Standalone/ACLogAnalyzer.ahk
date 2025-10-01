@@ -1,7 +1,7 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated:  4-7-2025 
+                Updated:  9-28-2025
 =====================================================
 Determines frequency of items in AutoCorrects Log file, then sorts by frequency (or weight).
 Date not factored in sort. Reports the top X hotstrings that were immediately followed
@@ -17,6 +17,8 @@ in a GUI with radio buttons. User can:
 
 Items culled from ACLog file will get added to the RemovedHotStrings file.
 This helps avoid inadvertently "re-adding" them later.
+
+To do:  Make error logging and debug logging optional. 
 */
 
 #SingleInstance Force
@@ -34,14 +36,14 @@ class ACLogAnalyzer {
         SortByBS: 1,                ; Sort by "Backspaced" items (1) or "Kept" items (0)?
         WeighItems: 1,              ; Attempt to weight items based on how problematic they are (1=yes)
         FreqImportance: 5,         ; Importance of high-frequency items (0-50, 0=not important)
-        IgnoreFewerThan: 2,         ; Minimum threshold for consideration when weighing
+        IgnoreFewerThan: 1,         ; Minimum threshold for consideration when weighing
         AddFulltoClipBrd: 1,        ; Send full report to clipboard as well?
         ScriptFiles: {
-            ACScript: "AutoCorrect2.ahk",    ; Main script file
-            HSLibrary: "HotstringLib.ahk",   ; Hotstring library file
-            ACLog: "AutoCorrectsLog.txt",    ; Main autocorrection log file
-            ErrLog: "ErrContextLog.txt",     ; Context log file
-            RemovedHsFile: "RemovedHotstrings.txt"  ; Removed hotstrings file
+            ACScript: "..\..\Core\AutoCorrect2.ahk",    ; Main script file
+            HSLibrary: "..\..\Core\HotstringLib.ahk",   ; Hotstring library file
+            ACLog: "..\..\Data\AutoCorrectsLog.txt",    ; Main autocorrection log file
+            ErrLog: "..\..\Data\ErrContextLog.txt",     ; Context log file
+            RemovedHsFile: "..\..\Data\RemovedHotstrings.txt"  ; Removed hotstrings file
         },
         StartLine: 7,               ; Skip lines before this in log file
         CullDateFormat: "MM-dd-yyyy",  ; Date format for culled items
@@ -78,7 +80,7 @@ class ACLogAnalyzer {
     static Initialize() {
         this.LoadThemeSettings()
         this.SetEditorPath()
-        TraySetIcon(A_ScriptDir "\icons\AcAnalysis.ico")
+        TraySetIcon("..\..\Resources\Icons\AcAnalysis.ico")
     }
 
     ; Main processing function
@@ -110,8 +112,8 @@ class ACLogAnalyzer {
     ; Load visual theme settings
     static LoadThemeSettings() {
         try {
-            if FileExist("colorThemeSettings.ini") {
-                settingsFile := "colorThemeSettings.ini"
+            if FileExist("..\..\Data\colorThemeSettings.ini") {
+                settingsFile := "..\..\Data\colorThemeSettings.ini"
                 this.FontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
                 this.ListColor := IniRead(settingsFile, "ColorSettings", "listColor")
                 this.FormColor := IniRead(settingsFile, "ColorSettings", "formColor")
@@ -392,7 +394,9 @@ class ACLogAnalyzer {
         selItemArr := StrSplit(this.WorkingItem, ":")
         workingItem := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
 
-        myACFileBaseName := StrSplit(this.Config.ScriptFiles.ACScript, ".")[1]
+        myACFileBaseName := StrSplit(this.Config.ScriptFiles.ACScript, ".ahk")[1]
+
+        msgbox 'script file: ' myACFileBaseName
         
         try {
             if (!FileExist(myACFileBaseName . ".exe")) {
@@ -573,7 +577,6 @@ class ACLogAnalyzer {
             
             ; Make sure we have enough parts to form a valid hotstring trigger
             if (selItemArr.Length >= 5) {
-                ; selItemTrigger := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
                 selItemTrigger := ":" selItemArr[3] "::"
             }
             
@@ -622,8 +625,12 @@ class ACLogAnalyzer {
             
             SoundBeep()
             
+            ; Close the confirmation GUI
             this.ConfirmGui.Destroy()
-            ExitApp()
+            
+            ; Show the main GUI again without regenerating the report
+            this.ACAGui.Show()
+            
         } catch Error as err {
             LogError("Error culling item: " err.Message)
             MsgBox("Error culling item: " err.Message)
@@ -684,7 +691,7 @@ SuggestAlternativesHandler(*) {
     hotstringPart := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
     
     ; Log what we're sending to the suggester
-    FileAppend("Sending to Suggester: " hotstringPart "`n", "suggester_bridge_log.txt")
+    ;FileAppend("Sending to Suggester: " hotstringPart "`n", "..\..\Data\suggester_bridge_log.txt")
     
     ; Run the Suggester tool with the hotstring as a parameter
     try {
@@ -696,8 +703,12 @@ SuggestAlternativesHandler(*) {
         else {
             MsgBox("Error: Suggester tool not found. Make sure Suggester.exe or Suggester.ahk is in the current directory.")
         }
+
+        ; Keep the main GUI open
+        ACLogAnalyzer.ACAGui.Show()
+
     } catch Error as err {
-        FileAppend("Error running Suggester: " err.Message "`n", "suggester_bridge_log.txt")
+        FileAppend("Error running Suggester: " err.Message "`n", "..\..\Data\suggester_bridge_log.txt")
         MsgBox("Error launching Suggester tool: " err.Message)
     }
 }
@@ -715,7 +726,7 @@ ProcessSelectedItem() {
         ; Call ACLogAnalyzer's ProcessSelectedItem method
         return ACLogAnalyzer.ProcessSelectedItem()
     } catch Error as err {
-        FileAppend("Error processing selected item: " err.Message "`n", "suggester_bridge_log.txt")
+        FileAppend("Error processing selected item: " err.Message "`n", "..\..\Data\suggester_bridge_log.txt")
         MsgBox("Error processing selected item: " err.Message)
         return false
     }
@@ -728,11 +739,11 @@ ACLogAnalyzer.SuggestAlternatives := SuggestAlternativesHandler
 
 ; Helper functions for conditional logging
 LogError(message) {
-    FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "acla_error_debug_log.txt") ; acla -- Auto Correction Log Analyzer.
+    FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\acla_error_debug_log.txt") ; acla -- Auto Correction Log Analyzer.
 }
 
 Debug(message) {
-    FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "acla_error_debug_log.txt")
+    FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\acla_error_debug_log.txt")
 }
 
 ; ======= Main Execution =======

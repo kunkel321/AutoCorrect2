@@ -3,7 +3,7 @@
 Persistent
 
 ; ==============================================================================
-; The Manual Correction Logger -- MCLogger --   Version 5-24-2025 
+; The Manual Correction Logger -- MCLogger --   Version 9-29-2025 
 ; ==============================================================================
 ; By Kunkel321, but inputHook based on Mike's here at: 
 ; https://www.autohotkey.com/boards/viewtopic.php?p=560556#p560556
@@ -33,11 +33,11 @@ IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for t
 
 ;=====File=Name=Assignments=====================================================
 WordListFile := 'GitHubComboList249k.txt'    ; Mostly from github: Copyright (c) 2020 Wordnik
-myLogFile := "MCLog.txt"                     ; The log of manual corrections.  A text file, not an ahk file (though either will work).
-myAutoCorrectLibrary := "HotstringLib.ahk"   ; A validity check is done before adding new MC strings to the log. 
-RemovedHsFile := "RemovedHotstrings.txt"     ; Also check hotstrings removed (culled) from AUTOcorrects log. 
-myAutoCorrectScript := "AutoCorrect2.ahk"    ; So MCLogger knows where to append new hotstrings. (Or were to send items to HH.) 
-SendToHH := 1                                ; Export directly to HotSting Helper. 1=yes / 0=no 
+myLogFile := "..\Data\ManualCorrectionsLog.txt"      ; The log of manual corrections.  A text file, not an ahk file (though either will work).
+myAutoCorrectLibrary := "HotstringLib.ahk"            ; A validity check is done before adding new MC strings to the log. 
+RemovedHsFile := "..\Data\RemovedHotstrings.txt"      ; Also check hotstrings removed (culled) from AUTOcorrects log. 
+myAutoCorrectScript := "AutoCorrect2.ahk"             ; So MCLogger knows where to append new hotstrings. (Or were to send items to HH.) 
+SendToHH := 1                                         ; Export directly to HotSting Helper. 1=yes / 0=no 
 ; IMPORTANT: If SendToHH = 0, then 'myAutoCorrectScript' should be set to whatever ahk file holds your autocorrect hotstrings.
 MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe" ; <--- specific to Steve's setup. Put path to your own editor.
 
@@ -53,8 +53,8 @@ KeepReportOpen := 1           ; When clicking 'Cull and Append,' close the list 
 
 ; ==============================================================================
 ; Look for colorThemeSettings file and, if found, use color assignment. 
-If FileExist("colorThemeSettings.ini") {
-   settingsFile := "colorThemeSettings.ini"
+If FileExist("..\Data\colorThemeSettings.ini") {
+   settingsFile := "..\Data\colorThemeSettings.ini"
    ; --- Get current colors from ini file. 
    fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
    listColor := IniRead(settingsFile, "ColorSettings", "listColor")
@@ -71,24 +71,24 @@ brightness := (r * 299 + g * 587 + b * 114) / 1000
 radioColor := brightness > 128 ? "Blue"  : "0xaffafa"  ; The color of the radio buttons in the gui form.
 
 ;--- create systray menu ----
-TraySetIcon("icons/JustLog.ico") ; A fun homemade "log" icon that Steve made.
+TraySetIcon("..\Resources\Icons\JustLog.ico") ; A fun homemade "log" icon that Steve made.
 mclMenu := A_TrayMenu ; Tells script to use this when right-click system tray icon.
 mclMenu.Delete ; Removes all of the defalt memu items, so we can add our own. 
 mclMenu.Add("Log and Reload Script", (*) => Reload())
-mclMenu.SetIcon("Log and Reload Script", "icons/data_backup-Brown.ico")
+mclMenu.SetIcon("Log and Reload Script", "..\Resources\Icons\data_backup-Brown.ico")
 mclMenu.Add("Edit This Script", EditThisScript)
-mclMenu.SetIcon("Edit This Script", "icons/edit-Brown.ico")
+mclMenu.SetIcon("Edit This Script", "..\Resources\Icons\edit-Brown.ico")
 mclMenu.Add("Open " myLogFile, (*) => Run(myLogFile))
-mclMenu.SetIcon("Open " myLogFile, "icons/TxtFile-Brown.ico")
+mclMenu.SetIcon("Open " myLogFile, "..\Resources\Icons\TxtFile-Brown.ico")
 mclMenu.Add("Analyze Manual Corrections", runAnalysis)
-mclMenu.SetIcon("Analyze Manual Corrections", "icons/search-Brown.ico")
+mclMenu.SetIcon("Analyze Manual Corrections", "..\Resources\Icons\search-Brown.ico")
 mclMenu.Add("Start with Windows", StartUpMCL)
 if FileExist(A_Startup "\MCLogger.lnk")
    mclMenu.Check("Start with Windows")
 mclMenu.Add("List Lines Debug", (*) => ListLines())
-mclMenu.SetIcon("List Lines Debug", "icons/ListLines-Brown.ico")
+mclMenu.SetIcon("List Lines Debug", "..\Resources\Icons\ListLines-Brown.ico")
 mclMenu.Add("Exit Script", (*) => ExitApp())
-mclMenu.SetIcon("Exit Script", "icons/exit-Brown.ico")
+mclMenu.SetIcon("Exit Script", "..\Resources\Icons\exit-Brown.ico")
 mclMenu.SetColor("C29A6A") ; #CD853F is "Peru"
 ;---- end of menu creation --- 
 
@@ -101,7 +101,7 @@ If not FileExist(MyAhkEditorPath) {
 }
 
 ; Make sure word list is there. Change name of word list subfolder, if desired. 
-WordListPath := A_ScriptDir '\WordListsForHH\' WordListFile
+WordListPath := '..\Resources\WordListsForHH\' WordListFile
 If not FileExist(WordListPath) {
 	MsgBox("This error means that the big list of comparison words at:`n" WordListPath
 	"`nwas not found.`n`nMust assign a word list file to variable, such as`n"
@@ -398,11 +398,14 @@ runAnalysis(*) {
    cl.SetFont('s12 c' FontColor)
    Global BUchkBox := cl.Add('Checkbox', 'w280 y+2','Make backup of ' myLogFile ' first')
 	
+   cl.SetFont('s10')
+   cl.Add('Button', 'w282 x10 h16 y+5 ','Take too long? Remove old singletons').OnEvent("click", RemoveOldFunc.Bind(Report))
+   cl.SetFont('s12')
+
    cl.Add('button', 'w135 x10 y+5', 'Cull from Log').OnEvent('Click', CullOnlyFunc)
    cl.Add('button', 'x+10 w135 yp', 'Append').OnEvent('Click', AppendOnlyFunc)
 
-   cl.Add('Button', 'w282 x10 y+5 ','Take too long? Remove old singletons').OnEvent("click", RemoveOldFunc.Bind(Report))
-   cl.Add('button', 'w160 y+5','Cull and Append').OnEvent('Click', CullerAppender)
+   cl.Add('button', 'w160 x10 y+5','Cull and Append').OnEvent('Click', CullerAppender)
    cl.Add('button', 'x+5 w120 yp','Cancel').OnEvent('Click', (*) => cl.Hide())
       
 	cl.Show('x' (A_ScreenWidth / 2) + 250) ; Show slightly to right of center (leaves room for HH2).

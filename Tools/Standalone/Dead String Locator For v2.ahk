@@ -1,8 +1,8 @@
-#SingleInstance
+﻿#SingleInstance
 #Requires AutoHotkey v2+
 
 ;===============================================================================
-; By kunkel321.  Updated: 5-6-2024. 
+; By kunkel321.  Updated: 9-28-2025
 ; A script to find duplicate and conflicting beg/mid/end hotstring triggers. 
 ; It should work with hotstrings that are formatted with f(), _HS(), or plain AHK hotstrings. 
 ; Note: When correcting/culling your autocorrect library, remember that sometimes conflicting
@@ -13,8 +13,9 @@
 
 ACitemsEndAt := 99999 ; <--- Optional:  Stop comparing after this line number. In case
 ; the user wants to skip the non-English accented words at the end. 
-targetFile := "HotstringLib.ahk"  ; <--- Your Hotstring Library file path here.
-^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc. 
+; ACitemsEndAt := 6593
+targetFile := "..\..\Core\HotstringLib.ahk"  ; <--- Your Hotstring Library file path here.
+^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc.  ; hide
 ;===============================================================================
 
 Try fullList := Fileread(targetFile)
@@ -28,8 +29,8 @@ Catch {
 ; nor '#HotIf' items.  (Hopefully those are all at the top, above your main list.) 
 ACitemsStartAt := 0
 For line in StrSplit(fullList, "`n")
-	If InStr(line, "ACitemsStartAt := A_LineNumber + 10")
-		ACitemsStartAt := A_Index + 10 ; <--- "AutoCorrect Items Start At this line number."  Skip this many 
+	If InStr(line, "ACitemsStartAt := A_LineNumber + 3")
+		ACitemsStartAt := A_Index + 3 ; <--- "AutoCorrect Items Start At this line number."  Skip this many 
 
 StartTime := A_TickCount 
 Opts:= "", Trig := ""
@@ -117,7 +118,7 @@ FullReport := DupReport BegReport MidReport EndReport
 If FullReport = ""
 	FullReport := "No duplicate or conflicting hotstring pairs located."
 FullReport := ElapsedTime "`nLine`t`tOpt`tTrigger`t`tFull item`n=================================`n" FullReport
-Location := A_ScriptDir "\Conflict_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
+Location := "..\..\Data\Conflict_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
 FileAppend FullReport, Location ; Save to text file, then open the file. 
 sleep 1000
 Run Location

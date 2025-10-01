@@ -6,6 +6,7 @@
 ; Ignore the debug function call.  If the f() definition is not present, this replacement text will appear in the error message.
 :B0XC:Ign0re Th!s STRing::f("Did you forget to '#Include' the AutoCorrectSystem.ahk file in AutoCorrect2?")
 
+; MARK: Nullifiers
 ; ===== Trigger strings to nullify the potential misspellings that are indicated. =====
 ; Used the word "corrects" in place of fix to avoid double-counting these as potential fixes. 
 :B0*:horror:: ; Here for :*?:orror::error, which corrects 56 words.
@@ -64,6 +65,7 @@ For example:
 ;===============================================================================
 ; When considering "conflicting" hotstrings, remember that sometimes conflicting autocorrect items can peacefully coexist... Read more in pdf manual, here https://github.com/kunkel321/AutoCorrect2
 ; The below "Don't Sort Items" Are "word beginning" matches to items in the main list and are supersets of the main list items.  Therefore, they must appear before the corresponding items in the main list.  It is okay to sort this sublist, but do NOT combine these items with the main list.
+; MARK: No Sort
 ; ===== Beginning of Don't Sort items ==========
 :B0X*:eyte::f("eye") ; Web Freq 123.73 | Fixes 109 words 
 :B0X*:inteh::f("in the") ; Fixes 1 word
@@ -136,7 +138,8 @@ For example:
 ; If this variable name or assignment gets changed, also change it in the Conflicting String Locator script.
 ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until it gets to here. 
 
-; ===== Main List ==========================
+; ==============================================
+; MARK: Main List 
 :B0X*:Buddist::f("Buddhist") ; Fixes 3 words 
 :B0X*:Feburary::f("February") ; Fixes 1 word 
 :B0X*:Hatian::f("Haitian") ; Fixes 2 words 
@@ -793,7 +796,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:devista::f("devasta") ; Web Freq 5.08 | Fixes 10 words 
 :B0X*:diablic::f("diabolic") ; Web Freq 0.69 | Fixes 5 words 
 :B0X*:diagog::f("dialog") ; Web Freq 23.47 | Fixes 28 words 
-:B0X*:dicht::f("dichot") ; Web Freq 0.80 | Fixes 22 words, but Misspells "Mulloidichthys" a genus of Mullidae (goatfishes or red mullets)
+:B0X*:dicht::f("dichot") ; Web Freq 0.80 | Fixes 22 words, but Misspells Mulloidichthys (a genus of Mullidae. goatfishes or red mullets)
 :B0X*:dicon::f("discon") ; Web Freq 15.66 | Fixes 61 words 
 :B0X*:did attempted::f("did attempt") ; Fixes 1 word
 :B0X*:didint::f("didn't") ; Fixes 1 word
@@ -6167,9 +6170,9 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:your welcome::f("you're welcome") ; Fixes 1 word
 :B0X:youv'e::f("you've") ; Fixes 1 word 
 :B0X:youve::f("you've") ; Fixes 1 word
-:B0X?*:evlluation::f("evaluation") ; Web Freq 53.70 | Fixes 16 words 
-:B0X?*:forder::f("folder") ; Web Freq 27.91 | Fixes 14 words 
-:B0X?*:strungs::f("strings") ; Web Freq 12.66 | Fixes 15 words 
+:B0X*?:evlluation::f("evaluation") ; Web Freq 53.70 | Fixes 16 words 
+:B0X*?:forder::f("folder") ; Web Freq 27.91 | Fixes 14 words 
+:B0X*?:strungs::f("strings") ; Web Freq 12.66 | Fixes 15 words 
 :B0X?:'nt::f("n't") ; Fixes 24 words
 :B0X?:;ll::f("'ll") ; Fixes 1 word
 :B0X?:;re::f("'re") ; Fixes 1 word
@@ -6684,11 +6687,14 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0XC?:thh::f("th") ; Web Freq 6389.48 | Fixes 556 words 
 :B0XC?:wass::f("was") ; Web Freq 1484.21 | Fixes 25 words 
 
+; MARK: End Main List
 ; ===== End of Main List ==========================
+
 ;------------------------------------------------------------------------------
 ; Accented English words, from, amongst others,
 ; http://en.wikipedia.org/wiki/List_of_English_words_with_diacritics
 ; Most of the definitions are from https://www.easydefine.com/ or from the WordWeb application.
+; MARK: Accented Words
 ;------------------------------------------------------------------------------
 :*:angstrom::Ångström ; noun a metric unit of length equal to one ten billionth of a meter (or 0.0001 micron); used to specify wavelengths of electromagnetic radiation
 :*:anime::animé ; noun any of various resins or oleoresins; a hard copal derived from an African tree
@@ -6891,6 +6897,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 ::vis-a-vis::vis-à-vis ; See above
 ::voila::voilà ; Behold.  There you are.
 
+; MARK: Dates
 ;-------------------------------------------------------------------------------
 ;  Capitalize dates ; Doesn't include "may" or "march."
 ;-------------------------------------------------------------------------------
@@ -6913,6 +6920,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :C:tuesday::Tuesday
 :C:wednesday::Wednesday
 
+; MARK: Cap Fixes
 ;-------------------------------------------------------------------------------
 ; Strings for fixing sentence initial caps. Inspired by rkingett 2-7-2025.
 ; The below will automatically capitalize words at the start of sentences.  
@@ -7068,6 +7076,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?C:?  y::f("?  Y") ; Fixes 1 word
 :B0X*?C:?  z::f("?  Z") ; Fixes 1 word
 
+; MARK: Alpha Lists
 ; Just some alphabetical lists of things.
 ::;fruits::Apple`nBanana`nCarrot`nDate`nEggplant`nFig`nGrape`nHoneydew`nIceberg lettuce`nJalapeno`nKiwi`nLemon`nMango`nNectarine`nOrange`nPapaya`nQuince`nRadish`nStrawberry`nTomato`nUgli fruit`nVanilla bean`nWatermelon`nXigua (Chinese watermelon)`nYellow pepper`nZucchini
 ::;animals::Aardvark`nButterfly`nCheetah`nDolphin`nElephant`nFrog`nGiraffe`nHippo`nIguana`nJaguar`nKangaroo`nLion`nMonkey`nNarwhal`nOwl`nPenguin`nQuail`nRabbit`nSnake`nTiger`nUmbrellabird`nVulture`nWolf`nX-ray fish`nYak`nZebra
@@ -7076,8 +7085,42 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 ::;alpha::Alpha`nBravo`nCharlie`nDelta`nEcho`nFoxtrot`nGolf`nHotel`nIndia`nJuliett`nKilo`nLima`nMike`nNovember`nOscar`nPapa`nQuebec`nRomeo`nSierra`nTango`nUniform`nVictor`nWhiskey`nX-ray`nYankee`nZulu
 
 ;################################################
-
+; MARK: Custom
 ;-------------------------------------------------------------------------------
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
 
+
+:B0X:thet::f("that") ; Web Freq 3400.03 | Fixes 1 word 
+:B0X*?:schhol::f("school") ; Web Freq 484.49 | Fixes 100 words 
+:B0X*?:recue::f("reque") ; Web Freq 273.40 | Fixes 40 words 
+:B0X*?:precti::f("practi") ; Web Freq 194.67 | Fixes 60 words 
+:B0X*:beoor::f("befor") ; Web Freq 278.98 | Fixes 3 words 
+:B0X*?C:xomp::f("comp") ; Web Freq 2311.46 | Fixes 902 words, but misspells exomphalos (umbilical hernia at birth)
+:B0X?*C:provent::f("prevent") ; Web Freq 88.30 | Fixes 27 words, but misspells proventriculi (Glandular part of a bird's stomach)
+:B0X*?:becween::f("between") ; Web Freq 255.45 | Fixes 7 words 
+:B0X*?C:ltye::f("ltie") ; Web Freq 33.01 | Fixes 65 words 
+:B0X*:envalop::f("envelop") ; Web Freq 12.02 | Fixes 10 words 
+:B0X*?:rimind::f("remind") ; Web Freq 24.95 | Fixes 11 words 
+:B0X*C:unter::f("under") ; Web Freq 591.65 | Fixes 769 words 
+:B0X*?:tarrif::f("tariff") ; Web Freq 8.91 | Fixes 6 words 
+:B0X*:wihch::f("which") ; Web Freq 813.75 | Fixes 3 words 
+:B0X*?:selfes::f("selves") ; Web Freq 63.91 | Fixes 6 words 
+:B0X:deep seeded::f("deep seated") ; Fixes 1 word 
+:B0X:statue of limitations::f("statute of limitations") ; Fixes 1 word 
+:B0X:pawn off::f("palm off") ; Fixes 1 word 
+:B0X:hone in::f("home in") ; Fixes 1 word 
+:B0X:must exact revenge::f("must extract revenge") ; Fixes 1 word 
+:B0X:will exact revenge::f("will extract revenge") ; Fixes 1 word 
+:B0X:then exact revenge::f("then extract revenge") ; Fixes 1 word 
+:B0X*:thilf::f("filth") ; Web Freq 3.84 | Fixes 8 words 
+:B0X:ot the::f("of the") ; Fixes 1 word 
+:B0X*?:confert::f("convert") ; Web Freq 77.44 | Fixes 54 words 
+:B0X*?:improt::f("import") ; Web Freq 225.46 | Fixes 46 words 
+:B0X*?:ligui::f("liqui") ; Web Freq 30.32 | Fixes 65 words 
+:B0X*?:odual::f("odule") ; Web Freq 69.55 | Fixes 7 words 
+:B0X*?:hoo;::f("hool") ; Web Freq 485.26 | Fixes 114 words 
+:B0X?:ppli::f("pply") ; Web Freq 150.15 | Fixes 11 words 
+:B0X?*:ealted::f("elated") ; Web Freq 239.68 | Fixes 34 words 
+:B0XC:tha::f("the") ; Web Freq 23135.85 | Fixes 1 word 
+:B0X*?:attand::f("attend") ; Web Freq 67.38 | Fixes 23 words 

@@ -1,6 +1,7 @@
-﻿/*
+﻿
+/*
 Color Theme Integrator
-Kunkel321: 11-30-2024
+Kunkel321: 9-28-2025
 https://github.com/kunkel321/ColorThemeIntegrator
 https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132310
 
@@ -65,8 +66,8 @@ saturationSteps     := 30           ; Change number of steps, if desired.
 ; Each of the below scripts should have code to read from the colorThemeSettings.ini file. 
 ; Recommended code to use in the other scripts:
 /*
-if FileExist("colorThemeSettings.ini") {
-   settingsFile := "colorThemeSettings.ini"
+if FileExist("AutoCorrect2\Data\colorThemeSettings.ini") {
+   settingsFile := "AutoCorrect2\Data\colorThemeSettings.ini"
    ; --- Get current colors from ini file. 
    fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
    listColor := IniRead(settingsFile, "ColorSettings", "listColor")
@@ -78,17 +79,17 @@ else { ; Ini file not there, so use these color instead.
 */
 restartTheseScripts := " ; Path not needed if they are in same folder as this script.
 (           
-AutoCorrect2.exe
-HotKeyTool.exe
-MCLogger.exe
-WayText\WayText.exe
-D:\AutoHotkey\mwClipboard-main\mwClipboard.exe
+..\..\Core\AutoCorrect2.exe
+..\..\..\HotKeyTool\HotKeyTool.exe
+..\..\Core\MCLogger.exe
+..\..\..\WayText\WayText.exe
+..\..\..\Stickies\Sticky Notes.exe
 )"
 ; *******************************************************
 
 TraySetIcon("shell32.dll",131)      ; Change tray icon, if desired. 
 
-settingsFile := A_ScriptDir . "\colorThemeSettings.ini" ; Assumes that file is in same location as this script.
+settingsFile := "..\..\Data\colorThemeSettings.ini" ; Assumes that file is in same location as this script.
 
 If FileExist(settingsFile) {
     fontColor                := IniRead(settingsFile, "ColorSettings", "fontColor")

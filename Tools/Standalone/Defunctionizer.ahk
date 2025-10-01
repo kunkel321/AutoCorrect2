@@ -4,7 +4,7 @@
 ; ==============================================================================
 ; DEFUNCTIONIZER
 ; kunkel321
-; version 6-5-2025 
+; version 9-28-2025
 ; It removes the function call from AutoCorrect2 hotstrings.  
 ; For example 		:B0X*?:useing::f("using") ; Web Freq 369.49 | Fixes 115 words 
 ; is converted to: 	:*?:useing::using
@@ -24,7 +24,7 @@
 ; auto-replace hotstring functionality. 
 
 ; ==============================================================================
-; KNOWN ISSUE: If won't convert :B0X?:http:\\::f("http://")  Sorry !!!
+; KNOWN ISSUE: It won't convert :B0X?:http:\\::f("http://")  Sorry !!!
 ; If you have any autocorrects with colons, you'll need to fix them manually.
 
 ; ==============================================================================
@@ -33,7 +33,7 @@ KeepComments := 0 ; 1=keep, 0=discard.  Please note that "misspell warnings" suc
 ; will be kept either way. Note also, if you purge the comments, then AutoCorrect2's
 ; Ctrl+F3 "Potential Fixes Report" will stop working correctly. 
 
-myFile := "HotstringLib.ahk" ; Path to your autocorrect hotstring library.  
+myFile := "..\..\Core\HotstringLib.ahk" ; Path to your autocorrect hotstring library.  
 ; If this Defunctionizer is in the same folder, you can just put the name of the
 ; library, as I have done here.  Otherwise, put whole path. 
 ; Your original library file won't get changed.  A copy, "LibDefunc-..." will be made.
@@ -114,7 +114,7 @@ For item in myListArr {
 }
 
 rep.Destroy()
-Location := A_ScriptDir "\LibDefunc--" FormatTime(A_Now, "MMM-dd-hh-mm") ".ahk"
+Location := "..\..\Core\LibDefunc--" FormatTime(A_Now, "MMM-dd-hh-mm") ".ahk"
 
 Try {
     FileAppend(NewLib, Location, "UTF-8") ; Save to text file, then open the file. 

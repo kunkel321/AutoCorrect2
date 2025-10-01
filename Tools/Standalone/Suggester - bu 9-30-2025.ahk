@@ -1,9 +1,9 @@
 ﻿/*
 =====================================================
             HOTSTRING SUGGESTER TOOL
-                Updated:  5-10-2025 
+                Updated:  9-28-2025 
 =====================================================
-Analyzes hotstrings and suggests trimmed/modified alternatives
+Analyzes hotstrings and suggests lengthened/modified alternatives
 that might be better matches. This standalone tool can be called
 from ACLogAnalyzer or HotStringHelper2.
 
@@ -23,17 +23,15 @@ Simply select an item, then activate HotStringHelper via hotkey #h.
 #Requires AutoHotkey v2+
 TraySetIcon("imageres.dll",254) ; icon for 'add new column'
 
-
-
 ; ======= Configuration =======
 class Config {
     ; File paths
     static ScriptFiles := {
-        ACScript: "AutoCorrect2.ahk",    ; Main script file
-        HSLibrary: "HotstringLib.ahk",   ; Hotstring library file
-        WordListFolder: A_ScriptDir "\WordListsForHH",
-        WordListFile: "GitHubComboList249k.txt",  ; Default word list file
-        FreqDataFile: A_ScriptDir "\WordListsForHH\unigram_freq_list_filtered_88k.csv"
+        ACScript: "..\..\Core\AutoCorrect2.ahk",    ; Main script file
+        HSLibrary: "..\..\Core\HotstringLib.ahk",   ; Hotstring library file
+        WordListFolder: "..\..\Resources\WordListsForHH",
+        WordListFile: "\GitHubComboList249k.txt",  ; Default word list file
+        FreqDataFile: WordListFolder "\unigram_freq_list_filtered_88k.csv"
     }
     
     ; Behavior options
@@ -56,7 +54,7 @@ class Config {
         this.LoadThemeSettings()
         
         ; Calculate full path to word list
-        this.WordListPath := this.ScriptFiles.WordListFolder "\" this.ScriptFiles.WordListFile
+        this.WordListPath := this.ScriptFiles.WordListFolder this.ScriptFiles.WordListFile
         
         ; Extract just the filename from the path
         SplitPath this.WordListPath, &WordListName
@@ -66,8 +64,8 @@ class Config {
     ; Load visual theme settings
     static LoadThemeSettings() {
         try {
-            if FileExist("colorThemeSettings.ini") {
-                settingsFile := "colorThemeSettings.ini"
+            if FileExist("..\..\Data\colorThemeSettings.ini") {
+                settingsFile := "..\..\Data\colorThemeSettings.ini"
                 this.FontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
                 this.ListColor := IniRead(settingsFile, "ColorSettings", "listColor")
                 this.FormColor := IniRead(settingsFile, "ColorSettings", "formColor")
@@ -112,7 +110,7 @@ class HotstringSuggester {
         this.FreqDataFile := Config.ScriptFiles.FreqDataFile
         
         ; Set icon if available
-        try TraySetIcon(A_ScriptDir "\icons\suggest.ico")
+        try TraySetIcon(A_ScriptDir "..\..\Resources\Icons\suggest.ico")
         catch
             Debug("Suggester icon not found")
             
@@ -1097,12 +1095,12 @@ class HotstringSuggester {
 ; Helper functions for conditional logging
 LogError(message) {
     If Config.EnableLogError
-        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "suggester_error_log.txt")
+        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\suggester_error_log.txt")
 }
 
 Debug(message) {
     If Config.EnableDebug
-        FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "suggester_debug_log.txt")
+        FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\suggester_debug_log.txt")
 }
 
 ; ======= Main Execution =======

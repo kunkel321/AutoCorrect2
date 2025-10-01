@@ -62,7 +62,7 @@ IgnoreDuration := 100  ; Ignore if right mouse button down shorter than this man
 IgnoreLength := 100  ; Ignore drags less than this many pixels long.
 
 RButton::  ; hide
-{ 
+{   ;soundbeep 1200, 200
     ; Skip if Ctrl+Alt is pressed (for window resize functionality)
     if (GetKeyState("Ctrl", "P") && GetKeyState("Alt", "P"))
         return

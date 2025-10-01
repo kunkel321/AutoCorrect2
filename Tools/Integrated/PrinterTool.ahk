@@ -1,11 +1,23 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
 ;===============================================================================
-;   Get/Set my default printer.  Updated: 11-4-2024
+;   Get/Set my default printer.  Updated: 9-28-2025
 ; A tool to allow user to check and/or change default printer.
 ; https://www.autohotkey.com/boards/viewtopic.php?f=6&t=118596&p=526363#p526363
 ; By Kunkel321 with help from Garry, Boiler, RussF
 ;===============================================================================
+
+if FileExist("..\Data\colorThemeSettings.ini") {
+	settingsFile := "..\Data\colorThemeSettings.ini"
+	; --- Get current colors from ini file. 
+	fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
+	;listColor := IniRead(settingsFile, "ColorSettings", "listColor")
+	formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+}
+else { ; Ini file not there, so use these color instead. 
+	fontColor := "0x1F1F1F", formColor := "0xE5E4E2" ; , listColor := "0xFFFFFF"
+}
+
 +!p:: ; Shift+Alt+P for Printer Tool
 PrinterTool(*)
 {	; TraySetIcon("shell32.dll","107") ; Icon of a printer with a green checkmark.

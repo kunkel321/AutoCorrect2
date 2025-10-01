@@ -1,15 +1,15 @@
 #SingleInstance
 #Requires AutoHotkey v2+
 
-; Intended for updating AutoHotkey scripts.  kunkel321 4-24-2024.
+; Intended for updating AutoHotkey scripts.  kunkel321 9-28-2025 
 ; A script to find duplicate hotstrings that are in one file but not another. 
 ; Please ensure that is it pointing to two valid files. 
 ; The "mainFile" is the file that you plan to use--it is your new AutoCorrect file.
 ; The "extraFile" is a different version of your file, that might have new custom hotstrings
 ; added, that are not in the new mainFile. 
 
-mainFile := "HotstringLib.ahk"  ; <--- Your AutoCorrect.ahk file path here.
-extraFile := "HotstringLib_OLD.ahk" 
+mainFile := "..\..\Core\HotstringLib.ahk"  ; <--- Your hotstring file path here.
+extraFile := "..\..\Core\HotstringLib_OLD.ahk" 
 
 ^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc. 
 
@@ -97,7 +97,7 @@ finalReport :=
 	extraReport
 )
 
-Location := A_ScriptDir "\Uniques_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
+Location := "..\..\Data\Uniques_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
 FileAppend finalReport, Location ; Save to text file, then open the file. 
 sleep 250
 Run Location

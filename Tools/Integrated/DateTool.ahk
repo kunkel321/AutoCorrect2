@@ -7,7 +7,7 @@
 ;======== DateTool-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 9-25-2025
+; The 'H' is for 'Holidays.'   Version: 9-28-2025
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -91,7 +91,7 @@ Press F1 while monthCal is showing ----> Summons the help GUI."
 
 ; ==============================================================================
 ; GET RID OF this #HotIf section if you are using DateTool as a stand-alone app. 
-MyAutoCorrectFileName := "AutoCorrect2.exe" ; <------- CHANGE To NAME of your AutoCorrect script?
+MyAutoCorrectFileName := "..\Core\AutoCorrect2.exe" ; <------- CHANGE To NAME of your AutoCorrect script?
 #HotIf WinActive("DateTool.ahk",) ; Can't use A_Var here.
 ^s:: ; Because this tool is #Included in AutoCorrect2, reload ac2 upon save. hide
 {	Send("^s") ; Save me.
@@ -133,8 +133,8 @@ DEBUG_LOG := 0  ; 1 = yes log, 0 = no don't
 ; so have 'MenuReportsAsToolTips:=0' or have a small font for tooltips (next section.)
 ; ==============================================================================
 
-if FileExist("colorThemeSettings.ini") {
-    settingsFile := "colorThemeSettings.ini"
+if FileExist("..\Data\colorThemeSettings.ini") {
+    settingsFile := "..\Data\colorThemeSettings.ini"
     ; --- Get current theme colors from ini file.
     formColor := IniRead(settingsFile, "ColorSettings", "formColor")
     ;fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
@@ -1662,12 +1662,12 @@ ShowReport(title, content, tooltipNum := 3) {
 ; Helper functions for conditional logging
 DTLogError(message) {
     if (ERROR_LOG) {
-        FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
+        FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\Datetool_error_debug_log.txt")
     }
 }
 DTDebug(message) {
     if (DEBUG_LOG) {
-        FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "Datetool_error_debug_log.txt")
+        FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\Datetool_error_debug_log.txt")
     }
 }
 ; MARK: END

@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 4-1-2025 
+; Version: 9-28-2025
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -232,14 +232,14 @@ class BackspaceContextLogger {
                 }
                 catch as e {
                     ; If there's an error, log it and continue
-                    FileAppend("Error in BackspaceContextLogger loop: " e.Message "`n", A_ScriptDir "\error_log.txt")
+                    FileAppend("Error in BackspaceContextLogger loop: " e.Message "`n", "..\Data\error_log.txt")
                     Sleep(100)
                 }
             }
         }
         catch as e {
             ; Log outer error and mark as not running so we can restart if needed
-            FileAppend("Critical error in BackspaceContextLogger: " e.Message "`n", A_ScriptDir "\error_log.txt")
+            FileAppend("Critical error in BackspaceContextLogger: " e.Message "`n", "..\Data\error_log.txt")
             this.isRunning := false
         }
     }
@@ -366,6 +366,7 @@ class InputBuffer {
 !+F3::StringAndFixReport("lastTrigger")  ; Alt+Shift+F3: Show last used trigger
 ^F3::StringAndFixReport()                ; Ctrl+F3: Show statistics report
 
+global caller := ""
 StringAndFixReport(caller := "Button") {
     ; Handle different cases based on caller parameter
     if (caller = "lastTrigger") {

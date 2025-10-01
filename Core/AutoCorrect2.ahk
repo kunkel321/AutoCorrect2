@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 6-27-2025
+; Version: 9-28-2025
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -20,13 +20,13 @@ SetWorkingDir(A_ScriptDir)
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
 ; The "*i" prevents an error if the file doesn't exist.
-#Include "*i DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
-#Include "*i PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
-#Include "*i DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
+#Include "*i ..\Tools\Integrated\DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
+#Include "*i ..\Tools\Integrated\PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
+#Include "*i ..\Tools\Integrated\DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
 
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
-#Include "*i PersonalHotstrings.ahk" ;  -- Optional
+#Include "*i ..\Optional\PersonalHotstrings.ahk" ;  -- Optional
 
 ; =============== CONFIGURATION ===============
 ; The configuration is centralized here for easier modification
@@ -35,10 +35,10 @@ class Config {
     static ScriptName := "AutoCorrect2.ahk"
     static HHWindowTitle := A_UserName "'s HotstringHelper2" ; Appears in title bar of HotstringHelper window.  Change as desired. 
     static HotstringLibrary := "HotstringLib.ahk"
-    static RemovedHsFile := "RemovedHotstrings.txt"
-    static AutoCorrectsLogFile := "AutoCorrectsLog.txt"
-    static ErrContextLog := "ErrContextLog.txt"
-    static ACLogAnalyzer := "AcLogAnalyzer.exe"
+    static RemovedHsFile := "..\Data\RemovedHotstrings.txt"
+    static AutoCorrectsLogFile := "..\Data\AutoCorrectsLog.txt"
+    static ErrContextLog := "..\Data\ErrContextLog.txt"
+    static ACLogAnalyzer := "..\Tools\Standalone\ACLogAnalyzer.exe"
     static CODE_ERROR_LOG := 0 ; Set to 1 for error logging. 
     static CODE_DEBUG_LOG := 0 ; Set to 1 for copious debug logging (recommended: 0)
     
@@ -73,7 +73,7 @@ class Config {
     static AutoEnterNewEntry := 1          ; Auto-enter the new replacement in active field?
     
     ; ===== Word Lists =====
-    static WordListFolder := A_ScriptDir "\WordListsForHH"
+    static WordListFolder := "..\Resources\WordListsForHH"
     static WordListFile := "GitHubComboList249k.txt"
     
     ; ===== Validity Dialog =====
@@ -110,8 +110,8 @@ class Config {
     ; Initialize with calculated values
     static Init() {
         ; Load color settings from theme file if it exists
-        if FileExist("colorThemeSettings.ini") {
-            settingsFile := "colorThemeSettings.ini"
+        if FileExist("..\Data\colorThemeSettings.ini") {
+            settingsFile := "..\Data\colorThemeSettings.ini"
             ; --- Get current colors from ini file. 
             this.FontColor := "c" IniRead(settingsFile, "ColorSettings", "fontColor")
             this.ListColor := IniRead(settingsFile, "ColorSettings", "listColor")
@@ -147,32 +147,32 @@ SetupTrayMenu() {
     acMenu.SetColor("Silver")
     
     acMenu.Add(Config.ScriptName, (*) => Utils.CheckClipboard()) ; Opens hh2 gui.
-    acMenu.SetIcon(Config.ScriptName, "Icons\AhkBluePsicon.ico")
+    acMenu.SetIcon(Config.ScriptName, "..\Resources\Icons\AhkBluePsicon.ico")
     acMenu.Default := Config.ScriptName
     
     acMenu.Add("Edit This Script", (*) => EditThisScript())
-    acMenu.SetIcon("Edit This Script", "Icons\edit-Blue.ico")
+    acMenu.SetIcon("Edit This Script", "..\Resources\Icons\edit-Blue.ico")
     
     acMenu.Add("Hotstring Library", (*) => OpenHotstringLibrary())
-    acMenu.SetIcon("Hotstring Library", "Icons\library-Blue.ico")
+    acMenu.SetIcon("Hotstring Library", "..\Resources\Icons\library-Blue.ico")
    
     acMenu.Add("Run Printer Tool", (*) => RunPrinterTool())
-    acMenu.SetIcon("Run Printer Tool", "Icons\printer-Blue.ico")
+    acMenu.SetIcon("Run Printer Tool", "..\Resources\Icons\printer-Blue.ico")
 
     acMenu.Add("Show Calendar", (*) => RunDateTool())
-    acMenu.SetIcon("Show Calendar", "Icons\calendar-Blue.ico")
+    acMenu.SetIcon("Show Calendar", "..\Resources\Icons\calendar-Blue.ico")
     
     acMenu.Add("System Up Time", (*) => UpTime())
-    acMenu.SetIcon("System Up Time", "Icons\clock-Blue.ico")
+    acMenu.SetIcon("System Up Time", "..\Resources\Icons\clock-Blue.ico")
     
     acMenu.Add("Reload Script", (*) => Reload())
-    acMenu.SetIcon("Reload Script", "icons/repeat-Blue.ico")
+    acMenu.SetIcon("Reload Script", "..\Resources\Icons\repeat-Blue.ico")
     
     acMenu.Add("List Lines Debug", (*) => ListLines())
-    acMenu.SetIcon("List Lines Debug", "icons/ListLines-Blue.ico")
+    acMenu.SetIcon("List Lines Debug", "..\Resources\Icons\ListLines-Blue.ico")
     
     acMenu.Add("Exit Script", (*) => ExitApp())
-    acMenu.SetIcon("Exit Script", "icons/exit-Blue.ico")
+    acMenu.SetIcon("Exit Script", "..\Resources\Icons\exit-Blue.ico")
 
     acMenu.Add("Start with Windows", (*) => StartUpAC()) ; Add menu item at the bottom.
     if FileExist(A_Startup "\" Config.ScriptName ".lnk")
@@ -184,8 +184,8 @@ SetupTrayMenu() {
             FileDelete(A_Startup "\" Config.ScriptName ".lnk")
             MsgBox("" Config.ScriptName " will NO LONGER auto start with Windows.",, 4096)
         } Else {
-            FileCreateShortcut(A_WorkingDir "\" Config.ScriptName ".exe", A_Startup "\" Config.ScriptName ".lnk"
-            , A_WorkingDir, "", "", A_ScriptDir "\Icons\AhkBluePsicon.ico")
+            FileCreateShortcut(A_WorkingDir "\" StrReplace(Config.ScriptName, ".ahk") ".exe", A_Startup "\" Config.ScriptName ".lnk"
+            , A_WorkingDir, "", "", A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
             MsgBox(Config.ScriptName " will now auto start with Windows.",, 4096)
         }
         Reload()
@@ -478,7 +478,7 @@ class UI {
             this.controlButtons.Push({
                 text: "  Analyze AutoCorrection Log !^+Q", 
                 action: (*) => Run(Config.AcLogAnalyzer),
-                icon: A_ScriptDir "\Icons\AcAnalysis.ico"
+                icon: A_ScriptDir "\..\Resources\Icons\AcAnalysis.ico"
             })
             
             this.controlButtons.Push({
@@ -497,14 +497,14 @@ class UI {
         ; Add remaining buttons regardless of logging status
         this.controlButtons.Push({
             text: "Open Manual Correction Log", 
-            action: (*) => Run("MCLog.txt"),
+            action: (*) => Run("..\Data\ManualCorrectionsLog.txt"),
             icon: ""
         })
         
         this.controlButtons.Push({
             text: "  Analyze Manual Correction Log #^+Q", 
             action: (*) => Run("MCLogger.exe /script MCLogger.ahk analyze"),
-            icon: A_ScriptDir "\Icons\JustLog.ico"
+            icon: A_ScriptDir "\..\Resources\Icons\JustLog.ico"
         })
         
         this.controlButtons.Push({
@@ -514,10 +514,10 @@ class UI {
         })
         
         ; Check if Suggester tool is present, add button.
-        if FileExist("Suggester.exe") {
+        if FileExist("..\Tools\Standalone\Suggester.exe") {
             this.controlButtons.Push({
                 text: "Hotstring Suggester Tool", 
-                action: (*) => Run("Suggester.exe"),
+                action: (*) => Run("..\Tools\Standalone\Suggester.exe"),
                 icon: ""
             })
         }
@@ -526,15 +526,15 @@ class UI {
         this.controlButtons.Push({
             text: "  Go to GitHub Repository", 
             action: (*) => Run("https://github.com/kunkel321/AutoCorrect2"),
-            icon: A_ScriptDir "\Icons\GitHubLogo.ico"
+            icon: A_ScriptDir "\..\Resources\Icons\GitHubLogo.ico"
         })
 
         ; Check if color theme settings exist, add theme button if they do
-        if FileExist("colorThemeSettings.ini") {
+        if FileExist("..\Data\colorThemeSettings.ini") {
             this.controlButtons.Push({
                 text: "  Change Color Theme", 
-                action: (*) => Run("ColorThemeInt.exe /script ColorThemeInt.ahk analyz"),
-                icon: A_ScriptDir "\Icons\msn butterfly.ico"
+                action: (*) => Run("..\Tools\Standalone\ColorThemeInt.exe /script ..\Tools\Standalone\ColorThemeInt.ahk analyz"),
+                icon: A_ScriptDir "\..\Resources\Icons\msn butterfly.ico"
             })
         }
         
@@ -1366,32 +1366,41 @@ class UIActions {
     
     ; Send current hotstring to Suggester tool
     static SendToSuggester(options, triggerText, replacementText) {
-        ; Construct the hotstring
         hotstringFull := ":" options ":" triggerText "::" replacementText
         
-        ; Log what we're sending to Suggester
         Debug("Sending from HH2 to Suggester: " hotstringFull)
         
-        ; Run the Suggester tool with the hotstring as parameter
         try {
-            ; Check if Suggester.exe exists
-            if FileExist(A_ScriptDir "\Suggester.exe") {
-                Run(A_ScriptDir '\Suggester.exe /script Suggester.ahk "' hotstringFull '"')
+            rootDir := A_ScriptDir "\.."
+            suggesterExe := rootDir "\Tools\Standalone\Suggester.exe"
+            suggesterAhk := rootDir "\Tools\Standalone\Suggester.ahk"
+            
+            Debug("Looking for Suggester at: " suggesterAhk)
+            
+            if (!FileExist(suggesterExe) || !FileExist(suggesterAhk)) {
+                MsgBox("Error: Suggester tool not found.`n`nNeeds both:`n" suggesterExe "`n" suggesterAhk)
+                return
             }
-            ; Check if Suggester.ahk exists (as fallback)
-            else if FileExist(A_ScriptDir "\Suggester.ahk") {
-                Run('AutoHotkey.exe "' A_ScriptDir '\Suggester.ahk" "' hotstringFull '"')
-            }
-            else {
-                MsgBox("Error: Suggester tool not found. Make sure Suggester.exe or Suggester.ahk is in the current directory.")
-            }
+            
+            ; Create a temporary file with the hotstring
+            tempFile := A_Temp "\ac2_suggester_temp.txt"
+            try FileDelete(tempFile)
+            FileAppend(hotstringFull, tempFile)
+            
+            Debug("Created temp file: " tempFile)
+            
+            ; Run: Suggester.exe "Suggester.ahk" /fromfile "tempfile.txt"
+            ; The renamed AutoHotkey.exe needs the script file as first parameter
+            cmdLine := '"' suggesterExe '" "' suggesterAhk '" /fromfile "' tempFile '"'
+            Debug("Running command: " cmdLine)
+            Run(cmdLine)
+            
+            UI.MainForm.Show()
+            
         } catch Error as err {
             LogError("Error launching Suggester tool: " err.Message)
-            MsgBox("Error launching Suggester tool: " err.Message)
+            MsgBox("Error launching Suggester tool: (" err.Number ") " err.Message "`n`nDebug info written to log.")
         }
-        
-        ; Keep the HH2 form open
-        UI.MainForm.Show()
     }
 
     ; Open the hotstring library in the editor
@@ -1894,7 +1903,7 @@ class Dictionary {
     static isLoaded := false
     static isLoading := false
     static loadingStatus := ""
-    static WORDNET_PATH := A_ScriptDir "\Dictionary\WordNet-3.0\dict\"
+    static WORDNET_PATH := "..\Resources\Dictionary\WordNet-3.0\dict\"
     
     ; Start loading dictionary in background
     static StartBackgroundLoad() {
@@ -2369,7 +2378,7 @@ class WordFrequency {
     static isLoaded := false
     static isLoading := false
     static EXPECTED_WORD_COUNT := 88916
-    static DATA_FILE := A_ScriptDir "\WordListsForHH\unigram_freq_list_filtered_88k.csv"
+    static DATA_FILE := "..\Resources\WordListsForHH\unigram_freq_list_filtered_88k.csv"
     
     ; Initialize word frequency data
     static Initialize() {
@@ -2547,7 +2556,7 @@ class WordFrequency {
 
 ; =============== MAIN PROGRAM ===============
 
-TraySetIcon(A_ScriptDir "\Icons\AhkBluePsicon.ico")
+TraySetIcon(A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
 ;TrayTip("HotString Helper 2", "Running - Press " Config.ActivationHotkey " to activate", 10)
 
 ; Initialize UI components
@@ -2662,7 +2671,7 @@ class HelpSystem {
         for index, buttonConfig in UI.controlButtons {
             switch buttonConfig.text {
                 case "Open HotString Library":
-                    this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located.`n`nTip:  When adopting a newer version of the HotstringLib.ahk file from https://github.com/kunkel321/AutoCorrect2, it is recommended to use the Duplicate String ExtracterFor v2.ahk tool.  This will allow you to not lose any custom hotstrings that you have, yourself, added."
+                    this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located.`n`nTip:  When adopting a newer version of the HotstringLib.ahk file from https://github.com/kunkel321/AutoCorrect2, it is recommended to use the DuplicateStringExtracter tool.  This will allow you to not lose any custom hotstrings that you have, yourself, added."
                     
                 case "Open AutoCorrection Log":
                     this.helpTexts["ControlButton_ACLog"] := "Opens the AutoCorrectsLog.txt file.`n`nThis log contains a record of all autocorrections made using the f() function, including whether a correction was backspaced (indicating a possible error).`n`nThe date of each logged item is present and date and item are separated with a hyphen.`n`n<< = Backspace was pressed`n-- = Backspace not pressed.`n`nThe ACLog file is analyzed by AcLogAnalyer.  Manually handling the log file is usually not needed.`n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MCLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the AutoCorrectSystem.ahk file, and change Global EnableLogging := 1 to 0."
@@ -2687,6 +2696,9 @@ class HelpSystem {
                     
                 case "Hotstring Suggester Tool":
                     this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.`n`nThe Suggester tool is usually accessed via Shift+Clicking the Append button, or via the AcLogAnalyer report."
+                    
+                case "  Go to GitHub Repository":
+                    this.helpTexts["ControlButton_GitHub"] := "Opens the GitHub repository for this tool, in your default webbrowswer."
                     
                 case "  Change Color Theme":
                     this.helpTexts["ControlButton_Theme"] := "Opens the Color Theme customization tool.`n`nThis allows you to change the colors of the HotstringHelper interface (was well as other apps)to match your preferences."
@@ -2735,6 +2747,8 @@ class HelpSystem {
                         helpTitle := "Help for 'Hotstring Suggester Tool' button"
                     case "Theme":
                         helpTitle := "Help for 'Change Color Theme' button"
+                    case "GitHub":
+                        helpTitle := "Help for 'Go to GitHub Repository' button"
                     default:
                         helpTitle := "Help for Control Panel Button"
                 }
@@ -2748,10 +2762,10 @@ class HelpSystem {
             helpText := "This is the Hotstring Helper 2.0 main window.`n`nUse this tool to create and analyze hotstrings for AutoCorrect2. Some of the functionality is for making AutoCorrect items, and some is for making boilerplate template items.`n`nPress F1 while focusing on a specific control for more detailed help.`n`nPress Tab to move between controls or Shift+Tab to move backwards.`n`nGet the latest AutoCorrect2 suite from https://github.com/kunkel321/AutoCorrect2."
             
             If (examPaneVisible)
-                helpText .= "`n`n`t------------------`n`nAt the bottom is the `"Exam Pane.`"`n`nThe Blue text is the Delta String and shows which parts of the trigger /replacement are unique vs. which parts are shared.`n`nFor example:`n`ncrea[s|t]ion`nshows the change of:`ncreasion ---> creation.`n`nt[eh|he]`nshows the change of:`nteh ---> the.`n`n[sp|ps]ych`nshows the change of:`nspych ---> psych."
+                helpText .= "`n`n------------------`nAt the bottom is the `"Exam Pane.`"`n`nThe Blue text is the Delta String and shows which parts of the trigger /replacement are unique vs. which parts are shared.`n`nFor example:`ncrea[s|t]ion shows the change of:`ncreasion ---> creation.`n`nt[eh|he] shows the change of:`nteh ---> the.`n`n[sp|ps]ych shows the change of:`nspych ---> psych.`n`n`"Misspells`" shows the number of matches for the trigger string.  These are the words that will get erroneously mis-corrrected.  `"Fixes`" shows the number for the replacement, which is the list of words that will be corrected by the given hotstring.  Our goal, is to have many matches and no misspells.`n`nThe `"Web Frequency`" is expressed in millions, and is the number of total matches on the internet, for the list of words.  The frequency data is derived from the Google Web Trillion Word Corpus (Credit: Racheal Tatman, Kaggle.com).  The word list and CSV file are in the /WordListsForHH folder. "
                 
             If (controlPaneVisible)
-                helpText .= "`n`n`t------------------`n`nAt the bottom is the `"Control Pane.`"`n`nIt contains buttons to launch several script-related tools and other things.  Some items are only show conditionally.  The bottom `'Suggester`' and `'Color Theme`' buttons are only displayed if the corresponding apps are present in the AutoCorrect folder.  The log-related buttons are only displayed if logging is enabled at the top of the AutoCorrectSystem.ahk file."
+                helpText .= "`n`n------------------`nAt the bottom is the `"Control Pane.`"`n`nIt contains buttons to launch several script-related tools and other things.  Some items are only show conditionally.  The bottom `'Suggester`' and `'Color Theme`' buttons are only displayed if the corresponding apps are present in the AutoCorrect folder.  The log-related buttons are only displayed if logging is enabled at the top of the AutoCorrectSystem.ahk file.`n`nSeveral, but not all, of the buttons have custom icons.  The icons are not compiled.  They are in the /icons folder. "
         }
         
         ; Create help GUI
@@ -2762,7 +2776,7 @@ class HelpSystem {
         this.helpGui.BackColor := Config.FormColor
         
         ; Use an Edit control for selectable text, styled as a label
-        this.helpGui.Add("Edit", "w300 -VScroll ReadOnly -E0x200 -WantReturn -TabStop Background" Config.FormColor, helpText)
+        this.helpGui.Add("Edit", "w500 -VScroll ReadOnly -E0x200 -WantReturn -TabStop Background" Config.FormColor, helpText)
         
         ; Add close button
         closeBtn := this.helpGui.AddButton("Default", "Close")
@@ -2816,6 +2830,8 @@ class HelpSystem {
                             return "ControlButton_Report"
                         else if InStr(buttonText, "Hotstring Suggester Tool")
                             return "ControlButton_Suggester"
+                        else if InStr(buttonText, "Go to GitHub Repository")
+                            return "ControlButton_GitHub"
                         else if InStr(buttonText, "Change Color Theme")
                             return "ControlButton_Theme"
                     }
