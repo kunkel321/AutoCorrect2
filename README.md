@@ -5,10 +5,10 @@ _Stephen Kunkel (kunkel321)_
 
 # Start Here.
 - Run: AutoCorrect2\Core\AutoCorrect2.exe
-- Then press Win+H
+- Then press _Win+H_
 
 # Updating to October 1st version.  
-- You can use your existing HotstringLib.ahk file and log files.  Just besure to put them in the AutoCorrect\Data\ folder.
+- You can use your existing HotstringLib.ahk file and log files.  Just be sure to put them in the AutoCorrect\Data\ folder.
 - Important: Please note that MCLog.txt has been renamed to ManualCorrectionLog.txt.
 
 # Contributors.
