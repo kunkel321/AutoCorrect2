@@ -50,4 +50,4 @@ Note that boilerplate items are never created with function calls.
 Please see the User Manual for more information. 
 
 # Icon on main AutoCorrect2 parent folder:
-- The files in the sub folders all use relative folder paths, so you should be able to unzip the AutoCorrect2.zip and put the folder anywhere.  Note however that the Desktop.ini that Windows uses to hold custom icon info has to be an absolute path.  Mine is "IconResource=D:\AutoHotkey\MasterScript\AutoCorrect2\Resources\Icons\AhkBluePsicon.ico,0".  You should change that do your own path. 
+- The files in the sub folders all use relative folder paths, so you should be able to unzip the AutoCorrect2.zip and put the folder anywhere.  Note however, that the desktop.ini that Windows uses for the custom icon location has to be an absolute path.  Mine is "IconResource=D:\AutoHotkey\MasterScript\AutoCorrect2\Resources\Icons\AhkBluePsicon.ico,0".  You should change that to the path on your own computer. 
