@@ -1,5 +1,5 @@
 # AutoCorrect for v2 Package.
-This started as a version of the 2007 AutoHotkey script, AutoCorrect.ahk, though it has evolved into a package of several interrelated scripts.  It is written in AHK v2 code, and so is called "AutoCorrect2."  Please note that the .exe files are not compiled versions of the same-named .ahk files.  Rather, they are a copies of AutoHotKey.exe that were downloaded from the AutoHotkey site, and renamed, to match the .ahk file.  Keeping the two in the same folder allows the user to run the code "portably," right from the folder.   It would probably be okay for a user to compile the ahk files into exe files, but the txt files must stay as read/writable separate files. 
+This started as a version of the 2007 AutoHotkey script, AutoCorrect.ahk, though it has evolved into a package of several interrelated scripts.  It is written in AHK v2 code, and so is called "AutoCorrect2."  Please note that the .exe files are not compiled versions of the same-named .ahk files.  Rather, they are a copies of AutoHotKey.exe that were downloaded from the AutoHotkey site, and renamed, to match the .ahk file.  Keeping the two in the same folder allows the user to run the code "portably," right from the folder.   
 
 _Stephen Kunkel (kunkel321)_
 
@@ -8,19 +8,19 @@ _Stephen Kunkel (kunkel321)_
 - Then press _Win+H_
 
 # Updating to October 1st version.  
-- You can use your existing HotstringLib.ahk file and log files.  Just be sure to put them in the AutoCorrect\Data\ folder.
+- You can use your existing HotstringLib.ahk file and log files.  Just be sure to put the log files in the AutoCorrect\Data\ folder and the HotstringLib.ahk file in AutoCorrect2\Core\.
 - Important: Please note that MCLog.txt has been renamed to ManualCorrectionLog.txt.
 
 # Contributors.
 It's worth noting that only one other person -- Robert -- has contributed code _via the GitHub push mechanism_, but many others have made **significant** contributions by other means (usually the AutoHotkey forums).  I'll list them here eventually, but they can also be found in the code comments of the various ahk files in the repository. 
 
-## March 6, 2025 Major Update...
+# March 6, 2025 Major Update...
 - The AutoCorrect2 code (which is mostly for HotstringHelper2) was very messy and "Frankensteinish" from evolving over the years.  I used Claude AI to totally refactor it, implementing best practice for code organization, naming conventions, etc.  The last parts of the script (loggers and inputBuffer class) are now a separate file that gets #Included.  So, _AutoCorrect2.ahk, AutoCorrectSystem.ahk, and HotstringLib.ahk_ must all be present for it to work. 
-## October 1, 2025 Update to Folder Structure...
+# October 1, 2025 Update to Folder Structure...
 - The main folder was cluttered with tons of files, so I used Claude again to suggest the most sensible way to use subfolders.  The downside is that many of the tools call each other.  All those bits of code were easier when everything was in the same folder.  They now have to point to different locations.  I think I got it all working though.  I do think it is better organized like this.  None of the functionality of the tools was changed, though many folder paths in the code had to be updated.  
 
-## Hotstring Helper 2 – Quick Sheet
-![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/WordListsForHH/GUI%20quicksheet.png))
+# Hotstring Helper 2 – Quick Sheet
+![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.png))
 1.	The Options Box.  Hotstring options go here.
 2.	The Hotstring (Trigger string) Box.  Gets populated with word on clipboard.  If many words are on clipboard, an acronym is generated.  If the Exam Pane is open, adding a letter to the beginning or end of the trigger will cause the same letter to be automatically added to the replacement text.  Shift+Left focuses the Trigger Box.  Ctrl+Up/Down or Ctrl+Mouse Wheel toggles font size.
 3.	If the string in the Trigger Box corresponds to any English words, if will turn red and warn you.  
@@ -50,4 +50,4 @@ Note that boilerplate items are never created with function calls.
 Please see the User Manual for more information. 
 
 # Icon on main AutoCorrect2 parent folder:
-- The files in the sub folders all use relative folder paths, so you should be able to unzip the AutoCorrect2.zip and put the folder anywhere.  Note however that the Desktop.ini that Windows uses to hold custom icon info has to be an absolute path.  Mine is "IconResource=D:\AutoHotkey\MasterScript\AutoCorrect2\Resources\Icons\AhkBluePsicon.ico,0".  You should change that do your own path. 
+- The files in the sub folders all use relative folder paths, so you should be able to unzip the AutoCorrect2.zip and put the folder anywhere.  Note however, that the desktop.ini that Windows uses for the custom icon location has to be an absolute path.  Mine is "IconResource=D:\AutoHotkey\MasterScript\AutoCorrect2\Resources\Icons\AhkBluePsicon.ico,0".  You should change that to the path on your own computer. 
