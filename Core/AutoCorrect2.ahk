@@ -5,10 +5,12 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 9-28-2025
+; Version: 10-5-2025
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
+; In Sept 2025 the folder structure got changed.  Please be mindful of what 
+; location your files need to be located.
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -1312,6 +1314,7 @@ class UIActions {
 		}
 	}
     
+
     ; Handler for the Spell button
     static OnSpellButtonClick() {
         replacementText := UI.Controls["ReplacementEdit"].Text
@@ -1320,22 +1323,18 @@ class UIActions {
             MsgBox("Replacement Text not found.", , 4096)
         }
         else {
-            suggestion := Utils.GoogleAutoCorrect(replacementText)
+            suggestion := Utils.SpellingGrammarSuggestion(replacementText)
             
-            if suggestion = "" {
+            if suggestion = "" || suggestion = replacementText {
                 MsgBox("No suggestions found.", , 4096)
             }
             else {
-                msgResult := MsgBox(suggestion "`n`n######################`nChange Replacement Text?", "Google Suggestion", "OC 4096")
-                
-                if msgResult = "OK" {
-                    UI.Controls["ReplacementEdit"].Value := suggestion
-                    this.FilterWordLists()
-                }
+                ; Show suggestion in a custom GUI instead of MsgBox
+                Utils.ShowSpellingSuggestionGui(replacementText, suggestion)
             }
         }
     }
-    
+
     ; Handler for the Look button (dictionary lookup)
     static OnLookButtonClick() {
         Utils.ProcessSelectedText((word) => Dictionary.ShowDefinitionGui(word))
@@ -2142,23 +2141,114 @@ class Utils {
         }
     }
     
-    ; Get spelling suggestions from Google
-    static GoogleAutoCorrect(word) {
+    /*
+    ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=139205
+    ; Get spelling/grammar suggestions from LanguageTool API
+    ; USAGE: 
+    ; Get full corrected sentence (default)
+    msgbox SpellingGrammarSuggestion("I are going now.")  ; Returns: "I am going now."
+    ; Get just the replacement word
+    msgbox SpellingGrammarSuggestion("I are going now.", false)  ; Returns: "am"
+    ; Works with single words too
+    msgbox SpellingGrammarSuggestion("wisard")  ; Returns: "wizard"
+    */
+
+    ;====The=Function================================
+    Static SpellingGrammarSuggestion(text, returnFullText := true) {
         objReq := ComObject('WinHttp.WinHttpRequest.5.1')
-        objReq.Open('GET', 'https://www.google.com/search?q=' word)
-        objReq.SetRequestHeader('User-Agent',
-            'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)')
+        url := 'https://api.languagetool.org/v2/check'
+        postData := 'text=' text '&language=en-US'
         
-        objReq.Send()
-        HTML := objReq.ResponseText
+        objReq.Open('POST', url)
+        objReq.SetRequestHeader('Content-Type', 'application/x-www-form-urlencoded')
+        objReq.Send(postData)
         
-        if RegExMatch(HTML, 'value="(.*?)"', &A)
-            if RegExMatch(HTML, ';spell=1.*?>(.*?)<\/a>', &B)
-                return B[1] || A[1]
-                
-        return ""
+        response := objReq.ResponseText
+        
+        ; Find all corrections - replacements comes BEFORE offset/length in JSON
+        corrections := []
+        pos := 1
+        
+        while (pos := RegExMatch(response, '"replacements":\[\{"value":"([^"]+)"[^\]]*\],"offset":(\d+),"length":(\d+)', &match, pos)) {
+            corrections.Push({
+                offset: Integer(match[2]),
+                length: Integer(match[3]),
+                replacement: match[1]
+            })
+            pos += match.Len
+        }
+        
+        if corrections.Length == 0
+            return text
+        
+        if returnFullText {
+            ; Apply corrections in reverse order (so offsets stay valid)
+            correctedText := text
+            
+            ; Sort by offset descending
+            Loop corrections.Length - 1 {
+                i := corrections.Length - A_Index
+                Loop i {
+                    if corrections[A_Index].offset < corrections[A_Index + 1].offset {
+                        temp := corrections[A_Index]
+                        corrections[A_Index] := corrections[A_Index + 1]
+                        corrections[A_Index + 1] := temp
+                    }
+                }
+            }
+            
+            for corr in corrections {
+                correctedText := SubStr(correctedText, 1, corr.offset) . corr.replacement . SubStr(correctedText, corr.offset + corr.length + 1)
+            }
+            
+            return correctedText
+        }
+        else {
+            return corrections[1].replacement
+        }
     }
-    
+
+    ; Show spelling suggestion in a GUI
+    static ShowSpellingSuggestionGui(originalText, suggestion) {
+        suggestionGui := Gui("+AlwaysOnTop")
+        suggestionGui.SetFont(Config.ValidityDialogFont)
+        suggestionGui.SetFont(Config.FontColor)
+        suggestionGui.BackColor := Config.FormColor
+        
+        ; Determine width based on text length
+        longerText := StrLen(originalText) > StrLen(suggestion) ? originalText : suggestion
+        isLongText := StrLen(longerText) > 90
+        guiWidth := isLongText ? "w600 " : ""
+        
+        ; Only show original text for shorter strings
+        if !isLongText {
+            suggestionGui.Add("Text", "y10", "Original text:")
+            suggestionGui.Add("Text", guiWidth "xm y+0", originalText)
+            suggestionGui.Add("Text", "xm y+15", "Suggested correction:")
+        } else {
+            suggestionGui.Add("Text", "y10", "Suggested correction:")
+        }
+        
+        suggestionGui.Add("Text", guiWidth "xm y+0", suggestion)
+        
+        ; Add buttons
+        useSuggestionBtn := suggestionGui.AddButton(" y+20", "Use Suggestion")
+        cancelBtn := suggestionGui.AddButton("x+8", "Cancel")
+        
+        ; Setup events
+        useSuggestionBtn.OnEvent("Click", (*) => (
+            UI.Controls["ReplacementEdit"].Value := suggestion,
+            UIActions.FilterWordLists(),
+            suggestionGui.Destroy()
+        ))
+        
+        cancelBtn.OnEvent("Click", (*) => suggestionGui.Destroy())
+        suggestionGui.OnEvent("Escape", (*) => suggestionGui.Destroy())
+        
+        suggestionGui.Show("AutoSize")
+        useSuggestionBtn.Focus()
+    }
+
     ; Look up selected text in editor
     static LookupSelectedText(text, editControl) {
         if !WinExist(Config.HotstringLibrary) {
@@ -2645,7 +2735,7 @@ class HelpSystem {
         
         this.helpTexts["ExamButton"] := "Opens the Exam Pane to analyze the trigger and replacement which is useful for creating multi-match autocorrect entries.`n`nRight-click to access the Secret Control Panel.`n`nIf pane is open, button text will change to `"Done`"."
         
-        this.helpTexts["SpellButton"] := "Uses Google's 'Did you mean...' to check spelling of the replacement text."
+        this.helpTexts["SpellButton"] := "Uses LanguageTool.org's AI to check spelling of the replacement text.  If a suggested correction is found, it will offer to fix the word in the replacement text box.  It will check sentences for grammar mistakes as well.  It works well, but is not perfect.`n`nTip:  If it doesn't correct the grammar of a short phrase, try making the phrase into a complete sentence, and try again. "
         
         this.helpTexts["LookButton"] := "Looks up selected text in the onboard WordNet dictionary.`n`nRight-click to search GCIDE online."
         
@@ -2759,7 +2849,7 @@ class HelpSystem {
             helpText := this.helpTexts[focusedControl]
         } else {
             helpTitle := "HotString Helper Help"
-            helpText := "This is the Hotstring Helper 2.0 main window.`n`nUse this tool to create and analyze hotstrings for AutoCorrect2. Some of the functionality is for making AutoCorrect items, and some is for making boilerplate template items.`n`nPress F1 while focusing on a specific control for more detailed help.`n`nPress Tab to move between controls or Shift+Tab to move backwards.`n`nGet the latest AutoCorrect2 suite from https://github.com/kunkel321/AutoCorrect2."
+            helpText := "This is the Hotstring Helper 2.0 main window.`n`nUse this tool to create and analyze hotstrings for AutoCorrect2. Some of the functionality is for making AutoCorrect items, and some is for making boilerplate template items.`n`nPress F1 while focusing on a specific control (button, box, etc) for more detailed help.`n`nPress Tab to move between controls or Shift+Tab to move backwards.`n`nGet the latest AutoCorrect2 suite from https://github.com/kunkel321/AutoCorrect2."
             
             If (examPaneVisible)
                 helpText .= "`n`n------------------`nAt the bottom is the `"Exam Pane.`"`n`nThe Blue text is the Delta String and shows which parts of the trigger /replacement are unique vs. which parts are shared.`n`nFor example:`ncrea[s|t]ion shows the change of:`ncreasion ---> creation.`n`nt[eh|he] shows the change of:`nteh ---> the.`n`n[sp|ps]ych shows the change of:`nspych ---> psych.`n`n`"Misspells`" shows the number of matches for the trigger string.  These are the words that will get erroneously mis-corrrected.  `"Fixes`" shows the number for the replacement, which is the list of words that will be corrected by the given hotstring.  Our goal, is to have many matches and no misspells.`n`nThe `"Web Frequency`" is expressed in millions, and is the number of total matches on the internet, for the list of words.  The frequency data is derived from the Google Web Trillion Word Corpus (Credit: Racheal Tatman, Kaggle.com).  The word list and CSV file are in the /WordListsForHH folder. "
