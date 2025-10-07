@@ -20,7 +20,7 @@ It's worth noting that only one other person -- Robert -- has contributed code _
 - The main folder was cluttered with tons of files, so I used Claude again to suggest the most sensible way to use subfolders.  The downside is that many of the tools call each other.  All those bits of code were easier when everything was in the same folder.  They now have to point to different locations.  I think I got it all working though.  I do think it is better organized like this.  None of the functionality of the tools was changed, though many folder paths in the code had to be updated.  
 
 # Hotstring Helper 2 – Quick Sheet
-![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.png))
+![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.png)
 1.	The Options Box.  Hotstring options go here.
 2.	The Hotstring (Trigger string) Box.  Upon pressing the hotkey, this box gets populated with the word on the clipboard.  If many words are on the clipboard, an acronym is generated.  If the Exam Pane is open, adding a letter to the beginning or end of the trigger will cause the same letter to be automatically added to the replacement text.  Shift+Left focuses the Trigger Box.  Ctrl-Up/Down or Ctrl-Mouse Wheel toggles font size.
 3.	If the string in the Trigger Box corresponds to any English words, it will turn red and warn you.  
