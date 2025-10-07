@@ -20,34 +20,37 @@ It's worth noting that only one other person -- Robert -- has contributed code _
 - The main folder was cluttered with tons of files, so I used Claude again to suggest the most sensible way to use subfolders.  The downside is that many of the tools call each other.  All those bits of code were easier when everything was in the same folder.  They now have to point to different locations.  I think I got it all working though.  I do think it is better organized like this.  None of the functionality of the tools was changed, though many folder paths in the code had to be updated.  
 
 # Hotstring Helper 2 – Quick Sheet
-![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.png))
+![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.jpg))
 1.	The Options Box.  Hotstring options go here.
-2.	The Hotstring (Trigger string) Box.  Gets populated with word on clipboard.  If many words are on clipboard, an acronym is generated.  If the Exam Pane is open, adding a letter to the beginning or end of the trigger will cause the same letter to be automatically added to the replacement text.  Shift+Left focuses the Trigger Box.  Ctrl+Up/Down or Ctrl+Mouse Wheel toggles font size.
-3.	If the string in the Trigger Box corresponds to any English words, if will turn red and warn you.  
-4.	The Make Bigger toggle button.  Makes the Replacement Box much larger.
-5.	The Show Symbols toggle button.  Make Replacement Box read only and shows characters for new lines, tabs, and spaces.
-6.	The Replacement Box.  For autocorrects, this will likely be a single word.   For boilerplate templates, it might be a whole paragraph. 
-7.	Make Function checkbox.  Instructs hh2 to create the autocorrect item with auto-logging syntax, such as 
-:B0X*:automasion::f("automation") ; Fixes 2 words
-Note that boilerplate items are never created with function calls. 
-8.	The Comments Box.  Text entered here is added to the new hotstring as an inline comment. 
-9.	The Append Button combines the content of the boxes into a hotstring and (after doing a validity check) appends it to the Hotstring Library, then restarts the AutoCorrect script.  Pressing Enter has the effect too, but only if the replacement box is not active.  The Append Button has no effect when in Show Symbols mode.  Shift+Click sends the hotstring to the clipboard, rather than appending it.  Ctrl+Click appends the hotstring, but does not restart the script.  
-10.	he Check Button does a validity check.  Mostly this consists of ensuring that the new hotstring doesn’t conflict with any existing ones. 
-11.	The Exam Button opens the Exam Pane (as seen in img).  When the Pane is open, the button shows “Done.”   Right-Click, or Shift+Click will open a Control Panel that has several links to other tools. 
-12.	The Spell Button sends the content of the Replacement Box to Google.com and returns the “Did you mean...” response.  
-13.	The Open Button opens the HotstringsLib.ahk file and navigates to the bottom of the file.
-14.	Cancel hides the hh2 form and puts the previous content of the clipboard back.  Esc does the same thing. 
-(Note that the following items are part of the Exam Pane, and are only for refining autocorrect entries.  They are not useful for boilerplate template hotstrings.)
-15.	The tall Left-Trim Button simultaneously trims a single letter from the  beginning of the trigger string and the replacement string.
-16.	The tall Right-Trim Button trims a letter from the ends.
-17.	The wide Undo button will undo the trims.  Ctrl+z also does.  Shift+Click or Shift+Ctrl+z will undo all trims, resetting the originally-captured trigger and replacement.  
-18.	The Delta String shows which parts of the autocorrect entry get changed, and which parts can safely be trimmed.
-19.	The Radio Buttons set the hotstring as a word-beginning, word-ending, or word-middle item.  The Options Box is automatically updated to match.  Right-Click any item to unselect all of them.
-20.	The Misspells Box lists all of the English words that correspond to the text string in the Trigger Box, and hence would be misspelled, from the application of the autocorrection item as it is.  
-21.	The Fixes Box is a list of the words that can potentially be fixed by the current autocorrect item.   Trimming, or changing the radios, will change the number Misspells and Fixes.  
-22.	The Word List Label simply shows what the currently-set comparison word list is.  (This is the list from which the Misspells and Fixes lists are derived.)
+2.	The Hotstring (Trigger string) Box.  Upon pressing the hotkey, this box gets populated with the word on the clipboard.  If many words are on the clipboard, an acronym is generated.  If the Exam Pane is open, adding a letter to the beginning or end of the trigger will cause the same letter to be automatically added to the replacement text.  Shift+Left focuses the Trigger Box.  Ctrl-Up/Down or Ctrl-Mouse Wheel toggles font size.
+3.	If the string in the Trigger Box corresponds to any English words, it will turn red and warn you.  
+4.	On-board help system.  Also press F1 while any form element is selected.
+5.	The Make Bigger toggle button makes the Replacement Box much larger.
+6.	The Show Symbols toggle button makes the Replacement Box read only and shows characters for new  lines, tabs, and spaces.
+7.	The Replacement Box.  For autocorrects, this will likely be a single word.   For boilerplate templates, it might be a whole paragraph. 
+8.	The Make Function checkbox instructs hh2 to create the autocorrect item with the auto-logging function syntax, such as :B0X*:automasion::f("automation") 
+- Note that boilerplate items are never created with function calls. 
+9.	The Comments Box.  Text entered here is added to the new hotstring as an inline comment. 
+10.	The Append Button combines the content of the boxes into a hotstring and (after doing a validity check) appends it to the Hotstring Library, then restarts the AutoCorrect script.  Pressing Enter does this too, but only if the replacement box is not active.  The Append Button has no effect when in Show Symbols mode.  
+- Shift-Click sends the hotstring to the clipboard, rather than appending it.  
+- Ctrl-Click appends the hotstring, but does not restart the script.  
+- Alt-Click sends the hotstring to the Suggester Tool for analysis.
+11.	The Check Button does a validity check but does not append the item.  Mostly this consists of ensuring that the new hotstring doesn’t conflict with any existing ones. 
+12.	The Exam Button opens the Exam Pane (as seen in the image).  When the Pane is open, the button shows “Done.”   Right-Click, or Shift-Click will open a Control Panel, which has several links to other tools. 
+13.	The Spell Button sends the content of the Replacement Box to LanguageTool.org’s API and returns spelling and/or grammar suggestions.  
+14.	If a word from the Replacement, Misspells, or Fixes box is selected, the Look Button will search the on-board WordNet dictionary for a definition.  Right-click uses the online GCIDE dictionary.
+15.	Cancel hides the hh2 form and puts the previous content of the clipboard back.  Esc does the same thing. 
+(Note that the following items are part of the Exam Pane and are only for refining autocorrect entries.  They are not useful for boilerplate template hotstrings.)
+16.	The tall Left-Trim Button simultaneously trims a single letter from the  beginning of the trigger string and the replacement string.
+17.	The tall Right-Trim Button trims a letter from the ends.
+18.	The wide Undo button will undo the trims.  Ctrl-z also does.  Shift-Click or Shift-Ctrl-z will undo all trims, resetting the originally-captured trigger and replacement.  
+19.	The Delta String shows which parts of the autocorrect entry get changed, and which parts can safely be trimmed.
+20.	The Radio Buttons set the hotstring as a word-beginning, word-ending, or word-middle item.  The Options Box is automatically updated to match.  Right-Click any item to unselect all of them.
+21.	Web Frequencies are the sum of the number of times the words in the Misspells or Fixes lists occur on the internet.  This helps to see if the words are common English words or if they are obscure.  The Fixes [] and Misspells [] just shows the number of items in each list.
+22.	The Misspells Box lists all of the English words that correspond to the text string in the Trigger Box and hence would be misspelled from the use of the autocorrection item as it is.  
+23.	The Fixes Box is a list of the words that can potentially be fixed by the current autocorrect item.   Trimming, or changing the radios, will change the number of Misspells and Fixes.  
 
-Please see the User Manual for more information. 
+Please see the User Manual for more information.   https://github.com/kunkel321/AutoCorrect2
 
 # Icon on main AutoCorrect2 parent folder:
-- The files in the sub folders all use relative folder paths, so you should be able to unzip the AutoCorrect2.zip and put the folder anywhere.  Note however, that the desktop.ini that Windows uses for the custom icon location has to be an absolute path.  Mine is "IconResource=D:\AutoHotkey\MasterScript\AutoCorrect2\Resources\Icons\AhkBluePsicon.ico,0".  You should change that to the path on your own computer. 
+- The files in the sub folders all use relative folder paths, so you should be able to unzip the AutoCorrect2.zip and put the folder anywhere.  Note however, that the desktop.ini that Windows uses for the custom icon location has to be an absolute path.  Mine is "C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2\Resources\Icons\AhkBluePsicon.ico".  You should change that to the path on your own computer. 
