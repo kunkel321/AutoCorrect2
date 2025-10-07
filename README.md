@@ -50,7 +50,7 @@ It's worth noting that only one other person -- Robert -- has contributed code _
 22.	The Misspells Box lists all of the English words that correspond to the text string in the Trigger Box and hence would be misspelled from the use of the autocorrection item as it is.  
 23.	The Fixes Box is a list of the words that can potentially be fixed by the current autocorrect item.   Trimming, or changing the radios, will change the number of Misspells and Fixes.  
 
-Please see the User Manual for more information.   https://github.com/kunkel321/AutoCorrect2
+Please see the User Manual for more information. https://github.com/kunkel321/AutoCorrect2/tree/main/Documentation
 
 # Icon on main AutoCorrect2 parent folder:
 - The files in the sub folders all use relative folder paths, so you should be able to unzip the AutoCorrect2.zip and put the folder anywhere.  Note however, that the desktop.ini that Windows uses for the custom icon location has to be an absolute path.  Mine is "C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2\Resources\Icons\AhkBluePsicon.ico".  You should change that to the path on your own computer. 
