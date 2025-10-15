@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 10-7-2025
+; Version: 10-14-2025
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -520,6 +520,15 @@ class UI {
             this.controlButtons.Push({
                 text: "Hotstring Suggester Tool", 
                 action: (*) => Run("..\Tools\Standalone\Suggester.exe"),
+                icon: ""
+            })
+        }
+
+        ; Check if ExtractPotentialMisspellings tool is present, add button.
+        if FileExist("..\Tools\Standalone\ExtractPotentialMisspellings.ahk") {
+            this.controlButtons.Push({
+                text: "Extract Potential Misspellings", 
+                action: (*) => Run("..\Tools\Standalone\ExtractPotentialMisspellings.exe"),
                 icon: ""
             })
         }
@@ -2787,6 +2796,9 @@ class HelpSystem {
                 case "Hotstring Suggester Tool":
                     this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.  When creating a mult-match word middle AutoCorrect item via trimming the ends, it is possible to over-trim.  The Suggester tool helps you choose which letter to put back--that's why it was made.`n`nThe Suggester tool is usually accessed via Alt+Clicking the Append button, or via the ACLogAnalyer report, though you can run it directly, and type/paste in a hotstring."
                     
+                case "Extract Potential Misspellings":
+                    this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your HotstringLib.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work."
+
                 case "  Go to GitHub Repository":
                     this.helpTexts["ControlButton_GitHub"] := "Opens the GitHub repository for this tool, in your default web browswer."
                     
@@ -2835,6 +2847,8 @@ class HelpSystem {
                         helpTitle := "Help for 'Report HotStrings' button"
                     case "Suggester":
                         helpTitle := "Help for 'Hotstring Suggester Tool' button"
+                    case "ExtractMisspellings":
+                        helpTitle := "Help for 'Potential Misspellings Tool' button"
                     case "Theme":
                         helpTitle := "Help for 'Change Color Theme' button"
                     case "GitHub":
@@ -2918,6 +2932,8 @@ class HelpSystem {
                             return "ControlButton_MCAnalyze"
                         else if InStr(buttonText, "Report HotStrings")
                             return "ControlButton_Report"
+                        else if InStr(buttonText, "Extract Potential Misspellings")
+                            return "ControlButton_ExtractMisspellings"
                         else if InStr(buttonText, "Hotstring Suggester Tool")
                             return "ControlButton_Suggester"
                         else if InStr(buttonText, "Go to GitHub Repository")
