@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 10-14-2025
+; Version: 10-15-2025
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -2302,7 +2302,15 @@ class Utils {
             hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
             clipContent := Trim(A_Clipboard, " `t`n`r")
             
-            if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
+            ; Check if systray is currently active
+            currentClass := WinGetClass("A")
+            
+            if (currentClass = "Shell_TrayWnd") {
+                ; Systray is active - user likely pre-copied text manually
+                ; Don't clear clipboard or send Ctrl+C, just use what's there
+                Debug("Systray active - using existing clipboard content")
+            }
+            Else if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
                 ; If Suggester/MCL not active or clipboard doesn't contain a hotstring, 
                 ; clear clipboard and copy selected text
                 A_Clipboard := ""
