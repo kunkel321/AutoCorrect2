@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 10-15-2025
+; Version: 10-15-2025 6pm
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -2301,18 +2301,18 @@ class Utils {
             ; Check if Suggester Tool or MCLogger are active and clipboard contains a hotstring
             hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
             clipContent := Trim(A_Clipboard, " `t`n`r")
-            
+
             ; Check if systray is currently active
-            currentClass := WinGetClass("A")
-            
-            if (currentClass = "Shell_TrayWnd") {
-                ; Systray is active - user likely pre-copied text manually
-                ; Don't clear clipboard or send Ctrl+C, just use what's there
-                Debug("Systray active - using existing clipboard content")
+            currentClass := ""  ; Initialize as empty
+            try currentClass := WinGetClass("A")
+            If (currentClass = "Shell_TrayWnd")||(currentClass = "NotifyIconOverflowWindow") {
+                ; If systray active, put saved clipboard content back.
+                A_Clipboard := State.ClipboardOld
             }
-            Else if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
+            else if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
                 ; If Suggester/MCL not active or clipboard doesn't contain a hotstring, 
                 ; clear clipboard and copy selected text
+
                 A_Clipboard := ""
                 Send("^c")
                 ClipWait(0.3)
