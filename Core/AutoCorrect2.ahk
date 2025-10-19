@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 10-15-2025 6pm
+; Version: 10-18-2025 6pm
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -396,7 +396,7 @@ class UI {
 	; Create the comment section
 	static _CreateCommentSection() {
 		this.Controls["CommentLabel"] := this.MainForm.AddText("xm y182", "Comment")
-		this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x+70 y182", "Make Function")
+		this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x+70 y182", "Make as f() Function")
 		
 		; Set background color for edit controls (same as in other sections)
 		this.ListBackground := Config.ListColor != "" ? "Background" Config.ListColor : ""
