@@ -1,32 +1,60 @@
 #SingleInstance
 #Requires AutoHotkey v2+
 
-; Intended for updating AutoHotkey scripts.  kunkel321 9-28-2025 
+; Intended for updating AutoHotkey scripts.  kunkel321 10-19-2025 
 ; A script to find duplicate hotstrings that are in one file but not another. 
-; Please ensure that is it pointing to two valid files. 
+; Default files to scan can be entered.  If they are not found, a file-picker will appear.
 ; The "mainFile" is the file that you plan to use--it is your new AutoCorrect file.
 ; The "extraFile" is a different version of your file, that might have new custom hotstrings
 ; added, that are not in the new mainFile. 
 
-mainFile := "..\..\Core\HotstringLib.ahk"  ; <--- Your hotstring file path here.
-extraFile := "..\..\Core\HotstringLib_OLD.ahk" 
+mainFile := "..\..\Core\HotstringLib.ahk" ; <--- New version from GitHub here.
+extraFile := "..\..\Core\HotstringLib_OLD.ahk"  ; <--- Your renamed hotstring file path here.
 
 ^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc. 
 
-Try mainList := Fileread(mainFile) ; Make sure file exists and save contents for variable. 
+; Function to get file path with dialog fallback
+GetFilePath(defaultPath, fileType) {
+	if (FileExist(defaultPath)) {
+		return defaultPath
+	}
+	
+	; File not found, open dialog. Default to AutoCorrect2\ directory (2 levels up from script location)
+	startDir := A_ScriptDir "\..\.."
+	selectedFile := FileSelect(1, startDir, "Please select the " fileType " file (*.ahk):", "AutoHotkey Scripts (*.ahk)")
+	if (selectedFile = "") {
+		MsgBox "No file selected. Exiting."
+		ExitApp
+	}
+	return selectedFile
+}
+
+mainFile := GetFilePath(mainFile, "main")
+extraFile := GetFilePath(extraFile, "extra")
+
+Try mainContent := Fileread(mainFile)
 Catch {
-	MsgBox '====ERROR====`n`nThe file (' mainFile ')`nwas not found.`n`nRemember to set the two variables`nat the top of the script. Now exiting.'
+	MsgBox '====ERROR====`n`nCould not read the file: ' mainFile '`n`nNow exiting.'
 	ExitApp
 }
-Try extraList := Fileread(extraFile) ; Make sure file exists and save contents for variable. 
+Try extraContent := Fileread(extraFile)
 Catch {
-	MsgBox '====ERROR====`n`nThe file (' extraFile ')`nwas not found.`n`nRemember to set the two variables`nat the top of the script. Now exiting.'
+	MsgBox '====ERROR====`n`nCould not read the file: ' extraFile '`n`nNow exiting.'
 	ExitApp
 }
 
-extraListOrig := extraList
-TotalLinesM := StrSplit(mainList, "`n").Length ; Determines number of lines for Prog Bar range.
-TotalLinesE := StrSplit(extraList, "`n").Length ; Determines number of lines for Prog Bar range.
+; Normalize line endings and split into arrays, trimming each line
+mainLines := StrSplit(StrReplace(mainContent, "`r`n", "`n"), "`n")
+extraLines := StrSplit(StrReplace(extraContent, "`r`n", "`n"), "`n")
+
+; Trim all lines
+loop mainLines.Length
+	mainLines[A_Index] := trim(mainLines[A_Index])
+loop extraLines.Length
+	extraLines[A_Index] := trim(extraLines[A_Index])
+
+TotalLinesM := mainLines.Length
+TotalLinesE := extraLines.Length
 
 StartTime := A_TickCount
 DupeReportM := "", CountM := 0, DupeReportE := "", CountE := 0
@@ -39,33 +67,54 @@ rep.SetFont("s13")
 progLabelM := rep.Add("Text",, "Items Unique to: " extraFileName)
 MyProgressM := rep.Add("Progress", "w400 h30 cGreen Range0-" . TotalLinesM, "0")
 progLabelE := rep.Add("Text",, "Items Unique to: " mainFileName)
-MyProgressE := rep.Add("Progress", "w400 h30 cGreen Range0-" . TotalLinesM, "0")
+MyProgressE := rep.Add("Progress", "w400 h30 cGreen Range0-" . TotalLinesE, "0")
 
 rep.Show()
 
-; Loop through Main File contents, then remove any matching lines from the Extra File contents. 
-loop parse mainList, "`n" { 
-	MyProgressM.Value += 1
-	extraList := strReplace(extraList, A_LoopField, "`nxxxxxx",,,1) ; Remove the item because it exists in both files. 
+; Create a map of extra file lines for fast lookup
+extraMap := Map()
+for line in extraLines {
+	if (line != "")
+		extraMap[line] := true
 }
-; Loop through the Extra Files, and extract anything that wasn't replaced with "xxxxxx."
-loop parse extraList, "`n" {
-	If  (SubStr(trim(A_LoopField, " `t"), 1,1) = ":") ; Only include lines starting with ":"
-	{	DupeReportM .= A_LoopField "`n"
-		CountM++
+
+; Find items in extra file that are NOT in main file
+for line in extraLines {
+	MyProgressM.Value += 1
+	if (SubStr(trim(line, " `t"), 1, 1) = ":" && !extraMap.Has(line)) {
+		; This line was removed from the map, so it's unique to extra file
 	}
 }
 
-; Then Loop through Etra File contents, then remove any matching lines from the Main File contents. 
-loop parse extraListOrig, "`n" { 
-	MyProgressE.Value += 1
-	mainList := strReplace(mainList, A_LoopField, "`nxxxxxx",,,1) ; Remove the item because it exists in both files. 
+; Create a map of main file lines for fast lookup
+mainMap := Map()
+for line in mainLines {
+	if (line != "")
+		mainMap[line] := true
 }
-; Loop through the Extra Files, and extract anything that wasn't replaced with "xxxxxx."
-loop parse mainList, "`n" {
-	If  (SubStr(trim(A_LoopField, " `t"), 1,1) = ":") ; Only include lines starting with ":"
-	{	DupeReportE .= A_LoopField "`n"
-		CountE++
+
+; Loop through extra lines and find those NOT in main
+for line in extraLines {
+	if (line = "")
+		continue
+	if (SubStr(trim(line, " `t"), 1, 1) = ":") {
+		if (!mainMap.Has(line)) {
+			DupeReportM .= line "`n"
+			CountM++
+		}
+	}
+}
+
+; Loop through main lines and find those NOT in extra
+for line in mainLines {
+	MyProgressE.Value += 1
+	if (line = "")
+		continue
+	if (SubStr(trim(line, " `t"), 1, 1) = ":") {
+		if (!extraMap.Has(line)) {
+			DupeReportE .= line "`n"
+			CountE++
+		}
 	}
 }
 
