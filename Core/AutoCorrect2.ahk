@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 10-18-2025 6pm
+; Version: 10-21-2025
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -17,14 +17,15 @@ SetWorkingDir(A_ScriptDir)
 ; https://github.com/kunkel321/AutoCorrect2
 ; ========================================
 
-; =============== INCLUDES ===============
+
+
+; ============== OPTIONAL INCLUDES ==============
 ; These files need to be in the same directory or properly referenced
-#Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
-#Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
 ; The "*i" prevents an error if the file doesn't exist.
 #Include "*i ..\Tools\Integrated\DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
 #Include "*i ..\Tools\Integrated\PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
 #Include "*i ..\Tools\Integrated\DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
+; There are required includes defined below the class Config {..} code.
 
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
@@ -46,10 +47,15 @@ class Config {
     
     ; ===== Activation Hotkey =====
     static ActivationHotkey := "#h"  ; Win+h
-    
     static DefaultFontSize := "s11"
     static LargeFontSize := "s15"
     static Brightness := 128  ; Add default brightness value
+
+    ; ===== UI Behavior =====
+    static FocusReplacementByDefault := 1  ; 1 = focus Replacement box, 0 = focus Options box
+
+    ; ===== App Blacklist ===== ; Don't AutoCorrect when these apps are focused.
+    static AppBlacklist := ["PipeWalker.exe", "Roblox.exe", "RimWorld.exe"]
 
     ; ===== GUI Sizing =====
     static HeightSizeIncrease := 300
@@ -138,6 +144,24 @@ class Config {
             this.EditorPath := this.DefaultEditor
     }
 }
+
+; Check if a blacklisted app is currently the active (focused) window
+IsBlacklistedAppFocused() {
+    activeProcessName := WinGetProcessName("A")
+    for processName in Config.AppBlacklist {
+        if (activeProcessName = processName)
+            return true
+    }
+    return false
+}
+
+; ============== REQUIRED INCLUDES ==============
+; These files need to be in the same directory or properly referenced
+#Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
+
+#HotIf !IsBlacklistedAppFocused() ; Only if no blacklisted apps are active and focused.
+    #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
+#HotIf
 
 ; Initialize configuration
 Config.Init()
@@ -623,6 +647,9 @@ class UI {
 		
 		; Shift+Left - Go to start of trigger
 		Hotkey "+Left", (*) => this.ShiftLeftHandler()
+
+		; Shift+Right - Go to end of replacement
+		Hotkey "+Right", (*) => this.ShiftRightHandler()
 		
 		; Escape - Hide form
 		Hotkey "Esc", (*) => UIActions.OnCancelButtonClick()
@@ -655,6 +682,12 @@ class UI {
 	static ShiftLeftHandler() {
 		this.Controls["TriggerEdit"].Focus()
 		Send "{Home}"
+	}
+    
+	; Handler for Shift+Right combo
+	static ShiftRightHandler() {
+		this.Controls["ReplacementEdit"].Focus()
+		Send "{End}"
 	}
     
     ; Get all controls in the exam pane for showing/hiding
@@ -708,6 +741,14 @@ class UI {
         
         ; Update form
         this.MainForm.Show("AutoSize yCenter")
+    }
+
+    ; Set initial focus based on configuration
+    static SetInitialFocus() {
+        if Config.FocusReplacementByDefault
+            this.Controls["ReplacementEdit"].Focus()
+        else
+            this.Controls["OptionsEdit"].Focus()
     }
 }
 
@@ -2403,6 +2444,7 @@ class Utils {
         
         ; Show UI
         UI.MainForm.Show("AutoSize yCenter")
+        UI.SetInitialFocus()  ; Set focus based on config
     }
         
     ; Handle normal startup when clipboard doesn't contain a hotstring
