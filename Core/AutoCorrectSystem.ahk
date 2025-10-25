@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 9-28-2025
+; Version: 10-25-2025
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -68,7 +68,9 @@ f(replace := "") {
     }
     
     replace := SubStr(replace, (ignorLen+1))
-    SendInput("{BS " (TrigLen - ignorLen) "}" replace StrReplace(endchar, "!", "{!}")) ; Type replacement and endchar. 
+    endchar := StrReplace(endchar, "!", "{!}")
+    endchar := StrReplace(endchar, "'", "`'")
+    SendInput("{BS " (TrigLen - ignorLen) "}" replace endchar) ; Type replacement and endchar. 
     
     HSInputBuffer.Stop()
     If (beepOnCorrection = 1)
@@ -319,7 +321,7 @@ class InputBuffer {
     Release() {
         if this.IsReleasing
             return []
-            
+
         sent := []
         this.IsReleasing := 1
         
