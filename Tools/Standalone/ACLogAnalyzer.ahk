@@ -1,12 +1,14 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated:  9-28-2025
+                Updated: 10-22-2025
 =====================================================
 Determines frequency of items in AutoCorrects Log file, then sorts by frequency (or weight).
 Date not factored in sort. Reports the top X hotstrings that were immediately followed
 by 'Backspace' (<<), and how many times they were used without backspacing (--).
-Sort by one or the other, or sort by "weight". Intended for use with kunkel321's
+Sort by one or the other, or sort by "weight". 
+
+Intended for use with kunkel321's
 'AutoCorrect for v2,' specifically, the f-function of that script. Items are reported 
 in a GUI with radio buttons. User can:
 - Go to the item in HotStringLibrary
@@ -32,12 +34,11 @@ To do:  Make error logging and debug logging optional.
 class ACLogAnalyzer {
     ; Static configuration properties
     static Config := {
-        ShowX: 24,                  ; Show this many top results in report
-        SortByBS: 1,                ; Sort by "Backspaced" items (1) or "Kept" items (0)?
-        WeighItems: 1,              ; Attempt to weight items based on how problematic they are (1=yes)
-        FreqImportance: 5,         ; Importance of high-frequency items (0-50, 0=not important)
-        IgnoreFewerThan: 1,         ; Minimum threshold for consideration when weighing
-        AddFulltoClipBrd: 1,        ; Send full report to clipboard as well?
+        FreqImportance: 25,         ; Importance of high-frequency items (0-50, 0=not important)
+        IgnoreFewerThan: 0,         ; Minimum threshold for consideration when weighing
+        CopyHotstringOnSelect: 1,   ; Copy hotstring to clipboard when item is selected (1=yes, 0=no)
+        PinToTop: true,             ; Keep window pinned to top by default
+        EnableErrorLogging: 1,      ; Enable error logging to file (1=yes, 0=no)
         ScriptFiles: {
             ACScript: "..\..\Core\AutoCorrect2.ahk",    ; Main script file
             HSLibrary: "..\..\Core\HotstringLib.ahk",   ; Hotstring library file
@@ -52,6 +53,11 @@ class ACLogAnalyzer {
 
     ; State tracking properties
     static ReportArray := []
+    static ParsedItems := []  ; Structured data for ListView: {hotstring, bs, ok, total, weight}
+    static ReportListView := ""  ; Reference to the ListView control
+    static PinCheckbox := ""     ; Reference to the pin checkbox
+    static HelpButton := ""      ; Reference to the help button
+    static ActionButtons := Map()  ; Map of action buttons
     static WorkingItem := " (No lookup history)"
     static ContextLogContent := ""
     static ACAGui := ""
@@ -182,12 +188,7 @@ class ACLogAnalyzer {
 
     ; Get description of current report type
     static GetReportTypeDescription() {
-        if (this.Config.WeighItems = 1) && (this.Config.SortByBS = 1)
-            return "Top " this.Config.ShowX " weighted errant"
-        else if (this.Config.SortByBS = 1)
-            return "Top " this.Config.ShowX " backspaced errant"
-        else
-            return "Top " this.Config.ShowX " kept"
+        return "Analysis Report"
     }
 
     ; Process lines from the log file
@@ -233,21 +234,13 @@ class ACLogAnalyzer {
     ; Format a line for the report based on configuration
     static FormatReportLine(bsTally, okTally, oStr) {
         try {
-            if (this.Config.SortByBS = 1) {
-                if (this.Config.WeighItems = 1) {
-                    ; Skip items with too few backspaces
-                    if (bsTally <= this.Config.IgnoreFewerThan)
-                        return ""
-                    
-                    ; Calculate weight using the formula
-                    weight := Round((bsTally / (bsTally + okTally) * 100) + bsTally * (this.Config.FreqImportance * 0.1), 1)
-                    return weight " is weight for ->`t" Format("{1}<< and {2}-- `tfor {3}`n", bsTally, okTally, oStr)
-                } else {
-                    return Format("{1}<< and {2}-- `tfor {3}`n", bsTally, okTally, oStr)
-                }
-            } else {
-                return Format("{1}-- and {2}<< `tfor {3}`n", okTally, bsTally, oStr)
-            }
+            ; Skip items with too few backspaces
+            if (bsTally <= this.Config.IgnoreFewerThan)
+                return ""
+            
+            ; Calculate weight using the formula
+            weight := Round((bsTally / (bsTally + okTally) * 100) + bsTally * (this.Config.FreqImportance * 0.1), 1)
+            return weight " is weight for ->`t" Format("{1}<< and {2}-- `tfor {3}`n", bsTally, okTally, oStr)
         } catch Error as err {
             LogError("Error in FormatReportLine: " err.Message)
             return ""
@@ -264,26 +257,15 @@ class ACLogAnalyzer {
             ; Sort report by number (descending)
             sortedReport := Sort(Sort(report, "/U"), "NR")
             
-            ; Extract top entries for display
+            ; Extract all entries for display in ListView (no limit)
             trunkReport := ""
             Loop Parse sortedReport, "`n" {
-                if (A_Index <= this.Config.ShowX && A_LoopField != "") {
-                    ; Add context count if available
-                    contextCount := " [" this.CountContextItems(A_LoopField) "] "
-                    contextCount := StrReplace(contextCount, "[0]", "[_]")
-                    
-                    ; Format entry
-                    loopFldArr := StrSplit(A_LoopField, "<<")
-                    thisLoopFld := loopFldArr[1] contextCount "<<" loopFldArr[2]
-                    trunkReport .= thisLoopFld "`n"
-                } else if (A_Index > this.Config.ShowX) {
-                    break
-                }
+                if (A_LoopField = "")
+                    continue
+                
+                ; Format entry as-is (no context count needed for ListView)
+                trunkReport .= A_LoopField "`n"
             }
-            
-            ; Copy to clipboard if configured
-            if (this.Config.AddFulltoClipBrd = 1)
-                A_Clipboard := sortedReport
             
             return StrSplit(RTrim(trunkReport, "`n"), "`n")
         } catch Error as err {
@@ -316,49 +298,163 @@ class ACLogAnalyzer {
     ; Show the analysis results GUI
     static ShowAnalysisResults() {
         this.WorkingItem := " (No lookup history)"
-        this.ACAGui := Gui(, "AC Analysis Report")
+        guiTitle := "AC Analysis Report"
+        this.ACAGui := Gui(this.Config.PinToTop ? "+AlwaysOnTop" : "", guiTitle)
         this.ACAGui.SetFont("s12 " (this.FontColor ? "c" this.FontColor : ""))
         this.ACAGui.BackColor := this.FormColor
         
-        ; Add heading text based on report type
-        if (this.Config.WeighItems = 1) && (this.Config.SortByBS = 1)
-            this.ACAGui.AddText(, "The " this.Config.ShowX " highest weighted problem items are below.`nAnalyze in HH and Cull separately. Culling adds`nitem to " this.Config.ScriptFiles.RemovedHsFile " file.")
-        else if (this.Config.SortByBS = 1)
-            this.ACAGui.AddText(, "The " this.Config.ShowX " most frequently Backspaced items are below.`nAnalyze in HH and Cull separately. Culling adds`nitem to " this.Config.ScriptFiles.RemovedHsFile " file.")
-        else
-            this.ACAGui.AddText(, "The " this.Config.ShowX " most frequently KEPT items are below.`nYOU PROBABLY DON'T WANT TO CHANGE THESE!")
+        ; Add checkbox for "Stay on top" and help button
+        this.PinCheckbox := this.ACAGui.Add("CheckBox", "Checked" (this.Config.PinToTop ? "1" : "0"), "Stay on top of other windows")
+        this.PinCheckbox.OnEvent("Click", (GuiCtrlObj, GuiEvent) => this.ToggleAlwaysOnTop(GuiCtrlObj))
         
-        this.ACAGui.AddText("y+2", "(Select an item and right-click for context.)")
+        ; Add help button to the right
+        this.HelpButton := this.ACAGui.Add("Button", "x+290 y20 w25 h20", "?")
+        this.HelpButton.OnEvent("Click", (*) => ACLogAnalyzerHelpSystem.ShowHelp(true))
         
-        ; Set color for radio buttons
-        this.ACAGui.SetFont("c" this.RadioColor)
+        ; Add static text (reset to left margin)
+        this.ACAGui.Add("Text", "xm y+-8", "Selecting an item saves it to clipboard. Right-click for context.")
         
-        ; Create radio buttons and action buttons
-        this.CreateRadioButtons()
+        ; Parse and display items in ListView
+        this.ParseReportItems()
+        this.CreateListView()
+        
+        ; Create action buttons
         this.CreateActionButtons()
         
         ; Show the GUI
-        this.ACAGui.Show("yCenter x" (A_ScreenWidth/2) " AutoSize")
-        WinSetAlwaysOnTop(1, "A")
+        this.ACAGui.Show("AutoSize")
         this.ACAGui.OnEvent("Escape", (*) => ExitApp())
     }
 
-    ; Create radio buttons for each report item
-    static CreateRadioButtons() {
-        if (this.ReportArray.Length = 0) {
-            this.ACAGui.Add("Text", "w300", "No items to display.")
-            return
+    ; Toggle the always-on-top property
+    static ToggleAlwaysOnTop(GuiCtrlObj) {
+        if (GuiCtrlObj.Value) {
+            WinSetAlwaysOnTop(1, "AC Analysis Report")
+            this.Config.PinToTop := true
+        } else {
+            WinSetAlwaysOnTop(0, "AC Analysis Report")
+            this.Config.PinToTop := false
         }
+    }
+
+    ; Parse report items into structured data for ListView display
+    static ParseReportItems() {
+        this.ParsedItems := []
         
-        for idx, citem in this.ReportArray {
-            ; Remove weight if using weighted sorting
-            if (this.Config.WeighItems = 1) && (this.Config.SortByBS = 1)
-                citem := StrSplit(citem, " is weight for ->`t")[2]
+        try {
+            for idx, reportItem in this.ReportArray {
+                parsed := this.ParseReportItem(reportItem)
+                if (parsed)
+                    this.ParsedItems.Push(parsed)
+            }
+        } catch Error as err {
+            LogError("Error parsing report items: " err.Message)
+        }
+    }
+
+    ; Parse a single report item into structured data
+    ; Format: "weight is weight for ->[TAB]BS [context] << and OK -- [TAB]for :hotstring"
+    ;   or:   "BS [context] << and OK -- [TAB]for :hotstring"
+    static ParseReportItem(reportItem) {
+        try {
+            weight := ""
+            data := reportItem
             
-            ; First radio is selected by default
-            options := (idx = 1) ? "vRadioGrp" : "xs y+5"
-            radioBtn := this.ACAGui.Add("Radio", options, "Found " citem)
-            radioBtn.OnEvent("ContextMenu", this.SeeContext.Bind(this))
+            ; Extract weight if present
+            if (InStr(data, " is weight for ->")) {
+                parts := StrSplit(data, " is weight for ->")
+                weight := Trim(parts[1])
+                data := Trim(parts[2])
+            }
+            
+            ; Extract hotstring - look for "for :" (tab or space before it)
+            ; The format is: "...-- [TAB]for :hotstring"
+            forPos := 0
+            if (InStr(data, "for :")) {
+                forPos := InStr(data, "for :")
+            }
+            
+            if (forPos = 0)
+                return ""
+            
+            hotstring := Trim(SubStr(data, forPos + 4))  ; Skip "for " (4 chars)
+            
+            ; Extract counts from the beginning part
+            ; Format: "3 [context] << and 1-- "
+            countPart := Trim(SubStr(data, 1, forPos - 1))  ; Get everything before "for"
+            
+            bs := 0
+            ok := 0
+            
+            ; Parse BS count (number before <<)
+            if (InStr(countPart, "<<")) {
+                bsPart := StrSplit(countPart, "<<")[1]
+                bsMatch := RegExMatch(bsPart, "(\d+)", &m)
+                if (bsMatch)
+                    bs := m[1]
+            }
+            
+            ; Parse OK count (number between "and" and "--")
+            if (InStr(countPart, "--")) {
+                okPart := StrSplit(countPart, "--")[1]
+                okMatch := RegExMatch(okPart, "and\s+(\d+)", &m)
+                if (okMatch)
+                    ok := m[1]
+            }
+            
+            total := bs + ok
+            
+            return {
+                hotstring: hotstring,
+                bs: bs,
+                ok: ok,
+                total: total,
+                weight: weight
+            }
+        } catch Error as err {
+            LogError("Error parsing report item: " err.Message)
+            return ""
+        }
+    }
+
+    ; Create ListView with parsed report items
+    static CreateListView() {
+        try {
+            ; Create ListView with columns (always include weight)
+            lvOptions := "w540 r20 Grid Sorted"
+            if (this.ListColor)
+                lvOptions .= " Background" this.ListColor
+            
+            this.ReportListView := this.ACAGui.Add("ListView", "y+10 " lvOptions,
+                ["Hotstring", "BS", "OK", "Total", "Weight"])
+            
+            ; Set column widths
+            this.ReportListView.ModifyCol(1, 250)  ; Hotstring
+            this.ReportListView.ModifyCol(2, 60)   ; BS
+            this.ReportListView.ModifyCol(3, 60)   ; OK
+            this.ReportListView.ModifyCol(4, 60)   ; Total
+            this.ReportListView.ModifyCol(5, 80)   ; Weight
+            this.ReportListView.ModifyCol(2, "Integer Right")
+            this.ReportListView.ModifyCol(3, "Integer Right")
+            this.ReportListView.ModifyCol(4, "Integer Right")
+            this.ReportListView.ModifyCol(5, "Float Right")
+            
+            ; Populate ListView with items (show all with weight)
+            for idx, item in this.ParsedItems {
+                this.ReportListView.Add(, item.hotstring, item.bs, item.ok, item.total, item.weight)
+            }
+            
+            ; Add event handlers
+            this.ReportListView.OnEvent("ItemSelect", this.OnListViewSelect.Bind(this))
+            this.ReportListView.OnEvent("ContextMenu", this.OnListViewContext.Bind(this))
+            
+            ; Select first item by default
+            if (this.ParsedItems.Length > 0)
+                this.ReportListView.Modify(1, "Select Focus")
+                
+        } catch Error as err {
+            LogError("Error creating ListView: " err.Message)
+            MsgBox("Error creating ListView: " err.Message)
         }
     }
 
@@ -366,19 +462,21 @@ class ACLogAnalyzer {
     static CreateActionButtons() {
         buttons := [
             {label: "Send to HH", callback: this.SendToHH.Bind(this)},
-            {label: "Cull From Log", callback: this.CullFromLog.Bind(this)},
-            {label: "Edit Script", callback: (*) => Run(this.Config.EditorPath " " A_ScriptName)},
-            {label: "See in Lib", callback: this.GoToHS.Bind(this)},
-            {label: "See Context", callback: this.SeeContext.Bind(this)},
-            ; New Suggest button for planned feature
+            {label: "Cull", callback: this.CullFromLog.Bind(this)},
+            {label: "Lookup", callback: this.GoToHS.Bind(this)},
+            {label: "Context", callback: this.SeeContext.Bind(this)},
             {label: "Suggest", callback: SuggestAlternativesHandler},
-            {label: "Close Tool", callback: (*) => ExitApp()}
+            {label: "Edit", callback: (*) => Run(this.Config.EditorPath " " A_ScriptName)},
+            {label: "Close", callback: (*) => ExitApp()}
         ]
         
+        this.ActionButtons := Map()  ; Clear and reinitialize
         for idx, btn in buttons {
-            buttonOpts := (idx > 1 ? "x+5 " : "") (idx = 4 ? " xm y+5 " : "")
+            ; All buttons in one row with spacing
+            buttonOpts := (idx > 1 ? "x+5 " : "y+10 ")
             newBtn := this.ACAGui.Add("Button", buttonOpts, btn.label)
             newBtn.OnEvent("Click", btn.callback)
+            this.ActionButtons[btn.label] := newBtn  ; Store reference
         }
     }
 
@@ -396,7 +494,7 @@ class ACLogAnalyzer {
 
         myACFileBaseName := StrSplit(this.Config.ScriptFiles.ACScript, ".ahk")[1]
 
-        msgbox 'script file: ' myACFileBaseName
+        ;msgbox 'script file: ' myACFileBaseName
         
         try {
             if (!FileExist(myACFileBaseName . ".exe")) {
@@ -412,7 +510,6 @@ class ACLogAnalyzer {
         }
     }
 
-    ; Go to the selected item in HotString Library
     static GoToHS(*) {
         result := this.ProcessSelectedItem()
         if (!result)
@@ -421,21 +518,36 @@ class ACLogAnalyzer {
         this.WorkingItem := result.workingItem
         selItemArr := StrSplit(this.WorkingItem, ":")
         selItemTrigger := selItemArr[2] ":" selItemArr[3] "::"
+
+        hsLibPath := this.Config.ScriptFiles.HSLibrary
+        hsLibFilename := StrSplit(hsLibPath, "\").Pop()
         
         try {
-            if !WinExist(this.Config.ScriptFiles.HSLibrary)
-                Run(this.Config.EditorPath " " this.Config.ScriptFiles.HSLibrary)
+            if !WinExist(hsLibFilename) {
+                Run(this.Config.EditorPath ' "' hsLibPath '"')
+                Sleep(1500)
+            }
             
-            WinWait(this.Config.ScriptFiles.HSLibrary)
-            WinActivate(this.Config.ScriptFiles.HSLibrary)
+            if !WinWait(hsLibFilename, , 5)     
+                throw Error("Timeout waiting for HotstringLib window to open")
+            
+            WinActivate(hsLibFilename)  
+            
+            if !WinWaitActive(hsLibFilename, , 3)  
+                throw Error("Failed to activate HotstringLib window")
+            
+            Sleep(400)  
+            
             SendInput("^f")
-            Sleep(200)
+            Sleep(300)
             SendInput(selItemTrigger)
-            this.ACAGui.Show()
+            
         } catch Error as err {
             LogError("Error going to HS: " err.Message)
             MsgBox("Error finding hotstring in library: " err.Message)
         }
+
+        this.ACAGui.Show()
     }
 
     ; Show context information for the selected item
@@ -466,7 +578,7 @@ class ACLogAnalyzer {
             if (IsObject(this.ContextGui))
                 this.ContextGui.Destroy()
                 
-            this.ContextGui := Gui()
+            this.ContextGui := Gui("+AlwaysOnTop")
             this.ContextGui.SetFont("s15 " (this.FontColor ? "c" this.FontColor : ""))
             this.ContextGui.BackColor := this.FormColor
             
@@ -510,28 +622,26 @@ class ACLogAnalyzer {
         if (IsObject(this.ConfirmGui))
             this.ConfirmGui.Destroy()
             
-        this.ConfirmGui := Gui()
+        this.ConfirmGui := Gui("+AlwaysOnTop")
         this.ConfirmGui.SetFont("s12 " (this.FontColor ? "c" this.FontColor : ""))
         this.ConfirmGui.BackColor := this.FormColor
         
         ; Get the formatted item for display
-        if (this.Config.SortByBS = 1 && this.Config.WeighItems = 1) {
-            selectedItem := StrSplit(selectedItem, "is weight for ->	")[2]
+        if (this.Config.WeighItems = 1) {
+            if (InStr(selectedItem, "is weight for ->"))
+                selectedItem := StrSplit(selectedItem, "is weight for ->	")[2]
         }
         
         this.ConfirmGui.AddText(, "Confirm culling item...`n" selectedItem "`n")
         
-        ; Add checkbox for removing strings
-        remCheck := this.ConfirmGui.AddCheckbox(this.Config.SortByBS = 1 ? "Checked1" : "Checked0", 
+        ; Add checkbox for removing strings (always checked)
+        remCheck := this.ConfirmGui.AddCheckbox("Checked1", 
             "Add to Removed Strings list.")
         
         ; Add notes section
         txtAddNotes := this.ConfirmGui.AddText(, "Add optional notes to culled item.")
-        txtAddNotes.Visible := (this.Config.SortByBS = 1)
         
-        notesEditOptions := this.Config.SortByBS = 1 ? 
-            " -ReadOnly Background" this.ListColor : 
-            " +ReadOnly Background" this.FormColor
+        notesEditOptions := " -ReadOnly Background" this.ListColor
             
         confirmNotes := this.ConfirmGui.AddEdit("w305 " notesEditOptions, "Replaced with less-trimmed versions")
         confirmNotes.Focus()
@@ -616,7 +726,7 @@ class ACLogAnalyzer {
                         Sleep(10)
                         
                     FileAppend(newContextContents, this.Config.ScriptFiles.ErrLog)
-                    Debug("Removed " selItemTrigger " entries from context log")
+                    ;Debug("Removed " selItemTrigger " entries from context log")
                 } catch Error as err {
                     LogError("Error rewriting context log: " err.Message)
                     ; Continue anyway as the main log was updated successfully
@@ -624,6 +734,24 @@ class ACLogAnalyzer {
             }
             
             SoundBeep()
+            
+            ; Remove the item from the ListView (visual update without regenerating)
+            try {
+                selectedRow := this.ReportListView.GetNext()
+                if (selectedRow > 0) {
+                    this.ReportListView.Delete(selectedRow)
+                    
+                    ; Select next item if available, or previous item
+                    itemCount := this.ReportListView.GetCount()
+                    if (selectedRow <= itemCount) {
+                        this.ReportListView.Modify(selectedRow, "Select Focus")
+                    } else if (itemCount > 0) {
+                        this.ReportListView.Modify(itemCount, "Select Focus")
+                    }
+                }
+            } catch Error as err {
+                LogError("Error removing item from ListView: " err.Message)
+            }
             
             ; Close the confirmation GUI
             this.ConfirmGui.Destroy()
@@ -637,23 +765,54 @@ class ACLogAnalyzer {
         }
     }
 
-    ; ======= Helper Methods =======
+    ; Helper Methods =======
 
-    ; Process the selected radio item
+    ; Detect which control currently has focus
+    static GetFocusedControl() {
+        try {
+            if this.PinCheckbox.Focused
+                return "PinCheckbox"
+            if this.HelpButton.Focused
+                return "HelpButton"
+            if this.ReportListView.Focused
+                return "ListView"
+        } catch {
+            ; Control not found or not focused
+        }
+        
+        ; Check action buttons
+        for buttonLabel, buttonCtrl in this.ActionButtons {
+            try {
+                if buttonCtrl.Focused
+                    return "Button_" buttonLabel
+            } catch {
+                continue
+            }
+        }
+        
+        return ""
+    }
+
+    ; Process the selected ListView item
     static ProcessSelectedItem() {
         try {
-            selectedItem := this.ACAGui.Submit()
+            ; Get selected row from ListView
+            rowNum := this.ReportListView.GetNext()
             
-            if (selectedItem.RadioGrp = 0) {
+            if (rowNum = 0) {
                 MsgBox("Nothing selected.")
-                this.ACAGui.Show()
                 return false
             }
             
-            fullItemName := this.ReportArray[selectedItem.RadioGrp]
-            workingItem := this.ExtractItemName(fullItemName)
+            ; Get hotstring from first column of selected row
+            hotstring := this.ReportListView.GetText(rowNum, 1)
             
-            return {workingItem: workingItem, fullItemName: fullItemName}
+            if (hotstring = "") {
+                MsgBox("Could not extract hotstring.")
+                return false
+            }
+            
+            return {workingItem: hotstring, fullItemName: hotstring}
         } catch Error as err {
             LogError("Error processing selected item: " err.Message)
             MsgBox("Error processing selected item: " err.Message)
@@ -661,16 +820,37 @@ class ACLogAnalyzer {
         }
     }
 
-    ; Extract the item name from the selected report line
-    static ExtractItemName(selItemName) {
+    ; Handle ListView item selection - copy hotstring to clipboard
+    static OnListViewSelect(ctrl, *) {
         try {
-            splitStr := this.Config.SortByBS ? "-- for" : "<< for"
-            parts := StrSplit(selItemName, splitStr)
-            return Trim(parts[parts.Length], " `n`r")  ; Always take the last part
+            if (!this.Config.CopyHotstringOnSelect)
+                return
+            
+            rowNum := ctrl.GetNext()
+            if (rowNum = 0)
+                return
+            
+            ; Get hotstring from first column
+            hotstring := this.ReportListView.GetText(rowNum, 1)
+            
+            if (hotstring != "") {
+                A_Clipboard := hotstring
+                ToolTip("Hotstring copied: " hotstring)
+                SetTimer(() => ToolTip(), -1500)
+            }
         } catch Error as err {
-            LogError("Error extracting item name: " err.Message)
-            return selItemName  ; Return original if there's an error
+            LogError("Error in OnListViewSelect: " err.Message)
         }
+    }
+
+    ; Handle ListView right-click for context menu
+    static OnListViewContext(ctrl, item, *) {
+        ; Select the right-clicked item
+        if (item > 0) {
+            this.ReportListView.Modify(item, "Select Focus")
+        }
+        ; Use existing context menu handler
+        this.SeeContext()
     }
 }
 
@@ -737,17 +917,391 @@ ACLogAnalyzer.SuggestAlternatives := SuggestAlternativesHandler
 
 ; ======= Utility Functions =======
 
-; Helper functions for conditional logging
+; Error logging function - respects EnableErrorLogging config
 LogError(message) {
-    FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\acla_error_debug_log.txt") ; acla -- Auto Correction Log Analyzer.
+    if (ACLogAnalyzer.Config.EnableErrorLogging)
+        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\acla_error_debug_log.txt")
 }
 
-Debug(message) {
-    FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\acla_error_debug_log.txt")
+; ======= Help System =======
+#HotIf WinActive("AC Analysis Report")
+F1::ACLogAnalyzerHelpSystem.ShowHelp()
+#HotIf
+
+class ACLogAnalyzerHelpSystem {
+    static helpTexts := Map()
+    static helpGui := 0
+    
+    ; Initialize help texts
+    static Init() {
+        this.helpTexts["ListView"] := "This is the Analysis Report ListView showing all analyzed hotstrings.`n`nColumns:`n- Hotstring: The hotstring from your library.  The f() function components are removed to make it easier to see.`n- BS: Number of times the item was followed by backspace within one second when logged (error indicator).`n- OK: Number of times it was logged without backspacing within one second (usefulness indicator).`n- Total: Total occurrences (BS + OK)`n- Weight: A calculated score indicating problem likelihood (higher = more problematic).  See code for adjusting weight parameters.`n`nClick a column header to sort by that column.`nSelect an item to copy the hotstring to clipboard.  Once the item is on the clipboard, you can press the HotstringHelper hotkey (Win-H) to open the item in hh.`nRight-click an item for context about what was being typed just before and after the Backspaced items were logged. This is a shortcut alternative to pressing the Context button."
+        
+        this.helpTexts["PinCheckbox"] := "Controls whether the Analysis Report window stays on top of other windows.`n`nWhen checked, this window will remain visible even when other applications are in focus.`n`nDefault setting can be configured in the Config section."
+        
+        this.helpTexts["HelpButton"] := "Click this button to show general help about the AC Log Analyzer.`n`nYou can also press F1 while focusing on any control to get specific help about that control."
+        
+        this.helpTexts["SendToHH"] := "Sends the selected hotstring to HotstringHelper2 for editing or analysis.`n`nThis allows you to quickly jump to editing a problematic hotstring.  Note that this button will relaunch AutoCorrect2.exe with the hotstring as a parameter.  A more efficient way to open the hotstring in HotstringHelper is to click the item (thus saving it to the clipboard), then immediately evoke HH with the hotkey (Win-H)."
+        
+        this.helpTexts["CullButton"] := "Removes the selected hotstring from your AutoCorrection log file and also removes the row from the listview.`n`nCulled items are also optionally added to the RemovedHotstrings file to prevent accidentally re-adding them later.`n`nThis is useful for removing hotstrings that are causing more harm than good (frequent backspaces).  You'll want to remove the item from the AutoCorrectsLog.txt file and also remove it from your HotstringsLib.ahk file"
+        
+        this.helpTexts["LookupButton"] := "Opens your HotString Library file in the configured editor and jumps to the selected hotstring using Ctrl+F.`n`nThis allows you to view and edit, or remove, the hotstring directly in context with your full library.  You'll want to remove it from the AutoCorrectsLog.txt file and also remove it from your HotstringsLib.ahk file."
+        
+        this.helpTexts["ContextButton"] := "Shows context logs for the selected hotstring.`n`nThis displays additional details about when and how the hotstring was used, helping you understand the typing context in which it occurs."
+        
+        this.helpTexts["SuggestButton"] := "Launches the Hotstring Suggester tool for the selected item.`n`nThis tool helps generate related hotstrings or variations based on the current entry, useful for analyzing patterns.  The Suggester tool won't send items back to the AC Analysis Report, but you'll be able to send hotstrings from the Suggester to HotstringHelper."
+        
+        this.helpTexts["Edit"] := "Opens this script file in your configured editor, allowing you to modify settings and configuration.`n`nChanges require restarting the script to take effect."
+        
+        this.helpTexts["Close"] := "Closes the AC Log Analyzer window and exits the program."
+    }
+    
+    static ShowHelp(showGeneral := false) {
+        ; Destroy existing help window if open
+        if IsObject(this.helpGui)
+            this.helpGui.Destroy()
+        
+        ; Determine help text based on context
+        helpText := ""
+        helpTitle := "AC Analyzer Help"
+        
+        if (showGeneral) {
+            helpTitle := "AC Log Analyzer - Help"
+            helpText := "`t`t`tWelcome to the AC Log Analyzer!`n`nThis tool is part of the package from https://github.com/kunkel321/AutoCorrect2. It analyzes your AutoCorrection log file and generates a report of logged hotstrings.  After logging many of your autocorrections via the f() functionality of AutoCorrect2.ahk, you can systematically determine which items are problematic and modify or remove them.`n`nPress F1 while focusing on a control for specific help.  Press Tab or Shift-Tab to move between controls without clicking them.`n`nPlease see the AutoCorrect2 User Manual for more information.  In-Code Configuration:`n- Adjust FreqImportance (0-50) to control the importance of occurence-frequency vs. just the OK-to-BS ratios, in weight calculation`n- Toggle error logging on/off`n- Set default 'Stay on top' behavior."
+        } else {
+            ; Get the currently focused control
+            focusedControl := ACLogAnalyzer.GetFocusedControl()
+            
+            if (focusedControl && this.helpTexts.Has(focusedControl)) {
+                helpText := this.helpTexts[focusedControl]
+                helpTitle := "Help - " focusedControl
+            } else if (InStr(focusedControl, "Button_")) {
+                ; Extract button label from control name
+                buttonLabel := SubStr(focusedControl, 8)  ; Remove "Button_" prefix
+                helpTitle := "Help - " buttonLabel " Button"
+                
+                ; Provide help based on button label
+                switch buttonLabel {
+                    case "Send to HH":
+                        helpText := this.helpTexts["SendToHH"]
+                    case "Cull":
+                        helpText := this.helpTexts["CullButton"]
+                    case "Lookup":
+                        helpText := this.helpTexts["LookupButton"]
+                    case "Context":
+                        helpText := this.helpTexts["ContextButton"]
+                    case "Suggest":
+                        helpText := this.helpTexts["SuggestButton"]
+                    default:
+                        helpText := "Button: " buttonLabel "`n`nPress F1 while focusing on a specific control for detailed help."
+                }
+            }
+        }
+        
+        ; Fallback to general help if no specific text found
+        if (helpText = "") {
+            helpTitle := "AC Log Analyzer - Help"
+            helpText := "Welcome to the AC Log Analyzer!`n`nThis tool is part of the package from https://github.com/kunkel321/AutoCorrect2. It analyzes your AutoCorrection log file and generates a report of logged hotstrings.  After logging many of your autocorrections via the f() functionality of AutoCorrect2.ahk, you can systematically determine which items are problematic and modify or remove them.`n`nPress F1 while focusing on a control for specific help.  Press Tab or Shift-Tab to move between buttons.`n`nPlease see the AutoCorrect2 User Manual for more information.  In-Code Configuration:`n- Adjust FreqImportance (0-50) to control the importance of occurence-frequency vs. just the OK-to-BS ratios, in weight calculation`n- Toggle error logging on/off`n- Set default 'Stay on top' behavior"
+        }
+        
+        ; Create help GUI
+        this.helpGui := Gui("AlwaysOnTop", helpTitle)
+        this.helpGui.SetFont("s10", "Courier New")
+        fontColor := ACLogAnalyzer.FontColor != "" ? "c" SubStr(ACLogAnalyzer.FontColor, -6) : ""
+        this.helpGui.SetFont(fontColor)
+        this.helpGui.BackColor := ACLogAnalyzer.FormColor
+        
+        ; Use an Edit control for selectable text
+        this.helpGui.Add("Edit", "w700 h300 -VScroll ReadOnly -E0x200 -WantReturn -TabStop Background" ACLogAnalyzer.FormColor, helpText)
+        
+        ; Add close button
+        closeBtn := this.helpGui.AddButton("Default", "Close")
+        closeBtn.OnEvent("Click", (*) => this.helpGui.Destroy())
+        
+        ; Show the help window
+        this.helpGui.Show()
+        
+        ; Set up event handlers
+        this.helpGui.OnEvent("Escape", (*) => this.helpGui.Destroy())
+    }
 }
+
+; Initialize help system
+ACLogAnalyzerHelpSystem.Init()
 
 ; ======= Main Execution =======
 ; Run the analyzer when script is executed directly
 if (A_ScriptName = "ACLogAnalyzer.ahk") {
     ACLogAnalyzer.Run()
 }
+
+fontColor := ACLogAnalyzer.fontColor
+formColor := ACLogAnalyzer.formColor
+listColor := ACLogAnalyzer.listColor
+
+; End of the part that Steve Kunkel321 made... 
+
+; .QQQQQQQQQQQQQQQQ...QQQQQQQQQQQQQQQQ..............QQQQQQQ...
+; QQQQQQQQQQQQQQQQQ..QQQQQQQQQQQQQQQQQ...........QQQQQQQQQQ...
+; QQQQQQQQQQQQQQQQQ.QQQQQQQQQQQQQQQQQQ.........QQQQQQQQQQQ....
+; QQQQQQQQQQQQQQQQQ.QQQQQQQQQQQQQQQQQQ........QQQQQQQQQ..QQQQQ
+; QQQQQQQQQQQQQQQQ.QQQQQQQQQQQQQQQQQQ........QQQQQQQQ...QQQQQQQ
+; QQQQQQQQQQQQQ.....QQQQQQQQQQQQQQ..........QQQQQQQ...QQQQQQQQQ
+; .....QQQQQQQQ...........QQQQQQQQ.........QQQQQQQ....QQQQQQQQQQ
+; .....QQQQQQQQ...........QQQQQQQQ........QQQQQQQQ....QQQQQQQQQQ
+; ....QQQQQQQQQ..........QQQQQQQQQ........QQQQQQQ.....QQQQQQQQQQQ
+; ....QQQQQQQQ...........QQQQQQQQ........QQQQQQQQ......QQQQQQQQQQ
+; ....QQQQQQQQ...........QQQQQQQQ.......QQQQQQQQ.......QQQQQQQQQQ
+; ...QQQQQQQQQ..........QQQQQQQQQ.......QQQQQQQQ........QQQQQQQQ
+; ...QQQQQQQQQ..........QQQQQQQQQ......QQQQQQQQQ........QQQQQQQQ
+; ...QQQQQQQQ...........QQQQQQQQ.......QQQQQQQQ.........QQQQQQQ
+; ..QQQQQQQQQ..........QQQQQQQQQ.......QQQQQQQQ.........QQQQQQQ
+; ..QQQQQQQQQ..........QQQQQQQQQ......QQQQQQQQQ.........QQQQQQQ
+; ..QQQQQQQQQ..........QQQQQQQQQ......QQQQQQQQQ.........QQQQQQ
+; .QQQQQQQQQQ.........QQQQQQQQQQ......QQQQQQQQQ.........QQQQQQ
+; .QQQQQQQQQ..........QQQQQQQQQ.......QQQQQQQQQ........QQQQQQ.
+; .QQQQQQQQQ..........QQQQQQQQQ.......QQQQQQQQQQ.......QQQQQQ.
+; QQQQQQQQQQ.........QQQQQQQQQQ.......QQQQQQQQQQ......QQQQQQ..
+; QQQQQQQQQ..........QQQQQQQQQ.........QQQQQQQQQ......QQQQQQ..
+; QQQQQQQQQ..........QQQQQQQQQ.........QQQQQQQQQQ....QQQQQQ...
+; QQQQQQQQQ..........QQQQQQQQQ..........QQQQQQQQQQ.QQQQQQQ....
+; QQQQQQQQ...........QQQQQQQQ............QQQQQQQQQQQQQQQQ.....
+; QQQQQQQ............QQQQQQQ..............QQQQQQQQQQQQQ.......
+; .QQQQQ..............QQQQQ.................QQQQQQQQQ.........
+;                       Class ToolTipOptions - 2023-09-10 
+;                                      Just Me
+;           https://www.autohotkey.com/boards/viewtopic.php?f=83&t=113308
+; ==============================================================================
+; ==============================================================================
+; ==============================================================================
+; ----------------------------------------------------------------------------------------------------------------------
+
+ToolTipOptions.Init()
+ToolTipOptions.SetFont("s14", "Calibri")
+ToolTipOptions.SetMargins(5,5,5,5) ; Left, Top, Right, Bottom
+ToolTipOptions.SetColors("0x" SubStr(ListColor, -6), "0x" SubStr(FontColor, -6))
+
+; ----------------------------------------------------------------------------------------------------------------------
+
+; ======================================================================================================================
+; ToolTipOptions        -  additional options for ToolTips
+;
+; Tooltip control       -> https://learn.microsoft.com/en-us/windows/win32/controls/tooltip-control-reference
+; TTM_SETMARGIN         = 1050
+; TTM_SETTIPBKCOLOR     = 1043
+; TTM_SETTIPTEXTCOLOR   = 1044
+; TTM_SETTITLEW         = 1057
+; WM_SETFONT            = 0x30
+; SetClassLong()        -> https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setclasslongw
+; ======================================================================================================================
+Class ToolTipOptions {
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static HTT := DllCall("User32.dll\CreateWindowEx", "UInt", 8, "Str", "tooltips_class32", "Ptr", 0, "UInt", 3
+                       , "Int", 0, "Int", 0, "Int", 0, "Int", 0, "Ptr", A_ScriptHwnd, "Ptr", 0, "Ptr", 0, "Ptr", 0)
+   Static SWP := CallbackCreate(ObjBindMethod(ToolTipOptions, "_WNDPROC_"), , 4) ; subclass window proc
+   Static OWP := 0                                                               ; original window proc
+   Static ToolTips := Map()
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static BkgColor := ""
+   Static TktColor := ""
+   Static Icon := ""
+   Static Title := ""
+   Static HFONT := 0
+   Static Margins := ""
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static Call(*) => False ; do not create instances
+   ; -------------------------------------------------------------------------------------------------------------------
+   ; Init()          -  Initialize some class variables and subclass the tooltip control.
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static Init() {
+      If (This.OWP = 0) {
+         This.BkgColor := ""
+         This.TktColor := ""
+         This.Icon := ""
+         This.Title := ""
+         This.Margins := ""
+         If (A_PtrSize = 8)
+            This.OWP := DllCall("User32.dll\SetClassLongPtr", "Ptr", This.HTT, "Int", -24, "Ptr", This.SWP, "UPtr")
+         Else
+            This.OWP := DllCall("User32.dll\SetClassLongW", "Ptr", This.HTT, "Int", -24, "Int", This.SWP, "UInt")
+         OnExit(ToolTipOptions._EXIT_, -1)
+         Return This.OWP
+      }
+      Else
+         Return False
+   }
+   ; -------------------------------------------------------------------------------------------------------------------
+   ;  Reset()        -  Close all existing tooltips, delete the font object, and remove the tooltip's subclass.
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static Reset() {
+      If (This.OWP != 0) {
+         For HWND In This.ToolTips.Clone()
+            DllCall("DestroyWindow", "Ptr", HWND)
+        This.ToolTips.Clear()
+         If This.HFONT
+            DllCall("DeleteObject", "Ptr", This.HFONT)
+         This.HFONT := 0
+         If (A_PtrSize = 8)
+            DllCall("User32.dll\SetClassLongPtr", "Ptr", This.HTT, "Int", -24, "Ptr", This.OWP, "UPtr")
+         Else
+            DllCall("User32.dll\SetClassLongW", "Ptr", This.HTT, "Int", -24, "Int", This.OWP, "UInt")
+         This.OWP := 0
+         Return True
+      }
+      Else
+         Return False
+   }
+   ; -------------------------------------------------------------------------------------------------------------------
+   ; SetColors()     -  Set or remove the text and/or the background color for the tooltip.
+   ; Parameters:
+   ;     BkgColor    -  color value like used in Gui, Color, ...
+   ;     TxtColor    -  see above.
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static SetColors(BkgColor := "", TxtColor := "") {
+      This.BkgColor := BkgColor = "" ? "" : BGR(BkgColor)
+      This.TxtColor := TxtColor = "" ? "" : BGR(TxtColor)
+      BGR(Color, Default := "") { ; converts colors to BGR
+         ; HTML Colors (BGR)
+         Static HTML := {AQUA:   0x00FFFF, BLACK: 0x000000, BLUE:   0x0000FF, FUCHSIA: 0xFF00FF, GRAY:  0x808080,
+                         GREEN:  0x008000, LIME:  0x00FF00, MAROON: 0x800000, NAVY:    0x000080, OLIVE: 0x808000,
+                         PURPLE: 0x800080, RED:   0xFF0000, SILVER: 0xC0C0C0, TEAL:    0x008080, WHITE: 0xFFFFFF,
+                         YELLOW: 0xFFFF00 }
+         If IsInteger(Color)
+            Return ((Color >> 16) & 0xFF) | (Color & 0x00FF00) | ((Color & 0xFF) << 16)
+         Return HTML.HasProp(Color) ? HTML.%Color% : Default
+      }
+   }
+   ; -------------------------------------------------------------------------------------------------------------------
+   ; SetFont()       -  Set or remove the font used by the tooltip.
+   ; Parameters:
+   ;     FntOpts     -  font options like Gui.SetFont(Options, ...)
+   ;     FntName     -  font name like Gui.SetFont(..., Name)
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static SetFont(FntOpts := "", FntName := "") {
+      Static HDEF := DllCall("GetStockObject", "Int", 17, "UPtr") ; DEFAULT_GUI_FONT
+      Static LOGFONTW := 0
+      If (FntOpts = "") && (FntName = "") {
+         If This.HFONT
+            DllCall("DeleteObject", "Ptr", This.HFONT)
+         This.HFONT := 0
+         LOGFONTW := 0
+      }
+      Else {
+         If (LOGFONTW = 0) {
+            LOGFONTW := Buffer(92, 0)
+            DllCall("GetObject", "Ptr", HDEF, "Int", 92, "Ptr", LOGFONTW)
+         }
+         HDC := DllCall("GetDC", "Ptr", 0, "UPtr")
+         LOGPIXELSY := DllCall("GetDeviceCaps", "Ptr", HDC, "Int", 90, "Int")
+         DllCall("ReleaseDC", "Ptr", HDC, "Ptr", 0)
+         If (FntOpts != "") {
+            For Opt In StrSplit(RegExReplace(Trim(FntOpts), "\s+", " "), " ") {
+               Switch StrUpper(Opt) {
+                  Case "BOLD":      NumPut("Int", 700, LOGFONTW, 16)
+                  Case "ITALIC":    NumPut("Char",  1, LOGFONTW, 20)
+                  Case "UNDERLINE": NumPut("Char",  1, LOGFONTW, 21)
+                  Case "STRIKE":    NumPut("Char",  1, LOGFONTW, 22)
+                  Case "NORM":      NumPut("Int", 400, "Char", 0, "Char", 0, "Char", 0, LOGFONTW, 16)
+                  Default:
+                     O := StrUpper(SubStr(Opt, 1, 1))
+                     V := SubStr(Opt, 2)
+                     Switch O {
+                        Case "C":
+                           Continue ; ignore the color option
+                        Case "Q":
+                           If !IsInteger(V) || (Integer(V) < 0) || (Integer(V) > 5)
+                              Throw ValueError("Option Q must be an integer between 0 and 5!", -1, V)
+                           NumPut("Char", Integer(V), LOGFONTW, 26)
+                        Case "S":
+                           If !IsNumber(V) || (Number(V) < 1) || (Integer(V) > 255)
+                              Throw ValueError("Option S must be a number between 1 and 255!", -1, V)
+                           NumPut("Int", -Round(Integer(V + 0.5) * LOGPIXELSY / 72), LOGFONTW)
+                        Case "W":
+                           If !IsInteger(V) || (Integer(V) < 1) || (Integer(V) > 1000)
+                              Throw ValueError("Option W must be an integer between 1 and 1000!", -1, V)
+                           NumPut("Int", Integer(V), LOGFONTW, 16)
+                        Default:
+                           Throw ValueError("Invalid font option!", -1, Opt)
+                     }
+                  }
+               }
+            }
+         NumPut("Char", 1, "Char", 4, "Char", 0, LOGFONTW, 23) ; DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS
+         NumPut("Char", 0, LOGFONTW, 27) ; FF_DONTCARE
+         If (FntName != "")
+            StrPut(FntName, LOGFONTW.Ptr + 28, 32)
+         If !(HFONT := DllCall("CreateFontIndirectW", "Ptr", LOGFONTW, "UPtr"))
+            Throw OSError()
+         If This.HFONT
+            DllCall("DeleteObject", "Ptr", This.HFONT)
+         This.HFONT := HFONT
+      }
+   }
+   ; -------------------------------------------------------------------------------------------------------------------
+   ; SetMargins()    -  Set or remove the margins used by the tooltip
+   ; Parameters:
+   ;     L, T, R, B  -  left, top, right, and bottom margin in pixels.
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static SetMargins(L := 0, T := 0, R := 0, B := 0) {
+      If ((L + T + R + B) = 0)
+         This.Margins := 0
+      Else {
+         This.Margins := Buffer(16, 0)
+         NumPut("Int", L, "Int", T, "Int", R, "Int", B, This.Margins)
+      }
+   }
+   ; -------------------------------------------------------------------------------------------------------------------
+   ; SetTitle()      -  Set or remove the title and/or the icon displayed on the tooltip.
+   ; Parameters:
+   ;     Title       -  string to be used as title.
+   ;     Icon        -  icon to be shown in the ToolTip.
+   ;                    This can be the number of a predefined icon (1 = info, 2 = warning, 3 = error
+   ;                    (add 3 to display large icons on Vista+) or a HICON handle.
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static SetTitle(Title := "", Icon := "") {
+      Switch {
+         Case (Title = "") && (Icon != ""):
+            This.Icon := Icon
+            This.Title := " "
+         Case (Title != "") && (Icon = ""):
+            This.Icon := 0
+            This.Title := Title
+         Default:
+            This.Icon := Icon
+            This.Title := Title
+      }
+   }
+   ; -------------------------------------------------------------------------------------------------------------------
+   ; For internal use only!
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static _WNDPROC_(hWnd, uMsg, wParam, lParam) {
+      ; WNDPROC -> https://learn.microsoft.com/en-us/windows/win32/api/winuser/nc-winuser-wndproc
+      Switch uMsg {
+         Case 0x0411: ; TTM_TRACKACTIVATE - just handle the first message after the control has been created
+            If This.ToolTips.Has(hWnd) && (This.ToolTips[hWnd] = 0) {
+               If (This.BkgColor != "")
+                  SendMessage(1043, This.BkgColor, 0, hWnd)                ; TTM_SETTIPBKCOLOR
+               If (This.TxtColor != "")
+                  SendMessage(1044, This.TxtColor, 0, hWnd)                ; TTM_SETTIPTEXTCOLOR
+               If This.HFONT
+                  SendMessage(0x30, This.HFONT, 0, hWnd)                   ; WM_SETFONT
+               If (Type(This.Margins) = "Buffer")
+                  SendMessage(1050, 0, This.Margins.Ptr, hWnd)             ; TTM_SETMARGIN
+               If (This.Icon != "") || (This.Title != "")
+                  SendMessage(1057, This.Icon, StrPtr(This.Title), hWnd)   ; TTM_SETTITLE
+               This.ToolTips[hWnd] := 1
+            }
+         Case 0x0001: ; WM_CREATE
+            DllCall("UxTheme.dll\SetWindowTheme", "Ptr", hWnd, "Ptr", 0, "Ptr", StrPtr(""))
+            This.ToolTips[hWnd] := 0
+         Case 0x0002: ; WM_DESTROY
+            This.ToolTips.Delete(hWnd)
+      }
+      Return DllCall(This.OWP, "Ptr", hWnd, "UInt", uMsg, "Ptr", wParam, "Ptr", lParam, "UInt")
+   }
+   ; -------------------------------------------------------------------------------------------------------------------
+   Static _EXIT_(*) {
+      If (ToolTipOptions.OWP != 0)
+         ToolTipOptions.Reset()
+   }
+}
+; ============= Bottom of TOOLTIP OPTIONS CLASS ===============
