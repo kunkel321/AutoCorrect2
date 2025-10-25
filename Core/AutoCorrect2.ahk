@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 10-21-2025
+; Version: 10-23-2025
 ; Author: kunkel321
 ; In March 2025 it got a major refactor/rewrite using Claude AI.  
 ; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
@@ -2350,7 +2350,7 @@ class Utils {
                 ; If systray active, put saved clipboard content back.
                 A_Clipboard := State.ClipboardOld
             }
-            else if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
+            else if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")||WinActive("AC Analysis Report")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
                 ; If Suggester/MCL not active or clipboard doesn't contain a hotstring, 
                 ; clear clipboard and copy selected text
 
