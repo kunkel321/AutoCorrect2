@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 10-25-2025
+; Version: 10-25-2025 8:22am
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -68,8 +68,8 @@ f(replace := "") {
     }
     
     replace := SubStr(replace, (ignorLen+1))
+    replace := StrReplace(replace, "'", "`'")
     endchar := StrReplace(endchar, "!", "{!}")
-    endchar := StrReplace(endchar, "'", "`'")
     SendInput("{BS " (TrigLen - ignorLen) "}" replace endchar) ; Type replacement and endchar. 
     
     HSInputBuffer.Stop()
