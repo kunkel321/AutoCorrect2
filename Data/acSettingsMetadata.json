@@ -1,0 +1,446 @@
+{
+  "_Information": "This is the metadata file for the acSettingManger tool, which is part of the AutoCorrect2 package available from https://github.com/kunkel321/AutoCorrect2",
+  "_Version_Date" : "11-5-2025",
+  "Files.HotstringLibrary": {
+    "label": "Hotstring Library",
+    "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.",
+    "type": "file",
+    "filter": "AHK Files (*.ahk)|*.ahk"
+  },
+  "Files.NewTemporaryHotstrLib": {
+    "label": "New Temporary Hotstring Library",
+    "help": "Path to a new version of the hotstring library (usually from GitHub). Used for comparison and merging, when updating to a newly-released verions of the hotstring library.  Choose a naming convention that is convenient.  If you copy over the new version into your existing 'Core' folder, then it will likely be automatically named HotstringLib.ahk (1) or HotstringLib.ahk_1.  Choosing that as the default pattern here will allow the Unique String Extrator to instantly run its scan without the need to manually choose the file each time.",
+    "type": "file",
+    "filter": "AHK Files (*.ahk)|*.ahk"
+  },
+  "Files.RemovedHsFile": {
+    "label": "Removed Hotstrings File",
+    "help": "Text file that logs hotstrings you've removed or disabled.  This is accessed by Hotstring Helper's validation tool and also by MCLogger.",
+    "type": "file",
+    "filter": "Text Files (*.txt)|*.txt"
+  },
+  "Files.AutoCorrectsLogFile": {
+    "label": "AutoCorrects Log",
+    "help": "Text file where AutoCorrect2 logs every correction it makes. Used for analysis and statistics.  If 'EnableLogging' is turned off, then this file doesn't get used.",
+    "type": "file",
+    "filter": "Text Files (*.txt)|*.txt"
+  },
+  "Files.ErrContextLog": {
+    "label": "Error Context Log",
+    "help": "Text file that logs context information when backspaced corrections are detected. Helps determine what was being typed when misfired corrections occur.  The file is used by the Autocorrection Log Analyzer tool.  Related settings are in the ACSystem Section\n - BeepOnContextLog\n - PrecedingWordCount\n - FollowingWordCount\n - FollowingWordTimeout",
+    "type": "file",
+    "filter": "Text Files (*.txt)|*.txt"
+  },
+  "Files.ACLogAnalyzer": {
+    "label": "ACLogAnalyzer Executable",
+    "help": "Path to the Autocorrection Log Analyzer.exe executable for analyzing autocorrection logs.  A related key is ACSystem.BeepOnCorrection.",
+    "type": "file",
+    "filter": "Executables (*.exe)|*.exe"
+  },
+  "Files.WordListFile": {
+    "label": "Word List File",
+    "help": "A text file containing a word list used for the Exam Pane's 'Misspells' and 'Fixes' lists.  It is also used by MCLogger.",
+    "type": "file",
+    "filter": "Text Files (*.txt;*.csv)|*.txt;*.csv"
+  },
+  "Files.FrequencyListFile": {
+    "label": "Frequency List File",
+    "help": "CSV file with frequency data for words, used in Hotstring Helper's Exam Pane, to determine if words are high-frequency words.",
+    "type": "file",
+    "filter": "CSV Files (*.csv)|*.csv"
+  },
+  "Files.MCLoggerPath": {
+    "label": "MCLogger Executable",
+    "help": "Path to the Manual-Correction Logger executable for analyzing frequent manual corrections.",
+    "type": "file",
+    "filter": "Executables (*.exe)|*.exe"
+  },
+  "Files.MCLogFile": {
+    "label": "Manual Corrections Log",
+    "help": "Text file where MCLogger logs manual corrections made by the user.",
+    "type": "file",
+    "filter": "Text Files (*.txt)|*.txt"
+  },
+  "Files.AutoCorrect2Script": {
+    "label": "AutoCorrect2 Script",
+    "help": "Path to the main AutoCorrect2.ahk script file.",
+    "type": "file",
+    "filter": "AHK Files (*.ahk)|*.ahk"
+  },
+  "Shared.DefaultEditor": {
+    "label": "Default Editor",
+    "help": "Executable name of your preferred text editor.  The .ahk scripts will use VScode if it is in the default install location.  If not, then this 'backup default' will be used.",
+    "type": "file",
+    "filter": "*.exe"
+  },
+  "Shared.LightGreen": {
+    "label": "Light Green Color",
+    "help": "Hex color code (without #) for Green elements in the UI, when a dark gui color is used.  Mostly this is used for the HH Validation report and for the progress bars on some tools.",
+    "type": "color",
+    "validation": "^[0-9A-Fa-f]{6}$"
+  },
+  "Shared.DarkGreen": {
+    "label": "Dark Green Color",
+    "help": "Hex color code (without #) for Green elements in the UI, when a light gui color is used.  Mostly this is used for the HH Validation report and for the progress bars on some tools.",
+    "type": "color",
+    "validation": "^[0-9A-Fa-f]{6}$"
+  },
+  "Shared.LightRed": {
+    "label": "Light Red Color",
+    "help": "Hex color code (without #) for Red elements in the UI, when a dark gui color is used.  Mostly this is used for the HH Validation report.",
+    "type": "color",
+    "validation": "^[0-9A-Fa-f]{6}$"
+  },
+  "Shared.DarkRed": {
+    "label": "Dark Red Color",
+    "help": "Hex color code (without #) for Red elements in the UI, when a light gui color is used.  Mostly this is used for the HH Validation report.",
+    "type": "color",
+    "validation": "^[0-9A-Fa-f]{6}$"
+  },
+  "HotstringHelper.CODE_DEBUG_LOG": {
+    "label": "Debug Logging",
+    "help": "If enabled, detailed debug information for the AutoCorrect2.ahk script is logged. Warning: very verbose output.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "HotstringHelper.CODE_ERROR_LOG": {
+    "label": "Error Logging",
+    "help": "If enabled, errors and exceptions for the AutoCorrect2.ahk script are logged to a filein the Data folder.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "HotstringHelper.ActivationHotkey": {
+    "label": "Activation Hotkey",
+    "help": "Define the hotkey combination to open HotstringHelper. Examples: #h (Win+H), ^+h (Ctrl+Shift+H), F12",
+    "type": "hotkey",
+    "default": "#h"
+  },
+  "HotstringHelper.DefaultFontSize": {
+    "label": "Default Font Size",
+    "help": "Font size (in points) for normal text in the HotstringHelper window and several other tools. Usually 10-12. Don't include the 's' at the beginning.",
+    "type": "integer",
+    "min": 8,
+    "max": 13
+  },
+  "HotstringHelper.LargeFontSize": {
+    "label": "Large Font Size",
+    "help": "Font size (in points) for when Trigger and Replacement boxes are toggled to 'large'.  Also used for Validity report dialog, several message boxes and several other apps.  Usually 2-4 points larger than default.  Don't include the 's' at the beginning.",
+    "type": "integer",
+    "min": 8,
+    "max": 16
+  },
+  "HotstringHelper.DefaultWidth": {
+    "label": "Default Window Width",
+    "help": "Width in pixels for the main HotstringHelper window when not in 'Make Bigger' mode. Recommended: 366.",
+    "type": "integer",
+    "min": 366,
+    "max": 1000,
+    "default": "366"
+  },
+  "HotstringHelper.HeightSizeIncrease": {
+    "label": "Height Increase",
+    "help": "Additional height (pixels) added to the window when 'Make Bigger' button is pressed to make the 'Replacement' edit box bigger.",
+    "type": "integer",
+    "min": 0,
+    "max": 600,
+    "default": "300"
+  },
+  "HotstringHelper.WidthSizeIncrease": {
+    "label": "Width Increase",
+    "help": "Additional width (pixels) added to the window when 'Make Bigger' button is pressed to make the 'Replacement' edit box bigger.",
+    "type": "integer",
+    "min": 0,
+    "max": 600,
+    "default": "400"
+  },
+  "HotstringHelper.FocusReplacementByDefault": {
+    "label": "Focus Replacement by Default",
+    "help": "If enabled (1), the cursor will start in the 'Replacement' text box when HotstringHelper opens. If disabled (0), cursor starts in 'Trigger' box.",
+    "type": "boolean",
+    "options": [
+      "0=Trigger field",
+      "1=Replacement field"
+    ]
+  },
+  "HotstringHelper.DefaultBoilerPlateOpts": {
+    "label": "Default Boilerplate Options",
+    "help": "AHK trigger hotstring options applied when Hotstring Helper detect a boilerplate/template. Leave blank for none. Example: B0",
+    "type": "text",
+    "default": "",
+    "validation": "(\\*|B0|\\?|SI|C|K[0-9]{1,3}|SE|X|SP|O|R|T)"
+  },
+  "HotstringHelper.BoilerplatePrefix": {
+    "label": "Boilerplate Prefix",
+    "help": "Prefix character/text added to boilerplate anagram triggers to distinguish them.",
+    "type": "text",
+    "default": ""
+  },
+  "HotstringHelper.BoilerplateSuffix": {
+    "label": "Boilerplate Suffix",
+    "help": "Suffix character/text added to boilerplate anagrams. Leave blank for none.",
+    "type": "text",
+    "default": ""
+  },
+  "HotstringHelper.FirstLettersToInclude": {
+    "label": "First Letters to Include",
+    "help": "When creating anagrams for boilerplate text, how many of the first letters to include from each word.  For example, the anagram for the preceding sentence is 'wcafb', if the value is 5",
+    "type": "integer",
+    "min": 1,
+    "max": 10,
+    "default": "5"
+  },
+  "HotstringHelper.MinWordLength": {
+    "label": "Minimum Word Length",
+    "help": "Minimum length a word must be to include its first letters in boilerplate anagrams.  This allows us to exclude short words like 'of', 'in', 'a', etc.  If the min lengh is 2, then the anagram for the preceding sentence is 'mlwmi'.",
+    "type": "integer",
+    "min": 1,
+    "max": 10,
+    "default": "2"
+  },
+  "HotstringHelper.MakeFuncByDefault": {
+    "label": "Make Function by Default",
+    "help": "If enabled, new AutoCorrect entries will use the f() function wrapper by default (allows logging and context capture). If disabled, entries are vanilla hotstrings.  The option can be turned on/off for each hotstring.  This just determines whether the\n[ ] Make as f() function\n checkbox is checked by default.",
+    "type": "boolean",
+    "options": [
+      "0=Vanilla hotstrings",
+      "1=Use f() function"
+    ]
+  },
+  "HotstringHelper.DefaultAutoCorrectOpts": {
+    "label": "Default AutoCorrect Options",
+    "help": "AHK hotstring options applied to AutoCorrect entries. If MakeFuncByDefault = 1, then these default opts should include B0X (B zero for no backspace, X for execute function). See AHK docs for all options.",
+    "type": "text",
+    "default": "B0X"
+  },
+  "HotstringHelper.AutoCommentWithFreqAndStats": {
+    "label": "Auto-Comment with Frequency",
+    "help": "If enabled, new entries will include frequency/statistics comments. Used by the Ctrl-F3 stats dialog.  It's okay to use this feature, even if you don't use the f() functions.",
+    "type": "boolean",
+    "options": [
+      "0=No comments",
+      "1=Add comments"
+    ]
+  },
+  "HotstringHelper.AutoEnterNewEntry": {
+    "label": "Auto-Enter New Entry",
+    "help": "If enabled, Hotstring Helper will attempt to type new AutoCorrect items into your working document after you append the item.  This only works for whole-word AutoCorrect entries.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Auto-type"
+    ]
+  },
+  "ACSystem.EnableLogging": {
+    "label": "Enable Logging",
+    "help": "Master switch - if disabled, no logging occurs for any autocorrections made by the f() function; this include the error context logger.  The Manual Correction Logger is a seprate independent tool and this setting does not affect it.\n\nIf vanilla hotstrings are used (instead of f() functions) then this setting is moot.",
+    "type": "boolean",
+    "options": [
+      "0=Disable AutoCorrection Logging",
+      "1=Enable AutoCorrection Logging"
+    ]
+  },
+  "ACSystem.BeepOnCorrection": {
+    "label": "Beep on Correction",
+    "help": "If enabled, a beep sound plays each time an autocorrection is made.",
+    "type": "boolean",
+    "options": [
+      "0=Silent",
+      "1=Beep"
+    ]
+  },
+  "ACSystem.BeepOnContextLog": {
+    "label": "Beep on Context Log",
+    "help": "If enabled, a beep sounds when a backspaced autocorrection's context is captured and logged.  There is a bit of a delay from after backspace is pressed.  This is because the context logger is collecting the words typed after.  Related keys\n - PrecedingWordCount\n - FollowingWordCount\n - FollowingWordTimeout",
+    "type": "boolean",
+    "options": [
+      "0=Silent",
+      "1=Beep"
+    ]
+  },
+  "ACSystem.PrecedingWordCount": {
+    "label": "Preceding Word Count",
+    "help": "Number of words to keep cached before the autocorrection to capture in context logging. Used to understand what the user was typing when the errant autocorrection occured.  Note: digits and symbols other than period are ignored and never cached.",
+    "type": "integer",
+    "min": 0,
+    "max": 20
+  },
+  "ACSystem.FollowingWordCount": {
+    "label": "Following Word Count",
+    "help": "Number of words after the autocorrection to wait for and capture in context logging.  Used to understand what the user was typing when the errant autocorrection occured.  Note: digits and symbols other than period are ignored and never cached.",
+    "type": "integer",
+    "min": 0,
+    "max": 20
+  },
+  "ACSystem.FollowingWordTimeout": {
+    "label": "Following Word Timeout",
+    "help": "Maximum number of seconds to wait for following words to be typed before stopping context capture.",
+    "type": "integer",
+    "min": 1,
+    "max": 60
+  },
+  "ACSystem.AppSkiplist": {
+    "label": "App Skiplist",
+    "help": "Comma-separated list of executable names where AutoCorrect should NOT run.\n\nDo not include spaces after commas.\nThis:\tRoblox.exe,PipeWalker.exe\nNot this:\tRoblox.exe, PipeWalker.exe",
+    "type": "text",
+    "default": ""
+  },
+  "ACSystem.BeepOnCapFix": {
+    "label": "Beep on Cap Fix",
+    "help": "If enabled, a beep sounds when ACcidental DOuble CAps are fixed.",
+    "type": "boolean",
+    "default": ""
+  },
+  "ACSystem.CapFixTwoLetterWords": {
+    "label": "Auto Fix Double Caps on Two Letter Words",
+    "help": "If enabled, ACcidental DOuble CAps are fixed for common two-letter words (e.g. TO --> To).  Can be super-annoying for people who work in IT. ",
+    "type": "boolean",
+    "default": ""
+  },
+  "MCLogger.ShowEachHotString": {
+    "label": "Show Each Hotstring",
+    "help": "If enabled, a visual tooltip appears each time MCLogger captures a manual correction pattern.",
+    "type": "boolean",
+    "options": [
+      "0=Silent",
+      "1=Show tooltip"
+    ]
+  },
+  "MCLogger.BeepEachHotString": {
+    "label": "Beep Each Hotstring",
+    "help": "If enabled, an auditory beep sounds each time a manual correction pattern is captured.",
+    "type": "boolean",
+    "options": [
+      "0=Silent",
+      "1=Beep"
+    ]
+  },
+  "MCLogger.SaveIntervalMinutes": {
+    "label": "Save Interval (Minutes)",
+    "help": "MCLogger collects patterns in RAM and saves to disk at this interval. Smaller = more frequent saves.",
+    "type": "integer",
+    "min": 1,
+    "max": 120
+  },
+  "MCLogger.IntervalsBeforeStopping": {
+    "label": "Intervals Before Stopping",
+    "help": "Stop collecting if no new pattern matches for this many save intervals. Collection auto-restarts on next manual correction.",
+    "type": "integer",
+    "min": 1,
+    "max": 20
+  },
+  "MCLogger.SendToHH": {
+    "label": "Send to HotstringHelper",
+    "help": "If enabled, The 'Append' buttons in MCLogger will export to the HotstringHelper2 GUI. If disabled, append directly to the HotstringLib.ahk file.",
+    "type": "boolean",
+    "options": [
+      "0=Append to directly to Library",
+      "1=Send to HotstringHelper"
+    ]
+  },
+  "MCLogger.RunAnalysisHotkey": {
+    "label": "Run Analysis Hotkey",
+    "help": "Hotkey to open and run analysis of the MCLogger manual correction log.",
+    "type": "hotkey",
+    "default": "#^+q"
+  },
+  "MCLogger.SneakPeekHotkey": {
+    "label": "Sneak Peek Hotkey",
+    "help": "Hotkey to get a quick preview/peek at the current MCLogger cached character presses and the captured hotstrings that are due to be logged at the next save interval.",
+    "type": "hotkey",
+    "default": "#+q"
+  },
+  "MCLogger.SaveFullToClipboard": {
+    "label": "Save Full to Clipboard",
+    "help": "If enabled, the full analysis report is also saved to Windows Clipboard. Warning: does not restore previous clipboard contents.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Copy to clipboard"
+    ]
+  },
+  "MCLogger.AgeOfOldSingles": {
+    "label": "Age of Old Singles",
+    "help": "It's not a filter for a dating website...  When removing old single-occurrence items from the Mannual Correction Log, only remove hotstrings older than this many days.",
+    "type": "integer",
+    "min": 30,
+    "max": 365
+  },
+  "MCLogger.KeepReportOpen": {
+    "label": "Keep Report Open",
+    "help": "When clicking 'Cull and Append', close the list each time (0) or keep it open (1) for continued editing.",
+    "type": "boolean",
+    "options": [
+      "0=Close after each action",
+      "1=Keep open"
+    ]
+  },
+  "ACLogAnalyzer.FreqImportance": {
+    "label": "Frequency Importance Weight",
+    "help": "Importance weight (0-50) for frequency when calculating which items are most important.  The other factor is simply the ratio of backspaced, to kept, items.\n\n0 = ignore frequency, and just sort the AC Analysis report on ratio.",
+    "type": "integer",
+    "min": 0,
+    "max": 50
+  },
+  "ACLogAnalyzer.IgnoreFewerThan": {
+    "label": "Ignore Fewer Than",
+    "help": "Minimum threshold for consideration when weighing items. Zero means consider all items regardless of frequency. For example if the value is 3, then then autocorrections which were only logged twice, won't appear on the Analysis report at all.",
+    "type": "integer",
+    "min": 0,
+    "max": 5
+  },
+  "ACLogAnalyzer.CopyHotstringOnSelect": {
+    "label": "Copy Hotstring on Select",
+    "help": "If enabled, hotstring is copied to clipboard when an item is selected. Facilitates sending to HotstringHelper.\nTip: Once the item is on the clipboard, press the HH hotkey (Win-H).",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Copy to clipboard"
+    ]
+  },
+  "ACLogAnalyzer.PinToTop": {
+    "label": "Pin to Top",
+    "help": "If enabled, the ACLogAnalyzer window is pinned to the top by default (stays above other windows).  Can be easily toggled via the checkbox.",
+    "type": "boolean",
+    "options": [
+      "0=Normal",
+      "1=Always on top"
+    ]
+  },
+  "ACLogAnalyzer.EnableErrorLogging": {
+    "label": "Enable Error Logging",
+    "help": "If enabled, ACLogAnalyzer app runtime errors are logged to file. (Not autocorrection errors, but app errors)",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ACLogAnalyzer.StartLine": {
+    "label": "Start Line",
+    "help": "When reading the log file, skip all lines before this line number. Useful if you have header/comment lines that you want to skip.",
+    "type": "integer",
+    "min": 1,
+    "max": 1000
+  },
+  "ACLogAnalyzer.CullDateFormat": {
+    "label": "Cull Date Format",
+    "help": "Date format for the timestamp when items are culled. Examples: MM-dd-yyyy, yyyy-MM-dd, dd/MM/yyyy\n\nSee also: https://www.autohotkey.com/docs/v2/lib/FormatTime.htm#Date_Formats",
+    "type": "text",
+    "default": "MM-dd-yyyy"
+  },
+  "Defunctionizer.keepComments": {
+    "label": "Keep Comments",
+    "help": "If enabled (1), frequency/stats comments are preserved during defunctionization. If disabled (0), comments are removed. \nNotes:\n - Removing comments will break AutoCorrect2's Ctrl-F3 stats dialog\n - Comments with '...but misspells...' flags are always kept",
+    "type": "boolean",
+    "options": [
+      "0=Remove comments",
+      "1=Keep comments"
+    ]
+  }
+}

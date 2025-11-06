@@ -2,16 +2,22 @@
 #Requires AutoHotkey v2+
 
 ; Intended for updating AutoHotkey scripts.  kunkel321 10-19-2025 
-; A script to find duplicate hotstrings that are in one file but not another. 
+; A script to find unique hotstrings that are in one file but not another. 
 ; Default files to scan can be entered.  If they are not found, a file-picker will appear.
 ; The "mainFile" is the file that you plan to use--it is your new AutoCorrect file.
 ; The "extraFile" is a different version of your file, that might have new custom hotstrings
-; added, that are not in the new mainFile. 
-
-mainFile := "..\..\Core\HotstringLib.ahk" ; <--- New version from GitHub here.
-extraFile := "..\..\Core\HotstringLib_OLD.ahk"  ; <--- Your renamed hotstring file path here.
+; added, that are not in the new mainFile.
 
 ^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc. 
+
+settingsFile := "..\Data\acSettings.ini"
+; Verify settings file exists
+if !FileExist(settingsFile) {
+	MsgBox(settingsFile " was not found. Please run AutoCorrect2 first to create the file.")
+	ExitApp
+}
+mainFile := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
+extraFile := "..\Core\" IniRead(settingsFile, "Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
 
 ; Function to get file path with dialog fallback
 GetFilePath(defaultPath, fileType) {
@@ -146,7 +152,7 @@ finalReport :=
 	extraReport
 )
 
-Location := "..\..\Data\Uniques_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
+Location := "..\Data\Uniques_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
 FileAppend finalReport, Location ; Save to text file, then open the file. 
 sleep 250
 Run Location

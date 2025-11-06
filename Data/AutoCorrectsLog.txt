@@ -90,10 +90,8 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-05-20 -- :*:enought::enough
 2025-05-20 << :*:thats::that's
 2025-05-20 -- ::if is::it is
-2025-05-20 -- :C:i::I
 2025-05-20 -- :?C:nig::ing
 2025-05-20 -- :*?:tionnar::tionar
-2025-05-20 << :C:thi::the
 2025-05-20 << :*?C:wnat::want
 2025-05-20 -- :*?:appol::apol
 2025-05-20 -- :*?C:.  i::.  I
@@ -118,7 +116,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-05-21 -- :*:door jam::doorjamb
 2025-05-21 << :?C:arey::ary
 2025-05-21 -- :*?:cogntivie::cognitive
-2025-05-21 << :*:tothe::to the
 2025-05-21 -- :*?:durring::during
 2025-05-21 << :*?:durring::during
 2025-05-21 -- :*:heathy::healthy
@@ -170,7 +167,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-05-27 -- :*:assignemen::assignmen
 2025-05-27 -- :*?C:rtyh::rth
 2025-05-27 -- :*?:aiton::ation
-2025-05-27 -- :*:rre::re
 2025-05-27 -- :*?C:.  b::.  B
 2025-05-27 -- :*?:focuss::focus
 2025-05-27 << :*?:distruc::destruc
@@ -178,7 +174,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-05-28 -- :*:recie::recei
 2025-05-28 -- :*?:retrun::return
 2025-05-28 -- :?C:nig::ing
-2025-05-28 -- :C:i::I
 2025-05-28 -- :*?:appol::apol
 2025-05-28 -- :*:senc::sens
 2025-05-28 << ::inprocess::in process
@@ -217,15 +212,12 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-05-30 -- :*?:extention::extension
 2025-05-30 << :*:itr::it
 2025-05-30 -- :*:to sent::to send
-2025-05-30 << :*?:duec::duce
 2025-05-30 -- :*?:cogntivie::cognitive
 2025-05-30 -- :?C:onw::one
-2025-05-30 << :*?:duec::duce
 2025-05-30 -- :*:beliv::believ
 2025-05-30 << :*:prepat::preparat
 2025-05-30 -- :*?:liscen::licen
 2025-05-31 -- :?:naly::nally
-2025-06-01 << :*:with out::without
 2025-06-01 -- :*?:mtion::mation
 2025-06-01 -- :?C:nig::ing
 2025-06-01 -- :*?:ploda::pload
@@ -257,7 +249,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-03 -- :*?:mulit::multi
 2025-06-03 -- :*:senc::sens
 2025-06-03 << :*?:fued::feud
-2025-06-03 -- :C:i::I
 2025-06-03 -- :*?:ablilit::abilit
 2025-06-03 -- ::averag::average
 2025-06-03 -- :?C:fthe::f the
@@ -329,7 +320,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-10 -- :*?:focuss::focus
 2025-06-10 -- :*:senc::sens
 2025-06-10 -- :*?:socre::score
-2025-06-10 -- :C:i::I
 2025-06-10 -- :*:higest::highest
 2025-06-10 -- :?C:fthe::f the
 2025-06-10 << ::averag::average
@@ -339,7 +329,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-10 -- :*?:cogntivie::cognitive
 2025-06-10 << :*?C:rafy::raft
 2025-06-10 -- :*?C:nght::ngth
-2025-06-10 << :C:i::I
 2025-06-10 -- :*?:mtion::mation
 2025-06-10 -- :*?:aiton::ation
 2025-06-10 -- :*?:sourse::source
@@ -351,8 +340,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-11 << :C:Im::I'm
 2025-06-11 << :*?:threatn::threaten
 2025-06-11 -- :*?:cogntivie::cognitive
-2025-06-11 -- :*:rre::re
-2025-06-11 -- :*:rre::re
 2025-06-11 -- :*?:cogntivie::cognitive
 2025-06-11 -- :*:dispite::despite
 2025-06-11 -- :*:dispite::despite
@@ -384,7 +371,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-13 -- :*?:diton::dition
 2025-06-13 -- :*:a ex::an ex
 2025-06-13 -- :*?:reee::ree
-2025-06-13 << :*:rre::re
 2025-06-13 -- :*?:elavan::elevan
 2025-06-13 -- :*?:cogntivie::cognitive
 2025-06-13 -- :*?:eild::ield
@@ -393,18 +379,14 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-13 -- :*:beacu::becau
 2025-06-13 -- :*:acuse::accuse
 2025-06-14 << :?C:thw::the
-2025-06-15 << :*:rre::re
 2025-06-15 -- :*:time out::timeout
 2025-06-15 << :*?C:.  t::.  T
-2025-06-15 -- :*:rre::re
-2025-06-15 -- :*:rre::re
 2025-06-15 -- :*?:cuas::caus
 2025-06-15 -- :?:atley::ately
 2025-06-15 -- :*:hotsring::hotstring
 2025-06-16 -- :*?:efered::eferred
 2025-06-16 << :*?:convere::confere
 2025-06-16 -- :*?:nvien::nven
-2025-06-16 -- :C:i::I
 2025-06-16 -- ::abcdef::abxxcdef
 2025-06-16 -- :*?:auot::auto
 2025-06-16 -- :*?C:nlcu::nclu
@@ -419,7 +401,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-17 -- :*?:accomo::accommo
 2025-06-17 -- :*?C:kjh::kh
 2025-06-17 -- :*?:atoin::ation
-2025-06-17 -- :*:rre::re
 2025-06-17 -- :*?:offical::official
 2025-06-17 -- :*?:durring::during
 2025-06-17 -- :*?:misspall::misspell
@@ -430,7 +411,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-17 << ::if is::it is
 2025-06-18 << :*:monh::monoh
 2025-06-18 -- :*?:inital::initial
-2025-06-19 << :*?C:.  o::.  O
 2025-06-19 << :*?C:.  r::.  R
 2025-06-19 -- :*?C:supo::suppo
 2025-06-20 -- :*:enought::enough
@@ -470,11 +450,8 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-06-29 -- :*?C:.  t::.  T
 2025-06-29 -- ::tbh::to be honest
 2025-06-29 -- :*?C:.  t::.  T
-2025-06-29 -- :C:i::I
 2025-06-30 -- :*?:discrib::describ
-2025-07-04 -- :C:i::I
 2025-07-05 -- :*?:allign::align
-2025-07-05 << :*?C:.  f::.  F
 2025-07-07 -- :*?:coee::code
 2025-07-07 << ::fro::for
 2025-07-07 -- :*?:sih::ish
@@ -483,14 +460,11 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-07-11 -- :*?:igini::igni
 2025-07-15 << :*?:ivle::ivel
 2025-07-15 -- :*?:appol::apol
-2025-07-15 << :C:i::I
 2025-07-15 -- :*C:english::English
 2025-07-16 << :*:xome::some
 2025-07-18 -- :*?:ssese::ssesse
-2025-07-19 -- :C:i::I
 2025-07-19 -- :*:i"m::I'm
 2025-07-20 -- :*?:modle::model
-2025-07-21 << :*:rre::re
 2025-07-22 << :*?:assoca::associa
 2025-07-22 -- :*?C:?  k::?  K
 2025-07-23 -- :*?:durring::during
@@ -501,22 +475,15 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-07-25 -- :*?:desided::decided
 2025-07-26 << :*:puch::push
 2025-07-29 -- :*:ealie::earlie
-2025-07-29 -- :C:i::I
 2025-07-29 -- :*?C:ouhg::ough
 2025-07-29 << :*?C:.  m::.  M
-2025-08-01 << :C:i::I
 2025-08-02 << :*:try and::try to
-2025-08-02 -- :C:i::I
 2025-08-02 -- :*:an new::a new
-2025-08-02 -- :C:i::I
-2025-08-02 << :C:i::I
 2025-08-02 -- :*?:tje::the
 2025-08-03 << :*?:asss::ass
 2025-08-03 -- :*:this data::these data
 2025-08-03 -- ::most resent::most recent
 2025-08-03 -- :*?:responc::respons
-2025-08-03 << :C:i::I
-2025-08-06 << :C:i::I
 2025-08-15 << :*?C:.  m::.  M
 2025-08-19 -- :*:tyo::to
 2025-08-19 << ::repla::reply
@@ -526,30 +493,24 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-08-20 -- :*:i"m::I'm
 2025-08-22 << :*:iman::immin
 2025-08-22 -- :*:iman::immin
-2025-08-22 -- :C:i::I
-2025-08-22 << :*:rre::re
 2025-08-22 << :*?C:tyu::ty
 2025-08-22 << :*:transfered::transferred
 2025-08-22 -- :*?:meber::member
 2025-08-22 -- :*:enought::enough
-2025-08-22 << :C:i::I
 2025-08-22 -- :*?C:iht::ith
 2025-08-22 -- :*?:efered::eferred
 2025-08-22 << :*?:durring::during
 2025-08-22 << :*?:meing::ming
 2025-08-22 << :*?:aligy::alify
-2025-08-22 << :C:thi::the
 2025-08-22 << :*?:meen::men
 2025-08-23 << :*:sould::should
 2025-08-23 -- :*:sq ft::ft²
 2025-08-25 -- :*?:warrent::warrant
-2025-08-25 -- :C:i::I
 2025-08-25 -- :*?:commite::committe
 2025-08-25 << :?C:ayt::ay
 2025-08-26 -- :*?:aggree::agree
 2025-08-26 << :*?C:ltye::ltie
 2025-08-27 -- :*:dont::don't
-2025-08-27 << :*?:duec::duce
 2025-08-27 -- :*?C:.  a::.  A
 2025-08-27 -- ::when ever::whenever
 2025-08-28 << :*?:empry::empty
@@ -590,7 +551,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-01 -- :*:hellow::hello
 2025-09-01 -- ::fro::for
 2025-09-01 -- :?:eamil::email
-2025-09-01 -- :C:i::I
 2025-09-01 -- :*?:sourse::source
 2025-09-01 -- :?:eamil::email
 2025-09-02 << :*:gaol::goal
@@ -603,7 +563,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-02 -- :*?:asue::ause
 2025-09-02 -- :?:efering::eferring
 2025-09-02 << :*?C:.  h::.  H
-2025-09-03 -- :C:i::I
 2025-09-03 -- :*?:durring::during
 2025-09-03 -- :*?:sedon::secon
 2025-09-03 -- :*:autsi::autis
@@ -629,13 +588,10 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-05 << :*:beliv::believ
 2025-09-05 -- :*C:uber::über
 2025-09-05 -- :*?:reee::ree
-2025-09-06 -- :C:i::I
 2025-09-07 << :*?C:?  l::?  L
 2025-09-08 -- :*?:iwth::with
 2025-09-08 -- :*?:oook::ook
-2025-09-08 << :C:i::I
 2025-09-08 << :*?:cuas::caus
-2025-09-08 -- :C:i::I
 2025-09-08 -- :*:recie::recei
 2025-09-08 -- :*?:tarrif::tariff
 2025-09-08 -- :*?C:.  i::.  I
@@ -670,17 +626,13 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-09 -- :?C:ialy::ially
 2025-09-10 -- :?:throught::through
 2025-09-10 -- ::thatn::that
-2025-09-10 << :C:i::I
-2025-09-10 << :C:thi::the
 2025-09-10 -- :*?:sucess::success
 2025-09-10 -- :*:recie::recei
 2025-09-10 << :*?:tempar::temper
 2025-09-10 -- :*:senc::sens
-2025-09-10 << :C:i::I
 2025-09-10 << :*?:acadm::academ
 2025-09-10 -- :*?:wierd::weird
 2025-09-10 -- :?C:hc::ch
-2025-09-10 -- :C:i::I
 2025-09-10 -- :*?:osible::osable
 2025-09-10 -- :*:sould::should
 2025-09-10 -- :*?:safte::safet
@@ -694,9 +646,7 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-10 -- :*?:accomo::accommo
 2025-09-10 << :*:assisten::assistan
 2025-09-10 -- :*:recomen::recommen
-2025-09-10 << :C:i::I
 2025-09-10 -- :*:puch::push
-2025-09-10 -- :C:i::I
 2025-09-10 << :C:copt::copy
 2025-09-10 -- :*:liquif::liquef
 2025-09-10 -- :*?:efered::eferred
@@ -745,7 +695,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-16 -- :*?:dgement::dgment
 2025-09-16 -- :*:senc::sens
 2025-09-16 -- :*?:mision::mission
-2025-09-16 -- :C:i::I
 2025-09-16 -- :*?:embaras::embarras
 2025-09-16 -- :*?:agress::aggress
 2025-09-16 << :*?C:.  l::.  L
@@ -760,7 +709,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-18 -- :*?C:?  e::?  E
 2025-09-18 -- :?:comming::coming
 2025-09-18 << :?:realy::really
-2025-09-19 << :C:i::I
 2025-09-19 -- :*?:mulit::multi
 2025-09-19 -- :*?:sectu::secu
 2025-09-19 -- :*?:tatn::tant
@@ -769,7 +717,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-19 -- :*?:reee::ree
 2025-09-19 -- :*:thats::that's
 2025-09-19 << :*:use to::used to
-2025-09-19 << :C:i::I
 2025-09-19 << :*:to sent::to send
 2025-09-19 -- :*?:accoc::assoc
 2025-09-19 << :*:prepart::preparat
@@ -780,14 +727,7 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-19 << :*?:availb::availab
 2025-09-19 << :?:ualy::ually
 2025-09-19 -- :*?:behaiv::behavi
-2025-09-20 -- :C:i::I
 2025-09-21 << :*:ue::eu
-2025-09-21 << :*:rre::re
-2025-09-21 << :*:rre::re
-2025-09-21 -- :*:rre::re
-2025-09-21 << :*:rre::re
-2025-09-21 -- :*:rre::re
-2025-09-21 << :*?C:.  f::.  F
 2025-09-21 -- ::t he::the
 2025-09-21 -- :*:senc::sens
 2025-09-21 << :*:pring::print
@@ -795,7 +735,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-21 -- :*?:meing::ming
 2025-09-22 -- :*?:responc::respons
 2025-09-22 -- :*?:durring::during
-2025-09-22 << :C:thi::the
 2025-09-22 -- :*:autsi::autis
 2025-09-22 -- :C?:wass::was
 2025-09-22 -- :*?:durring::during
@@ -807,7 +746,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-22 -- :*?:dgement::dgment
 2025-09-22 -- :?:bilites::bilities
 2025-09-22 -- :*?:cogntivie::cognitive
-2025-09-22 -- :C:i::I
 2025-09-22 << :*:was send::was sent
 2025-09-22 -- :*:hellow::hello
 2025-09-23 -- :*?:lastes::lates
@@ -851,7 +789,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-25 << :*?C:asr::ase
 2025-09-25 -- :*:thansk::thanks
 2025-09-25 -- :*:hotsting::hotstring
-2025-09-25 -- :C:i::I
 2025-09-25 -- :*:Karent::Karen
 2025-09-25 -- :*?:cirp::crip
 2025-09-26 -- :*:cansel::cancel
@@ -892,10 +829,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-26 -- :*?C:tlak::talk
 2025-09-26 -- :*:recie::recei
 2025-09-27 -- :*?:safte::safet
-2025-09-27 << :*:rre::re
-2025-09-28 -- :*:rre::re
-2025-09-28 -- :*:rre::re
-2025-09-28 -- :*:rre::re
 2025-09-28 -- :*:anual::annual
 2025-09-29 -- :*?:sourse::source
 2025-09-29 -- :*?:igth::ight
@@ -904,7 +837,6 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-29 -- :*?:actaul::actual
 2025-09-29 -- :*:senc::sens
 2025-09-29 -- :*:to setup::to set up
-
 2025-09-29 -- :*?C:ouhg::ough
 2025-09-29 -- :*?:aggree::agree
 2025-09-29 -- ::alway::always
@@ -914,10 +846,8 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-09-29 << :*?C:.  i::.  I
 2025-09-29 -- :*:senc::sens
 2025-09-29 -- :*:noone::no one
-2025-09-29 -- :C:i::I
 2025-09-29 -- :*:i"m::I'm
 2025-09-29 -- :*?:surpriz::surpris
-2025-09-29 -- :*:rre::re
 2025-09-30 -- :*:tommorrow::tomorrow
 2025-09-30 -- :*?C:iht::ith
 2025-09-30 -- :*:i"m::I'm
@@ -947,3 +877,803 @@ YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘
 2025-10-01 << :*:ue::eu
 2025-10-01 << :*:ue::eu
 2025-10-01 -- :*:ue::eu
+2025-10-02 << :*:less that::less than
+2025-10-02 -- :*?:socre::score
+2025-10-02 -- ::averag::average
+2025-10-02 -- :?C:nig::ing
+2025-10-02 -- :*?:grama::gramma
+2025-10-02 -- :*?:eild::ield
+2025-10-02 -- :*?:appol::apol
+2025-10-02 -- :*:transferin::transferrin
+2025-10-02 -- :*?:cogntivie::cognitive
+2025-10-02 -- ::thie::this
+2025-10-02 -- :*?:foward::forward
+2025-10-02 -- :*:Karent::Karen
+2025-10-02 << :*:connet::connect
+2025-10-02 -- :*?:coee::code
+2025-10-02 -- :*:i"m::I'm
+2025-10-02 -- :*:puting::putting
+2025-10-02 << :*?C:iht::ith
+2025-10-03 << :?:comming::coming
+2025-10-03 -- :?:comming::coming
+2025-10-03 -- :*:repon::respon
+2025-10-03 -- :*?:duec::duce
+2025-10-03 -- :*?:duec::duce
+2025-10-03 -- :*?:duec::duce
+2025-10-03 -- :*:mispel::misspel
+2025-10-03 -- :*?:grama::gramma
+2025-10-03 -- :*:andd::and
+2025-10-03 -- :?:;s::'s
+2025-10-03 -- :*?:grama::gramma
+2025-10-03 -- :*:andd::and
+2025-10-03 -- :*:grammer::grammar
+2025-10-03 -- :*:grammer::grammar
+2025-10-03 -- :*?:grama::gramma
+2025-10-04 -- :*?:eild::ield
+2025-10-05 -- ::I thing::I think
+2025-10-05 << :*:lable::label
+2025-10-05 -- :*:lable::label
+2025-10-05 -- :*?C:yuo::you
+2025-10-05 << :*?C:tecn::techn
+2025-10-05 -- :*?:aggree::agree
+2025-10-05 -- :*?:untion::unction
+2025-10-05 -- :*?:ampel::ample
+2025-10-05 -- :*?:appol::apol
+2025-10-06 -- :*:assita::assista
+2025-10-06 -- :*?:affraid::afraid
+2025-10-06 -- :*?:agress::aggress
+2025-10-06 << :*?:folow::follow
+2025-10-06 -- :*:recie::recei
+2025-10-06 << :*C:coce::code
+2025-10-06 -- :*:int he::in the
+2025-10-06 -- :?C:itiy::ity
+2025-10-06 -- :?:sicly::sically
+2025-10-06 -- :*:lable::label
+2025-10-06 -- :*:linconl::lincoln
+2025-10-06 -- :*?:abilt::abilit
+2025-10-06 -- :*?:nsern::ncern
+2025-10-06 << :*?C:qit::quit
+2025-10-06 -- :*?:durring::during
+2025-10-06 -- :*?:likl::likel
+2025-10-06 -- :*:anual::annual
+2025-10-06 -- :*?:durring::during
+2025-10-06 -- :*?:exsis::exis
+2025-10-06 -- :?C:tng::ting
+2025-10-06 -- :*?:cirp::crip
+2025-10-06 -- :*:mispel::misspel
+2025-10-06 << :*?:asue::ause
+2025-10-06 -- :?:ualy::ually
+2025-10-06 -- :*?:memt::ment
+2025-10-06 -- :*?:acede::acade
+2025-10-07 << :*:ue::eu
+2025-10-07 -- :*:senari::scenari
+2025-10-07 -- :*?:responc::respons
+2025-10-07 -- :*?:supriz::surpris
+2025-10-07 -- :*?:asss::ass
+2025-10-07 -- :*:recie::recei
+2025-10-07 << :*:numberof::number of
+2025-10-07 -- :*:assisten::assistan
+2025-10-07 -- :*?:sxh::sch
+2025-10-07 -- :*:hellow::hello
+2025-10-07 -- :*:everthing::everything
+2025-10-07 -- :*?:iblit::ibilit
+2025-10-07 -- :*?:belei::belie
+2025-10-07 -- :*:lable::label
+2025-10-07 -- :*:andd::and
+2025-10-07 -- :*?:offical::official
+2025-10-07 << :*:ue::eu
+2025-10-07 -- :*?:persista::persiste
+2025-10-07 -- :*?:durring::during
+2025-10-07 -- :?:occure::occur
+2025-10-07 -- :?:allly::ally
+2025-10-07 -- :*?:efered::eferred
+2025-10-07 << :*?:cment::cement
+2025-10-07 -- :*?:ciev::ceiv
+2025-10-07 -- :*:sould::should
+2025-10-08 -- :*:there own::their own
+2025-10-08 -- :*?C:iht::ith
+2025-10-08 -- :*:ariv::arriv
+2025-10-08 -- :*:senc::sens
+2025-10-08 -- :*?:oportun::opportun
+2025-10-08 << :*?:acadm::academ
+2025-10-08 -- :*:this gut::this guy
+2025-10-08 << :*:due to it's::due to its
+2025-10-09 -- :?:doens::does
+2025-10-09 << :*?:sourse::source
+2025-10-09 -- :*?:inng::ing
+2025-10-09 << :*:ue::eu
+2025-10-09 -- :*:thier::their
+2025-10-09 -- :*:cansel::cancel
+2025-10-09 << :*?:imporat::importa
+2025-10-09 -- ::beleve::belive
+2025-10-10 -- :*?:referal::referral
+2025-10-10 -- :*?C:iht::ith
+2025-10-10 -- :*:transfered::transferred
+2025-10-10 << :*?:imporat::importa
+2025-10-10 -- :*?:asss::ass
+2025-10-10 -- :*?:cidently::cidentally
+2025-10-10 -- :*?:reomm::recomm
+2025-10-10 -- :*?C:.  t::.  T
+2025-10-10 << ::fro::for
+2025-10-10 -- :*:recie::recei
+2025-10-10 -- :?C:teh::the
+2025-10-10 << :*?C:.  h::.  H
+2025-10-10 -- :*?C:ctae::cate
+2025-10-10 -- :*?C:elpa::epla
+2025-10-10 -- :*:use to::used to
+2025-10-10 << :*?:famila::familia
+2025-10-10 -- ::inprocess::in process
+2025-10-11 -- :*?C:.  w::.  W
+2025-10-11 -- :*?:existan::existen
+2025-10-11 -- :*:lable::label
+2025-10-11 -- :*:lable::label
+2025-10-11 -- :*:lable::label
+2025-10-11 -- :*?:varous::various
+2025-10-11 -- :*:femail::female
+2025-10-11 << :*?:attmpt::attempt
+2025-10-11 << :*?:ceing::cing
+2025-10-11 -- :*:i"m::I'm
+2025-10-11 << :*:ue::eu
+2025-10-11 -- :*?:accro::acro
+2025-10-11 -- :*?:orign::origin
+2025-10-11 -- :*?C:juct::junct
+2025-10-11 -- :*?:sedon::secon
+2025-10-11 -- :*:everthing::everything
+2025-10-11 -- :*?:ticio::titio
+2025-10-12 -- :*:femail::female
+2025-10-12 -- :*?:grama::gramma
+2025-10-12 -- :*:dont::don't
+2025-10-12 << :*?:spet::sept
+2025-10-12 -- :*?:nouncia::nuncia
+2025-10-12 -- :*:begini::beginni
+2025-10-12 -- :*?:cuas::caus
+2025-10-13 -- :*?:concide::conside
+2025-10-13 -- :?:herefor::herefore
+2025-10-13 << :*:ue::eu
+2025-10-13 << :*?:ligrar::librar
+2025-10-13 -- ::ect::etc
+2025-10-13 -- :*?:actaul::actual
+2025-10-13 -- :*?:efered::eferred
+2025-10-13 -- :*?:interup::interrup
+2025-10-13 -- :*:as apposed to::as opposed to
+2025-10-14 -- :*:int he::in the
+2025-10-14 -- :*:transfered::transferred
+2025-10-14 -- :*?:behaiv::behavi
+2025-10-14 -- :*?:durring::during
+2025-10-14 -- :*?:ignot::ignor
+2025-10-14 -- :?C:itiy::ity
+2025-10-14 << :*?:adaptib::adaptab
+2025-10-14 -- :?:schol::school
+2025-10-14 -- :*?:couraing::couraging
+2025-10-14 -- :*?:cogntivie::cognitive
+2025-10-14 << :*?:cogntivie::cognitive
+2025-10-14 -- :*:exele::excelle
+2025-10-14 -- :*C:lias::liais
+2025-10-14 -- :*?C:rafy::raft
+2025-10-14 -- :*:to setup::to set up
+2025-10-14 -- :*?:operact::operat
+2025-10-14 -- :*:sould::should
+2025-10-14 -- :*?:sonen::sonan
+2025-10-14 -- :*?:durring::during
+2025-10-14 -- :*?:durring::during
+2025-10-14 -- :*?:cment::cement
+2025-10-14 -- :?:occure::occur
+2025-10-14 -- :*?:durring::during
+2025-10-14 -- :*:ahjk::ahk
+2025-10-14 -- :*C:wich::which
+2025-10-14 -- :*?:useing::using
+2025-10-14 -- :*:try and::try to
+2025-10-14 -- :*?:misspall::misspell
+2025-10-14 -- :*?:legitam::legitim
+2025-10-15 -- :C:Im::I'm
+2025-10-15 << :?:comming::coming
+2025-10-15 << ::ther::they
+2025-10-15 -- :*?:sicion::cision
+2025-10-15 << :*?:availb::availab
+2025-10-15 -- :?:comming::coming
+2025-10-15 -- :*?:sicion::cision
+2025-10-15 -- :?:occure::occur
+2025-10-15 -- :*?:quirment::quirement
+2025-10-15 -- :?C:tng::ting
+2025-10-15 -- :*?:nervio::nervo
+2025-10-15 -- :*?:exsis::exis
+2025-10-15 -- :*?:auot::auto
+2025-10-15 -- :*:senc::sens
+2025-10-15 -- :?C:nig::ing
+2025-10-15 -- :*?C:ljh::lh
+2025-10-15 << :*?:ploda::pload
+2025-10-15 -- :?:comming::coming
+2025-10-15 -- :*?:eild::ield
+2025-10-15 -- :*?C:pld::ple
+2025-10-15 -- :*?:durring::during
+2025-10-15 -- :*?:inprov::improv
+2025-10-15 << :*:thats::that's
+2025-10-16 -- :?C:ayt::ay
+2025-10-16 -- :*:sentan::senten
+2025-10-17 << :*?C:.  a::.  A
+2025-10-17 -- :*?:sicion::cision
+2025-10-17 -- ::fora::for a
+2025-10-17 -- :*?:aiotn::ation
+2025-10-17 -- :*?:udein::udien
+2025-10-17 -- :?:allly::ally
+2025-10-17 -- :*?:uyt::ut
+2025-10-17 -- :*?:appol::apol
+2025-10-17 << :*?:nsern::ncern
+2025-10-17 -- :*:recie::recei
+2025-10-17 -- :*?:velanc::valenc
+2025-10-17 -- :*?:ignf::ignif
+2025-10-17 -- :*?:availb::availab
+2025-10-17 -- ::be send::be sent
+2025-10-17 -- :?:throught::through
+2025-10-17 << :*?:kindergard::kindergart
+2025-10-17 -- :*:recie::recei
+2025-10-17 -- ::presely::presley
+2025-10-17 -- ::presely::presley
+2025-10-17 -- ::thie::this
+2025-10-17 -- :*?C:frmo::from
+2025-10-18 -- :*?:cirp::crip
+2025-10-18 -- :*?:accoc::assoc
+2025-10-18 -- ::aslo::also
+2025-10-18 -- :*?:assoca::associa
+2025-10-18 -- :*?:cidently::cidentally
+2025-10-18 -- :*:thier::their
+2025-10-18 -- :?:cually::cularly
+2025-10-18 -- :*C:ime::imme
+2025-10-18 << :*?:knwo::know
+2025-10-18 -- :C*:milis::millis
+2025-10-18 -- :*:more that::more than
+2025-10-18 -- :*?:cuas::caus
+2025-10-18 << :*:dont::don't
+2025-10-18 << ::ther::they
+2025-10-18 -- :*:everytime::every time
+2025-10-18 << ::ther::they
+2025-10-18 -- :*:hotsting::hotstring
+2025-10-18 -- :*:anual::annual
+2025-10-18 -- :*:anual::annual
+2025-10-18 -- :*?:psyco::psycho
+2025-10-18 -- :*:resently::recently
+2025-10-18 << :*?:orign::origin
+2025-10-18 -- :*?C:ucnt::unct
+2025-10-18 -- :*:lable::label
+2025-10-18 << :*?:efered::eferred
+2025-10-18 -- :*:everytime::every time
+2025-10-19 -- :*?:scipt::script
+2025-10-19 -- :*?:auot::auto
+2025-10-19 << ::ot the::of the
+2025-10-19 -- :*?:appol::apol
+2025-10-19 << :*:libar::librar
+2025-10-19 -- :*:oposi::opposi
+2025-10-20 -- :*:senc::sens
+2025-10-20 -- :?C:vly::vely
+2025-10-20 -- :*?:asue::ause
+2025-10-20 << :*:beliv::believ
+2025-10-20 -- :*:i"m::I'm
+2025-10-20 << :*:senc::sens
+2025-10-20 -- :*?:nstion::nation
+2025-10-20 -- :*?:durring::during
+2025-10-20 -- :*?:nsern::ncern
+2025-10-20 -- :C:ths::the
+2025-10-20 -- :*?C:rht::rth
+2025-10-20 << :*?C:linf::ling
+2025-10-20 -- :*:lonk::link
+2025-10-20 -- :*?:comun::commun
+2025-10-20 << :*?C:.  h::.  H
+2025-10-20 << :*?:cogntivie::cognitive
+2025-10-20 -- :?:herefor::herefore
+2025-10-20 -- :?C:gthe::g the
+2025-10-20 -- :?:comming::coming
+2025-10-20 -- :*?:responc::respons
+2025-10-20 -- :*C:i ::I 
+2025-10-20 -- :*C:i ::I 
+2025-10-20 -- :*:hellow::hello
+2025-10-20 << :*:ue::eu
+2025-10-20 -- :*:ue::eu
+2025-10-20 << :*:a an::an an
+2025-10-20 << :*?:combon::combin
+2025-10-20 << :*:norh::north
+2025-10-20 -- ::ther::they
+2025-10-20 -- :*:amme::ame
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:speical::special
+2025-10-21 -- :*?C:.  s::.  S
+2025-10-21 << :*C:i ::I 
+2025-10-21 << :*?C:iosn::ions
+2025-10-21 -- :?C:lyu::ly
+2025-10-21 -- :*:delima::dilemma
+2025-10-21 -- :*?:concide::conside
+2025-10-21 << ::fro::for
+2025-10-21 -- :*:tyo::to
+2025-10-21 -- :*?:inng::ing
+2025-10-21 -- :*:senc::sens
+2025-10-21 -- :*?:spyc::psyc
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:appol::apol
+2025-10-21 << :?:comming::coming
+2025-10-21 -- :*?:durring::during
+2025-10-21 -- :?:occure::occur
+2025-10-21 -- ::untill::until
+2025-10-21 -- :*:thsi::this
+2025-10-21 -- :*?C:wnat::want
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:assesm::assessm
+2025-10-21 -- :*?:focuss::focus
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:focuss::focus
+2025-10-21 << :*?:asss::ass
+2025-10-21 -- :*?:spyc::psyc
+2025-10-21 << :*?:asss::ass
+2025-10-21 -- :*?:cuas::caus
+2025-10-21 -- :*?:focuss::focus
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:focuss::focus
+2025-10-21 -- :*?:focuss::focus
+2025-10-21 -- :*?:cment::cement
+2025-10-21 -- :*?:focuss::focus
+2025-10-21 -- :*?:envok::invok
+2025-10-21 -- :*?:focuss::focus
+2025-10-21 -- :*:hotsting::hotstring
+2025-10-21 -- :*?:biul::buil
+2025-10-21 -- :*?:asss::ass
+2025-10-21 -- :*?:combon::combin
+2025-10-21 -- :*?:asss::ass
+2025-10-22 << :?:comming::coming
+2025-10-22 -- :*?C:.  i::.  I
+2025-10-22 << :*:hostring::hotstring
+2025-10-22 << :*?:stiring::stirring
+2025-10-22 << :*?:botton::button
+2025-10-23 -- :*:ahjk::ahk
+2025-10-23 -- ::averag::average
+2025-10-23 -- :*?:durring::during
+2025-10-23 -- :*:recie::recei
+2025-10-23 -- :*?:reee::ree
+2025-10-23 -- :*:thier::their
+2025-10-23 -- :?:occured::occurred
+2025-10-23 -- :*?:intelec::intellec
+2025-10-23 -- :*?:focuss::focus
+2025-10-23 -- :*?:ommm::omm
+2025-10-23 -- :*?:cualr::cular
+2025-10-23 -- :*:proof read::proofread
+2025-10-23 -- :*:proof read::proofread
+2025-10-23 -- :*:a el::an el
+2025-10-23 -- :*:enought::enough
+2025-10-23 -- :*:hotsring::hotstring
+2025-10-23 -- :*C:ime::imme
+2025-10-23 -- :*?:exept::except
+2025-10-23 -- :*:ToolTop::ToolTip
+2025-10-23 << :*:with out::without
+2025-10-23 -- :?:occure::occur
+2025-10-23 << :*?C:iht::ith
+2025-10-23 -- :*?:ateing::ating
+2025-10-23 << :?C:tng::ting
+2025-10-23 -- :*:senc::sens
+2025-10-23 -- :*?:cuas::caus
+2025-10-23 -- :*:i"m::I'm
+2025-10-23 -- :*:amme::ame
+2025-10-23 -- :*?:adiqua::adequa
+2025-10-23 -- :*?C:iht::ith
+2025-10-23 -- :*:thier::their
+2025-10-23 -- :*?:incra::incre
+2025-10-23 << :*?:aveing::aving
+2025-10-23 -- :*?:itina::itiona
+2025-10-23 -- :*?:ollum::olum
+2025-10-23 -- :*:lable::label
+2025-10-23 -- :*:hotsting::hotstring
+2025-10-23 -- :*?:possit::posit
+2025-10-23 -- :*?:focuss::focus
+2025-10-23 -- :*:hotsting::hotstring
+2025-10-23 -- :*:hostring::hotstring
+2025-10-23 -- :*:hostring::hotstring
+2025-10-23 -- :*:inwhich::in which
+2025-10-23 -- :*:hotsring::hotstring
+2025-10-23 -- :*:hostring::hotstring
+2025-10-24 -- :*:tatoo::tattoo
+2025-10-24 << :*?C:wief::wife
+2025-10-24 -- :*?C:ckkl::ckl
+2025-10-24 -- :*?:uyt::ut
+2025-10-24 -- :*?:uyt::ut
+2025-10-24 << :*C:i ::I 
+2025-10-24 -- :*?:referal::referral
+2025-10-24 -- :*C:lias::liais
+2025-10-24 -- :*?:alyl::ally
+2025-10-24 -- :*?:aparen::apparen
+2025-10-24 -- :*?:durring::during
+2025-10-24 -- :*?:cuas::caus
+2025-10-24 -- :C:nad::and
+2025-10-24 << :*:connet::connect
+2025-10-24 -- :*:year old::year-old
+2025-10-24 -- :*?C:ucnt::unct
+2025-10-24 -- :*?:safte::safet
+2025-10-24 -- :*:senari::scenari
+2025-10-24 -- :*?:speical::special
+2025-10-24 -- :*?:durring::during
+2025-10-24 -- :*?:diabnos::diagnos
+2025-10-24 << :*?:eragee::erage
+2025-10-24 << :*?:seee::see
+2025-10-24 -- :*?:appol::apol
+2025-10-24 << :*C:i ::I 
+2025-10-24 -- :*?:imporat::importa
+2025-10-24 -- :*?:cuas::caus
+2025-10-25 << :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:resently::recently
+2025-10-25 -- :*?:auot::auto
+2025-10-25 -- :*?C:.  o::.  O
+2025-10-25 -- :?C:teh::the
+2025-10-25 -- :?C:teh::the
+2025-10-25 -- :?:occured::occurred
+2025-10-25 << :?C:arey::ary
+2025-10-25 -- :*?:auot::auto
+2025-10-25 -- :?C:ign::ing
+2025-10-25 -- :*?:mulit::multi
+2025-10-25 -- :*?:cment::cement
+2025-10-25 -- :*?:cment::cement
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :?:'nt::n't
+2025-10-25 -- :*?:spyc::psyc
+2025-10-25 -- :?:'nt::n't
+2025-10-25 -- :*?:durring::during
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :?:'nt::n't
+2025-10-25 -- :*:hasnt::hasn't
+2025-10-25 -- :?:'nt::n't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :?:'nt::n't
+2025-10-25 << :*?C:.  i::.  I
+2025-10-25 -- :C:nad::and
+2025-10-25 << :*?:chack::check
+2025-10-25 << :*:hotsting::hotstring
+2025-10-25 << :*?:caffine::caffein
+2025-10-25 -- :*?:auot::auto
+2025-10-25 << :*:dont::don't
+2025-10-25 -- :*?:auot::auto
+2025-10-25 -- :*:hotsting::hotstring
+2025-10-25 -- :*?:occasti::occasi
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:isnt::isn't
+2025-10-25 -- :*:hotsting::hotstring
+2025-10-25 << :*:libar::librar
+2025-10-25 -- :*?:ifiy::ify
+2025-10-25 -- :*?:speical::special
+2025-10-25 -- :*:i"m::I'm
+2025-10-25 -- :*?:mialr::milar
+2025-10-25 << :*?:dependan::dependen
+2025-10-25 -- :*:hostring::hotstring
+2025-10-25 -- :*?C:.  v::.  V
+2025-10-25 -- :*?:prait::priat
+2025-10-25 -- :*?:mtion::mation
+2025-10-27 << :C:thi::this
+2025-10-27 -- :*?:auot::auto
+2025-10-27 -- :*?:scipt::script
+2025-10-27 -- :*?:cirp::crip
+2025-10-27 -- :*?:cuas::caus
+2025-10-27 -- :*?C:.  p::.  P
+2025-10-27 << :*?:efered::eferred
+2025-10-27 -- :*:everytime::every time
+2025-10-27 << :*?:defint::definit
+2025-10-27 -- ::thatn::that
+2025-10-27 -- :*:sould::should
+2025-10-27 -- :*?:nsern::ncern
+2025-10-27 << :?:occure::occur
+2025-10-27 -- :*?:chagn::chang
+2025-10-27 -- :?C:teh::the
+2025-10-27 -- :?C:teh::the
+2025-10-27 -- :?C:teh::the
+2025-10-27 -- :C:nad::and
+2025-10-27 -- :?C:teh::the
+2025-10-27 -- :*?:useing::using
+2025-10-27 -- :*C:coce::code
+2025-10-27 << :*?:itina::itiona
+2025-10-27 -- :*:senc::sens
+2025-10-27 << :*?:retrun::return
+2025-10-27 -- :*?:rstion::ration
+2025-10-27 << :?:comming::coming
+2025-10-27 -- :*?:appol::apol
+2025-10-27 << :*?C:.  p::.  P
+2025-10-27 -- :*:beliv::believ
+2025-10-27 -- :*?:imporat::importa
+2025-10-27 -- :*:enought::enough
+2025-10-27 -- :*?:sicion::cision
+2025-10-27 -- :*?C:juct::junct
+2025-10-28 -- :*:senari::scenari
+2025-10-28 << :*:i"m::I'm
+2025-10-28 -- :*:pring::print
+2025-10-28 << ::ot the::of the
+2025-10-28 -- :*:i"m::I'm
+2025-10-28 -- :*?:silbe::sible
+2025-10-28 << :*:a as::an as
+2025-10-28 -- :*:i"m::I'm
+2025-10-28 -- :*?C:scpo::scop
+2025-10-28 -- :*?:accro::acro
+2025-10-28 -- ::aslo::also
+2025-10-28 -- :C:evan::even
+2025-10-28 -- :*?:mtion::mation
+2025-10-28 -- :*?:affraid::afraid
+2025-10-28 -- :*:resently::recently
+2025-10-28 -- ::presely::presley
+2025-10-28 -- :*:esle::else
+2025-10-28 -- :*?:asue::ause
+2025-10-29 -- :C:wou::you
+2025-10-29 -- :*:agian::again
+2025-10-29 -- :*?:beahv::behav
+2025-10-29 -- :*?:appera::appeara
+2025-10-29 -- :C:abel::able
+2025-10-29 -- :*?:aligy::alify
+2025-10-29 -- :*:its the::it's the
+2025-10-29 -- :*:Karent::Karen
+2025-10-29 -- :*?C:olpe::ople
+2025-10-29 -- :*?:auot::auto
+2025-10-29 -- :*:hostring::hotstring
+2025-10-29 << :*?:udein::udien
+2025-10-30 << ::do to::due to
+2025-10-30 -- ::do to::due to
+2025-10-30 -- :C:nad::and
+2025-10-30 -- :*?C:fidn::find
+2025-10-30 -- :*?:durring::during
+2025-10-30 -- :*?:empry::empty
+2025-10-30 -- :*?:sourse::source
+2025-10-30 -- :*?:surpriz::surpris
+2025-10-30 -- :*?:cogntivie::cognitive
+2025-10-30 -- ::averag::average
+2025-10-30 -- :*?:forwrd::forward
+2025-10-30 -- :*:senc::sens
+2025-10-30 -- :*?:focuss::focus
+2025-10-30 << :*:was send::was sent
+2025-10-30 -- :*?:asue::ause
+2025-10-30 -- :*:amme::ame
+2025-10-30 -- :*?:beahv::behav
+2025-10-30 -- :*?:concide::conside
+2025-10-30 -- :*?:cogntivie::cognitive
+2025-10-30 << :*:a an::an an
+2025-10-30 -- :*?:sourse::source
+2025-10-30 -- :*?:occura::occurre
+2025-10-30 -- :*?C:rafy::raft
+2025-10-30 -- :*:resently::recently
+2025-10-30 << :*?C:tempra::tempora
+2025-10-30 -- :?C:teh::the
+2025-10-30 -- :C:nad::and
+2025-10-30 << :*:libar::librar
+2025-10-30 -- :*:hotsting::hotstring
+2025-10-31 << :*:becausethe::because the
+2025-10-31 -- :*?:mulit::multi
+2025-10-31 -- :*:puch::push
+2025-10-31 -- :*:recie::recei
+2025-10-31 -- :*:senc::sens
+2025-10-31 -- :*?:durring::during
+2025-10-31 -- :*?:durring::during
+2025-10-31 -- :*?:mision::mission
+2025-10-31 -- :?C:twon::town
+2025-10-31 -- :*?:durring::during
+2025-10-31 -- :?C:teh::the
+2025-10-31 -- :*:resently::recently
+2025-10-31 -- ::I thing::I think
+2025-10-31 -- :*?:dependan::dependen
+2025-10-31 << :*?:dependan::dependen
+2025-10-31 -- :*?:dependan::dependen
+2025-10-31 -- :?:occured::occurred
+2025-10-31 -- :*:norh::north
+2025-11-01 -- :*?:retrun::return
+2025-11-01 -- ::thim::them
+
+2025-11-01 -- :*:to turn-off::to turn off
+2025-11-01 << :*:ToolTop::ToolTip
+2025-11-01 -- :*?C:wehn::when
+2025-11-01 -- :?:worl::work
+2025-11-01 -- :?C:teh::the
+2025-11-01 << :?C:teh::the
+2025-11-01 -- :C:nad::and
+2025-11-01 -- :?C:teh::the
+2025-11-01 -- :C:nad::and
+2025-11-01 -- :*?:frein::frien
+2025-11-01 << :C:nad::and
+2025-11-01 << :?C:teh::the
+2025-11-01 -- :?C:teh::the
+2025-11-01 << :?C:teh::the
+2025-11-01 -- :C:nad::and
+2025-11-01 -- :C:tra::try
+2025-11-01 -- :*:a ex::an ex
+2025-11-01 -- :*:its the::it's the
+2025-11-01 -- :*?C:.  t::.  T
+2025-11-01 << :C:nad::and
+2025-11-01 << :C:nad::and
+2025-11-01 << :C:nad::and
+2025-11-01 << :?C:teh::the
+2025-11-01 << :?C:teh::the
+2025-11-01 << :C:nad::and
+2025-11-01 -- :*?:igth::ight
+2025-11-01 -- :*?:smoe::some
+2025-11-01 << :*?:misspall::misspell
+2025-11-02 -- :*:have it's::have its
+2025-11-02 -- :*:senc::sens
+2025-11-02 -- :*?:extention::extension
+2025-11-02 -- :*?:bext::best
+2025-11-02 -- :*?:auot::auto
+2025-11-02 -- :*?:ogess::ogress
+2025-11-02 -- :*?:reing::ring
+2025-11-02 -- :?:efering::eferring
+2025-11-02 << :*C:i ::I 
+2025-11-02 -- :*C:i ::I 
+2025-11-02 -- :*C:i ::I 
+2025-11-02 << :*:tyo::to
+2025-11-02 -- :*?:aluz::alyz
+2025-11-02 << :*?C:cna::can
+2025-11-02 -- :*:senc::sens
+2025-11-02 -- :*?C:pld::ple
+2025-11-02 -- :*?:cuas::caus
+2025-11-02 -- :*:senc::sens
+2025-11-02 -- :*:senc::sens
+2025-11-02 -- :*:senc::sens
+2025-11-02 << :*?C:.  a::.  A
+2025-11-02 -- ::occurences::occurrences
+2025-11-02 -- :*?:occura::occurre
+2025-11-02 -- :*?:durring::during
+2025-11-02 -- :*?:cuas::caus
+2025-11-02 -- :*?:interup::interrup
+2025-11-02 -- ::occurences::occurrences
+2025-11-02 -- ::occurences::occurrences
+2025-11-02 -- ::occurence::occurrence
+2025-11-02 -- :*?:interup::interrup
+2025-11-02 -- :*?:cuas::caus
+2025-11-02 << ::be send::be sent
+2025-11-02 -- :*C:ime::imme
+2025-11-02 -- :*:enought::enough
+2025-11-02 -- :*?C:.  i::.  I
+2025-11-02 -- :?C:fthe::f the
+2025-11-02 -- :*?:dependan::dependen
+2025-11-02 -- ::most resent::most recent
+2025-11-02 -- :*C:a in::an in
+2025-11-02 -- :*C:i ::I 
+2025-11-03 -- :*:sould::should
+2025-11-03 << :*?:practiv::practic
+2025-11-03 -- :*?C:cna::can
+2025-11-03 -- :*:try and::try to
+2025-11-03 -- :*?:perosn::person
+2025-11-03 -- :*:wasnt::wasn't
+2025-11-03 << :*?:auot::auto
+2025-11-03 << ::fro::for
+2025-11-03 -- :*:amme::ame
+2025-11-03 << :*?:uyt::ut
+2025-11-03 << :*?C:rafy::raft
+2025-11-03 -- :*:on going::ongoing
+2025-11-03 -- :*?C:.  i::.  I
+2025-11-03 -- :*?:intertain::entertain
+2025-11-03 -- :*?:durring::during
+2025-11-03 << :?:herefor::herefore
+2025-11-03 -- :*?:durring::during
+2025-11-03 -- :*?:durring::during
+2025-11-03 -- :*?:memt::ment
+2025-11-03 << :*?:tatn::tant
+2025-11-03 << :*?C:cna::can
+2025-11-03 -- :*:lable::label
+2025-11-03 -- :?:cually::cularly
+2025-11-03 -- :*?:ctionna::ctiona
+2025-11-03 << :?:realy::really
+2025-11-03 -- :*?:seach::search
+2025-11-03 -- :?C:itoy::itory
+2025-11-03 << ::averag::average
+2025-11-03 -- :*?:ovle::ovel
+2025-11-03 -- :*?:reing::ring
+2025-11-03 -- :*?:knowleg::knowledg
+2025-11-03 -- :*?:mulit::multi
+2025-11-03 -- :*?:mulit::multi
+2025-11-03 -- :*?C:supo::suppo
+2025-11-03 << :*?:ferec::ferenc
+2025-11-03 -- :*?:evle::evel
+2025-11-03 -- :*?C:.  i::.  I
+2025-11-03 -- :*?:cuas::caus
+2025-11-03 << :*?:accomo::accommo
+2025-11-03 -- :*?:instu::instru
+2025-11-03 -- :*?:speical::special
+2025-11-03 << :*?:strengh::strength
+2025-11-03 -- :?:occured::occurred
+2025-11-03 -- :*?:durring::during
+2025-11-03 -- :*?C:.  i::.  I
+2025-11-03 -- :*?:anoun::announ
+2025-11-03 -- :*?:llegen::llegian
+2025-11-03 << :*:recie::recei
+2025-11-03 -- :*?:speical::special
+2025-11-03 << :*?:focuss::focus
+2025-11-03 -- :*?:behaio::behavio
+2025-11-03 -- :*?:cment::cement
+2025-11-03 -- :*?:durring::during
+2025-11-03 -- :*?C:wnat::want
+2025-11-03 -- :*:Karent::Karen
+2025-11-04 -- :*?:orign::origin
+2025-11-04 -- :*:transfered::transferred
+2025-11-04 -- :*?:littel::little
+2025-11-04 << :C:whi::who
+2025-11-04 -- :*?:inital::initial
+2025-11-04 -- :*?:untion::unction
+2025-11-04 -- :*?C:.  y::.  Y
+2025-11-04 -- :*?:elavan::elevan
+2025-11-04 << :?:efull::eful
+2025-11-05 -- ::doesnt::doesn't
+2025-11-05 -- :*C:i ::I 
+2025-11-05 << :*:a ou::an ou
+2025-11-05 << :*:a ou::an ou
+2025-11-05 -- :?:comming::coming
+2025-11-05 -- :*:anual::annual
+2025-11-05 -- :*?:attech::attach
+2025-11-05 -- :*?:eild::ield
+2025-11-05 << :*?:cev::ceiv
+2025-11-05 -- :*:sentan::senten
+2025-11-05 << :*?C:clae::clea
+2025-11-05 << :*?C:.  n::.  N
+2025-11-05 -- :*?:egth::ength
+2025-11-05 -- ::thatn::that
+2025-11-05 -- :*?:oteab::otab
+2025-11-05 << :?:caly::cally
+2025-11-05 -- :*?:evle::evel
+2025-11-05 << :*?:improbe::improve
+2025-11-05 -- :*:proof read::proofread
+2025-11-05 -- :*:transfered::transferred
+2025-11-05 -- :*:primarly::primarily
+2025-11-05 -- :*:enought::enough
+2025-11-05 -- :*:recie::recei
+2025-11-05 << :*?:ovle::ovel
+2025-11-05 -- :*?C:rafy::raft
+2025-11-05 << :*:choosen::chosen
+2025-11-05 << ::withing::within
+2025-11-05 -- :?:ualy::ually
+2025-11-05 << :*:thsi::this
+2025-11-05 << :*:senc::sens
+2025-11-05 -- :*?:ctoin::ction
+2025-11-05 -- :*?:dependan::dependen
+2025-11-05 -- :*:other then::other than
+2025-11-05 -- :*:anoy::annoy
+2025-11-05 -- :?C:itoy::itory
+2025-11-05 -- :*C:i ::I 
+2025-11-05 -- :*:anual::annual
+2025-11-05 -- :*?C:iegh::eigh
+2025-11-05 -- :*?:cidently::cidentally
+2025-11-05 -- :*C:unter::under
+2025-11-05 -- :*?:ineing::ining
+2025-11-05 -- :?C:ernt::erent
+2025-11-05 -- :*:everytime::every time
+2025-11-05 -- :*?:durring::during
+2025-11-06 -- :*:devista::devasta
+2025-11-06 -- ::t he::the
+2025-11-06 << :*:to workout::to work out
+2025-11-06 << :*:sould::should
+2025-11-06 -- :*?:aggree::agree
+2025-11-06 -- :*:hellow::hello
+2025-11-06 -- :*:amme::ame
+2025-11-06 -- :*:amme::ame
+2025-11-06 << :*?:udein::udien
+2025-11-06 << :*:recommed::recommend
+2025-11-06 -- :C:Im::I'm
+2025-11-06 -- :*:childrens::children's
+2025-11-06 -- :*:assignemen::assignmen
+2025-11-06 -- :*:andd::and
+2025-11-06 -- :*C:i ::I 
+2025-11-06 -- :*:hte::the
+2025-11-06 -- :*?:attmpt::attempt
+2025-11-06 << ::thatn::that
+2025-11-06 -- :*:enought::enough
+2025-11-06 -- :*C:wich::which
+2025-11-06 -- :*?:metn::ment
+2025-11-06 -- :*?:auot::auto
+2025-11-06 -- :*?:scipt::script
+2025-11-06 -- :*?:tatch::tach
+2025-11-06 -- :*?:queston::question
+2025-11-06 -- :*?:fomr::form
+2025-11-06 << :*?C:.  s::.  S
+2025-11-06 -- :*:hotsting::hotstring
+2025-11-06 -- :?C:ign::ing
+2025-11-06 << :*:anoy::annoy

@@ -1,36 +1,40 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
-
 ;===============================================================================
 ; By kunkel321.  Updated: 9-28-2025
 ; A script to find duplicate and conflicting beg/mid/end hotstring triggers. 
 ; It should work with hotstrings that are formatted with f(), _HS(), or plain AHK hotstrings. 
 ; Note: When correcting/culling your autocorrect library, remember that sometimes conflicting
-; autocorrect items can peacefully coexist... Read more in manual, attached here
-; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&p=559727#p559328
+; autocorrect items can peacefully coexist... Read more in User Manual,  here
+; https://github.com/kunkel321/AutoCorrect2/tree/main/Documentation
 ; Warning: Sloooww script....  Takes about 6 minutes for 5k lines of autocorrect items. 
 ;===============================================================================
 
-ACitemsEndAt := 99999 ; <--- Optional:  Stop comparing after this line number. In case
-; the user wants to skip the non-English accented words at the end. 
-; ACitemsEndAt := 6593
-targetFile := "..\..\Core\HotstringLib.ahk"  ; <--- Your Hotstring Library file path here.
 ^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc.  ; hide
 ;===============================================================================
 
-Try fullList := Fileread(targetFile)
-Catch {
-	MsgBox '====ERROR====`n`nThe file (' targetFile ')`nwas not found.`n`nRemember to set the variable`nat the top of the script. Now exiting.'
+settingsFile := "..\Data\acSettings.ini"
+; Verify settings file exists
+if !FileExist(settingsFile) {
+	MsgBox(settingsFile " was not found. Please run AutoCorrect2 first to create the file.")
 	ExitApp
 }
+targetFile := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\HotstringLib.ahk")
+fullList := Fileread(targetFile)
 
-; Pre-scan to find beginning of items to scan. 
+; Pre-scan to find beginning and end of items to scan. 
 ; lines at top of code.  Recommend not scanning 'nullifier' items, 'don't sort' items, 
-; nor '#HotIf' items.  (Hopefully those are all at the top, above your main list.) 
+; nor '#HotIf' items.  (Hopefully those are all at the top, above your main list.)
+; Also Recommend not scanning diacritic items at bottom.  Just scan main list. 
 ACitemsStartAt := 0
-For line in StrSplit(fullList, "`n")
+ACitemsEndAt := 0
+For line in StrSplit(fullList, "`n") {
 	If InStr(line, "ACitemsStartAt := A_LineNumber + 3")
 		ACitemsStartAt := A_Index + 3 ; <--- "AutoCorrect Items Start At this line number."  Skip this many 
+	If InStr(line, "ACitemsEndAt := A_LineNumber - 3 ")
+		ACitemsEndAt := A_Index - 3 ; <--- "AutoCorrect Items End At this line number."  Skip the rest.
+}
+MsgBox "start line: " ACitemsStartAt "`nend line:  " ACitemsEndAt
 
 StartTime := A_TickCount 
 Opts:= "", Trig := ""
@@ -47,8 +51,12 @@ rep.Title := "Lines of file remaining: "
 rep.Show()
 
 loop parse fullList, "`n" {
+	If GetKeyState("Esc") { ; If Esc key is pressed. 
+        rep.Destroy() ; Remove progress bar.
+        Return ; Stop function
+    }
 	MyProgress.Value += 1
-	rep.Title := "Lines of file remaining: " (TotalLines - MyProgress.Value) "... Press Ctrl+Esc to Cancel" ; For progress bar.
+	rep.Title := "Lines of file remaining: " (TotalLines - MyProgress.Value) " [Esc to stop]" ; For progress bar.
 	fullList := strReplace(fullList, A_LoopField, "xxxxxx",,,1) ; Redact the oLoop item we just checked, so we don't compare it again in a future inner loop.
 	If (A_Index < ACitemsStartAt) or (A_Index > ACitemsEndAt) or (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") 
 		Continue ; Skip if line number is too high/low, or line doesn't start with ":".  Ignore leading whitespace. 

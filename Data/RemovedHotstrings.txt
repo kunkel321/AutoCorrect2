@@ -38,3 +38,6 @@ Removed 04-23-2025 -> 3 [2] << and 1-- 	for :*?:semm::sem (Replaced with several
 Removed 04-24-2025 -> 6 [5] << and 3-- 	for :*:daty::day (Replaced with less-trimmed versions)
 Removed 09-08-2025 -> 3 [2] << and 1-- 	for :*:numberof::number of (Showing up in code)
 Removed 09-29-2025 -> 5 [4] << and 1-- 	for :C:tha::the (Kept breaking "that")
+Removed 10-03-2025 -> 5 [4] << and 1-- 	for :C:thi::the (Replaced with thi::this)
+Removed 10-03-2025 -> 4 [3] << and 1-- 	for :*?:duec::duce
+Removed 10-20-2025 -> 3 [2] << and 1-- 	for :*:tothe::to the (Removed *)

@@ -19,8 +19,6 @@ in a GUI with radio buttons. User can:
 
 Items culled from ACLog file will get added to the RemovedHotStrings file.
 This helps avoid inadvertently "re-adding" them later.
-
-To do:  Make error logging and debug logging optional. 
 */
 
 #SingleInstance Force
@@ -32,23 +30,38 @@ To do:  Make error logging and debug logging optional.
 
 ; ======= Main Class Definition =======
 class ACLogAnalyzer {
-    ; Static configuration properties
-    static Config := {
-        FreqImportance: 25,         ; Importance of high-frequency items (0-50, 0=not important)
-        IgnoreFewerThan: 0,         ; Minimum threshold for consideration when weighing
-        CopyHotstringOnSelect: 1,   ; Copy hotstring to clipboard when item is selected (1=yes, 0=no)
-        PinToTop: true,             ; Keep window pinned to top by default
-        EnableErrorLogging: 1,      ; Enable error logging to file (1=yes, 0=no)
-        ScriptFiles: {
-            ACScript: "..\..\Core\AutoCorrect2.ahk",    ; Main script file
-            HSLibrary: "..\..\Core\HotstringLib.ahk",   ; Hotstring library file
-            ACLog: "..\..\Data\AutoCorrectsLog.txt",    ; Main autocorrection log file
-            ErrLog: "..\..\Data\ErrContextLog.txt",     ; Context log file
-            RemovedHsFile: "..\..\Data\RemovedHotstrings.txt"  ; Removed hotstrings file
-        },
-        StartLine: 7,               ; Skip lines before this in log file
-        CullDateFormat: "MM-dd-yyyy",  ; Date format for culled items
-        EditorPath: ""              ; Will be set during initialization
+    ; Static configuration - Load from acSettings.ini
+    static Config {
+        get {
+            settingsFile := "..\Data\acSettings.ini"
+            
+            ; Verify settings file exists
+            if !FileExist(settingsFile) {
+                MsgBox(settingsFile " was not found. Please run AutoCorrect2 first to create the file.")
+                ExitApp
+            }
+            
+            ; Build config object from ini file
+            config := {
+                FreqImportance: Integer(IniRead(settingsFile, "ACLogAnalyzer", "FreqImportance", 25)),
+                IgnoreFewerThan: Integer(IniRead(settingsFile, "ACLogAnalyzer", "IgnoreFewerThan", 0)),
+                CopyHotstringOnSelect: Integer(IniRead(settingsFile, "ACLogAnalyzer", "CopyHotstringOnSelect", 1)),
+                PinToTop: Integer(IniRead(settingsFile, "ACLogAnalyzer", "PinToTop", 1)) = 1,
+                EnableErrorLogging: Integer(IniRead(settingsFile, "ACLogAnalyzer", "EnableErrorLogging", 1)),
+                StartLine: Integer(IniRead(settingsFile, "ACLogAnalyzer", "StartLine", 7)),
+                CullDateFormat: IniRead(settingsFile, "ACLogAnalyzer", "CullDateFormat", "MM-dd-yyyy"),
+                EditorPath: "",
+                ScriptFiles: {
+                    ACScript:       "..\Core\" IniRead(settingsFile, "Files", "AutoCorrect2Script", "..\Core\AutoCorrect2.ahk"),
+                    HSLibrary:      "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\HotstringLib.ahk"),
+                    ACLog:          "..\Data\" IniRead(settingsFile, "Files", "AutoCorrectsLogFile", "..\Data\AutoCorrectsLog.txt"),
+                    ErrContLog:     "..\Data\" IniRead(settingsFile, "Files", "ErrContextLog", "..\Data\ErrContextLog.txt"),
+                    RemovedHsFile:  "..\Data\" IniRead(settingsFile, "Files", "RemovedHsFile", "..\Data\RemovedHotstrings.txt")
+                }
+            }
+            
+            return config
+        }
     }
 
     ; State tracking properties
@@ -86,7 +99,7 @@ class ACLogAnalyzer {
     static Initialize() {
         this.LoadThemeSettings()
         this.SetEditorPath()
-        TraySetIcon("..\..\Resources\Icons\AcAnalysis.ico")
+        TraySetIcon("..\Resources\Icons\AcAnalysis.ico")
     }
 
     ; Main processing function
@@ -118,8 +131,8 @@ class ACLogAnalyzer {
     ; Load visual theme settings
     static LoadThemeSettings() {
         try {
-            if FileExist("..\..\Data\colorThemeSettings.ini") {
-                settingsFile := "..\..\Data\colorThemeSettings.ini"
+            if FileExist("..\Data\colorThemeSettings.ini") {
+                settingsFile := "..\Data\colorThemeSettings.ini"
                 this.FontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
                 this.ListColor := IniRead(settingsFile, "ColorSettings", "listColor")
                 this.FormColor := IniRead(settingsFile, "ColorSettings", "formColor")
@@ -251,8 +264,8 @@ class ACLogAnalyzer {
     static PrepareReport(report) {
         try {
             ; Load context log content for reference
-            this.ContextLogContent := FileExist(this.Config.ScriptFiles.ErrLog) ? 
-                FileRead(this.Config.ScriptFiles.ErrLog) : ""
+            this.ContextLogContent := FileExist(this.Config.ScriptFiles.ErrContLog) ? 
+                FileRead(this.Config.ScriptFiles.ErrContLog) : ""
             
             ; Sort report by number (descending)
             sortedReport := Sort(Sort(report, "/U"), "NR")
@@ -586,7 +599,7 @@ class ACLogAnalyzer {
             this.ContextGui.Add("Edit", "-VScroll ReadOnly -E0x200 -WantReturn -TabStop Background" this.FormColor, 
                 "Context of item -- " selItemTrigger "`n======================`n" contextItems)
             
-            this.ContextGui.AddButton(, "Open Log").OnEvent("Click", (*) => (this.ContextGui.Destroy(), Run(this.Config.ScriptFiles.ErrLog), this.ACAGui.Show()))
+            this.ContextGui.AddButton(, "Open Log").OnEvent("Click", (*) => (this.ContextGui.Destroy(), Run(this.Config.ScriptFiles.ErrContLog), this.ACAGui.Show()))
             
             closeBtn := this.ContextGui.AddButton("x+4", "Close This")
             closeBtn.OnEvent("Click", (*) => (this.ContextGui.Destroy(), this.ACAGui.Show()))
@@ -708,9 +721,9 @@ class ACLogAnalyzer {
             FileAppend(newFileContents, this.Config.ScriptFiles.ACLog)
             
             ; Now handle the context log if the trigger is valid
-            if (selItemTrigger != "" && FileExist(this.Config.ScriptFiles.ErrLog)) {
+            if (selItemTrigger != "" && FileExist(this.Config.ScriptFiles.ErrContLog)) {
                 ; Read and rewrite context log file without the culled item's contexts
-                contextFileContents := FileRead(this.Config.ScriptFiles.ErrLog)
+                contextFileContents := FileRead(this.Config.ScriptFiles.ErrContLog)
                 newContextContents := ""
                 
                 for contextLine in StrSplit(contextFileContents, "`n") {
@@ -721,11 +734,11 @@ class ACLogAnalyzer {
                 }
                 
                 try {
-                    FileDelete(this.Config.ScriptFiles.ErrLog)
-                    while (FileExist(this.Config.ScriptFiles.ErrLog))
+                    FileDelete(this.Config.ScriptFiles.ErrContLog)
+                    while (FileExist(this.Config.ScriptFiles.ErrContLog))
                         Sleep(10)
                         
-                    FileAppend(newContextContents, this.Config.ScriptFiles.ErrLog)
+                    FileAppend(newContextContents, this.Config.ScriptFiles.ErrContLog)
                     ;Debug("Removed " selItemTrigger " entries from context log")
                 } catch Error as err {
                     LogError("Error rewriting context log: " err.Message)
@@ -871,7 +884,7 @@ SuggestAlternativesHandler(*) {
     hotstringPart := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
     
     ; Log what we're sending to the suggester
-    ;FileAppend("Sending to Suggester: " hotstringPart "`n", "..\..\Data\suggester_bridge_log.txt")
+    ;FileAppend("Sending to Suggester: " hotstringPart "`n", "..\Data\suggester_bridge_log.txt")
     
     ; Run the Suggester tool with the hotstring as a parameter
     try {
@@ -888,7 +901,7 @@ SuggestAlternativesHandler(*) {
         ACLogAnalyzer.ACAGui.Show()
 
     } catch Error as err {
-        FileAppend("Error running Suggester: " err.Message "`n", "..\..\Data\suggester_bridge_log.txt")
+        FileAppend("Error running Suggester: " err.Message "`n", "..\Data\suggester_bridge_log.txt")
         MsgBox("Error launching Suggester tool: " err.Message)
     }
 }
@@ -906,7 +919,7 @@ ProcessSelectedItem() {
         ; Call ACLogAnalyzer's ProcessSelectedItem method
         return ACLogAnalyzer.ProcessSelectedItem()
     } catch Error as err {
-        FileAppend("Error processing selected item: " err.Message "`n", "..\..\Data\suggester_bridge_log.txt")
+        FileAppend("Error processing selected item: " err.Message "`n", "..\Data\suggester_bridge_log.txt")
         MsgBox("Error processing selected item: " err.Message)
         return false
     }
@@ -920,7 +933,7 @@ ACLogAnalyzer.SuggestAlternatives := SuggestAlternativesHandler
 ; Error logging function - respects EnableErrorLogging config
 LogError(message) {
     if (ACLogAnalyzer.Config.EnableErrorLogging)
-        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\acla_error_debug_log.txt")
+        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\acla_error_debug_log.txt")
 }
 
 ; ======= Help System =======

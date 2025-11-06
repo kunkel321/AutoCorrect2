@@ -79,17 +79,17 @@ else { ; Ini file not there, so use these color instead.
 */
 restartTheseScripts := " ; Path not needed if they are in same folder as this script.
 (           
-..\..\Core\AutoCorrect2.exe
-..\..\..\HotKeyTool\HotKeyTool.exe
-..\..\Core\MCLogger.exe
-..\..\..\WayText\WayText.exe
-..\..\..\Stickies\Sticky Notes.exe
+..\Core\AutoCorrect2.exe
+..\..\HotKeyTool\HotKeyTool.exe
+..\Core\MCLogger.exe
+..\..\WayText\WayText.exe
+..\..\Stickies\Sticky Notes.exe
 )"
 ; *******************************************************
 
 TraySetIcon("shell32.dll",131)      ; Change tray icon, if desired. 
 
-settingsFile := "..\..\Data\colorThemeSettings.ini" ; Assumes that file is in same location as this script.
+settingsFile := "..\Data\colorThemeSettings.ini" ; Assumes that file is in same location as this script.
 
 If FileExist(settingsFile) {
     fontColor                := IniRead(settingsFile, "ColorSettings", "fontColor")

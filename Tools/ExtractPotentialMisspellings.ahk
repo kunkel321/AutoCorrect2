@@ -15,6 +15,20 @@ Note: The misspell warning must include "but misspells" for this tool do detect 
 HotstringHelper2 formats potential misspellings this way by default. 
 */
 
+
+settingsFile := "..\Data\acSettings.ini"
+; Verify settings file exists
+if !FileExist(settingsFile) {
+	MsgBox(settingsFile " was not found. Please run AutoCorrect2 first to create the file.")
+	ExitApp
+}
+filePath := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
+; Check if the file exists
+if !FileExist(filePath) {
+    MsgBox("File not found: " filePath)
+    ExitApp
+}
+
 ; User Options
 IncludeLineNumbers := 0 ; Set to 1 to include line number of item in library
 IncludeDefinition := 1  ; Set to 1 to include definitions, 0 for words only
@@ -25,15 +39,6 @@ DefaultEditor := "Notepad.exe" ; Backup editor if VSCode is not found
 EditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
 if !FileExist(EditorPath)
     EditorPath := DefaultEditor
-
-; Main script
-filePath := "..\..\Core\HotstringLib.ahk"
-
-; Check if the file exists
-if !FileExist(filePath) {
-    MsgBox("File not found: " filePath)
-    ExitApp
-}
 
 ; Function to extract misspelled words from the file
 ExtractMisspelledWords(filePath, includeDefinition, includeFullLine) {

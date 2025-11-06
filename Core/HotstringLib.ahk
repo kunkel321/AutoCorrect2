@@ -6,6 +6,10 @@
 ; Ignore the debug function call.  If the f() definition is not present, this replacement text will appear in the error message.
 :B0XC:Ign0re Th!s STRing::f("Did you forget to '#Include' the AutoCorrectSystem.ahk file in AutoCorrect2?")
 
+; ; Two hotstrings for testing keyboard input buffering (or lack thereof).
+; :B0X?*:zx::f("llllllllllllllllllllllllllllllllllllllllllllllllln't")
+; :B0X?*:cv::f("ooooooooooooooooooooooooooooooooooooooooooooooooon't")
+
 ; MARK: Nullifiers
 ; ===== Trigger strings to nullify the potential misspellings that are indicated. =====
 ; Used the word "corrects" in place of fix to avoid double-counting these as potential fixes.
@@ -135,7 +139,7 @@ For example:
 ; ===== End of Don't Sort items ===========
 
 ;============== Determine start line of autocorrect items ======================
-; If this variable name or assignment gets changed, also change it in the Conflicting String Locator script.
+; Please don't change the "ACitemsStartAt := A_LineNumber + 3" it is used by several scripts. 
 ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until it gets to here. 
 
 ; ==============================================
@@ -1893,7 +1897,6 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:root table::f("route table") ; Fixes 1 word
 :B0X*:roudn::f("round") ; Web Freq 84.73 | Fixes 51 words 
 :B0X*:rowed the wave::f("rode the wave") ; Fixes 1 word
-:B0X*:rre::f("re") ; Fixes 8199 words 
 :B0X*:rucul::f("recul") ; Fixes 5 words 
 :B0X*:rucum::f("recum") ; Web Freq 0.46 | Fixes 8 words 
 :B0X*:rucup::f("recup") ; Web Freq 0.44 | Fixes 11 words 
@@ -6721,8 +6724,10 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0XC?:thh::f("th") ; Web Freq 6389.48 | Fixes 556 words 
 :B0XC?:wass::f("was") ; Web Freq 1484.21 | Fixes 25 words 
 
+;============== Determine end line of autocorrect items ======================
+; Please don't change the "ACitemsEndAt := A_LineNumber - 3" it is used by several scripts. 
+ACitemsEndAt := A_LineNumber - 3 ; hh2 validity checks will skip lines after here. 
 ; MARK: End Main List
-; ===== End of Main List ==========================
 
 ;------------------------------------------------------------------------------
 ; Accented English words, from, amongst others,
@@ -7143,3 +7148,15 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:frieay::f("friday") ; Fixes 2 words 
 :B0X:presely::f("presley") ; Fixes 1 word 
 :B0X*?:comporta::f("comforta") ; Web Freq 25.05 | Fixes 10 words 
+:B0X*:eiyh::f("with") ; Web Freq 3695.85 | Fixes 58 words 
+:B0X:;temp::f(";wisc ") ; Fixes 1 word 
+
+:B0X:occurences::f("occurrences") ; Web Freq 1.91 | Fixes 1 word 
+:B0X:occurence::f("occurrence") ; Web Freq 5.56 | Fixes 1 word 
+::progect::project
+:B0X*?:ststem::f("system") ; Web Freq 645.87 | Fixes 81 words 
+:B0X*?:awaye::f("aware") ; Web Freq 48.69 | Fixes 22 words 
+:B0X*?:unigue::f("unique") ; Web Freq 68.33 | Fixes 15 words 
+:B0X:xisw::f("code") ; Web Freq 250.25 | Fixes 1 word 
+:B0X:rhw::f("the") ; Fixes 1 word 
+:B0X:tiiks::f("tools") ; Fixes 1 word 

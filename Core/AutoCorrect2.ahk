@@ -1,101 +1,419 @@
-﻿; This is AutoCorrect2, with HotstringHelper2
-#SingleInstance Force
+﻿#SingleInstance Force
 #Requires AutoHotkey v2.0
 SetWorkingDir(A_ScriptDir)
 
 ; ========================================
+; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 10-23-2025
+; Version: 11-6-2025
 ; Author: kunkel321
-; In March 2025 it got a major refactor/rewrite using Claude AI.  
-; The bottom components became a separate, included, file (AutoCorrectSystem.ahk)
-; In Sept 2025 the folder structure got changed.  Please be mindful of what 
-; location your files need to be located.
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
 ; https://github.com/kunkel321/AutoCorrect2
 ; ========================================
 
-
-
 ; ============== OPTIONAL INCLUDES ==============
 ; These files need to be in the same directory or properly referenced
 ; The "*i" prevents an error if the file doesn't exist.
-#Include "*i ..\Tools\Integrated\DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
-#Include "*i ..\Tools\Integrated\PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
-#Include "*i ..\Tools\Integrated\DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
-; There are required includes defined below the class Config {..} code.
+#Include "*i ..\Tools\DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
+#Include "*i ..\Tools\PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
+#Include "*i ..\Tools\DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
+; There are required includes defined below the class Config code.
 
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
 #Include "*i ..\Optional\PersonalHotstrings.ahk" ;  -- Optional
 
 ; =============== CONFIGURATION ===============
-; The configuration is centralized here for easier modification
+; The configuration is now centralized in acSettings.ini
+; This class handles loading, validating, and providing defaults for all settings
 class Config {
-    ; ===== General Configuration =====
+    ; ===== File Paths (Constants) =====
+    static SettingsFile := "..\Data\acSettings.ini"
+    
+    ; ===== Constants =====
     static ScriptName := "AutoCorrect2.ahk"
-    static HHWindowTitle := A_UserName "'s HotstringHelper2" ; Appears in title bar of HotstringHelper window.  Change as desired. 
+    static HHWindowTitle := A_UserName "'s Hotstring Helper"
+    static ValidOkMessage := "-no problems found" 
+    static PilcrowSymbol := "¶" ; Keep symbols defined here because the 
+    static DotSymbol := "• " ; Unicode characters don't get saved by
+    static TabSymbol := "⟹ " ; the ini file correctly.
+    
+    ; ===== Settings Properties (Loaded from INI) =====
+    ; NOTE: AHK v2 requires static properties to have an initial value.
+    ; These defaults are used if the INI file doesn't exist or is incomplete.
+    ; During normal operation, LoadSettings() overwrites these with INI values.
+    ; This serves as both a language requirement AND a fallback safety mechanism.
+    
+    ; General Configuration
     static HotstringLibrary := "HotstringLib.ahk"
+    static NewTemporaryHotstrLib := "HotstringLib (1).ahk"
     static RemovedHsFile := "..\Data\RemovedHotstrings.txt"
     static AutoCorrectsLogFile := "..\Data\AutoCorrectsLog.txt"
     static ErrContextLog := "..\Data\ErrContextLog.txt"
-    static ACLogAnalyzer := "..\Tools\Standalone\ACLogAnalyzer.exe"
-    static CODE_ERROR_LOG := 0 ; Set to 1 for error logging. 
-    static CODE_DEBUG_LOG := 0 ; Set to 1 for copious debug logging (recommended: 0)
+    static ACLogAnalyzer := "..\Tools\ACLogAnalyzer.exe"
+    static SettingsManager := "..\Tools\SettingsManager.exe"
+    static CODE_ERROR_LOG := 0
+    static CODE_DEBUG_LOG := 0
     
-    ; ===== Activation Hotkey =====
-    static ActivationHotkey := "#h"  ; Win+h
-    static DefaultFontSize := "s11"
-    static LargeFontSize := "s15"
-    static Brightness := 128  ; Add default brightness value
-
-    ; ===== UI Behavior =====
-    static FocusReplacementByDefault := 1  ; 1 = focus Replacement box, 0 = focus Options box
-
-    ; ===== App Blacklist ===== ; Don't AutoCorrect when these apps are focused.
-    static AppBlacklist := ["PipeWalker.exe", "Roblox.exe", "RimWorld.exe"]
-
-    ; ===== GUI Sizing =====
+    ; Hotkeys
+    static ActivationHotkey := "#h"
+    
+    ; UI Settings
+    static DefaultFontSize := "11"
+    static LargeFontSize := "15"
+    static DefaultWidth := 366
     static HeightSizeIncrease := 300
     static WidthSizeIncrease := 400
-    static DefaultWidth := 366 ; 366 recommended.
+    static FocusReplacementByDefault := 1
 
-    ; ===== Symbols for Visual Display =====
-    static PilcrowSymbol := "¶"      ; Symbol for Enter
-    static DotSymbol := "• "         ; Symbol for Space. "Dot-space" allows better wrapping.
-    static TabSymbol := "⟹ "        ; Symbol for Tab. "Arrow-space" allows better wrapping.
+    ; BoilerPlate Options
+    static DefaultBoilerPlateOpts := ""
+    static BoilerplatePrefix := ";"
+    static BoilerplateSuffix := ""
+    static FirstLettersToInclude := 5
+    static MinWordLength := 2
     
-    ; ===== Multi-word Entry Options =====
-    static DefaultBoilerPlateOpts := ""    ; Options for boilerplate/template triggers
-    static BoilerplatePrefix := ";"        ; Prefix for boilerplate triggers
-    static BoilerplateSuffix := ""         ; Suffix for boilerplate triggers
-    static FirstLettersToInclude := 5      ; Number of first letters to extract
-    static MinWordLength := 2              ; Only extract first letters from words longer than this
+    ; AutoCorrect Options
+    static DefaultAutoCorrectOpts := "B0X"
+    static MakeFuncByDefault := 1
+    static AutoCommentWithFreqAndStats := 1
+    static AutoEnterNewEntry := 1
     
-    ; ===== AutoCorrect Options =====
-    static DefaultAutoCorrectOpts := "B0X" ; Default options for autocorrect entries
-    static MakeFuncByDefault := 1          ; Check "Make Function" box by default?
-    static AutoCommentWithFreqAndStats := 1 ; Add "Web Freq X | Fixes Y words, but misspells Z" comments?
-    static AutoEnterNewEntry := 1          ; Auto-enter the new replacement in active field?
+    ; Word Lists
+    static WordListFile := "..\Data\GitHubComboList249k.txt"
+    static FrequencyListFile := "..\Data\unigram_freq_list_filtered_88k.csv"
     
-    ; ===== Word Lists =====
-    static WordListFolder := "..\Resources\WordListsForHH"
-    static WordListFile := "GitHubComboList249k.txt"
+    ; Editor
+    static DefaultEditor := "Notepad.exe"
+    static EditorPath := ""
     
-    ; ===== Validity Dialog =====
-    static ValidOkMessage := "-no problems found"
-    static ValidityDialogFont := "s15"
+    ; Appearance (Colors)
+    static FormColor := "0xE5E4E2" ; Overwritten if ColorThemeSettings.ini is present.
+    static FontColor := "c0x1F1F1F" ; Overwritten if ColorThemeSettings.ini is present.
+    static ListColor := "0xFFFFFF" ; Overwritten if ColorThemeSettings.ini is present.
+    static Brightness := 128
+    static LightGreen := "b8f3ab"
+    static DarkGreen := "0d3803"
+    static LightRed := "fd7c73"
+    static DarkRed := "B90012"
+    static ValidityDialogGreen := ""
+    static ValidityDialogRed := ""
     
-    ; ===== Editor =====
-    static DefaultEditor := "Notepad.exe" ; This is backup, incase VSCode is not found.
+    ; AutoCorrect System Settings
+    static EnableLogging := 1
+    static BeepOnAutoCorrection := 1
+    static CapFixTwoLetterWords := 1
+    static PrecedingWordCount := 6
+    static FollowingWordCount := 4
+    static FollowingWordTimeout := 8
+    static AppSkiplist := []
+    static BeepOnContextLog := 1
+    static BeepOnCapFix := 1
 
-    ; ===== Appearance =====
-    static FormColor := "0xE5E4E2"     ; Default - will be overridden if theme file exists
-    static FontColor := "c0x1F1F1F"    ; Default - will be overridden if theme file exists
-    static ListColor := "0xFFFFFF"     ; Default - will be overridden if theme file exists
 
+    ; ============================================================
+    ; ===== INITIALIZATION =====
+    ; ============================================================
+    
+    static Init() {
+        ; Ensure settings file exists, creating defaults if needed
+        this.EnsureSettingsFileExists()
+        
+        ; Load all settings from ini file
+        this.LoadSettings()
+        
+        ; Load color theme settings (kept separate for UI isolation)
+        this.LoadThemeColors()
+        
+        ; Perform any necessary calculations and validations
+        this.CalculateBrightness()
+        this.ValidityDialogGreen := this.Brightness < 128 ? "c" Config.LightGreen : "c" Config.DarkGreen 
+        this.ValidityDialogRed := this.Brightness < 128 ? "c" Config.LightRed  : "c" Config.DarkRed
+        
+        ; ; Extract just the filename from the path  ; <----- no longer used? 
+        ; SplitPath this.WordListFile, &WordListName
+        ; this.WordListName := WordListName
+        
+        ; Try to find VSCode if available
+        this.EditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
+        if !FileExist(this.EditorPath)
+            this.EditorPath := this.DefaultEditor
+    }
+
+    ; ============================================================
+    ; ===== SETTINGS FILE MANAGEMENT =====
+    ; ============================================================
+    
+    static EnsureSettingsFileExists() {
+        if !FileExist(this.SettingsFile) {
+            this.CreateDefaultSettingsFile()
+        }
+    }
+    
+    static CreateDefaultSettingsFile() {
+        template := this.GetDefaultTemplate()
+        
+        ; Create directory if it doesn't exist
+        settingsDir := "..\Data"
+        if !FileExist(settingsDir)
+            DirCreate(settingsDir)
+        
+        FileAppend(template, this.SettingsFile)
+        
+        ; Notify user that settings file was created
+        acMsgBox.show("A new settings file has been created at:`n"
+            . this.SettingsFile 
+            . "`n`nYou can edit this file to customize AutoCorrect2's behavior."
+            . "`n`nPress Ctrl+E to edit AutoCorrect2.ahk and check the documentation."
+            ,, 4160)
+    }
+    
+    static GetDefaultTemplate() {
+        defaultIni := "
+        (
+; ============================================================
+; AutoCorrect2 Suite 'asSettings.ini' File
+; ini File template version date:  11-6-2025
+; ============================================================
+; Edit the values below to customize behavior and appearance of
+; AutoCorrect2.ahk and related tools.  Keys can be edited directory,
+; or by using the SettingsManager tool.  After editing, reload/restart
+; the affected script for changes to take effect.
+; ============================================================
+
+[Files]
+; File names only.  Relative paths are in the code of the various scripts.
+; Many of these are accessed by multiple tools.
+; HotstringLibrary is your personal library.
+HotstringLibrary=HotstringLib.ahk
+; NewTemporaryHotStrLib is the new version from GitHub. Rename to fit your workflow.
+NewTemporaryHotstrLib=HotstringLib (1).ahk
+RemovedHsFile=RemovedHotstrings.txt
+AutoCorrectsLogFile=AutoCorrectsLog.txt
+ErrContextLog=ErrContextLog.txt
+ACLogAnalyzer=ACLogAnalyzer.exe
+WordListFile=GitHubComboList249k.txt
+FrequencyListFile=unigram_freq_list_filtered_88k.csv
+MCLoggerPath=MCLogger.exe
+MCLogFile=ManualCorrectionsLog.txt
+AutoCorrect2Script=AutoCorrect2.ahk
+SettingsManager="SettingsManager.exe"
+
+[Shared]
+; Default editor for opening scripts (usually VSCode or Notepad).
+DefaultEditor=Notepad.exe
+; Define light/dark red/green.  (no 'c') 
+LightGreen=b8f3ab
+DarkGreen=0d3803
+LightRed=fd7c73
+DarkRed=B90012
+
+[HotstringHelper]
+; Enable/disable debug (very verbose) and error logging (1=yes, 0=no).
+CODE_DEBUG_LOG=1
+CODE_ERROR_LOG=0
+; Hotkey to activate HotstringHelper2 (default: Win+H).
+ActivationHotkey=#h
+; Large font size for emphasis of trigger and replacement boxes (no 's').
+DefaultFontSize=11
+LargeFontSize=15
+; Default width of main window (recommend: 366).
+DefaultWidth=366
+; Height/Width increase for larger boilerplate texts when 'Make Bigger' button is pressed.
+HeightSizeIncrease=300
+WidthSizeIncrease=400
+; Focus on Replacement field by default (1=yes, 0=focus on Trigger).
+FocusReplacementByDefault=1
+; Default hotstring options for boilerplate/template triggers.
+; Prefix/Suffix for boilerplate triggers (leave blank for none)
+; When creating an anagram for the boilerplate text...
+DefaultBoilerPlateOpts=
+BoilerplatePrefix=;
+BoilerplateSuffix=
+FirstLettersToInclude=5
+MinWordLength=2
+; Do you use the f(), or prefer vanilla ahk hotstrings? Check 'Make Function' box by default? (1=yes, 0=no)
+; Default options for autocorrect entries -- B0X for f() use.  That's B zero X.  Don't use if MakeFuncByDefault=0
+MakeFuncByDefault=1
+DefaultAutoCorrectOpts=B0X
+; Add frequency/stats comments to new entries? This is used by the Ctrl-F3 Stats dialog. (1=yes, 0=no)
+AutoCommentWithFreqAndStats=1
+; Try to auto-type replacement for new AutoCorrect item, into active field. (1=yes, 0=no)
+AutoEnterNewEntry=1
+
+[ACSystem]
+; Master switch to enable/disable all logging (1=yes, 0=no).
+EnableLogging=1
+; Beep when an autocorrection is made (1=yes, 0=no).
+; Beep when a backspaced autocorrection's context is logged (1=yes, 0=no).
+BeepOnCorrection=1
+BeepOnContextLog=1
+; Number of words to cache before, and additional words to wait for, after an autocorrection (for context logging).
+; Also amount of time to wait for those following words.
+PrecedingWordCount=6
+FollowingWordCount=4
+FollowingWordTimeout=12
+; "SkipList" Apps where AutoCorrect should NOT trigger. Separate multiple apps with commas (no spaces).
+AppSkiplist=PipeWalker.exe,Roblox.exe,RimWorldWin64.exe
+; Items for the AUto-COrrect TWo COnsecutive CApitals code
+BeepOnCapFix=1
+CapFixTwoLetterWords=1
+
+[MCLogger]
+; Show tooltip/Beep every time a hotstring pattern is captured (1=yes, 0=no).
+ShowEachHotString=1
+BeepEachHotString=1
+; Collect log items in RAM, then save to disk this often (in minutes).
+; Stop collecting if no new pattern matches for this many intervals (intervals will auto-restart on next manual correction).
+SaveIntervalMinutes=10
+IntervalsBeforeStopping=2
+; Export directly to HotString Helper2 GUI (1=yes, 0=append to AutoCorrect script)
+SendToHH=1
+; Hotkey to run analysis of MCLogger manual correction log and for quick peek of MCLogger cache.
+RunAnalysisHotkey=#^+q
+SneakPeekHotkey=#+q
+; Also save full report to Windows Clipboard (1=yes, 0=no). Warning: does not restore previous clipboard contents.
+SaveFullToClipboard=1
+; When removing old single-occurrence items, only remove strings older than this many days.
+AgeOfOldSingles=90
+; When clicking 'Cull and Append', close the list each time (0) or keep it open (1).
+KeepReportOpen=1
+
+[ACLogAnalyzer]
+; Importance weight for high-frequency items in weight calculation (0-50, 0=not important).
+FreqImportance=25
+; Minimum threshold for consideration when weighing items. Zero means consider them all.
+IgnoreFewerThan=0
+; Copy hotstring to clipboard when item is selected--Facilitates sending to HH (1=yes, 0=no).
+CopyHotstringOnSelect=1
+; Keep window pinned to top by default (1=yes, 0=no).
+PinToTop=1
+; Enable error logging to file.  Not AutoCorrection errors, but ACLogAnalyzer app runtime errors (1=yes, 0=no).
+EnableErrorLogging=1
+; Skip lines before this line number when reading log file.
+StartLine=7
+; Date format for culled items (MM-dd-yyyy, etc.).
+CullDateFormat=MM-dd-yyyy
+
+[Defunctionizer]
+; if you purge the comments, then AutoCorrect2's ; Ctrl+F3 "Potential Fixes Report" will stop working correctly.
+keepComments=0
+        )"
+        return defaultIni
+    }
+
+
+    ; ============================================================
+    ; ===== SETTINGS LOADING =====
+    ; ============================================================
+    
+    static LoadSettings() {
+        if !FileExist(this.SettingsFile)
+            return
+        
+        ; [Files] Section
+        this.HotstringLibrary           := this.ReadIni("Files", "HotstringLibrary", "HotstringLib.ahk")
+        this.NewTemporaryHotstrLib      := this.ReadIni("Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
+        this.RemovedHsFile              := "..\Data\" this.ReadIni("Files", "RemovedHsFile", "..\Data\RemovedHotstrings.txt")
+        this.AutoCorrectsLogFile        := "..\Data\" this.ReadIni("Files", "AutoCorrectsLogFile", "..\Data\AutoCorrectsLog.txt")
+        this.ErrContextLog              := "..\Data\" this.ReadIni("Files", "ErrContextLog", "..\Data\ErrContextLog.txt")
+        this.WordListFile               := "..\Data\" this.ReadIni("Files", "WordListFile", "GitHubComboList249k.txt")
+        this.FrequencyListFile          := "..\Data\" this.ReadIni("Files", "FrequencyListFile", "unigram_freq_list_filtered_88k.csv")
+        this.ACLogAnalyzer              := "..\Tools\" this.ReadIni("Files", "ACLogAnalyzer", "ACLogAnalyzer.exe")
+        this.SettingsManager            := "..\Tools\" this.ReadIni("Files", "SettingsManager", "SettingsManager.exe")
+
+        ; [Shared] Section
+        ; Editor
+        this.DefaultEditor              := this.ReadIni("Shared", "DefaultEditor", "Notepad.exe")
+        ; Green and Red
+        this.LightGreen                 := this.ReadIni("Shared", "LightGreen", "b8f3ab")
+        this.DarkGreen                  := this.ReadIni("Shared", "DarkGreen", "0d3803")
+        this.LightRed                   := this.ReadIni("Shared", "LightRed", "fd7c73")
+        this.DarkRed                    := this.ReadIni("Shared", "DarkRed", "B90012")
+
+
+        ; [HotstringHelper] Section   
+        ; General
+        this.CODE_DEBUG_LOG             := this.ReadIni("HotstringHelper", "CODE_DEBUG_LOG", 0)
+        this.CODE_ERROR_LOG             := this.ReadIni("HotstringHelper", "CODE_ERROR_LOG", 0)
+        ; Hotkeys
+        this.ActivationHotkey           := this.ReadIni("HotstringHelper", "ActivationHotkey", "#h")
+        ; UI
+        this.DefaultFontSize            := "s" this.ReadIni("HotstringHelper", "DefaultFontSize", "11")
+        this.LargeFontSize              := "s" this.ReadIni("HotstringHelper", "LargeFontSize", "15")
+        this.DefaultWidth               := this.ReadIni("HotstringHelper", "DefaultWidth", 366)
+        this.HeightSizeIncrease         := this.ReadIni("HotstringHelper", "HeightSizeIncrease", 300)
+        this.WidthSizeIncrease          := this.ReadIni("HotstringHelper", "WidthSizeIncrease", 400)
+        this.FocusReplacementByDefault  := this.ReadIni("HotstringHelper", "FocusReplacementByDefault", 1)
+        ; BoilerPlate
+        this.DefaultBoilerPlateOpts     := this.ReadIni("HotstringHelper", "DefaultBoilerPlateOpts", "")
+        this.BoilerplatePrefix          := this.ReadIni("HotstringHelper", "BoilerplatePrefix", ";")
+        this.BoilerplateSuffix          := this.ReadIni("HotstringHelper", "BoilerplateSuffix", "")
+        this.FirstLettersToInclude      := this.ReadIni("HotstringHelper", "FirstLettersToInclude", 5)
+        this.MinWordLength              := this.ReadIni("HotstringHelper", "MinWordLength", 2)
+        ; AutoCorrect
+        this.DefaultAutoCorrectOpts     := this.ReadIni("HotstringHelper", "DefaultAutoCorrectOpts", "B0X")
+        this.MakeFuncByDefault          := this.ReadIni("HotstringHelper", "MakeFuncByDefault", 1)
+        this.AutoCommentWithFreqAndStats := this.ReadIni("HotstringHelper", "AutoCommentWithFreqAndStats", 1)
+        this.AutoEnterNewEntry          := this.ReadIni("HotstringHelper", "AutoEnterNewEntry", 1)
+
+        ; [ACSystem] Section
+        ; AutoCorrectSystem
+        this.EnableLogging              := this.ReadIni("ACSystem", "EnableLogging", 1)
+        this.BeepOnAutoCorrection           := this.ReadIni("ACSystem", "BeepOnAutoCorrection", 1)
+        this.BeepOnContextLog           := this.ReadIni("ACSystem", "BeepOnContextLog", 1)
+        this.PrecedingWordCount         := this.ReadIni("ACSystem", "PrecedingWordCount", 6)
+        this.FollowingWordCount         := this.ReadIni("ACSystem", "FollowingWordCount", 4)
+        this.FollowingWordTimeout       := this.ReadIni("ACSystem", "FollowingWordTimeout", 8)
+        ; Skiplist
+        SkiplistString                  := this.ReadIni("ACSystem", "AppSkiplist", "")
+        this.AppSkiplist                := StrSplit(SkiplistString, ",")
+        this.BeepOnCapFix               := this.ReadIni("ACSystem", "BeepOnCapFix", 1)
+        this.CapFixTwoLetterWords       := this.ReadIni("ACSystem", "CapFixTwoLetterWords", 1)
+    }
+
+    ; ============================================================
+    ; ===== THEME COLORS (kept separate from app settings) =====
+    ; ============================================================
+    
+    static LoadThemeColors() {
+        if FileExist("..\Data\colorThemeSettings.ini") {
+            ctSettingsFile := "..\Data\colorThemeSettings.ini"
+            ; --- Get current colors from ini file. 
+            this.FontColor := "c" IniRead(ctSettingsFile, "ColorSettings", "fontColor")
+            this.ListColor := IniRead(ctSettingsFile, "ColorSettings", "listColor")
+            this.FormColor := IniRead(ctSettingsFile, "ColorSettings", "formColor")
+        }
+        ; If theme file doesn't exist, defaults are already set in static declarations
+    }
+
+
+    ; ============================================================
+    ; ===== HELPER METHODS =====
+    ; ============================================================
+    
+    ; Generic ini reader with fallback defaults and type conversion
+    static ReadIni(section, key, default := "") {
+        if !FileExist(this.SettingsFile)
+            return default
+        
+        value := IniRead(this.SettingsFile, section, key, "")
+        
+        ; Return default if key not found or empty
+        if (value = "")
+            return default
+        
+        ; If default is numeric (Integer or Float), convert the read value to integer
+        if (Type(default) = "Integer" or Type(default) = "Float") {
+            return Integer(value)
+        }
+        
+        ; Otherwise return as-is
+        return value
+    }
+    
     ; Calculate brightness from form color
     static CalculateBrightness() {
         formColor := this.FormColor
@@ -114,41 +432,12 @@ class Config {
         
         return this.Brightness
     }
-
-    ; Initialize with calculated values
-    static Init() {
-        ; Load color settings from theme file if it exists
-        if FileExist("..\Data\colorThemeSettings.ini") {
-            settingsFile := "..\Data\colorThemeSettings.ini"
-            ; --- Get current colors from ini file. 
-            this.FontColor := "c" IniRead(settingsFile, "ColorSettings", "fontColor")
-            this.ListColor := IniRead(settingsFile, "ColorSettings", "listColor")
-            this.FormColor := IniRead(settingsFile, "ColorSettings", "formColor")
-        }
-
-        ; Calculate brightness and set dependent colors
-        this.CalculateBrightness()
-        this.ValidityDialogGreen := this.Brightness < 128 ? "cb8f3ab" : "c0d3803"
-        this.ValidityDialogRed := this.Brightness < 128 ?  "cfd7c73" : "cB90012"
-        
-        ; Calculate full path to word list
-        this.WordListPath := this.WordListFolder "\" this.WordListFile
-        
-        ; Extract just the filename from the path
-        SplitPath this.WordListPath, &WordListName
-        this.WordListName := WordListName
-        
-        ; Try to find VSCode if available
-        this.EditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
-        if !FileExist(this.EditorPath)
-            this.EditorPath := this.DefaultEditor
-    }
 }
 
-; Check if a blacklisted app is currently the active (focused) window
-IsBlacklistedAppFocused() {
+; Check if a Skiplisted app is currently the active (focused) window
+IsSkiplistedAppFocused() {
     activeProcessName := WinGetProcessName("A")
-    for processName in Config.AppBlacklist {
+    for processName in Config.AppSkiplist {
         if (activeProcessName = processName)
             return true
     }
@@ -159,9 +448,11 @@ IsBlacklistedAppFocused() {
 ; These files need to be in the same directory or properly referenced
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 
-#HotIf !IsBlacklistedAppFocused() ; Only if no blacklisted apps are active and focused.
+#HotIf !IsSkiplistedAppFocused() ; Only if no Skiplisted apps are active and focused.
     #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
 #HotIf
+
+#Include "..\Resources\Includes\AcMsgBox.ahk" ; For custom msgbox system.
 
 ; Initialize configuration
 Config.Init()
@@ -208,11 +499,11 @@ SetupTrayMenu() {
     StartUpAC(*) {	
         if FileExist(A_Startup "\" Config.ScriptName ".lnk") {
             FileDelete(A_Startup "\" Config.ScriptName ".lnk")
-            MsgBox("" Config.ScriptName " will NO LONGER auto start with Windows.",, 4096)
+            acMsgBox.show("" Config.ScriptName " will NO LONGER auto start with Windows.",, 4096)
         } Else {
             FileCreateShortcut(A_WorkingDir "\" StrReplace(Config.ScriptName, ".ahk") ".exe", A_Startup "\" Config.ScriptName ".lnk"
             , A_WorkingDir, "", "", A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
-            MsgBox(Config.ScriptName " will now auto start with Windows.",, 4096)
+            acMsgBox.show(Config.ScriptName " will now auto start with Windows.",, 4096)
         }
         Reload()
     }
@@ -223,14 +514,14 @@ EditThisScript(*) {
 	Try
 		Run Config.EditorPath " "  Config.ScriptName
 	Catch
-		msgbox 'cannot run ' Config.ScriptName
+		acMsgBox.show 'cannot run ' Config.ScriptName
 }
 
 OpenHotstringLibrary(*) {
     Try
         Run Config.EditorPath " "  Config.HotstringLibrary
     Catch
-        msgbox 'cannot run ' Config.EditorPath ' or cannot run ' Config.HotstringLibrary
+        acMsgBox.show 'cannot run ' Config.EditorPath ' or cannot run ' Config.HotstringLibrary
 }
 
 ; PrinterTool and DateTool are #Included, so we could call the functions directly, but we would 
@@ -244,7 +535,7 @@ RunDateTool(*) {
 
 !+u:: ; Uptime -- time since Windows restart
 UpTime(*) { 
-	MsgBox("UpTime is:`n" . Uptime(A_TickCount))
+	acMsgBox.show("UpTime is:`n" . Uptime(A_TickCount))
 	Uptime(ms) {
 		VarSetStrCapacity(&b, 256) ; V1toV2: if 'b' is NOT a UTF-16 string, use 'b := Buffer(256)'
 		;    DllCall("GetDurationFormat","uint",2048,"uint",0,"ptr",0,"int64",ms*10000,"wstr"," d 'days, 'h' hours, 'm' minutes, 's' seconds'", "wstr",b,"int",256)
@@ -493,8 +784,7 @@ class UI {
             icon: ""
         })
         
-        ; Add log-related buttons only if logging is enabled
-        if (IsSet(EnableLogging) && EnableLogging = 1) {
+        if (Config.EnableLogging = 1) {
             this.controlButtons.Push({
                 text: "Open AutoCorrection Log", 
                 action: (*) => Run(Config.AutoCorrectsLogFile),
@@ -539,20 +829,62 @@ class UI {
             icon: ""
         })
         
+        this.controlButtons.Push({
+            text: "Configuration Settings Manager", 
+            action: (*) => Run(Config.SettingsManager),
+            icon: ""
+        })
+        
         ; Check if Suggester tool is present, add button.
-        if FileExist("..\Tools\Standalone\Suggester.exe") {
+        if FileExist("..\Tools\Suggester.exe") {
             this.controlButtons.Push({
                 text: "Hotstring Suggester Tool", 
-                action: (*) => Run("..\Tools\Standalone\Suggester.exe"),
+                action: (*) => Run("..\Tools\Suggester.exe"),
+                icon: ""
+            })
+        }
+        
+        ; Check if tool is present, add button.
+        if FileExist("..\Tools\ExtractPotentialMisspellings.exe") {
+            this.controlButtons.Push({
+                text: "Extract Potential Misspellings", 
+                action: (*) => Run("..\Tools\ExtractPotentialMisspellings.exe"),
+                icon: ""
+            })
+        }
+        
+        ; Check if tool is present, add button.
+        if FileExist("..\Tools\ConflictingStringLocator.exe") {
+            this.controlButtons.Push({
+                text: "Conflicting String Locator Tool", 
+                action: (*) => Run("..\Tools\ConflictingStringLocator.exe"),
+                icon: ""
+            })
+        }
+        
+        ; Check if tool is present, add button.
+        if FileExist("..\Tools\UniqueStringExtractor.exe") {
+            this.controlButtons.Push({
+                text: "Compare Two Versions of HotstringLib", 
+                action: (*) => Run("..\Tools\UniqueStringExtractor.exe"),
+                icon: ""
+            })
+        }
+        
+        ; Check if tool is present, add button.
+        if FileExist("..\Tools\Defunctionizer.exe") {
+            this.controlButtons.Push({
+                text: "Defunctionize Hotstrings", 
+                action: (*) => Run("..\Tools\Defunctionizer.exe"),
                 icon: ""
             })
         }
 
         ; Check if ExtractPotentialMisspellings tool is present, add button.
-        if FileExist("..\Tools\Standalone\ExtractPotentialMisspellings.ahk") {
+        if FileExist("..\Tools\ExtractPotentialMisspellings.ahk") {
             this.controlButtons.Push({
                 text: "Extract Potential Misspellings", 
-                action: (*) => Run("..\Tools\Standalone\ExtractPotentialMisspellings.exe"),
+                action: (*) => Run("..\Tools\ExtractPotentialMisspellings.exe"),
                 icon: ""
             })
         }
@@ -568,7 +900,7 @@ class UI {
         if FileExist("..\Data\colorThemeSettings.ini") {
             this.controlButtons.Push({
                 text: "  Change Color Theme", 
-                action: (*) => Run("..\Tools\Standalone\ColorThemeInt.exe /script ..\Tools\Standalone\ColorThemeInt.ahk analyz"),
+                action: (*) => Run("..\Tools\ColorThemeInt.exe /script ..\Tools\ColorThemeInt.ahk analyz"),
                 icon: A_ScriptDir "\..\Resources\Icons\msn butterfly.ico"
             })
         }
@@ -577,7 +909,7 @@ class UI {
         this.Controls["ControlButtons"] := []
         
         for buttonConfig in this.controlButtons {
-            button := this.MainForm.AddButton("y+2 h28 xm w" Config.DefaultWidth, buttonConfig.text)
+            button := this.MainForm.AddButton("y+2 h25 xm w" Config.DefaultWidth, buttonConfig.text)
             button.OnEvent("click", buttonConfig.action)
             
             if buttonConfig.icon
@@ -1031,8 +1363,8 @@ class UIActions {
         triggerMatches := 0
         triggerFilteredList := ""
         
-        if FileExist(Config.WordListPath) {
-            Loop Read, Config.WordListPath {
+        if FileExist(Config.WordListFile) {
+            Loop Read, Config.WordListFile {
                 if InStr(A_LoopReadLine, triggerText) {
                     if UI.Controls["MiddleRadio"].Value = 1 {
                         triggerFilteredList .= A_LoopReadLine '`n'
@@ -1098,7 +1430,7 @@ class UIActions {
             UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
         } else if triggerMatches > 0 {
             UI.Controls["TriggerLabel"].Text := "Misspells [" triggerMatches "] words"
-            UI.Controls["TriggerLabel"].SetFont("cRed")
+            UI.Controls["TriggerLabel"].SetFont("c" Config.ValidityDialogRed)
         } else if triggerMatches = 0 {
             UI.Controls["TriggerLabel"].Text := "No Misspellings found."
             UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
@@ -1108,8 +1440,8 @@ class UIActions {
         replacementMatches := 0
         replacementFilteredList := ""
         
-        if FileExist(Config.WordListPath) {
-            Loop Read, Config.WordListPath {
+        if FileExist(Config.WordListFile) {
+            Loop Read, Config.WordListFile {
                 if InStr(A_LoopReadLine, replacementText) {
                     if UI.Controls["MiddleRadio"].Value = 1 {
                         replacementFilteredList .= A_LoopReadLine '`n'
@@ -1370,13 +1702,13 @@ class UIActions {
         replacementText := UI.Controls["ReplacementEdit"].Text
         
         if replacementText = "" {
-            MsgBox("Replacement Text not found.", , 4096)
+            acMsgBox.show("Replacement Text not found.", , 4096)
         }
         else {
             suggestion := Utils.SpellingGrammarSuggestion(replacementText)
             
             if suggestion = "" || suggestion = replacementText {
-                MsgBox("No suggestions found.", , 4096)
+                acMsgBox.show("No suggestions found.", , 4096)
             }
             else {
                 ; Show suggestion in a custom GUI instead of MsgBox
@@ -1387,12 +1719,16 @@ class UIActions {
 
     ; Handler for the Look button (dictionary lookup)
     static OnLookButtonClick() {
-        Utils.ProcessSelectedText((word) => Dictionary.ShowDefinitionGui(word))
+        if !Utils.ProcessSelectedText((word) => Dictionary.ShowDefinitionGui(word)) {
+            AcMsgBox.Show("Please select a word from one of the lists or text boxes:`n`n• Replacement box`n• Misspells list`n• Fixes list`n`nThen click Look again.", "No Selection", 64)
+        }
     }
     
     ; Handler for right-clicking the Look button (online dictionary)
     static OnLookButtonRightClick() {
-        Utils.ProcessSelectedText((word) => Run("https://gcide.gnu.org.ua/?q=" word "&define=Define&strategy=."))
+        if !Utils.ProcessSelectedText((word) => Run("https://gcide.gnu.org.ua/?q=" word "&define=Define&strategy=.")) {
+            AcMsgBox.Show("Please select a word from one of the lists or text boxes:`n`n• Replacement box`n• Misspells list`n• Fixes list`n`nThen click Look again.", "No Selection", 64)
+        }
     }
     
     ; Handler for the Cancel button
@@ -1421,13 +1757,13 @@ class UIActions {
         
         try {
             rootDir := A_ScriptDir "\.."
-            suggesterExe := rootDir "\Tools\Standalone\Suggester.exe"
-            suggesterAhk := rootDir "\Tools\Standalone\Suggester.ahk"
+            suggesterExe := rootDir "\Tools\Suggester.exe"
+            suggesterAhk := rootDir "\Tools\Suggester.ahk"
             
             Debug("Looking for Suggester at: " suggesterAhk)
             
             if (!FileExist(suggesterExe) || !FileExist(suggesterAhk)) {
-                MsgBox("Error: Suggester tool not found.`n`nNeeds both:`n" suggesterExe "`n" suggesterAhk)
+                acMsgBox.show("Error: Suggester tool not found.`n`nNeeds both:`n" suggesterExe "`n" suggesterAhk)
                 return
             }
             
@@ -1448,7 +1784,7 @@ class UIActions {
             
         } catch Error as err {
             LogError("Error launching Suggester tool: " err.Message)
-            MsgBox("Error launching Suggester tool: (" err.Number ") " err.Message "`n`nDebug info written to log.")
+            acMsgBox.show("Error launching Suggester tool: (" err.Number ") " err.Message "`n`nDebug info written to log.")
         }
     }
 
@@ -1463,7 +1799,7 @@ class UIActions {
             Run(Config.EditorPath " " Config.HotstringLibrary)
         }
         catch {
-            MsgBox("Cannot run " Config.HotstringLibrary)
+            acMsgBox.show("Cannot run " Config.HotstringLibrary)
             return
         }
         
@@ -1473,7 +1809,7 @@ class UIActions {
             counter++
             
             if counter > 80 {
-                MsgBox("Cannot seem to open Library.`nMaybe an 'admin rights' issue?")
+                acMsgBox.show("Cannot seem to open Library.`nMaybe an 'admin rights' issue?")
                 return
             }
         }
@@ -1495,7 +1831,7 @@ class UIActions {
 		titleText.Focus()
 		
 		; Display the proposed hotstring
-		this.ValidityDialog.SetFont(Config.ValidityDialogFont)
+		this.ValidityDialog.SetFont(Config.LargeFontSize)
 		proposedHS := ":" UI.Controls["OptionsEdit"].Text ":" UI.Controls["TriggerEdit"].Text "::" UI.Controls["ReplacementEdit"].Text
 		this.ValidityDialog.Add("Text", (StrLen(proposedHS) > 90 ? "w600 " : "") "xs yp+22", proposedHS)
 		
@@ -1505,7 +1841,7 @@ class UIActions {
 			this.ValidityDialog.Add("Text", "", "===Validation Check Results===")
 			
 		; Split message into sections
-		this.ValidityDialog.SetFont(Config.ValidityDialogFont)
+		this.ValidityDialog.SetFont(Config.LargeFontSize)
 		messageItems := StrSplit(message, "*|*")
 		
 		; Limit long messages
@@ -2133,7 +2469,7 @@ class Dictionary {
             if !this.isLoading {
                 this.StartBackgroundLoad()
             }
-            MsgBox("Dictionary is still loading.`nCurrent status: " this.loadingStatus 
+            acMsgBox.show("Dictionary is still loading.`nCurrent status: " this.loadingStatus 
                 "`n`nPlease try again in a moment.", "Dictionary Loading")
             return
         }
@@ -2141,7 +2477,7 @@ class Dictionary {
         definition := this.LookupWord(word)
     
         dictGui := Gui()
-        dictGui.SetFont(Config.ValidityDialogFont, "Segoe UI")
+        dictGui.SetFont(Config.LargeFontSize, "Segoe UI")
         dictGui.SetFont(Config.FontColor)
         dictGui.BackColor := Config.FormColor
         
@@ -2171,7 +2507,7 @@ class Utils {
     ; Process selected text from an edit control
     static ProcessSelectedText(callback) {
         if !IsObject(State.CurrentEdit) {
-            return
+            return false
         }
         
         EM_GETSEL := 0xB0
@@ -2187,8 +2523,10 @@ class Utils {
             
             if word != "" {
                 callback(word)
+                return true
             }
         }
+        return false
     }
     
     /*
@@ -2261,7 +2599,7 @@ class Utils {
     ; Show spelling suggestion in a GUI
     static ShowSpellingSuggestionGui(originalText, suggestion) {
         suggestionGui := Gui("+AlwaysOnTop")
-        suggestionGui.SetFont(Config.ValidityDialogFont)
+        suggestionGui.SetFont(Config.LargeFontSize)
         suggestionGui.SetFont(Config.FontColor)
         suggestionGui.BackColor := Config.FormColor
         
@@ -2527,7 +2865,7 @@ class WordFrequency {
     static isLoaded := false
     static isLoading := false
     static EXPECTED_WORD_COUNT := 88916
-    static DATA_FILE := "..\Resources\WordListsForHH\unigram_freq_list_filtered_88k.csv"
+    static DATA_FILE := Config.FrequencyListFile
     
     ; Initialize word frequency data
     static Initialize() {
@@ -2786,7 +3124,7 @@ class HelpSystem {
         
         this.helpTexts["SymbolToggle"] := "Toggle button to show special characters: spaces, tabs, and line breaks as visible symbols.`n`nThe symbols used can be customized in the code.`n`nTip: Including a space with the Pilcrow or Dot allows more natural text-wrapping in the Replacement box.`n`nThis mostly applies to large boilerplate texts, not autocorrects."
         
-        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarification, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the code and set it to zero.  Also checkout the Defunctionizer script in AutoCorrect2\Tools\Standalone."
+        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarification, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the code and set it to zero.  Also checkout the Defunctionizer script in AutoCorrect2\Tools\."
         
         this.helpTexts["AppendButton"] := "Adds the current hotstring to your library file and reloads the script.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem. If there is a problem, the user is given the option to append anyway.`n`nShift+Click:`nCopies to clipboard instead.`n`nCtrl+Click:`nAppends without closing or reloading--useful for multiple simultaneous entries.`n`nAlt+Click:`nSends hotstring to Suggester Tool.`n`nPressing Enter will also append the new hotstring and restart the script, but not when the replacement box is focused.  In that case, pressing Enter just types a new line."
         
@@ -2823,7 +3161,7 @@ class HelpSystem {
                     this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located.`n`nTip:  When adopting a newer version of the HotstringLib.ahk file from https://github.com/kunkel321/AutoCorrect2, it is recommended to use the DuplicateStringExtracter tool.  This will allow you to not lose any custom hotstrings that you have, yourself, added.  Also, you'll seen any hotstrings that you've manually removed from my working library."
                     
                 case "Open AutoCorrection Log":
-                    this.helpTexts["ControlButton_ACLog"] := "Opens the AutoCorrectsLog.txt file.`n`nThis log contains a record of all autocorrections made using the f() function, including whether a correction was backspaced, thus indicating a likely `"misfire`" of the item).`n`nThe date of each logged item is present and separated from the item with a hyphen.`n`n<< = Backspace was pressed within one second.`n-- = Backspace not pressed within one second.`n`nNote: The script can't detect exactly WHAT you backspaced, only that the BS was pressed within one second.  There is, however, a Backspace Context Log that tries to help with this.`n`nThe AC Log file is analyzed by ACLogAnalyer.  Manually handling the log file is usually not needed.  The reading and writing from it is all automated. `n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the AutoCorrectSystem.ahk file, and change Global EnableLogging := 1 to 0."
+                    this.helpTexts["ControlButton_ACLog"] := "Opens the AutoCorrectsLog.txt file.`n`nThis log contains a record of all autocorrections made using the f() function, including whether a correction was backspaced, thus indicating a likely `"misfire`" of the item.`n`nThe date of each logged item is present and separated from the item with a hyphen.`n`n<< = Backspace was pressed within one second.`n-- = Backspace not pressed within one second.`n`nNote: The script can't detect exactly WHAT you backspaced, only that the BS was pressed within one second.  There is, however, a Backspace Context Log that tries to help with this.`n`nThe AC Log file is analyzed by ACLogAnalyer.  Manually handling the log file is usually not needed.  The reading and writing from it is all automated. `n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the AutoCorrectSystem.ahk file, and change Global EnableLogging := 1 to 0."
                     
                 case "  Analyze AutoCorrection Log !^+Q":
                     this.helpTexts["ControlButton_ACAnalyze"] := "Runs the AutoCorrection Log Analyzer tool.`n`nThis tool analyzes your autocorrection log to identify problematic autocorrect items that you frequently backspace after triggering.`n`nThe hotkey Alt+Ctrl+Shift+Q can also be used to launch this tool.`n`nThe most-frequent errant hotstrings are returned as radio buttons in a report.`n`nSeveral actions can be taken on an item."
@@ -2842,12 +3180,24 @@ class HelpSystem {
                     
                 case "Report HotStrings and Potential Fixes":
                     this.helpTexts["ControlButton_Report"] := "Generates a report showing statistics about your hotstring library.`n`nThis includes counts of different types of autocorrect entries and the total number of potential word fixes.`n`nThe total `"Web Frequency`" total is given, though anaylyzing this total number is less imporant that anaylyzing the WF of particular individual hotstrings."
+
+                case "Configuration Settings Manager":
+                    this.helpTexts["ControlButton_SettingsMan"] := "Runs the AutoCorrect2 Settings Manager Tool, which is a GUI-based tool for edting the user config initialization file, `"acSettings.ini`"."
                     
                 case "Hotstring Suggester Tool":
                     this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.  When creating a mult-match word middle AutoCorrect item via trimming the ends, it is possible to over-trim.  The Suggester tool helps you choose which letter to put back--that's why it was made.`n`nThe Suggester tool is usually accessed via Alt+Clicking the Append button, or via the ACLogAnalyer report, though you can run it directly, and type/paste in a hotstring."
                     
                 case "Extract Potential Misspellings":
-                    this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your HotstringLib.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work."
+                    this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your HotstringLib.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work. The config options are in the .ahk file."
+
+                case "Conflicting String Locator Tool":
+                    this.helpTexts["ControlButton_ConflictingStringLocator"] := "This runs an INTRA-script scan, checking for hotstrings in the main part of your " Config.HotstringLibrary " file that might conflict with each other. A report document is created in the \Data\ folder and the report is opened upon completion of the scan.  It uses the same algorithms as the validiy tool.  It is thorough and is slow.  Please see AutoCorrect2 User Manual for more information."
+
+                case "Compare Two Versions of HotstringLib":
+                    this.helpTexts["ControlButton_UniqueStringExtractor"] := "This runs an INTER-script scan to compare two versions of the hotstring library:`n`n" Config.HotstringLibrary "`n" Config.NewTemporaryHotstrLib "`n`nIt will alert the user of hotstrings that are unique to each version.  This is meant to facilitate merging two versions of the library. It is recommended to choose a convenient temporary name for one the new version, such as `"HotstringLib (1).ahk`" then program that into the acSettings.ini file (current name is shown above) and use the same temporary name each time.  The tool will default to those paths.  If either is not found, a file chooser dialog will appear. A report document is created in the \Data\ folder and the report is opened upon completion of the scan."
+
+                case "Defunctionize Hotstrings":
+                    this.helpTexts["ControlButton_Defunctionizer"] := "This is for users who do not want their AutoCorrect items embedded in the f() function calls. The `"Defunctionizer`" tool removes them."
 
                 case "  Go to GitHub Repository":
                     this.helpTexts["ControlButton_GitHub"] := "Opens the GitHub repository for this tool, in your default web browswer."
@@ -2895,10 +3245,18 @@ class HelpSystem {
                         helpTitle := "Help for 'Analyze Manual Correction Log' button"
                     case "Report":
                         helpTitle := "Help for 'Report HotStrings' button"
+                    case "SettingsMan":
+                        helpTitle := "Help for 'Settings Manager' button"
                     case "Suggester":
                         helpTitle := "Help for 'Hotstring Suggester Tool' button"
                     case "ExtractMisspellings":
                         helpTitle := "Help for 'Potential Misspellings Tool' button"
+                    case "ConflictingStringLocator":
+                        helpTitle := "Help for 'Conflicting String Locator Tool' button"
+                    case "UniqueStringExtractor":
+                        helpTitle := "Help for 'Unique String Extractor Tool' button"
+                    case "Defunctionizer":
+                        helpTitle := "Help for 'Defunctionizer Tool' button"
                     case "Theme":
                         helpTitle := "Help for 'Change Color Theme' button"
                     case "GitHub":
@@ -2982,10 +3340,18 @@ class HelpSystem {
                             return "ControlButton_MCAnalyze"
                         else if InStr(buttonText, "Report HotStrings")
                             return "ControlButton_Report"
+                        else if InStr(buttonText, "Configuration Settings Manager")
+                            return "ControlButton_SettingsMan"
                         else if InStr(buttonText, "Extract Potential Misspellings")
                             return "ControlButton_ExtractMisspellings"
                         else if InStr(buttonText, "Hotstring Suggester Tool")
                             return "ControlButton_Suggester"
+                        else if InStr(buttonText, "Conflicting String Locator Tool")
+                            return "ControlButton_ConflictingStringLocator"
+                        else if InStr(buttonText, "Compare Two Versions of HotstringLib")
+                            return "ControlButton_UniqueStringExtractor"
+                        else if InStr(buttonText, "Defunctionize Hotstrings")
+                            return "ControlButton_Defunctionizer"
                         else if InStr(buttonText, "Go to GitHub Repository")
                             return "ControlButton_GitHub"
                         else if InStr(buttonText, "Change Color Theme")
@@ -3002,4 +3368,3 @@ class HelpSystem {
 
 ; In UI.Init() function, add after UI._SetupEventHandlers():
 HelpSystem.Init()
-

@@ -3,7 +3,7 @@
 
 ; DRAG TOOLS
 ; Author: Kunkel321
-; Version: 4-25-2025 
+; Version: 10-16-2025
 ; Gets #Included with AutoCorrect2.ahk
 
 ;##################### WINDOW MOVER ##########################
@@ -114,6 +114,7 @@ DoMath()
 DragDirection(dragWay)
 {	
 	isPDFXChange := 0 ; Set default to prevent crash when we can't get active window ??
+    activeWindow := "" ; Initialize variable so next line doesn't have problems.
 	try activeWindow := WinGetTitle("A")
     isPDFXChange := InStr(activeWindow, "PDF-XChange") > 0 ; This part is buggy.
 	;MsgBox("Active Window: " . activeWindow . "`nIs PDF-XChange: " . isPDFXChange)

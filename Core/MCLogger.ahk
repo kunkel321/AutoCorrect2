@@ -3,10 +3,12 @@
 Persistent
 
 ; ==============================================================================
-; The Manual Correction Logger -- MCLogger --   Version 9-29-2025 
+; The Manual Correction Logger -- MCLogger 
 ; ==============================================================================
-; By Kunkel321, but inputHook based on Mike's here at: 
-; https://www.autohotkey.com/boards/viewtopic.php?p=560556#p560556
+; Author: Kunkel321
+; Tool Used: Claude AI
+; Version: 11-2-2025 
+; Get latest version here: https://github.com/kunkel321/AutoCorrect2
 ; A script to run in the background all the time and log your typing
 ; errors and manual corrections, formatting the viable ones into ahk hotstrings,
 ; so that repeating typo patterns can later be identified and potentially
@@ -18,57 +20,83 @@ Persistent
 ; and then saves the corresponding hotstring for logging.  The log gets saved to 
 ; file every X minutes. The log also saves to file on exit.  Moving the cursor 
 ; or left-clicking resets the cache and closes the tooltip. 
+; PLEASE NOTE that MCLogger shares acSettings.ini with several other tools, though
+; the other tools don't need to be present for MCLogger to work.
+; See also the WinSysTray context menu for other commands. 
+; Thanks to Mikeyww who helped with the original inputHook code.
 ; ==============================================================================
 ; Related tool:  Users of MS Word VBA may be interested in the code here
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
-; Which monitors the correction (via r-click) of misspelled words and logs them.
+; Which monitors the correction (via r-click) of misspelled words and logs them
+; to the same ManualCorrectionsLog.txt file.
 ; ==============================================================================
 
-;========= LOGGER OPTIONS ====================================================== 
-showEachHotString := 1        ; Show a Tooltip every time a HotString pattern is captured.  1=yes / 0=no 
-beepEachHotString := 1        ; Play a Beep every time a HotString pattern is captured.  1=yes / 0=no 
-saveIntervalMinutes := 10     ; Collect the log items in RAM, then save to disc this often. 
-IntervalsBeforeStopping := 2  ; Stop collecting, if no new pattern matches for this many intervals.
-; (Script will automatically restart the log intervals next time there's a match.)
+;========= LOAD SETTINGS FROM INI ============================================
+settingsFile := "..\Data\acSettings.ini"
 
-;=====File=Name=Assignments=====================================================
-WordListFile := 'GitHubComboList249k.txt'    ; Mostly from github: Copyright (c) 2020 Wordnik
-myLogFile := "..\Data\ManualCorrectionsLog.txt"      ; The log of manual corrections.  A text file, not an ahk file (though either will work).
-myAutoCorrectLibrary := "HotstringLib.ahk"            ; A validity check is done before adding new MC strings to the log. 
-RemovedHsFile := "..\Data\RemovedHotstrings.txt"      ; Also check hotstrings removed (culled) from AUTOcorrects log. 
-myAutoCorrectScript := "AutoCorrect2.ahk"             ; So MCLogger knows where to append new hotstrings. (Or were to send items to HH.) 
-SendToHH := 1                                         ; Export directly to HotSting Helper. 1=yes / 0=no 
-; IMPORTANT: If SendToHH = 0, then 'myAutoCorrectScript' should be set to whatever ahk file holds your autocorrect hotstrings.
-MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe" ; <--- specific to Steve's setup. Put path to your own editor.
+; Ensure settings file exists.
+if !FileExist(settingsFile) {
+	MsgBox(settingsFile " was not found.  Please run AutoCorrect2.exe first, to create the file, then try again.`n`nNow exiting")
+   ExitApp
+}
 
-;========= LOG ANALYSIS OPTIONS ================================================
-runAnalysisHotkey := "#^+q"   ; Change hotkey if desired.
-; #^+q:: ; Run analysis of MCLogger Manual correction log
-sneakPeekHotkey := "#+q"       ; Change hotkey if desired.
-; !q:: ; Quick peek of MCLogger cache
-ShowX :=  16                  ; Show max of top X results. 
-SaveFulltoClipBrd := 1        ; Also save full report to Windows Clipboard. Warning: Does not restore previous clipbrd contents.  1=yes / 0=no
-AgeOfOldSingles := 90         ; When removing old "single-occurence items," only remove strings older than this many days.
-KeepReportOpen := 1           ; When clicking 'Cull and Append,' close the list each time (0) or keep it open (1).
+; Load settings from INI file.  
+showEachHotString := IniRead(settingsFile, "MCLogger", "ShowEachHotString", 1)
+beepEachHotString := IniRead(settingsFile, "MCLogger", "BeepEachHotString", 1)
+saveIntervalMinutes := IniRead(settingsFile, "MCLogger", "SaveIntervalMinutes", 10)
+IntervalsBeforeStopping := IniRead(settingsFile, "MCLogger", "IntervalsBeforeStopping", 2)
+MCLogFile := "..\Data\" IniRead(settingsFile, "Files", "MCLogFile", "ManualCorrectionsLog.txt")
+myAutoCorrectLibrary := IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
+RemovedHsFile := "..\Data\" IniRead(settingsFile, "Files", "RemovedHsFile", "Data\RemovedHotstrings.txt")
+myAutoCorrectScript := IniRead(settingsFile, "Path", "MyAutoCorrectScript", "AutoCorrect2.ahk")
+SendToHH := IniRead(settingsFile, "MCLogger", "SendToHH", 1)
+runAnalysisHotkey := IniRead(settingsFile, "MCLogger", "RunAnalysisHotkey", "#^+q")
+sneakPeekHotkey := IniRead(settingsFile, "MCLogger", "SneakPeekHotkey", "#+q")
+SaveFulltoClipBrd := IniRead(settingsFile, "MCLogger", "SaveFullToClipboard", 1)
+AgeOfOldSingles := IniRead(settingsFile, "MCLogger", "AgeOfOldSingles", 90)
+KeepReportOpen := IniRead(settingsFile, "MCLogger", "KeepReportOpen", 1)
+WordListFile := "..\Data\" IniRead(settingsFile, "Files", "WordListFile", "GitHubComboList249k.txt")
+LightGreen := "c" IniRead(settingsFile, "Shared", "LightGreen", "b8f3ab")
+DarkGreen := "c" IniRead(settingsFile, "Shared", "DarkGreen", "0d3803")
+
+
+; Convert string values to integers where needed
+showEachHotString := Integer(showEachHotString)
+beepEachHotString := Integer(beepEachHotString)
+saveIntervalMinutes := Integer(saveIntervalMinutes)
+IntervalsBeforeStopping := Integer(IntervalsBeforeStopping)
+SendToHH := Integer(SendToHH)
+SaveFulltoClipBrd := Integer(SaveFulltoClipBrd)
+AgeOfOldSingles := Integer(AgeOfOldSingles)
+KeepReportOpen := Integer(KeepReportOpen)
+
+; Extract basenames from file paths for backup file creation
+myLogFileBaseName := SubStr(MCLogFile, 1, InStr(MCLogFile, ".", , -1) - 1)
+myACFileBaseName := SubStr(myAutoCorrectScript, 1, InStr(myAutoCorrectScript, ".", , -1) - 1)
+
+; Determine editor path
+MyAhkEditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
+if !FileExist(MyAhkEditorPath)
+	MyAhkEditorPath := "Notepad.exe"
 
 ; ==============================================================================
 ; Look for colorThemeSettings file and, if found, use color assignment. 
 If FileExist("..\Data\colorThemeSettings.ini") {
-   settingsFile := "..\Data\colorThemeSettings.ini"
+   ctSettingsFile := "..\Data\colorThemeSettings.ini"
    ; --- Get current colors from ini file. 
-   fontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
-   listColor := IniRead(settingsFile, "ColorSettings", "listColor")
-   formColor := IniRead(settingsFile, "ColorSettings", "formColor")
+   fontColor := IniRead(ctSettingsFile, "ColorSettings", "fontColor")
+   listColor := IniRead(ctSettingsFile, "ColorSettings", "listColor")
+   formColor := IniRead(ctSettingsFile, "ColorSettings", "formColor")
 }
-Else { ; Ini file not there, so use these color instead. 
+Else { ; Ini file not there, so use these colors instead. 
    fontColor := "1F1F1F", listColor := "FFFFFF", formColor := "E5E4E2"
 }
 
-; Calculate contrasting text color for better readability of radio button text.
+; Calculate contrasting text color for better readability of progress bar.
 formColor := "0x" subStr(formColor, -6) ; Make sure the hex value appears as a number, rather than a string. 
 r := (formColor >> 16) & 0xFF, g := (formColor >> 8) & 0xFF, b := formColor & 0xFF
 brightness := (r * 299 + g * 587 + b * 114) / 1000
-radioColor := brightness > 128 ? "Blue"  : "0xaffafa"  ; The color of the radio buttons in the gui form.
+progBarGreen := brightness > 128 ? DarkGreen  : LightGreen  ; The color of the radio buttons in the gui form.
 
 ;--- create systray menu ----
 TraySetIcon("..\Resources\Icons\JustLog.ico") ; A fun homemade "log" icon that Steve made.
@@ -78,8 +106,10 @@ mclMenu.Add("Log and Reload Script", (*) => Reload())
 mclMenu.SetIcon("Log and Reload Script", "..\Resources\Icons\data_backup-Brown.ico")
 mclMenu.Add("Edit This Script", EditThisScript)
 mclMenu.SetIcon("Edit This Script", "..\Resources\Icons\edit-Brown.ico")
-mclMenu.Add("Open " myLogFile, (*) => Run(myLogFile))
-mclMenu.SetIcon("Open " myLogFile, "..\Resources\Icons\TxtFile-Brown.ico")
+mclMenu.Add("Open " MCLogFile, (*) => Run(MCLogFile))
+mclMenu.SetIcon("Open " MCLogFile, "..\Resources\Icons\TxtFile-Brown.ico")
+mclMenu.Add("Open " settingsFile, (*) => Run(settingsFile))
+mclMenu.SetIcon("Open " settingsFile, "..\Resources\Icons\TxtFile-Brown.ico")
 mclMenu.Add("Analyze Manual Corrections", runAnalysis)
 mclMenu.SetIcon("Analyze Manual Corrections", "..\Resources\Icons\search-Brown.ico")
 mclMenu.Add("Start with Windows", StartUpMCL)
@@ -101,14 +131,13 @@ If not FileExist(MyAhkEditorPath) {
 }
 
 ; Make sure word list is there. Change name of word list subfolder, if desired. 
-WordListPath := '..\Resources\WordListsForHH\' WordListFile
-If not FileExist(WordListPath) {
-	MsgBox("This error means that the big list of comparison words at:`n" WordListPath
+If not FileExist(WordListFile) {
+	MsgBox("This error means that the big list of comparison words at:`n" WordListFile
 	"`nwas not found.`n`nMust assign a word list file to variable, such as`n"
 	"WordListFile := 'MyWordList.txt'`nfor script to work.`n`nNow exiting.")
 	ExitApp
 }
-WordList := FileRead(wordListPath) ; Get word list into variable.
+WordList := FileRead(wordListFile) ; Get word list into variable.
 wordListArray := strSplit(WordList, "`n") ; Segment variable into array.
 
 ; We'll check for the existence of the ACLibrary.  We won't check for the "Removed Strings"
@@ -287,7 +316,7 @@ OnExit Appender 	; Also append one more time on exit.
 ; Gets called by timer, or by onExit.
 Appender(*) { 
    savedUpText := sort(savedUpText, "U") ; A second mechanism for unduping. 
-   FileAppend savedUpText, myLogFile
+   FileAppend savedUpText, MCLogFile
    global savedUpText := ''  		; clear each time, since text has been logged.
 	global logIsRunning := 1  		; set to 1 so we don't keep resetting the timer.
    global intervalCounter += 1 	; Increments here, but resets in other locations. 
@@ -301,15 +330,16 @@ Appender(*) {
 }
 
 ; This gets called from the hotkey, the menu item, or command line switch.  
-; It creates two different GUI forms.  THe first is a progress bar that shows 
+; It creates two different GUI forms.  The first is a progress bar that shows 
 ; the progress of a frequency analysis which checks which potential hotstrings 
-; have been logged multiple times. The second GUI is a dynamic group of radio 
-; buttons, which shows the top X most frequent.
+; have been logged multiple times. The second GUI is a ListView which shows 
+; the items with occurrence count and hotstring.
 if (A_Args.Length > 0) ; Check if a command line argument is present.
 	runAnalysis() ; If present, open run analysis immediately. 
 Hotkey(runAnalysisHotkey, runAnalysis)  ; Change hotkey above, if desired. 
+
 runAnalysis(*) {
-	AllStrs := FileRead(myLogFile)   ; ahk file... Know thyself. 
+	AllStrs := FileRead(MCLogFile)   ; ahk file... Know thyself. 
 	oStr := "", iStr := "" 
    Global Report := "", origAllStrs := AllStrs
 
@@ -319,11 +349,11 @@ runAnalysis(*) {
    pg.SetFont('s12 c' fontColor)
    pg.BackColor := formColor
    pg.Add("text", "", "Determining frequency of each hotstring...  [Esc to stop]")
-	MyProgress := pg.Add("Progress", "w400 h30 cGreen Range0-" . TotalLines, "0")
+	MyProgress := pg.Add("Progress", "w400 h30 c" progBarGreen " Range0-" TotalLines " Background" listColor, "0")
 	pg.Title := "Percent complete: 0 %." ; Starting title (immediately gets updated below.)
 	pg.Show()
 
-	Loop parse AllStrs, "`n`r" ; <<<<<<<<<<<<<<<<< OUTER LOOP START
+	Loop parse AllStrs, "`n`r" ; <<<<<<<<<<<<<<<<< SINGLE PASS LOOP START
 	{	MyProgress.Value += 1
       If GetKeyState("Esc") { ; If Esc key is pressed. 
          pg.Destroy() ; Remove progress bar.
@@ -332,33 +362,43 @@ runAnalysis(*) {
 		pg.Title :=  "Percent complete: " Round((MyProgress.Value/TotalLines)*100) "%." ; For progress bar.
 		If (not inStr(A_LoopField, "::")) ; Skip these.
 			Continue
-		Tally := 0
-		oStr := A_LoopField     ; o is "outer loop"
-		oStr := SubStr(oStr, 14)
-		oStr := trim(oStr, " `t") 
-		Loop parse AllStrs, "`n`r" {  ; <<<<<<<<<<<<<<<<< INNER LOOP START
-			If (not inStr(A_LoopField, "::")) ; Skip these.
-				Continue
-			iStr := A_LoopField  ; i is "inner loop"
-			iStr := SubStr(iStr, 14)
-			iStr := trim(iStr, " `t") 
-			; msgbox 'Current LoopFields`n`noutter`t' oStr '`ninner`t' iStr 
-			If iStr = oStr { 
-            ;msgbox iStr "`n" oStr
-				Tally++
-			}
-		}  ; <<<<<<<<<<<<<<<<< INNER LOOP END
-		Report .=  Tally " of ⟹ " oStr "`n" 
-		AllStrs := strReplace(AllStrs, oStr, "xxx") ; Replace it with 'xxx' so we don't keep finding it.
-	}  ; <<<<<<<<<<<<<<<<< OUTER LOOP END
+		
+		; Extract the hotstring part (skip the date and " -- ")
+		; First trim the line to remove any leading/trailing spaces
+		trimmedLine := trim(A_LoopField)
+		hotstring := SubStr(trimmedLine, 14)
+		hotstring := trim(hotstring, " `t")
+		
+		; Use a Map to tally occurrences
+		if !IsSet(tallyMap)
+			tallyMap := Map()
+		
+		if tallyMap.Has(hotstring)
+			tallyMap[hotstring]++
+		else
+			tallyMap[hotstring] := 1
+	}  ; <<<<<<<<<<<<<<<<< SINGLE PASS LOOP END
+	
+	; Build Report from the Map
+	For hotstring, count in tallyMap {
+		Report .= count " of ⟹ " hotstring "`n"
+	}
+	
 	global trunkReport := []
+	global lvReportData := []  ; Data structure to hold ListView row info
 	Report := Sort(Sort(Report, "/U"), "NR") ; U is 'remove duplicates.' NR is 'numeric' and 'reverse sort.'
 	For idx, item in strSplit(Report, "`n") {
-   ; MsgBox 'item: ' item '`n`n>: ' (idx <= ShowX) '`nsub: ' (subStr(item, 1, 1) != "1")
-		If (idx <= ShowX) ; and (subStr(item, 1, 1) != "1") { ; Only use first X lines; hide singletons.
-         trunkReport.Push(item "`n")
-		else 
-         break
+		If item != ""  ; Skip empty lines
+         {
+            parts := StrSplit(item, " of ⟹ ")
+            if parts.Length = 2 && parts[1] != ""
+            {
+               count := Trim(parts[1])
+               hotstring := Trim(parts[2])
+               trunkReport.Push(item "`n")
+               lvReportData.Push({Count: count, Hotstring: hotstring})
+            }
+         }
    }
 	pg.Destroy() ; Remove progress bar.
 
@@ -381,84 +421,74 @@ runAnalysis(*) {
 	global cl := Gui()  ; "cl" for "Culled"
    cl.SetFont('s12 c' fontColor)  
    cl.BackColor := formColor
-	cl.Add('text','','The ' ShowX ' most frequent items are below.`nChoose an item to Cull from ' myLogFile '`nand Append to ' myAutoCorrectLibrary '.')
-   cl.SetFont('s11')
-   cl.Add('Text', 'y+2', 'Select item then r-click to copy to clpbrd.')
-   cl.SetFont('s13 c' radioColor)
-
-   if trunkReport.Length {
-      radio := cl.Add('radio', 'y+2 vRadioGrp', "Found " trunkReport[1]) ; Make first radio button.
-      radio.OnEvent("ContextMenu", radContext)
-      Loop trunkReport.Length - 1 { ; Make remaining radio buttons.
-         radio := cl.Add('radio', 'xs yp+30', "Found " trunkReport[A_Index + 1])
-         radio.OnEvent("ContextMenu", radContext)
-      }
+	cl.Add('text','w400 wrap','Analysis complete. The most frequent items are shown below. Select an item then right-click to copy, or use buttons below to cull/append.')
+   
+   ; Create ListView with 2 columns: Count and Hotstring (sortable by default)
+   global lv := cl.Add("ListView", "x10 y+8 w400 h550 Grid Background" listColor " vLvSel", ["Count", "Hotstring"])
+   lv.OnEvent("ContextMenu", LvContextMenu)
+   
+   ; Add rows to ListView
+   for idx, item in lvReportData {
+      lv.Add(, item.Count, item.Hotstring)
    }
+   
+   ; Set column widths
+   lv.ModifyCol(1, 60)  ; Count column
+   lv.ModifyCol(2, 330) ; Hotstring column
 
    cl.SetFont('s12 c' FontColor)
-   Global BUchkBox := cl.Add('Checkbox', 'w280 y+2','Make backup of ' myLogFile ' first')
+   Global BUchkBox := cl.Add('Checkbox', 'w400 y+8','Make backup of ' MCLogFile ' first')
 	
    cl.SetFont('s10')
-   cl.Add('Button', 'w282 x10 h16 y+5 ','Take too long? Remove old singletons').OnEvent("click", RemoveOldFunc.Bind(Report))
-   cl.SetFont('s12')
+   cl.Add('button', 'w200 x10 y+5', 'Cull from Log').OnEvent('Click', CullOnlyFunc)
+   cl.Add('button', 'x+10 w190 yp', 'Append').OnEvent('Click', AppendOnlyFunc)
 
-   cl.Add('button', 'w135 x10 y+5', 'Cull from Log').OnEvent('Click', CullOnlyFunc)
-   cl.Add('button', 'x+10 w135 yp', 'Append').OnEvent('Click', AppendOnlyFunc)
-
-   cl.Add('button', 'w160 x10 y+5','Cull and Append').OnEvent('Click', CullerAppender)
-   cl.Add('button', 'x+5 w120 yp','Cancel').OnEvent('Click', (*) => cl.Hide())
+   cl.Add('button', 'w200 x10 y+5','Cull and Append').OnEvent('Click', CullerAppender)
+   cl.Add('button', 'x+10 w190 yp','Cancel').OnEvent('Click', (*) => cl.Hide())
+   
+   cl.Add('Button', 'w402 x10 y+8','Remove old singletons').OnEvent("click", RemoveOldFunc.Bind(Report))
       
 	cl.Show('x' (A_ScreenWidth / 2) + 250) ; Show slightly to right of center (leaves room for HH2).
    cl.onEvent("Escape", (*) => cl.Destroy())
 }
 
-; Right-click to send to clipboard.
-radContext(*) {
-   global selectedItem := cl.Submit(0) ; 0 = 'don't hide gui'
-   If selectedItem.RadioGrp = 0  ; No radio button selected. 
-      MsgBox 'Nothing selected.'
-   Else {
-      ; Get the text of the selected radio button by its position
-      selectedText := trunkReport[selectedItem.RadioGrp]
-      selectedText := StrSplit(selectedText, "of ⟹ ")[2]
-      selectedText := Trim(selectedText, "`n`r ")
-      A_Clipboard := selectedText
-      ToolTip("Copied to clipboard: " selectedText, , , 5)
-      SetTimer(() => ToolTip(,,,5), -2000) ; Clear tooltip after 2 seconds
-   }
+; ListView context menu - right-click to copy hotstring
+LvContextMenu(GuiCtrlObj, Item, IsRightClick, X, Y) {
+   if Item = 0  ; No item selected
+      return
+   selectedHotstring := lvReportData[Item].Hotstring
+   A_Clipboard := selectedHotstring
+   ToolTip("Copied to clipboard: " selectedHotstring, , , 5)
+   SetTimer(() => ToolTip(,,,5), -2000)
 }
 
 CullOnlyFunc(*) {
    newFileContent := "", selItemName := ""
    global trunkReport
-   global selectedItem := cl.Submit(0) ; Don't hide GUI
+   global lv
    
-   If selectedItem.RadioGrp = 0 { ; No radio button selected. 
+   selectedRow := lv.GetNext(0)
+   If selectedRow = 0 { ; No ListView item selected. 
       MsgBox 'Nothing selected.'
       Return   ; Abort function. 
    }
 
-   For cName in trunkReport 
-      If selectedItem.RadioGrp = A_Index 
-         selItemName := cName
-
-   selItemName := Trim(StrSplit(selItemName, " of ⟹ ")[2], "`n`r")
+   selItemName := lvReportData[selectedRow].Hotstring
 
    ; Make backup if checkbox is checked
-   myLogFileBaseName := StrSplit(myLogFile, ".")[1]
    If (BUchkBox.Value = 1)
-      FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BU-' A_Now '.txt', 1)
+      FileCopy(MCLogFile, myLogFileBaseName '-BU-' A_Now '.txt', 1)
 
    ; Remove selected item from log file
-   for line in StrSplit(FileRead(myLogFile), "`n") {
+   for line in StrSplit(FileRead(MCLogFile), "`n") {
       If (inStr(line, selItemName))
          Continue
       Else
          newFileContent .= line "`n"
    }
    newFileContent := Trim(newFileContent, "`n ") "`n " ; Ensure exactly one empty line at the bottom. 
-   FileDelete myLogFile ; Delete the file so we can remake it.
-   FileAppend(newFileContent, myLogFile) ; Remake the file with the (now culled) string.
+   FileDelete MCLogFile ; Delete the file so we can remake it.
+   FileAppend(newFileContent, MCLogFile) ; Remake the file with the (now culled) string.
 
    ToolTip("Item culled from log: " selItemName, , , 9)
    SetTimer(() => ToolTip(,,,9), -3000) ; Clear tooltip after 3 seconds 
@@ -474,28 +504,28 @@ CullOnlyFunc(*) {
 AppendOnlyFunc(*) {
    selItemName := ""
    global trunkReport
-   global selectedItem := cl.Submit(0) ; Don't hide GUI
+   global lv
    
-   If selectedItem.RadioGrp = 0 { ; No radio button selected. 
+   selectedRow := lv.GetNext(0)
+   If selectedRow = 0 { ; No ListView item selected. 
       MsgBox 'Nothing selected.'
       Return   ; Abort function. 
    }
 
-   For cName in trunkReport 
-      If selectedItem.RadioGrp = A_Index 
-         selItemName := cName
-
-   selItemName := Trim(StrSplit(selItemName, " of ⟹ ")[2], "`n`r")
+   selItemName := lvReportData[selectedRow].Hotstring
 
    ; Make backup if checkbox is checked  
-   myLogFileBaseName := StrSplit(myLogFile, ".")[1]
    If (BUchkBox.Value = 1)
-      FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BU-' A_Now '.txt', 1)
+      FileCopy(MCLogFile, myLogFileBaseName '-BU-' A_Now '.txt', 1)
 
    ; Append to autocorrect library
-   FileAppend("`n" selItemName, myAutoCorrectLibrary)
-   
-   MsgBox("Item appended to library: " selItemName)
+   If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
+      Run myACFileBaseName ".exe /script " myAutoCorrectScript " " selItemName
+   Else ; Otherwise, just append to bottom. 
+   {
+      FileAppend("`n" selItemName, myAutoCorrectLibrary)
+      MsgBox("Item appended to library: " selItemName)
+   }
    
    If KeepReportOpen = 1
       cl.Show() ; Show gui form again.
@@ -513,13 +543,11 @@ AppendOnlyFunc(*) {
 ; The last loop goes through the list of "old singletons" and removes each from the log file.  
 ; The old log file list deleted, and a new one made.  
 RemoveOldFunc(Report,*) {
-   Result := MsgBox( "Pressing OK will immediately remove all logged items that are older than " AgeOfOldSingles " days, and have only one occurence.  There is no undo. But a backup of " myLogFile " will be made automatically.`n`nContinue?`n`n(Note: The number of days `'" AgeOfOldSingles "`' can be changed near the top of the " A_ScriptName " code.)","Remove Old Singles" , 32+1)
+   Result := MsgBox( "Pressing OK will immediately remove all logged items that are older than " AgeOfOldSingles " days, and have only one occurence.  There is no undo. But a backup of " MCLogFile " will be made automatically.`n`nContinue?`n`n(Note: The number of days `'" AgeOfOldSingles "`' can be changed near the top of the " A_ScriptName " code.)","Remove Old Singles" , 32+1)
    if (Result = "OK") { ; User pressed OK button.
-      ;MsgBox "### this area under construction ###"
       cl.Destroy()
       Singletons := "", oldItems := "", oldSingletons := "", oldSinsRemoved := 0
       Global origAllStrs
-      myLogFileBaseName := StrSplit(myLogFile, ".")[1] ; Used for making back up, below. 
       
       For item in strSplit(Report, "`n") { ; Loop through frequency report. 
          If (SubStr(item, 1, 1) = 1) and (!IsNumber(SubStr(item, 2, 1))) ; Make a list of items with freq = 1, "singletons"
@@ -528,14 +556,15 @@ RemoveOldFunc(Report,*) {
 
       tooOld := FormatTime(DateAdd(A_Now, - AgeOfOldSingles, "Days"), "yyyyMMdd")  ; Get today's date.
       For item in StrSplit(origAllStrs, "`n") { ; Make list of items older than X days.
-         If  not IsNumber(SubStr(item, 1, 1))
+         trimmedItem := trim(item)  ; Remove leading/trailing spaces
+         If  not IsNumber(SubStr(trimmedItem, 1, 1))
             Continue
          Else {  
-            loopDay := StrReplace(SubStr(item, 1, 10), "-")
+            loopDay := StrReplace(SubStr(trimmedItem, 1, 10), "-")
             If Integer(tooOld) < Integer(loopDay)
                Continue
             Else
-               oldItems .= item "`n"
+               oldItems .= trimmedItem "`n"
          }
       }
 
@@ -556,10 +585,10 @@ RemoveOldFunc(Report,*) {
             oldSinsRemoved++
          }
          ;A_Clipboard := origAllStrs
-         FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BeforeRemovingOldSinglesBU-' A_Now '.txt', 1) ; Make a backup first.
+         FileCopy(MCLogFile, myLogFileBaseName '-BeforeRemovingOldSinglesBU-' A_Now '.txt', 1) ; Make a backup first.
          Sleep 500 ; Just to be safe. 
-         FileDelete myLogFile ; Delete the file so we can remake it.
-         FileAppend(origAllStrs, myLogFile) ; Remake the file with the (now culled) string.
+         FileDelete MCLogFile ; Delete the file so we can remake it.
+         FileAppend(origAllStrs, MCLogFile) ; Remake the file with the (now culled) string.
          MsgBox oldSinsRemoved " old single-occurence strings have been removed from " myLogFileBaseName ". A backup of the log was first made."
       }
    }
@@ -573,43 +602,41 @@ RemoveOldFunc(Report,*) {
 CullerAppender(*) { 
    newFileContent := "", selItemName := ""
    global trunkReport
-   global selectedItem := cl.Submit()
-   If selectedItem.RadioGrp = 0 { ; No radio button selected. 
+   global lv
+   
+   selectedRow := lv.GetNext(0)
+   If selectedRow = 0 { ; No ListView item selected. 
      MsgBox 'Nothing selected.'
       cl.Show() ; Show gui form again.
       Return   ; Abort function. 
    }
 
-   For cName in trunkReport 
-      If selectedItem.RadioGrp = A_Index 
-         selItemName := cName
-
-   selItemName := Trim(StrSplit(selItemName, " of ⟹ ")[2], "`n`r")
+   selItemName := lvReportData[selectedRow].Hotstring
 
    ; Always cull from log (since this is "Cull and Append")
-   for line in StrSplit(FileRead(myLogFile), "`n") { ; Process and remove duplicates.
+   for line in StrSplit(FileRead(MCLogFile), "`n") { ; Process and remove duplicates.
       If (inStr(line, selItemName))
          Continue
       Else
          newFileContent .= line "`n"
    }
    newFileContent := Trim(newFileContent, "`n ") "`n " ; Ensure exactly one empty line at the bottom. 
-   FileDelete myLogFile ; Delete the file so we can remake it.
-   FileAppend(newFileContent, myLogFile) ; Remake the file with the (now culled) string.
+   FileDelete MCLogFile ; Delete the file so we can remake it.
+   FileAppend(newFileContent, MCLogFile) ; Remake the file with the (now culled) string.
    
-   myLogFileBaseName := StrSplit(myLogFile, ".")[1]
    If (BUchkBox.Value = 1)
-      FileCopy(myLogFileBaseName '.txt', myLogFileBaseName '-BU-' A_Now '.txt', 1)
+      FileCopy(MCLogFile, myLogFileBaseName '-BU-' A_Now '.txt', 1)
    
    ; Always append to library (since this is "Cull and Append")
    If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
-   {  myACFileBaseName := StrSplit(myAutoCorrectScript, ".")[1]
       Run myACFileBaseName ".exe /script " myAutoCorrectScript " " selItemName
-   }
    Else ; Otherwise, just append to bottom. 
-      FileAppend("`n" selItemName, myAutoCorrectLibrary) ; Put culled item at bottom of ac file. 
+   {
+      FileAppend("`n" selItemName, myAutoCorrectLibrary) ; Put culled item at bottom of ac file.
+      MsgBox("Item appended to library and culled from log: " selItemName)
+   }
 
-   If KeepReportOpen = 1 ; Remove list after clicking 'Cull and Apend'?
+   If KeepReportOpen = 1 ; Remove list after clicking 'Cull and Append'?
       cl.Show() ; Show gui form again.
    Else {
       cl.Destroy() 

@@ -1,30 +1,22 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 10-25-2025 8:22am
+; Version: 10-27-2025 
 
 ;===============================================================================
 ;                         AutoCorrect System Module
 ;===============================================================================
 ; Master switch to enable/disable logging globally
-; Setting this to 0 will:
+; Setting this to 0 in the acSettings.ini file will:
 ; 1. Disable the autocorrection log (AutoCorrectsLog.txt)
 ; 2. Disable the backspace context logger (ErrContextLog.txt)
 ; 3. Skip all logging operations but maintain other functionality
 ; This can improve performance and reduce disk writes for users
 ; who don't need the logging features
 
-Global EnableLogging := 1   ; Main switch.
-
-;===============================================================================
-Global beepOnCorrection := 1        ; Beep when the f() function is used.
-Global precedingWordCount := 6      ; Cache this many words for context logging.
-Global followingWordCount := 4      ; Wait for this many additional words before logging.
-Global beepOnContexLog := 1         ; Beep when an "on BS" error is logged.
-;===============================================================================
 
 ; Logger file paths are set in Class Config in AutoCorrect2.ahk.
-If EnableLogging {
+If Config.EnableLogging {
     If not FileExist(Config.AutoCorrectsLogFile)
         FileAppend("This will be the log of all autocorrections.`n", Config.AutoCorrectsLogFile)
     If not FileExist(Config.ErrContextLog)
@@ -73,11 +65,11 @@ f(replace := "") {
     SendInput("{BS " (TrigLen - ignorLen) "}" replace endchar) ; Type replacement and endchar. 
     
     HSInputBuffer.Stop()
-    If (beepOnCorrection = 1)
+    If (Config.BeepOnAutoCorrection = 1)
         SoundBeep(900, 60) ; Notification of replacement.
         
     ; Only set up logging if it's enabled
-    if (EnableLogging = 1) {
+    if (Config.EnableLogging = 1) {
         SetTimer(keepText.bind(LastTrigger), -1)
         ; For onBsLogger function.
         Global IsRecent := 1 ; Set IsRecent, then change back in 1 second.
@@ -108,7 +100,7 @@ keepText(KeepForLog, *) {
 ; Backspace Context Logger
 ; Constantly keeps a cache of the last several words typed. If an autocorrection 
 ; is logged, and backspace is pressed within timeout, the cached words AND 
-; the next X words are logged to help identify misfires.
+; the next X words are logged to help identify misfires. Doesn't cache/log digits.
 ;===============================================================================
 class BackspaceContextLogger {
     static WordArr := []
@@ -118,11 +110,14 @@ class BackspaceContextLogger {
     static timeoutTimer := 0
     static bsih := 0
     static isRunning := false
+    static capturedTrigger := ""
+    static DebugMode := false
+    static DebugTimer := 0
     
     ; Start the logger
     static Start() {
         ; Don't start if logging is disabled globally
-        if (EnableLogging = 0)
+        if (Config.EnableLogging = 0)
             return
 
         if (this.isRunning)
@@ -137,59 +132,117 @@ class BackspaceContextLogger {
         SetTimer(() => this.LoggerLoop(), -50)
     }
     
+    ; ; Toggle debug mode on/off
+    ; static ToggleDebug() {
+    ;     this.DebugMode := !this.DebugMode
+        
+    ;     if (this.DebugMode) {
+    ;         ; Start debug tooltip updates every 500ms
+    ;         this.DebugTimer := ObjBindMethod(this, "UpdateDebugTooltip")
+    ;         SetTimer(this.DebugTimer, 500)
+    ;         ToolTip("DEBUG MODE ON - BackspaceContextLogger")
+    ;         SetTimer(() => ToolTip(), -2000)
+    ;     } else {
+    ;         ; Stop debug tooltip updates
+    ;         if (this.DebugTimer) {
+    ;             SetTimer(this.DebugTimer, 0)
+    ;             this.DebugTimer := 0
+    ;         }
+    ;         ToolTip()
+    ;     }
+    ; }
+    
+    ; ; Update debug tooltip with current state
+    ; static UpdateDebugTooltip() {
+    ;     if (!this.DebugMode)
+    ;         return
+        
+    ;     ; Build the preceding words display
+    ;     precedingWords := ""
+    ;     for word in this.WordArr {
+    ;         precedingWords .= word " "
+    ;     }
+    ;     if (precedingWords = "")
+    ;         precedingWords := "(none)"
+        
+    ;     debugText := "=== BackspaceContextLogger Debug ==="
+    ;         . "`nPreceding words: " precedingWords
+    ;         . "`nCaptured trigger: " this.capturedTrigger
+    ;         . "`nWaiting for extra: " (this.waitingForExtra ? "YES" : "NO")
+    ;         . "`nFollowing words captured: " this.extraWordsCount
+    ;         . "`nTo be logged: " (this.waitingForExtra ? "YES - collecting context" : "NO - caching only")
+        
+    ;     ToolTip(debugText)
+    ; }
+    
     ; Process and format the log entry
     static LogContent() {
-        ; Skip logging if globally disabled
-        if (EnableLogging = 0) {
+        try {
+            ; Skip logging if globally disabled
+            if (Config.EnableLogging = 0) {
+                this.waitingForExtra := false
+                this.extraWordsCount := 0
+                this.WordArr := []
+                this.capturedTrigger := ""
+                if (this.timeoutTimer) {
+                    SetTimer(this.timeoutTimer, 0)
+                    this.timeoutTimer := 0
+                }
+                return
+            }
+            if !this.waitingForExtra  ; Don't proceed if we're no longer waiting
+                return
+                
+            this.LogEntry := ""
+            For wArr in this.WordArr {
+                this.LogEntry .= wArr
+            }
+            
+            ; Format the log entry with nicer symbols
+            this.LogEntry := StrReplace(this.LogEntry, "]Space]", "] - ]")
+            this.LogEntry := StrReplace(this.LogEntry, "]Backspace]", "] < ]")
+            this.LogEntry := StrReplace(this.LogEntry, "[Space[", "[ - [")
+            this.LogEntry := StrReplace(this.LogEntry, "[Backspace[", "[ < [")
+            
+            ; Remove doubles
+            this.LogEntry := StrReplace(this.LogEntry, "[[", "[")
+            this.LogEntry := StrReplace(this.LogEntry, "]]", "]")
+            this.LogEntry := StrReplace(this.LogEntry, "  ", " ")
+
+            ; Create the log entry with date stamp
+            dateStamp := "`n" A_YYYY "-" A_MM "-" A_DD
+            
+            ; Use the captured trigger (not the current global one, which may have been overwritten)
+            formattedTrigger := StrReplace(this.capturedTrigger, "`n", "``n") ; Fix multiline triggers
+            
+            ; Add tabs based on length to align columns
+            tabs := StrLen(formattedTrigger) > 14 ? "`t" : "`t`t"
+            
+            ; Write to the log file
+            FileAppend(dateStamp " << " formattedTrigger tabs "---> " this.LogEntry, Config.ErrContextLog)
+            
+            ; Play sound notification if enabled
+            If (Config.beepOnContextLog = 1)
+                SoundBeep(600, 200), SoundBeep(400, 200)
+        }
+        catch as e {
+            FileAppend("Error in LogContent: " e.Message "`n", "..\Data\error_log.txt")
+        }
+        finally {
+            ; CRITICAL: Always reset state, even if there's an error
+            ; This prevents the logger from getting stuck in "waiting" mode
+            this.LogEntry := ""
             this.waitingForExtra := false
             this.extraWordsCount := 0
             this.WordArr := []
-            SetTimer(this.timeoutTimer, 0)
-            return
-        }
-        if !this.waitingForExtra  ; Don't proceed if we're no longer waiting
-            return
+            this.capturedTrigger := ""
             
-        this.LogEntry := ""
-        For wArr in this.WordArr {
-            this.LogEntry .= wArr
+            ; CRITICAL: Always cancel existing timeout timer
+            if (this.timeoutTimer) {
+                SetTimer(this.timeoutTimer, 0)
+                this.timeoutTimer := 0
+            }
         }
-        
-        ; Format the log entry with nicer symbols
-        this.LogEntry := StrReplace(this.LogEntry, "]Space]", "] - ]")
-        this.LogEntry := StrReplace(this.LogEntry, "]Backspace]", "] < ]")
-        this.LogEntry := StrReplace(this.LogEntry, "[Space[", "[ - [")
-        this.LogEntry := StrReplace(this.LogEntry, "[Backspace[", "[ < [")
-        
-        ; Remove doubles
-        this.LogEntry := StrReplace(this.LogEntry, "[[", "[")
-        this.LogEntry := StrReplace(this.LogEntry, "]]", "]")
-        this.LogEntry := StrReplace(this.LogEntry, "  ", " ")
-
-        ; Create the log entry with date stamp
-        dateStamp := "`n" A_YYYY "-" A_MM "-" A_DD
-        ; Use the global lastTrigger variable
-        global lastTrigger
-        formattedTrigger := StrReplace(lastTrigger, "`n", "``n") ; Fix multiline triggers
-        
-        ; Add tabs based on length to align columns
-        tabs := StrLen(formattedTrigger) > 14 ? "`t" : "`t`t"
-        
-        ; Write to the log file
-        FileAppend(dateStamp " << " formattedTrigger tabs "---> " this.LogEntry, Config.ErrContextLog)
-        
-        ; Play sound notification if enabled
-        If (beepOnContexLog = 1)
-            SoundBeep(600, 200), SoundBeep(400, 200)
-        
-        ; Reset state
-        this.LogEntry := ""
-        this.waitingForExtra := false
-        this.extraWordsCount := 0
-        this.WordArr := []
-        
-        ; Clear the timeout timer
-        SetTimer(this.timeoutTimer, 0)
     }
     
     ; The main logger loop
@@ -197,9 +250,23 @@ class BackspaceContextLogger {
         try {
             Loop {
                 try {
+                    ; CRITICAL FIX: Stop InputHook before restarting it
+                    ; This prevents state corruption from repeated Start/Wait calls on same object
+                    if (A_Index > 1) {
+                        try {
+                            this.bsih.Stop()
+                        }
+                        catch {
+                            ; If Stop() fails, create a new InputHook
+                            this.bsih := InputHook("B V I1 E", "{Space}{Backspace}{Tab}{Enter}")
+                        }
+                    }
+                    
+                    Sleep(5)  ; Brief pause to allow InputHook cleanup
+                    
                     this.bsih.Start()
                     this.bsih.Wait()
-                    
+
                     ; Skip digit-only input
                     If RegExMatch(this.bsih.Input, "\d")
                         continue
@@ -209,8 +276,12 @@ class BackspaceContextLogger {
                             this.extraWordsCount++
                             this.WordArr.Push(this.bsih.Input "]" this.bsih.EndKey "]")
                             
+                            ; Maintain limited history
+                            If (this.WordArr.Length > (Config.precedingWordCount + Config.followingWordCount))
+                                this.WordArr.RemoveAt(1)
+                            
                             ; Log when we have enough following words
-                            If (this.extraWordsCount > followingWordCount) {
+                            If (this.extraWordsCount > Config.followingWordCount) {
                                 this.LogContent()
                             }
                         }
@@ -219,12 +290,27 @@ class BackspaceContextLogger {
                         this.WordArr.Push(this.bsih.Input "[" this.bsih.EndKey "[")
                         
                         ; Maintain limited history
-                        If (this.WordArr.Length > precedingWordCount)
+                        If (this.WordArr.Length > Config.precedingWordCount)
                             this.WordArr.RemoveAt(1)
                             
                         ; Check if this is a backspace within a recent autocorrection
                         If (this.bsih.EndKey = "Backspace" && IsRecent = 1) {
                             this.waitingForExtra := true
+                            
+                            ; CAPTURE the trigger at this moment (before it gets overwritten by next autocorrection)
+                            global lastTrigger
+                            this.capturedTrigger := lastTrigger
+                            
+                            ; CRITICAL FIX: Cancel any existing timeout timer before creating new one
+                            ; This prevents unreferenced timer objects from accumulating
+                            if (this.timeoutTimer) {
+                                try {
+                                    SetTimer(this.timeoutTimer, 0)
+                                }
+                                catch {
+                                    ; Timer may have already fired; that's okay
+                                }
+                            }
                             
                             ; Set timeout to log after 8 seconds even if not enough words
                             this.timeoutTimer := ObjBindMethod(this, "LogContent")
@@ -233,8 +319,25 @@ class BackspaceContextLogger {
                     }
                 }
                 catch as e {
-                    ; If there's an error, log it and continue
+                    ; CRITICAL FIX: Reset state on error to prevent stuck state
+                    ; If we don't reset here, the logger could stay in "waiting" mode permanently,
+                    ; causing every subsequent keystroke to be logged
                     FileAppend("Error in BackspaceContextLogger loop: " e.Message "`n", "..\Data\error_log.txt")
+                    
+                    this.waitingForExtra := false
+                    this.extraWordsCount := 0
+                    this.WordArr := []
+                    this.capturedTrigger := ""
+                    if (this.timeoutTimer) {
+                        try {
+                            SetTimer(this.timeoutTimer, 0)
+                        }
+                        catch {
+                            this.timeoutTimer := 0
+                        }
+                        
+                    }
+                    
                     Sleep(100)
                 }
             }
@@ -246,6 +349,11 @@ class BackspaceContextLogger {
         }
     }
 }
+
+; ; DEBUG HOTKEY: Press Ctrl+Shift+D to toggle BackspaceContextLogger debug mode
+; ^+d::BackspaceContextLogger.ToggleDebug()
+
+
 
 ;================================================================================================
 /* InputBuffer Class by Descolada https://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865
@@ -372,8 +480,8 @@ global caller := ""
 StringAndFixReport(caller := "Button") {
     ; Handle different cases based on caller parameter
     if (caller = "lastTrigger") {
-        if (EnableLogging = 0) {
-            thisMessage := "*Logging is currently disabled*`nEnable logging by setting`nEnableLogging := 1`nin AutoCorrectSystem.ahk"
+        if (Config.EnableLogging = 0) {
+            thisMessage := "*Logging is currently disabled*`nEnable logging by setting`nConfig.EnableLogging := 1`nin AutoCorrectSystem.ahk"
         } else {
             thisMessage := "Last logged trigger:`n`n" lastTrigger
         }
@@ -502,9 +610,11 @@ fix_consecutive_caps() {
 			if (char3 ~= "[A-Z]")  ; If char is UPPERcase alpha.
 				Hotstring "Reset"
 			else if (char3 ~= "[a-z]")  ; If char is lowercase alpha.
-			|| (char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") ; <--- Remove this line to prevent correction of those 2-letter words.
+			|| ((char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") && Config.CapFixTwoLetterWords)
 			{	SendInput("{BS 2}" StrLower(char2) char3)
-				SoundBeep(800, 80) ; Case fix announcent. 
+                If Config.BeepOnCapFix {
+                    SoundBeep(800, 80) ; Case fix announcent. 
+                }
 			}
 		}
 	}
