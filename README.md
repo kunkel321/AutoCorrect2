@@ -7,9 +7,9 @@ _Stephen Kunkel (kunkel321)_
 - Run: AutoCorrect2\Core\AutoCorrect2.exe
 - Then press _Win+H_
 
-# Updating to October 1st version.  
+# Updating to November 6th version.  
 - You can use your existing HotstringLib.ahk file and log files.  Just be sure to put the log files in the AutoCorrect\Data\ folder and the HotstringLib.ahk file in AutoCorrect2\Core\.
-- Important: Please note that MCLog.txt has been renamed to ManualCorrectionLog.txt.
+- Many of the .ahk files now read from a common .ini file.
 
 # Contributors.
 It's worth noting that only one other person -- Robert -- has contributed code _via the GitHub push mechanism_, but many others have made **significant** contributions by other means (usually the AutoHotkey forums).  I'll list them here eventually, but they can also be found in the code comments of the various ahk files in the repository. 
