@@ -7,17 +7,12 @@ _Stephen Kunkel (kunkel321)_
 - Run: AutoCorrect2\Core\AutoCorrect2.exe
 - Then press _Win+H_
 
-# Updating to October 1st version.  
-- You can use your existing HotstringLib.ahk file and log files.  Just be sure to put the log files in the AutoCorrect\Data\ folder and the HotstringLib.ahk file in AutoCorrect2\Core\.
-- Important: Please note that MCLog.txt has been renamed to ManualCorrectionLog.txt.
+# Updating to November 6th version.  
+- You can use your existing HotstringLib.ahk file and log files.  Just be sure to put the log files in the AutoCorrect\Data\ folder and the HotstringLib.ahk file in AutoCorrect2\Core\. Many of the .ahk files now read from a common .ini file.  Because so many of the files have been updated, the rest of the package (other than lib and logs) should probably be replaced.
+
 
 # Contributors.
 It's worth noting that only one other person -- Robert -- has contributed code _via the GitHub push mechanism_, but many others have made **significant** contributions by other means (usually the AutoHotkey forums).  I'll list them here eventually, but they can also be found in the code comments of the various ahk files in the repository. 
-
-# March 6, 2025 Major Update...
-- The AutoCorrect2 code (which is mostly for HotstringHelper2) was very messy and "Frankensteinish" from evolving over the years.  I used Claude AI to totally refactor it, implementing best practice for code organization, naming conventions, etc.  The last parts of the script (loggers and inputBuffer class) are now a separate file that gets #Included.  So, _AutoCorrect2.ahk, AutoCorrectSystem.ahk, and HotstringLib.ahk_ must all be present for it to work. 
-# October 1, 2025 Update to Folder Structure...
-- The main folder was cluttered with tons of files, so I used Claude again to suggest the most sensible way to use subfolders.  The downside is that many of the tools call each other.  All those bits of code were easier when everything was in the same folder.  They now have to point to different locations.  I think I got it all working though.  I do think it is better organized like this.  None of the functionality of the tools was changed, though many folder paths in the code had to be updated.  
 
 # Hotstring Helper 2 – Quick Sheet
 ![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.png)
