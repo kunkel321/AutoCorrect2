@@ -1,114 +1,158 @@
-﻿#SingleInstance
-#Requires AutoHotkey v2+
+﻿;===============================================================================
+; CONFLICTING STRING LOCATOR 
+;                    a.k.a. DEAD STRING FINDER
+; Author: kunkel321 
+; Tool used: Claude AI
+; Updated: 11-08-2025
 ;===============================================================================
-; By kunkel321.  Updated: 9-28-2025
-; A script to find duplicate and conflicting beg/mid/end hotstring triggers. 
-; It should work with hotstrings that are formatted with f(), _HS(), or plain AHK hotstrings. 
-; Note: When correcting/culling your autocorrect library, remember that sometimes conflicting
-; autocorrect items can peacefully coexist... Read more in User Manual,  here
-; https://github.com/kunkel321/AutoCorrect2/tree/main/Documentation
-; Warning: Sloooww script....  Takes about 6 minutes for 5k lines of autocorrect items. 
+; Part of the AutoCorrect2 Suite of Tools.  Get new versions from 
+; github.com/kunkel321/autocorrect2
+; The Dead String Finder expects to find acSettings.ini, but your hotstrings don't
+; have to be wrapped in f() functions. 
 ;===============================================================================
 
-^Esc::ExitApp ; <----- Emergency kill switch is Ctrl+Esc.  ; hide
-;===============================================================================
+#SingleInstance
+#Requires AutoHotkey v2+
+
+^Esc::ExitApp ; Emergency kill switch
 
 settingsFile := "..\Data\acSettings.ini"
-; Verify settings file exists
 if !FileExist(settingsFile) {
-	MsgBox(settingsFile " was not found. Please run AutoCorrect2 first to create the file.")
+	MsgBox(settingsFile " was not found. Please run AutoCorrect2 first.")
 	ExitApp
 }
-targetFile := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\HotstringLib.ahk")
-fullList := Fileread(targetFile)
 
-; Pre-scan to find beginning and end of items to scan. 
-; lines at top of code.  Recommend not scanning 'nullifier' items, 'don't sort' items, 
-; nor '#HotIf' items.  (Hopefully those are all at the top, above your main list.)
-; Also Recommend not scanning diacritic items at bottom.  Just scan main list. 
+targetFile := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\HotstringLib.ahk")
+fullList := FileRead(targetFile)
+
+; Find line range to scan
 ACitemsStartAt := 0
 ACitemsEndAt := 0
-For line in StrSplit(fullList, "`n") {
+allLines := StrSplit(fullList, "`n")
+loop allLines.Length {
+	line := allLines[A_Index]
 	If InStr(line, "ACitemsStartAt := A_LineNumber + 3")
-		ACitemsStartAt := A_Index + 3 ; <--- "AutoCorrect Items Start At this line number."  Skip this many 
-	If InStr(line, "ACitemsEndAt := A_LineNumber - 3 ")
-		ACitemsEndAt := A_Index - 3 ; <--- "AutoCorrect Items End At this line number."  Skip the rest.
+		ACitemsStartAt := A_Index + 3
+	If InStr(line, "ACitemsEndAt := A_LineNumber - 3")
+		ACitemsEndAt := A_Index - 3
 }
-MsgBox "start line: " ACitemsStartAt "`nend line:  " ACitemsEndAt
 
-StartTime := A_TickCount 
-Opts:= "", Trig := ""
+StartTime := A_TickCount
 DupReport := "", BegReport := "", MidReport := "", EndReport := "", Count := 0
 Separator := "`n---------------------------------------`n"
-hsRegex := "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)" ; part of andymbody's regex
+hsRegex := "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)"
 
-TotalLines := StrSplit(fullList, "`n").Length ; Determines number of lines for Prog Bar range.
+; ===== PHASE 1: SINGLE-PASS EXTRACTION =====
+; Parse ALL lines once, extract and cache hotstring parts from regex matches
+TotalLines := allLines.Length
+hotstringData := []  ; Array to store: {opts, trig, line, index}
+
 rep := Gui()
 rep.Opt("-MinimizeBox +alwaysOnTop +Owner")
-MyProgress := rep.Add("Progress", "w400 h30 cGreen Range0-" . TotalLines, "0")
-rep.Title := MyProgress.Value
-rep.Title := "Lines of file remaining: "
+MyProgress := rep.Add("Progress", "w400 h30 cGreen Range0-" TotalLines, "0")
+rep.Title := "Extracting hotstring data..."
 rep.Show()
 
-loop parse fullList, "`n" {
-	If GetKeyState("Esc") { ; If Esc key is pressed. 
-        rep.Destroy() ; Remove progress bar.
-        Return ; Stop function
-    }
-	MyProgress.Value += 1
-	rep.Title := "Lines of file remaining: " (TotalLines - MyProgress.Value) " [Esc to stop]" ; For progress bar.
-	fullList := strReplace(fullList, A_LoopField, "xxxxxx",,,1) ; Redact the oLoop item we just checked, so we don't compare it again in a future inner loop.
-	If (A_Index < ACitemsStartAt) or (A_Index > ACitemsEndAt) or (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") 
-		Continue ; Skip if line number is too high/low, or line doesn't start with ":".  Ignore leading whitespace. 
-	oLoop :=  A_LoopField ; "o" for "outter"
-	oIdx := A_Index
-	if regexMatch(oLoop, hsRegex, &o) {
-		loop parse fullList, "`n" {
-			If (A_Index < ACitemsStartAt) or (A_Index > ACitemsEndAt) or (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") 
-				Continue ; Skip if line number is too high/low, or line doesn't start with ":".  Ignore leading whitespace. 
-			iLoop :=  A_LoopField ; "i" for "inner"
-			iIdx := A_Index
-			If regexMatch(iLoop, hsRegex, &i) {
-			;msgBox o.Opts " " o.Trig "`n---------`n" i.Opts " " i.Trig 
-				If (o.Trig = i.Trig) and (o.Opts = i.Opts) { ; Duplicates
-					DupReport .= Separator
-					DupReport .= "Line: " oIdx "`t`t" o.Trig (strLen(o.Trig)<8?"`t`t":"`t") oLoop "`n"
-					DupReport .= "-and: " iIdx "`t`t" i.Trig (strLen(i.Trig)<8?"`t`t":"`t") iLoop "`n"
-					Count++
-				}
-				Else If (InStr(i.Trig, o.Trig) and inStr(o.Opts, "*") and inStr(o.Opts, "?"))
-				|| (InStr(o.Trig, i.Trig) and inStr(i.Opts, "*") and inStr(i.Opts, "?")) { ; Word-Middle Matches
-					MidReport .= Separator
-					MidReport .= "Line: " oIdx "`t" strReplace(strReplace(o.Opts, "B0", ""),"X", "") "`t" o.Trig (strLen(o.Trig)<8?"`t`t":"`t") oLoop "`n"
-					MidReport .= "-and: " iIdx "`t" strReplace(strReplace(i.Opts, "B0", ""),"X", "") "`t" i.Trig  (strLen(i.Trig)<8?"`t`t":"`t") iLoop "`n"
-					Count++
-				}
-				Else If ((i.Trig = o.Trig) and inStr(i.Opts, "*") and inStr(o.Opts, "?"))
-				|| ((o.Trig = i.Trig) and inStr(i.Opts, "?") and inStr(o.Opts, "*")) ; Rule out: Same word, but beginning and end opts
-					Continue
-				Else If (inStr(i.Opts, "*") and i.Trig = subStr(o.Trig, 1, strLen(i.Trig)))
-				|| (inStr(o.Opts, "*") and o.Trig = subStr(i.Trig, 1, strLen(o.Trig))) { ; Word-Beginning Matches
-					BegReport .= Separator
-					BegReport .= "Line: " oIdx "`t" strReplace(strReplace(o.Opts, "B0", ""),"X", "") "`t" o.Trig (strLen(o.Trig)<8?"`t`t":"`t") oLoop "`n"
-					BegReport .= "-and: " iIdx "`t" strReplace(strReplace(i.Opts, "B0", ""),"X", "") "`t" i.Trig  (strLen(i.Trig)<8?"`t`t":"`t") iLoop "`n"
-					Count++
-				}
-				Else If (inStr(i.Opts, "?") and i.Trig = subStr(o.Trig, -strLen(i.Trig)))
-				|| (inStr(o.Opts, "?") and o.Trig = subStr(i.Trig, -strLen(o.Trig))) { ; Word-Ending Matches
-					EndReport .= Separator
-					EndReport .= "Line: " oIdx "`t" strReplace(strReplace(o.Opts, "B0", ""),"X", "") "`t" o.Trig (strLen(o.Trig)<8?"`t`t":"`t") oLoop "`n"
-					EndReport .= "-and: " iIdx "`t" strReplace(strReplace(i.Opts, "B0", ""),"X", "") "`t" i.Trig  (strLen(i.Trig)<8?"`t`t":"`t") iLoop "`n"
-					Count++
-				}
-			}
-			Else ; not a regex match, so go to next loop.
-				continue 
-		}
-	} 
-	;msgBox fullList
+loop TotalLines {
+	If GetKeyState("Esc") {
+		rep.Destroy()
+		ExitApp
+	}
+	
+	MyProgress.Value := A_Index
+	rep.Title := "Extracting: " A_Index "/" TotalLines
+	
+	lineNum := A_Index
+	line := allLines[lineNum]
+	
+	; Skip if outside range or doesn't start with ":"
+	if (lineNum < ACitemsStartAt) || (lineNum > ACitemsEndAt) || (SubStr(Trim(line, " `t"), 1, 1) != ":")
+		Continue
+	
+	; Parse regex once per line
+	if RegexMatch(line, hsRegex, &match) {
+		hotstringData.Push({
+			opts: match.Opts,
+			trig: match.Trig,
+			line: line,
+			index: lineNum
+		})
+	}
 }
 
-If (DupReport != "") ; Create headings only for needed parts. 
+; ===== PHASE 2: COMPARISON =====
+; Only compare each pair once using upper-triangle approach
+rep.Title := "Comparing hotstrings..."
+itemCount := hotstringData.Length
+totalExpectedComparisons := itemCount * (itemCount - 1) / 2  ; Total pairs to compare
+MyProgress.Opt("Range0-100") 
+
+loop itemCount {
+	If GetKeyState("Esc") {
+		rep.Destroy()
+		ExitApp
+	}
+	
+	oIdx := A_Index
+	oData := hotstringData[oIdx]
+	
+	; Update progress based on outer loop iteration
+	; Progress = how many comparisons done / total comparisons
+	; After oIdx iterations: sum from i=0 to oIdx-1 of (itemCount - i) comparisons
+	comparisonsDone := oIdx * itemCount - (oIdx * (oIdx - 1)) / 2
+	progressPercent := Round((comparisonsDone / totalExpectedComparisons) * 100)
+	
+	MyProgress.Value := progressPercent
+	rep.Title := "Comparing: " progressPercent "% [Esc to stop]"
+	
+	; Inner loop starts at oIdx+1 to avoid duplicate comparisons
+	loop itemCount - oIdx {
+		iIdx := oIdx + A_Index
+		iData := hotstringData[iIdx]
+		
+		; ===== CONFLICT DETECTION LOGIC =====
+		
+		; Check 1: Exact duplicates
+		if (oData.trig = iData.trig) && (oData.opts = iData.opts) {
+			DupReport .= Separator
+			DupReport .= "Line: " oData.index "`t`t" oData.trig (StrLen(oData.trig)<8?"`t`t":"`t") oData.line "`n"
+			DupReport .= "-and: " iData.index "`t`t" iData.trig (StrLen(iData.trig)<8?"`t`t":"`t") iData.line "`n"
+			Count++
+		}
+		; Check 2: Word-Middle conflicts
+		Else If (InStr(iData.trig, oData.trig) && InStr(oData.opts, "*") && InStr(oData.opts, "?"))
+		|| (InStr(oData.trig, iData.trig) && InStr(iData.opts, "*") && InStr(iData.opts, "?")) {
+			MidReport .= Separator
+			MidReport .= "Line: " oData.index "`t" StrReplace(StrReplace(oData.opts, "B0", ""),"X", "") "`t" oData.trig (StrLen(oData.trig)<8?"`t`t":"`t") oData.line "`n"
+			MidReport .= "-and: " iData.index "`t" StrReplace(StrReplace(iData.opts, "B0", ""),"X", "") "`t" iData.trig (StrLen(iData.trig)<8?"`t`t":"`t") iData.line "`n"
+			Count++
+		}
+		; Check 3: Skip if same trigger with beginning+ending (these can coexist)
+		Else If ((iData.trig = oData.trig) && InStr(iData.opts, "*") && InStr(oData.opts, "?"))
+		|| ((oData.trig = iData.trig) && InStr(iData.opts, "?") && InStr(oData.opts, "*")) {
+			Continue
+		}
+		; Check 4: Word-Beginning conflicts
+		Else If (InStr(iData.opts, "*") && iData.trig = SubStr(oData.trig, 1, StrLen(iData.trig)))
+		|| (InStr(oData.opts, "*") && oData.trig = SubStr(iData.trig, 1, StrLen(oData.trig))) {
+			BegReport .= Separator
+			BegReport .= "Line: " oData.index "`t" StrReplace(StrReplace(oData.opts, "B0", ""),"X", "") "`t" oData.trig (StrLen(oData.trig)<8?"`t`t":"`t") oData.line "`n"
+			BegReport .= "-and: " iData.index "`t" StrReplace(StrReplace(iData.opts, "B0", ""),"X", "") "`t" iData.trig (StrLen(iData.trig)<8?"`t`t":"`t") iData.line "`n"
+			Count++
+		}
+		; Check 5: Word-Ending conflicts
+		Else If (InStr(iData.opts, "?") && iData.trig = SubStr(oData.trig, -StrLen(iData.trig)))
+		|| (InStr(oData.opts, "?") && oData.trig = SubStr(iData.trig, -StrLen(oData.trig))) {
+			EndReport .= Separator
+			EndReport .= "Line: " oData.index "`t" StrReplace(StrReplace(oData.opts, "B0", ""),"X", "") "`t" oData.trig (StrLen(oData.trig)<8?"`t`t":"`t") oData.line "`n"
+			EndReport .= "-and: " iData.index "`t" StrReplace(StrReplace(iData.opts, "B0", ""),"X", "") "`t" iData.trig (StrLen(iData.trig)<8?"`t`t":"`t") iData.line "`n"
+			Count++
+		}
+	}
+}
+
+; Build final report
+If (DupReport != "")
 	DupReport := "Duplicates:" DupReport "`n"
 If (BegReport != "")
 	BegReport := "Beginnings:" BegReport "`n"
@@ -117,20 +161,20 @@ If (MidReport != "")
 If (EndReport != "")
 	EndReport := "Endings:" EndReport "`n"
 
-ElapsedTime := (A_TickCount - StartTime) / 1000 ; Calculate and format time taken. 
-ElapsedTime := "Found " Count " item pairs in " Round(ElapsedTime / 60) "-min " Round(mod(ElapsedTime, 60)) "-sec."
+ElapsedTime := (A_TickCount - StartTime) / 1000
+ElapsedTime := "Found " Count " item pairs in " Round(ElapsedTime / 60) "-min " Round(Mod(ElapsedTime, 60)) "-sec."
 
-rep.Destroy() ; Remove progress bar.
+rep.Destroy()
 
-FullReport := DupReport BegReport MidReport EndReport 
+FullReport := DupReport BegReport MidReport EndReport
 If FullReport = ""
 	FullReport := "No duplicate or conflicting hotstring pairs located."
 FullReport := ElapsedTime "`nLine`t`tOpt`tTrigger`t`tFull item`n=================================`n" FullReport
-Location := "..\..\Data\Conflict_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
-FileAppend FullReport, Location ; Save to text file, then open the file. 
-sleep 1000
+
+Location := "..\Data\Conflict_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
+FileAppend FullReport, Location
+Sleep 1000
 Run Location
-; msgbox FullReport
 
 SoundBeep 1800, 700
 SoundBeep 1200, 200
