@@ -66,7 +66,7 @@ class Config {
     static DefaultWidth := 366
     static HeightSizeIncrease := 300
     static WidthSizeIncrease := 400
-    static FocusReplacementByDefault := 1
+    static InitialFocusTarget := "auto"
 
     ; BoilerPlate Options
     static DefaultBoilerPlateOpts := ""
@@ -224,8 +224,11 @@ DefaultWidth=366
 ; Height/Width increase for larger boilerplate texts when 'Make Bigger' button is pressed.
 HeightSizeIncrease=300
 WidthSizeIncrease=400
-; Focus on Replacement field by default (1=yes, 0=focus on Trigger).
-FocusReplacementByDefault=1
+; Which field to focus on when HotstringHelper opens.
+; Options: "options", "trigger", "replacement", "comment", "auto"
+; "auto" chooses based on entry type: boilerplate -> replacement, autocorrect -> trigger, neither -> trigger
+; Invalid values default to "auto"
+InitialFocusTarget=auto
 ; Default hotstring options for boilerplate/template triggers.
 ; Prefix/Suffix for boilerplate triggers (leave blank for none)
 ; When creating an anagram for the boilerplate text...
@@ -346,7 +349,7 @@ keepComments=0
         this.DefaultWidth               := this.ReadIni("HotstringHelper", "DefaultWidth", 366)
         this.HeightSizeIncrease         := this.ReadIni("HotstringHelper", "HeightSizeIncrease", 300)
         this.WidthSizeIncrease          := this.ReadIni("HotstringHelper", "WidthSizeIncrease", 400)
-        this.FocusReplacementByDefault  := this.ReadIni("HotstringHelper", "FocusReplacementByDefault", 1)
+        this.InitialFocusTarget         := this.ReadIni("HotstringHelper", "InitialFocusTarget", "auto")
         ; BoilerPlate
         this.DefaultBoilerPlateOpts     := this.ReadIni("HotstringHelper", "DefaultBoilerPlateOpts", "")
         this.BoilerplatePrefix          := this.ReadIni("HotstringHelper", "BoilerplatePrefix", ";")
@@ -1068,10 +1071,34 @@ class UI {
 
     ; Set initial focus based on configuration
     static SetInitialFocus() {
-        if Config.FocusReplacementByDefault
-            this.Controls["ReplacementEdit"].Focus()
-        else
-            this.Controls["TriggerEdit"].Focus()
+        focusTarget := Config.InitialFocusTarget
+        
+        ; Validate the focus target - if invalid or empty, default to "auto"
+        if (focusTarget = "" || !InStr("options|trigger|replacement|comment|auto", focusTarget)) {
+            focusTarget := "auto"
+        }
+        
+        ; Determine which control to focus
+        switch focusTarget {
+            case "options":
+                this.Controls["OptionsEdit"].Focus()
+            case "trigger":
+                this.Controls["TriggerEdit"].Focus()
+            case "replacement":
+                this.Controls["ReplacementEdit"].Focus()
+            case "comment":
+                this.Controls["CommentEdit"].Focus()
+            case "auto":
+                ; Auto mode: choose based on entry type
+                if State.IsBoilerplate {
+                    ; Boilerplate entry - focus replacement
+                    this.Controls["TriggerEdit"].Focus()
+                }
+                else {
+                    ; AutoCorrect entry or undetermined - focus trigger
+                    this.Controls["ReplacementEdit"].Focus()
+                }
+        }
     }
 }
 
