@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-6-2025
+; Version: 11-8-2025
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -779,129 +779,120 @@ class UI {
         
         ; Add always-present buttons first
         this.controlButtons.Push({
-            text: "Open HotString Library", 
+            text: " Open HotString Library", 
             action: (*) => UIActions.OpenHotstringLibrary(),
-            icon: ""
+            icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
         })
         
         if (Config.EnableLogging = 1) {
             this.controlButtons.Push({
-                text: "Open AutoCorrection Log", 
+                text: " Open AutoCorrection Log", 
                 action: (*) => Run(Config.AutoCorrectsLogFile),
-                icon: ""
+                icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
-                text: "  Analyze AutoCorrection Log !^+Q", 
+                text: " Analyze AutoCorrection Log !^+Q", 
                 action: (*) => Run(Config.AcLogAnalyzer),
                 icon: A_ScriptDir "\..\Resources\Icons\AcAnalysis.ico"
             })
             
             this.controlButtons.Push({
-                text: "Open Backspace Context Log", 
+                text: " Open Backspace Context Log", 
                 action: (*) => Run(Config.ErrContextLog),
-                icon: ""
+                icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
-                text: "Open Removed HotStrings List", 
+                text: " Open Removed HotStrings List", 
                 action: (*) => Run(Config.RemovedHsFile),
-                icon: ""
+                icon: A_ScriptDir "\..\Resources\Icons\missing-Blue.ico"
             })
         }
         
         ; Add remaining buttons regardless of logging status
         this.controlButtons.Push({
-            text: "Open Manual Correction Log", 
+            text: " Open Manual Correction Log", 
             action: (*) => Run("..\Data\ManualCorrectionsLog.txt"),
-            icon: ""
+            icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
         })
         
         this.controlButtons.Push({
-            text: "  Analyze Manual Correction Log #^+Q", 
+            text: " Analyze Manual Correction Log #^+Q", 
             action: (*) => Run("MCLogger.exe /script MCLogger.ahk analyze"),
             icon: A_ScriptDir "\..\Resources\Icons\JustLog.ico"
         })
         
         this.controlButtons.Push({
-            text: "Report HotStrings and Potential Fixes", 
+            text:  "Report HotStrings and Potential Fixes", 
             action: (*) => StringAndFixReport(),
-            icon: ""
+            icon: A_ScriptDir "\..\Resources\Icons\report-Blue.ico"
         })
         
         this.controlButtons.Push({
-            text: "Configuration Settings Manager", 
+            text: " Configuration Settings Manager", 
             action: (*) => Run(Config.SettingsManager),
-            icon: ""
+            icon: A_ScriptDir "\..\Resources\Icons\settings-Blue.ico"
         })
         
         ; Check if Suggester tool is present, add button.
         if FileExist("..\Tools\Suggester.exe") {
             this.controlButtons.Push({
-                text: "Hotstring Suggester Tool", 
+                text: " Hotstring Suggester Tool", 
                 action: (*) => Run("..\Tools\Suggester.exe"),
-                icon: ""
+                icon: A_ScriptDir "\..\Resources\Icons\lightbulb-Blue.ico"
             })
         }
         
         ; Check if tool is present, add button.
         if FileExist("..\Tools\ExtractPotentialMisspellings.exe") {
             this.controlButtons.Push({
-                text: "Extract Potential Misspellings", 
+                text: " Extract Potential Misspellings", 
                 action: (*) => Run("..\Tools\ExtractPotentialMisspellings.exe"),
-                icon: ""
+                icon: A_ScriptDir "\..\Resources\Icons\tweezers-Blue.ico"
             })
         }
         
         ; Check if tool is present, add button.
         if FileExist("..\Tools\ConflictingStringLocator.exe") {
             this.controlButtons.Push({
-                text: "Conflicting String Locator Tool", 
+                text: " Conflicting String Locator Tool", 
                 action: (*) => Run("..\Tools\ConflictingStringLocator.exe"),
-                icon: ""
+                icon: A_ScriptDir "\..\Resources\Icons\conflict-Blue.ico"
             })
         }
         
         ; Check if tool is present, add button.
         if FileExist("..\Tools\UniqueStringExtractor.exe") {
             this.controlButtons.Push({
-                text: "Compare Two Versions of HotstringLib", 
+                text: " Compare Two Versions of HotstringLib", 
                 action: (*) => Run("..\Tools\UniqueStringExtractor.exe"),
-                icon: ""
+                icon: A_ScriptDir "\..\Resources\Icons\diff-files-Blue.ico"
             })
         }
         
         ; Check if tool is present, add button.
         if FileExist("..\Tools\Defunctionizer.exe") {
             this.controlButtons.Push({
-                text: "Defunctionize Hotstrings", 
+                text: " Defunctionize Hotstrings", 
                 action: (*) => Run("..\Tools\Defunctionizer.exe"),
-                icon: ""
-            })
-        }
-
-        ; Check if ExtractPotentialMisspellings tool is present, add button.
-        if FileExist("..\Tools\ExtractPotentialMisspellings.ahk") {
-            this.controlButtons.Push({
-                text: "Extract Potential Misspellings", 
-                action: (*) => Run("..\Tools\ExtractPotentialMisspellings.exe"),
-                icon: ""
+                icon: A_ScriptDir "\..\Resources\Icons\function-Blue.ico"
             })
         }
 
         ; Open github in web browser
         this.controlButtons.Push({
-            text: "  Go to GitHub Repository", 
+            text: " Go to GitHub Repository", 
             action: (*) => Run("https://github.com/kunkel321/AutoCorrect2"),
-            icon: A_ScriptDir "\..\Resources\Icons\GitHubLogo.ico"
+            icon: A_ScriptDir "\..\Resources\Icons\github-Blue.ico"
         })
 
         ; Check if color theme settings exist, add theme button if they do
         if FileExist("..\Data\colorThemeSettings.ini") {
             this.controlButtons.Push({
-                text: "  Change Color Theme", 
+                text: " Change Color Theme", 
                 action: (*) => Run("..\Tools\ColorThemeInt.exe /script ..\Tools\ColorThemeInt.ahk analyz"),
-                icon: A_ScriptDir "\..\Resources\Icons\msn butterfly.ico"
+                icon: A_ScriptDir "\..\Resources\Icons\color-Blue.ico"
             })
         }
         
@@ -1080,7 +1071,7 @@ class UI {
         if Config.FocusReplacementByDefault
             this.Controls["ReplacementEdit"].Focus()
         else
-            this.Controls["OptionsEdit"].Focus()
+            this.Controls["TriggerEdit"].Focus()
     }
 }
 
@@ -3163,46 +3154,46 @@ class HelpSystem {
                 case "Open AutoCorrection Log":
                     this.helpTexts["ControlButton_ACLog"] := "Opens the AutoCorrectsLog.txt file.`n`nThis log contains a record of all autocorrections made using the f() function, including whether a correction was backspaced, thus indicating a likely `"misfire`" of the item.`n`nThe date of each logged item is present and separated from the item with a hyphen.`n`n<< = Backspace was pressed within one second.`n-- = Backspace not pressed within one second.`n`nNote: The script can't detect exactly WHAT you backspaced, only that the BS was pressed within one second.  There is, however, a Backspace Context Log that tries to help with this.`n`nThe AC Log file is analyzed by ACLogAnalyer.  Manually handling the log file is usually not needed.  The reading and writing from it is all automated. `n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the AutoCorrectSystem.ahk file, and change Global EnableLogging := 1 to 0."
                     
-                case "  Analyze AutoCorrection Log !^+Q":
+                case " Analyze AutoCorrection Log !^+Q":
                     this.helpTexts["ControlButton_ACAnalyze"] := "Runs the AutoCorrection Log Analyzer tool.`n`nThis tool analyzes your autocorrection log to identify problematic autocorrect items that you frequently backspace after triggering.`n`nThe hotkey Alt+Ctrl+Shift+Q can also be used to launch this tool.`n`nThe most-frequent errant hotstrings are returned as radio buttons in a report.`n`nSeveral actions can be taken on an item."
                     
-                case "Open Backspace Context Log":
+                case " Open Backspace Context Log":
                     this.helpTexts["ControlButton_BSLog"] := "Opens the Error Context Log file.`n`nThis log contains detailed context information around autocorrection errors, showing what was typed before and after a problematic correction.`n`nThe context log items are accessed via the ACLogAnaylzer report, to help the user figure out why a particular AutoCorrect entry is problematic.`n`nIt is usually not necessary to access the log directly."
                     
-                case "Open Removed HotStrings List":
+                case " Open Removed HotStrings List":
                     this.helpTexts["ControlButton_RemovedHS"] := "Opens the RemovedHotstrings.txt file.`n`nThis file keeps track of hotstrings that have been removed in the past.`n`nThis helps prevent the user from inadvertently reintrocuding a hotstring that was found to be problematic in the past.`n`nThe HotstringHelper Validaton mechanism warns the user before appending a previously-removed string to the library.`n`nThe MCLogger will try not to log manual corrections that correspond to a hotstring that has been prevoiusly removed from the library."
                     
-                case "Open Manual Correction Log":
+                case " Open Manual Correction Log":
                     this.helpTexts["ControlButton_MCLog"] := "Opens the Manual Correction Log file.`n`nThis log contains records of corrections you've made manually, which might be candidates for new autocorrect entries.`n`nThe log is accessed by the Manual Correction Log Anayzer.`n`nIt is usually not necessary to access the log directly.`n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences."
                     
-                case "  Analyze Manual Correction Log #^+Q":
+                case " Analyze Manual Correction Log #^+Q":
                     this.helpTexts["ControlButton_MCAnalyze"] := "Runs the Manual Correction Log Analyzer tool.`n`nThis tool helps identify patterns in your manual corrections that might be good candidates for new autocorrect entries.`n`nThe hotkey Win+Ctrl+Shift+Q can also be used to start the analysis process.`n`nIt is recommended to have the logger run in the background, to `"catch`" your manual corrections.`n`nA sophisticated series of events is used for this.  Please see the AutoCorrect2 User Manual."
                     
-                case "Report HotStrings and Potential Fixes":
+                case " Report HotStrings and Potential Fixes":
                     this.helpTexts["ControlButton_Report"] := "Generates a report showing statistics about your hotstring library.`n`nThis includes counts of different types of autocorrect entries and the total number of potential word fixes.`n`nThe total `"Web Frequency`" total is given, though anaylyzing this total number is less imporant that anaylyzing the WF of particular individual hotstrings."
 
-                case "Configuration Settings Manager":
+                case " Configuration Settings Manager":
                     this.helpTexts["ControlButton_SettingsMan"] := "Runs the AutoCorrect2 Settings Manager Tool, which is a GUI-based tool for edting the user config initialization file, `"acSettings.ini`"."
                     
-                case "Hotstring Suggester Tool":
+                case " Hotstring Suggester Tool":
                     this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.  When creating a mult-match word middle AutoCorrect item via trimming the ends, it is possible to over-trim.  The Suggester tool helps you choose which letter to put back--that's why it was made.`n`nThe Suggester tool is usually accessed via Alt+Clicking the Append button, or via the ACLogAnalyer report, though you can run it directly, and type/paste in a hotstring."
                     
-                case "Extract Potential Misspellings":
+                case " Extract Potential Misspellings":
                     this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your HotstringLib.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work. The config options are in the .ahk file."
 
-                case "Conflicting String Locator Tool":
+                case " Conflicting String Locator Tool":
                     this.helpTexts["ControlButton_ConflictingStringLocator"] := "This runs an INTRA-script scan, checking for hotstrings in the main part of your " Config.HotstringLibrary " file that might conflict with each other. A report document is created in the \Data\ folder and the report is opened upon completion of the scan.  It uses the same algorithms as the validiy tool.  It is thorough and is slow.  Please see AutoCorrect2 User Manual for more information."
 
-                case "Compare Two Versions of HotstringLib":
+                case " Compare Two Versions of HotstringLib":
                     this.helpTexts["ControlButton_UniqueStringExtractor"] := "This runs an INTER-script scan to compare two versions of the hotstring library:`n`n" Config.HotstringLibrary "`n" Config.NewTemporaryHotstrLib "`n`nIt will alert the user of hotstrings that are unique to each version.  This is meant to facilitate merging two versions of the library. It is recommended to choose a convenient temporary name for one the new version, such as `"HotstringLib (1).ahk`" then program that into the acSettings.ini file (current name is shown above) and use the same temporary name each time.  The tool will default to those paths.  If either is not found, a file chooser dialog will appear. A report document is created in the \Data\ folder and the report is opened upon completion of the scan."
 
-                case "Defunctionize Hotstrings":
+                case " Defunctionize Hotstrings":
                     this.helpTexts["ControlButton_Defunctionizer"] := "This is for users who do not want their AutoCorrect items embedded in the f() function calls. The `"Defunctionizer`" tool removes them."
 
-                case "  Go to GitHub Repository":
+                case " Go to GitHub Repository":
                     this.helpTexts["ControlButton_GitHub"] := "Opens the GitHub repository for this tool, in your default web browswer."
                     
-                case "  Change Color Theme":
+                case " Change Color Theme":
                     this.helpTexts["ControlButton_Theme"] := "Opens the Color Theme Integrator customization tool.`n`nThis allows you to change the colors of the HotstringHelper interface (as well as other apps) to match your preferences.  See the ColorThemeInt.ahk code to customize which apps (other than these in the AutoCorrect2 repository) should get colorized."
             }
         }
