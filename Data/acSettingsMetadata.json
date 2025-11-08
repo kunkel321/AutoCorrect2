@@ -1,6 +1,6 @@
 {
   "_Information": "This is the metadata file for the acSettingManger tool, which is part of the AutoCorrect2 package available from https://github.com/kunkel321/AutoCorrect2",
-  "_Version_Date" : "11-5-2025",
+  "_Version_Date" : "11-8-2025",
   "Files.HotstringLibrary": {
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.",
@@ -104,7 +104,8 @@
     "options": [
       "0=Disabled",
       "1=Enabled"
-    ]
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.CODE_ERROR_LOG": {
     "label": "Error Logging",
@@ -113,27 +114,31 @@
     "options": [
       "0=Disabled",
       "1=Enabled"
-    ]
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.ActivationHotkey": {
     "label": "Activation Hotkey",
     "help": "Define the hotkey combination to open HotstringHelper. Examples: #h (Win+H), ^+h (Ctrl+Shift+H), F12",
     "type": "hotkey",
-    "default": "#h"
+    "default": "#h",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.DefaultFontSize": {
     "label": "Default Font Size",
     "help": "Font size (in points) for normal text in the HotstringHelper window and several other tools. Usually 10-12. Don't include the 's' at the beginning.",
     "type": "integer",
     "min": 8,
-    "max": 13
+    "max": 13,
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.LargeFontSize": {
     "label": "Large Font Size",
     "help": "Font size (in points) for when Trigger and Replacement boxes are toggled to 'large'.  Also used for Validity report dialog, several message boxes and several other apps.  Usually 2-4 points larger than default.  Don't include the 's' at the beginning.",
     "type": "integer",
     "min": 8,
-    "max": 16
+    "max": 16,
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.DefaultWidth": {
     "label": "Default Window Width",
@@ -141,7 +146,8 @@
     "type": "integer",
     "min": 366,
     "max": 1000,
-    "default": "366"
+    "default": "366",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.HeightSizeIncrease": {
     "label": "Height Increase",
@@ -149,7 +155,8 @@
     "type": "integer",
     "min": 0,
     "max": 600,
-    "default": "300"
+    "default": "300",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.WidthSizeIncrease": {
     "label": "Width Increase",
@@ -157,35 +164,37 @@
     "type": "integer",
     "min": 0,
     "max": 600,
-    "default": "400"
+    "default": "400",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
-  "HotstringHelper.FocusReplacementByDefault": {
-    "label": "Focus Replacement by Default",
-    "help": "If enabled (1), the cursor will start in the 'Replacement' text box when HotstringHelper opens. If disabled (0), cursor starts in 'Trigger' box.",
-    "type": "boolean",
-    "options": [
-      "0=Trigger field",
-      "1=Replacement field"
-    ]
+  "HotstringHelper.InitialFocusTarget": {
+    "label": "HH Box Default Focus",
+    "help": "In the HotstringHelper dialog, which editBox should be focused by default?  Set it to one of: options, trigger, replacement, comment, auto.\n\nIf auto is selected, HH will attempt to focus the replacement box if an AutoCorrect item is detected, or the trigger box if a Boilerplate template item is detected.",
+    "type": "list",
+    "validation": "options|trigger|replacement|comment|auto",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.DefaultBoilerPlateOpts": {
     "label": "Default Boilerplate Options",
     "help": "AHK trigger hotstring options applied when Hotstring Helper detect a boilerplate/template. Leave blank for none. Example: B0",
     "type": "text",
     "default": "",
-    "validation": "(\\*|B0|\\?|SI|C|K[0-9]{1,3}|SE|X|SP|O|R|T)"
+    "validation": "(\\*|B0|\\?|SI|C|K[0-9]{1,3}|SE|X|SP|O|R|T)",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.BoilerplatePrefix": {
     "label": "Boilerplate Prefix",
     "help": "Prefix character/text added to boilerplate anagram triggers to distinguish them.",
     "type": "text",
-    "default": ""
+    "default": "",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.BoilerplateSuffix": {
     "label": "Boilerplate Suffix",
     "help": "Suffix character/text added to boilerplate anagrams. Leave blank for none.",
     "type": "text",
-    "default": ""
+    "default": "",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.FirstLettersToInclude": {
     "label": "First Letters to Include",
@@ -193,7 +202,8 @@
     "type": "integer",
     "min": 1,
     "max": 10,
-    "default": "5"
+    "default": "5",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.MinWordLength": {
     "label": "Minimum Word Length",
@@ -201,7 +211,8 @@
     "type": "integer",
     "min": 1,
     "max": 10,
-    "default": "2"
+    "default": "2",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.MakeFuncByDefault": {
     "label": "Make Function by Default",
@@ -210,13 +221,15 @@
     "options": [
       "0=Vanilla hotstrings",
       "1=Use f() function"
-    ]
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.DefaultAutoCorrectOpts": {
     "label": "Default AutoCorrect Options",
     "help": "AHK hotstring options applied to AutoCorrect entries. If MakeFuncByDefault = 1, then these default opts should include B0X (B zero for no backspace, X for execute function). See AHK docs for all options.",
     "type": "text",
-    "default": "B0X"
+    "default": "B0X",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.AutoCommentWithFreqAndStats": {
     "label": "Auto-Comment with Frequency",
@@ -225,7 +238,8 @@
     "options": [
       "0=No comments",
       "1=Add comments"
-    ]
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.AutoEnterNewEntry": {
     "label": "Auto-Enter New Entry",
@@ -234,7 +248,8 @@
     "options": [
       "0=Disabled",
       "1=Auto-type"
-    ]
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.EnableLogging": {
     "label": "Enable Logging",
@@ -243,7 +258,8 @@
     "options": [
       "0=Disable AutoCorrection Logging",
       "1=Enable AutoCorrection Logging"
-    ]
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.BeepOnCorrection": {
     "label": "Beep on Correction",
@@ -252,7 +268,8 @@
     "options": [
       "0=Silent",
       "1=Beep"
-    ]
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.BeepOnContextLog": {
     "label": "Beep on Context Log",
@@ -261,46 +278,53 @@
     "options": [
       "0=Silent",
       "1=Beep"
-    ]
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.PrecedingWordCount": {
     "label": "Preceding Word Count",
     "help": "Number of words to keep cached before the autocorrection to capture in context logging. Used to understand what the user was typing when the errant autocorrection occured.  Note: digits and symbols other than period are ignored and never cached.",
     "type": "integer",
     "min": 0,
-    "max": 20
+    "max": 20,
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.FollowingWordCount": {
     "label": "Following Word Count",
     "help": "Number of words after the autocorrection to wait for and capture in context logging.  Used to understand what the user was typing when the errant autocorrection occured.  Note: digits and symbols other than period are ignored and never cached.",
     "type": "integer",
     "min": 0,
-    "max": 20
+    "max": 20,
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.FollowingWordTimeout": {
     "label": "Following Word Timeout",
     "help": "Maximum number of seconds to wait for following words to be typed before stopping context capture.",
     "type": "integer",
     "min": 1,
-    "max": 60
+    "max": 60,
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.AppSkiplist": {
     "label": "App Skiplist",
     "help": "Comma-separated list of executable names where AutoCorrect should NOT run.\n\nDo not include spaces after commas.\nThis:\tRoblox.exe,PipeWalker.exe\nNot this:\tRoblox.exe, PipeWalker.exe",
     "type": "text",
-    "default": ""
+    "default": "",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.BeepOnCapFix": {
     "label": "Beep on Cap Fix",
     "help": "If enabled, a beep sounds when ACcidental DOuble CAps are fixed.",
     "type": "boolean",
-    "default": ""
+    "default": "",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.CapFixTwoLetterWords": {
     "label": "Auto Fix Double Caps on Two Letter Words",
     "help": "If enabled, ACcidental DOuble CAps are fixed for common two-letter words (e.g. TO --> To).  Can be super-annoying for people who work in IT. ",
     "type": "boolean",
-    "default": ""
+    "default": "",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "MCLogger.ShowEachHotString": {
     "label": "Show Each Hotstring",
@@ -309,7 +333,8 @@
     "options": [
       "0=Silent",
       "1=Show tooltip"
-    ]
+    ],
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.BeepEachHotString": {
     "label": "Beep Each Hotstring",
@@ -318,21 +343,24 @@
     "options": [
       "0=Silent",
       "1=Beep"
-    ]
+    ],
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.SaveIntervalMinutes": {
     "label": "Save Interval (Minutes)",
     "help": "MCLogger collects patterns in RAM and saves to disk at this interval. Smaller = more frequent saves.",
     "type": "integer",
     "min": 1,
-    "max": 120
+    "max": 120,
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.IntervalsBeforeStopping": {
     "label": "Intervals Before Stopping",
     "help": "Stop collecting if no new pattern matches for this many save intervals. Collection auto-restarts on next manual correction.",
     "type": "integer",
     "min": 1,
-    "max": 20
+    "max": 20,
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.SendToHH": {
     "label": "Send to HotstringHelper",
@@ -341,19 +369,22 @@
     "options": [
       "0=Append to directly to Library",
       "1=Send to HotstringHelper"
-    ]
+    ],
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.RunAnalysisHotkey": {
     "label": "Run Analysis Hotkey",
     "help": "Hotkey to open and run analysis of the MCLogger manual correction log.",
     "type": "hotkey",
-    "default": "#^+q"
+    "default": "#^+q",
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.SneakPeekHotkey": {
     "label": "Sneak Peek Hotkey",
     "help": "Hotkey to get a quick preview/peek at the current MCLogger cached character presses and the captured hotstrings that are due to be logged at the next save interval.",
     "type": "hotkey",
-    "default": "#+q"
+    "default": "#+q",
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.SaveFullToClipboard": {
     "label": "Save Full to Clipboard",
@@ -362,14 +393,16 @@
     "options": [
       "0=Disabled",
       "1=Copy to clipboard"
-    ]
+    ],
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.AgeOfOldSingles": {
     "label": "Age of Old Singles",
     "help": "It's not a filter for a dating website...  When removing old single-occurrence items from the Mannual Correction Log, only remove hotstrings older than this many days.",
     "type": "integer",
     "min": 30,
-    "max": 365
+    "max": 365,
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.KeepReportOpen": {
     "label": "Keep Report Open",
@@ -378,7 +411,8 @@
     "options": [
       "0=Close after each action",
       "1=Keep open"
-    ]
+    ],
+    "restart": "..\\Core\\MCLogger.exe"
   },
   "ACLogAnalyzer.FreqImportance": {
     "label": "Frequency Importance Weight",
