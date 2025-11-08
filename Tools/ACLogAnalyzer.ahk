@@ -208,34 +208,47 @@ class ACLogAnalyzer {
     static ProcessLines(allStrings, totalLines, progressObj) {
         report := ""
         try {
+            ; Create a Map to store tally data: Map key is hotstring, value is {bs: count, ok: count}
+            tallyMap := Map()
+            lineCount := 0
+            
+            ; SINGLE PASS - Process each line once
             Loop Parse allStrings, "`n`r" {
-                progressObj.progress.Value += 1
-                progressObj.gui.Title := progressObj.reportType " autocorrects.  Percent complete: " Round((progressObj.progress.Value/totalLines)*100) "%."
+                lineCount++
+                progressObj.progress.Value := lineCount
                 
                 ; Skip lines before start line
                 if (A_Index < this.Config.StartLine)
                     continue
                 
-                oStr := SubStr(A_LoopField, 15)
-                okTally := 1, bsTally := 1  ; Start at 1 to avoid division by zero
+                progressObj.gui.Title := progressObj.reportType " autocorrects.  Percent complete: " Round((progressObj.progress.Value/totalLines)*100) "%."
                 
-                Loop Parse allStrings, "`n`r" {
-                    iStr := SubStr(A_LoopField, 15)
-                    if (iStr = oStr) {
-                        if (SubStr(A_LoopField, 12, 2) = "--")
-                            okTally++
-                        if (SubStr(A_LoopField, 12, 2) = "<<")
-                            bsTally++
-                    }
+                ; Extract the hotstring and action type from this line
+                hotstring := SubStr(A_LoopField, 15)
+                actionType := SubStr(A_LoopField, 12, 2)  ; "--" or "<<"
+                
+                ; Initialize entry in map if not exists
+                if (!tallyMap.Has(hotstring)) {
+                    tallyMap[hotstring] := {bs: 0, ok: 0}
                 }
                 
-                reportLine := this.FormatReportLine(bsTally, okTally, oStr)
+                ; Increment appropriate counter
+                if (actionType = "--")
+                    tallyMap[hotstring].ok++
+                else if (actionType = "<<")
+                    tallyMap[hotstring].bs++
+            }
+            
+            ; BUILD REPORT from the Map - no duplicates, all counts accurate
+            for hotstring, tallies in tallyMap {
+                bsTally := tallies.bs
+                okTally := tallies.ok
+                
+                reportLine := this.FormatReportLine(bsTally, okTally, hotstring)
                 if (reportLine)
                     report .= reportLine
-                
-                ; Replace processed strings to avoid duplicates
-                allStrings := StrReplace(allStrings, oStr, "Cap fix")
             }
+            
         } catch Error as err {
             LogError("Error processing log lines: " err.Message)
             MsgBox("Error processing log lines: " err.Message)
