@@ -2,11 +2,167 @@
 #SingleInstance Force
 
 ; ============================================================================
-; AutoCorrect2 Settings Manager - Standalone Application
-; Version: 1.0 | Date: 2025-11-02
+; Settings Manager - Standalone GUI for editing INI configuration files
+; Version: 11-8-2025
 ; 
-; A dedicated GUI application for editing AutoCorrect2 Suite INI settings
-; Run this independently to view/edit all configuration settings
+; A dedicated GUI application for viewing and editing INI settings with
+; metadata-driven features like validation, custom types, and helpful descriptions.
+;
+; QUICK START FOR YOUR OWN PROJECT:
+; ============================================================================
+; 1. UPDATE CONFIGURATION (see below):
+;    - Change AppName, IniFileName, MetadataFileName, and ExpectedDataDir
+;    - Point to your existing INI file location
+;
+; 2. RUN THE SCRIPT:
+;    - If metadata file doesn't exist, the script will offer to generate
+;      a skeleton JSON based on your INI sections and keys
+;    - Click "Yes" to auto-generate the skeleton
+;    - File will be created in Data Dir.
+;
+; 3. CUSTOMIZE THE METADATA:
+;    - Open the generated JSON file in a text editor (VSCode recommended)
+;    - For each setting, add meaningful labels, help text, and set the type
+;    - See METADATA REFERENCE section below for all options
+;
+; ============================================================================
+; METADATA REFERENCE - Supported Field Types
+; ============================================================================
+;
+; TEXT Type (default):
+;   {
+;     "label": "Setting Name",
+;     "help": "Description of this setting that appears in the help pane",
+;     "type": "text",
+;     "validation": "(optional) regex pattern for validation"
+;   }
+;   Example: validation: "^[A-Za-z0-9_-]+$"
+;
+; INTEGER Type:
+;   {
+;     "label": "Setting Name",
+;     "help": "Description",
+;     "type": "integer",
+;     "min": 0,
+;     "max": 100
+;   }
+;
+; BOOLEAN Type:
+;   {
+;     "label": "Setting Name",
+;     "help": "Description",
+;     "type": "boolean",
+;     "options": [
+;       "0=Disabled",
+;       "1=Enabled"
+;     ]
+;   }
+;   Note: Values must be 0 or 1. Customize option labels as needed.  
+;
+; FILE Type:
+;   {
+;     "label": "Setting Name",
+;     "help": "Description",
+;     "type": "file",
+;     "filter": "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+;   }
+;   Note: Uses Windows file picker. Filter format: "Description|*.ext|..."
+;
+; COLOR Type:
+;   {
+;     "label": "Setting Name",
+;     "help": "Description (hex colors like b8f3ab)",
+;     "type": "color"
+;   }
+;   Note: Uses Windows color picker. User selects color graphically.
+;
+; HOTKEY Type:
+;   {
+;     "label": "Setting Name",
+;     "help": "Description",
+;     "type": "hotkey"
+;   }
+;   Example values: #h (Win+H), ^+h (Ctrl+Shift+H), F12
+;   Tip: Check Win Key checkbox for # prefix
+;
+; LIST Type:
+;   {
+;     "label": "Setting Name",
+;     "help": "Description (select from list of options)",
+;     "type": "list",
+;     "validation": "option1|option2|option3|..."
+;   }
+;   Note: Uses a ListBox dialog. Items are pipe-delimited in validation field.
+;   Example validation: "options|trigger|replacement|comment|auto"
+;
+; ============================================================================
+; METADATA FEATURES
+; ============================================================================
+;
+; COMMON FIELDS (all types):
+;   - "label": Display name in settings list
+;   - "help": Help text shown in the help pane
+;   - "type": One of: text, integer, boolean, file, color, hotkey, list
+;   - "default": (optional) Default value if key missing from INI
+;   - "restart": (optional) Path to executable to restart when this setting changes
+;
+; RESTART FIELD (all types - optional):
+;   - "restart": Path to an executable that should be restarted after this setting is saved
+;   - Can be relative path (e.g., "..\\Core\\AutoCorrect2.exe") or absolute path
+;   - When user saves a setting with a restart field, SettingsManager will prompt to restart
+;   - Multiple settings can reference the same app - it will only restart once
+;   - Example: "restart": "..\\Core\\AutoCorrect2.exe"
+;
+; VALIDATION (text type):
+;   - "validation": Regex pattern that value must match
+;   - Invalid entries will show rejected characters and the pattern
+;   - Example: "validation": "(\\*|B0|\\?|SI|C)"
+;   Note: Backslashes in JSON must be escaped (\\)
+;
+; VALIDATION (list type):
+;   - "validation": A pipe-separated list
+;   - The edit dialog will use the list in a listBox
+;   - Example: validation: "options|trigger|replacement|comment|auto"
+;   Note: Backslashes in JSON must be escaped (\\)
+;
+; OPTIONS (boolean type):
+;   - "options": Array of "0=Label" and "1=Label" strings
+;   - Customizes the radio button text in the edit dialog
+;   - Example: ["0=Off", "1=On"]
+;
+; RANGES (integer type):
+;   - "min": Minimum allowed value
+;   - "max": Maximum allowed value
+;   - Invalid entries will be rejected with range shown
+;
+; ============================================================================
+; SPECIAL FEATURES
+; ============================================================================
+;
+; MULTI-LINE HELP TEXT:
+;   Use \n for newlines in JSON strings (shown on separate lines in help pane)
+;   Example: "help": "Line 1\nLine 2\nLine 3"
+;
+; AUTO-DETECTION:
+;   - Values "0" or "1" are auto-detected as boolean type in skeleton 
+;   - All other values default to "text" type
+;   - Change types manually afterward as needed
+;
+; COMMENTS IN JSON:
+;   - Add a "_Comment" key with instructions for users
+;   - Skeleton generation includes a helpful comment automatically
+;   - Safe to remove if not needed
+;
+; ============================================================================
+; EDITING WORKFLOW
+; ============================================================================
+;
+; 1. DOUBLE-CLICK any row in the settings list to edit
+; 2. RIGHT-CLICK to copy the value to clipboard
+; 3. RELOAD button: Revert unsaved changes
+; 4. SAVE button: Write changes to INI file
+; 5. OPEN INI FILE button: Open with default editor
+;
 ; ============================================================================
 
 ; ============================================================================
@@ -403,6 +559,79 @@ EditText(section, key, originalValue) {
     editGui.Show("w400 h200")
 }
 
+EditList(section, key, originalValue) {
+    global mainGui, allSettings, isDirty, lvSettings, DefaultFontSize, FormColor, FontColor, ListColor, settingsMetadata
+    
+    ; Get metadata to retrieve the list items
+    metadata := GetMetadata(section, key)
+    
+    if (!metadata.Has("validation") || metadata["validation"] = "") {
+        MsgBox("List type requires a 'validation' field with pipe-delimited items", "Configuration Error", "Iconx Owner" mainGui.Hwnd)
+        return
+    }
+    
+    ; Parse the pipe-delimited items
+    validationStr := metadata["validation"]
+    listItems := StrSplit(validationStr, "|")
+    
+    ; Create the dialog
+    editGui := Gui()
+    editGui.Opt("+AlwaysOnTop +Owner" mainGui.Hwnd)
+    editGui.Title := "Select from List"
+    editGui.BackColor := FormColor
+    editGui.SetFont(DefaultFontSize " " FontColor)
+    
+    editGui.Add("Text", "x10 y10 w350 h20", section "." key)
+    editGui.Add("Text", "x10 y35 w350 h20", "Select an option:")
+    
+    ; Create ListBox with the items
+    listBox := editGui.Add("ListBox", "x10 y60 w350 h150 vSelectedItem Background" ListColor, listItems)
+    
+    ; Pre-select the current value if it exists in the list
+    if (originalValue != "") {
+        selectedIndex := 0
+        for i, item in listItems {
+            if (item = originalValue) {
+                selectedIndex := i
+                break
+            }
+        }
+        if (selectedIndex > 0) {
+            listBox.Value := selectedIndex
+        }
+    }
+    
+    btnOK := editGui.Add("Button", "x120 y220 w80 h30 Default", "OK")
+    btnCancel := editGui.Add("Button", "x210 y220 w80 h30", "Cancel")
+    
+    EditDlg_OK(GuiCtrlObj, Info) {
+        submitted := editGui.Submit(0)
+        
+        if (submitted.SelectedItem = "") {
+            MsgBox("Please select an item from the list", "No Selection", "Iconx Owner" mainGui.Hwnd)
+            return
+        }
+        
+        fullKey := section "." key
+        allSettings[fullKey] := submitted.SelectedItem
+        lvSettings.Modify(lvSettings.GetNext(0), , key, submitted.SelectedItem)
+        isDirty := true
+        
+        editGui.Destroy()
+        ToolTip("Setting updated")
+        SetTimer(() => ToolTip(), 1000)
+    }
+    
+    EditDlg_Cancel(GuiCtrlObj, Info) {
+        editGui.Destroy()
+    }
+    
+    btnOK.OnEvent("Click", EditDlg_OK)
+    btnCancel.OnEvent("Click", EditDlg_Cancel)
+    
+    editGui.Show("w370 h280")
+}
+
 ; ============================================================================
 ; JSON ESCAPE SEQUENCE PROCESSOR
 ; ============================================================================
@@ -435,9 +664,9 @@ GenerateMetadataSkeleton() {
     ; Add comment as first entry
     json .= "`n  " quote "_Comment" quote ": " quote 
     json .= "Please review and adjust field types as needed. Default type is 'text'. "
-    json .= "Change to: file, integer, boolean, color, or hotkey as appropriate. "
+    json .= "Change to: file, integer, boolean, color, hotkey, or list as appropriate. "
     json .= "Boolean types can have custom 0/1 labels. Text types can have regex validation rules. "
-    json .= "A sample JSON file can be found at https://github.com/kunkel321/AutoCorrect2 In the Data folder. "
+    json .= "List types require pipe-delimited options in the validation field. "
     json .= "Feel free to remove this _Comment if desired." quote
     isFirst := false
     
@@ -488,14 +717,14 @@ CheckAndGenerateMetadata(metadataPath) {
     
     if (fileInfo = "") {
         ; File doesn't exist
-        result := MsgBox("No metadata file found.`n`nWould you like to generate a skeleton metadata file`nbased on the sections and keys in your INI file?`n`nThe metadata file needs to be a .JSON file and needs assigned to the MetadatFileName variable at the top of the SettingsManager.ahk code. The file will be created in the same folder as your INI file.`n`nYou can then customize the labels and help text.",
+        result := MsgBox("No metadata file found.`n`nWould you like to generate a skeleton metadata file`nbased on the sections and keys in your INI file?`n`nThe metadata file will be a .JSON file and will be created`nin the same folder as your INI file.`n`nYou can then customize the labels and help text.",
             "Generate Metadata?", "YesNo Icon?")
         shouldGenerate := (result = "Yes")
     } 
     else if (fileInfo = "A") {
         ; File exists, check if it's empty
         if (FileGetSize(metadataPath) = 0) {
-            result := MsgBox("Metadata file is empty.`n`nWould you like to generate a skeleton in the file`nbased on the sections and keys in your INI file?`n`nYou can then customize the labels and help text.",
+            result := MsgBox("Metadata file is empty.`n`nWould you like to generate a skeleton metadata file`nbased on the sections and keys in your INI file?`n`nThe metadata file will be a .JSON file and will be created`nin the same folder as your INI file.`n`nYou can then customize the labels and help text.",
                 "Generate Metadata?", "YesNo Icon?")
             shouldGenerate := (result = "Yes")
         }
@@ -770,11 +999,12 @@ GetSectionSettings(section) {
 }
 
 SaveINIFile() {
-    global isDirty, iniPath, allSettings
+    global isDirty, iniPath, allSettings, originalSettings, mainGui
     
     try {
         output := ""
         sections := GetSections()
+        modifiedKeys := Array()  ; Track which keys were modified
         
         ; Read original file to preserve comments and structure
         if FileExist(iniPath) {
@@ -808,8 +1038,16 @@ SaveINIFile() {
                         fullKey := currentSection "." key
                         
                         if allSettings.Has(fullKey) {
+                            newValue := allSettings[fullKey]
+                            oldValue := originalSettings.Has(fullKey) ? originalSettings[fullKey] : ""
+                            
+                            ; Check if value changed
+                            if (newValue != oldValue) {
+                                modifiedKeys.Push(fullKey)
+                            }
+                            
                             ; Update with new value
-                            output .= key "=" allSettings[fullKey] "`n"
+                            output .= key "=" newValue "`n"
                             processedKeys[fullKey] := true
                         } else {
                             ; Keep original line
@@ -836,6 +1074,7 @@ SaveINIFile() {
                         }
                         
                         output .= key "=" value "`n"
+                        modifiedKeys.Push(fullKey)
                     }
                 }
             }
@@ -846,6 +1085,8 @@ SaveINIFile() {
                 settings := GetSectionSettings(section)
                 for key, value in settings {
                     output .= key "=" value "`n"
+                    fullKey := section "." key
+                    modifiedKeys.Push(fullKey)
                 }
                 output .= "`n"
             }
@@ -858,6 +1099,17 @@ SaveINIFile() {
         FileDelete(iniPath)
         FileAppend(output, iniPath)
         isDirty := false
+        
+        ; Synchronize originalSettings with the newly saved state
+        ; This ensures the next save compares against the previously-saved state
+        for key, value in allSettings {
+            originalSettings[key] := value
+        }
+        
+        ; Check for restart requirements
+        if (modifiedKeys.Length > 0) {
+            CheckAndHandleRestarts(modifiedKeys)
+        }
         
         return true
     } catch as err {
@@ -1122,6 +1374,8 @@ EditSetting(itemRow) {
             EditInteger(currentSection, key, originalValue)
         case "hotkey":
             EditHotkey(currentSection, key, originalValue)
+        case "list":
+            EditList(currentSection, key, originalValue)
         case "text":
             EditText(currentSection, key, originalValue)
         default:
@@ -1195,7 +1449,9 @@ Btn_Reload(GuiCtrlObj := "", Info := "") {
 Btn_Save(GuiCtrlObj := "", Info := "") {
     global mainGui
     if SaveINIFile() {
-        MsgBox("Settings saved successfully!", "Success", "Iconi Owner" mainGui.Hwnd)
+        ; Note: SaveINIFile now handles restart prompts internally
+        ToolTip("Settings saved successfully")
+        SetTimer(() => ToolTip(), 2000)
     }
 }
 
@@ -1210,6 +1466,90 @@ GUI_Close(GuiObj) {
     }
     
     ExitApp
+}
+
+CheckAndHandleRestarts(modifiedKeys) {
+    global mainGui, settingsMetadata
+    
+    appsToRestart := Array()
+    
+    ; Check metadata for each modified key
+    for fullKey in modifiedKeys {
+        ; Parse section and key from fullKey (format: "section.key")
+        parts := StrSplit(fullKey, ".")
+        if (parts.Length = 2) {
+            section := parts[1]
+            key := parts[2]
+            metadata := GetMetadata(section, key)
+            
+            ; Check if this setting requires a restart
+            if (metadata.Has("restart")) {
+                restartPath := metadata["restart"]
+                if (restartPath != "") {
+                    ; Check if we already have this path queued
+                    found := false
+                    for app in appsToRestart {
+                        if (app = restartPath) {
+                            found := true
+                            break
+                        }
+                    }
+                    if (!found) {
+                        appsToRestart.Push(restartPath)
+                    }
+                }
+            }
+        }
+    }
+    
+    ; If there are apps to restart, prompt user
+    if (appsToRestart.Length > 0) {
+        ShowRestartDialog(appsToRestart)
+    }
+}
+
+ShowRestartDialog(appsToRestart) {
+    global mainGui
+    
+    appList := ""
+    for app in appsToRestart {
+        if (appList != "") {
+            appList .= "`n"
+        }
+        appList .= "  • " app
+    }
+    
+    result := MsgBox("The following application(s) need to be restarted for changes to take effect:`n`n" 
+        . appList 
+        . "`n`nRestart now?", 
+        "Restart Required", 
+        "YesNo Icon! Owner" mainGui.Hwnd)
+    
+    if (result = "Yes") {
+        launchCount := 0
+        failedApps := Array()
+        
+        for app in appsToRestart {
+            try {
+                Run(app)
+                launchCount++
+            } catch as err {
+                failedApps.Push(app " (Error: " err.What ")")
+            }
+        }
+        
+        if (failedApps.Length > 0) {
+            failList := ""
+            for failApp in failedApps {
+                failList .= "  • " failApp "`n"
+            }
+            MsgBox("Successfully restarted: " launchCount " app(s)`n`nFailed to restart:`n" failList, 
+                "Restart Partial", "Iconx Owner" mainGui.Hwnd)
+        } else if (launchCount > 0) {
+            ToolTip("Application(s) restarted successfully")
+            SetTimer(() => ToolTip(), 2000)
+        }
+    }
 }
 
 ; ============================================================================
