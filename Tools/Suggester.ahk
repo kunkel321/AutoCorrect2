@@ -1,7 +1,7 @@
 ﻿/*
 =====================================================
             HOTSTRING SUGGESTER TOOL
-                Updated:  9-30-2025 
+                Updated:  11-9-2025 
 =====================================================
 Analyzes hotstrings and suggests lengthened/modified alternatives
 that might be better matches. This standalone tool can be called
@@ -23,17 +23,16 @@ Simply select an item, then activate HotStringHelper via hotkey #h.
 #Requires AutoHotkey v2+
 SetWorkingDir(A_ScriptDir) 
 
-TraySetIcon("imageres.dll",254) ; icon for 'add new column'
+TraySetIcon("..\Resources\Icons\lightbulb-Blue.ico") ; icon for 'add new column'
 
 ; ======= Configuration =======
 class Config {
     ; File paths
     static ScriptFiles := {
-        ACScript: "..\..\Core\AutoCorrect2.ahk",
-        HSLibrary: "..\..\Core\HotstringLib.ahk",
-        WordListFolder: "..\..\Resources\WordListsForHH",
-        WordListFile: "\GitHubComboList249k.txt",
-        FreqDataFile: "..\..\Resources\WordListsForHH\unigram_freq_list_filtered_88k.csv"  ; ← FIXED: Use full path
+        ACScript: "..\Core\AutoCorrect2.ahk",
+        HSLibrary: "..\Core\HotstringLib.ahk",
+        WordListFile: "..\Data\GitHubComboList249k.txt",
+        FreqDataFile: "..\Data\unigram_freq_list_filtered_88k.csv" 
     }
     
     ; Behavior options
@@ -55,19 +54,16 @@ class Config {
     static Init() {
         this.LoadThemeSettings()
         
-        ; Calculate full path to word list
-        this.WordListPath := this.ScriptFiles.WordListFolder this.ScriptFiles.WordListFile
-        
         ; Extract just the filename from the path
-        SplitPath this.WordListPath, &WordListName
+        SplitPath this.ScriptFiles.WordListFile, &WordListName
         this.WordListName := WordListName
     }
     
     ; Load visual theme settings
     static LoadThemeSettings() {
         try {
-            if FileExist("..\..\Data\colorThemeSettings.ini") {
-                settingsFile := "..\..\Data\colorThemeSettings.ini"
+            if FileExist("..\Data\colorThemeSettings.ini") {
+                settingsFile := "..\Data\colorThemeSettings.ini"
                 this.FontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
                 this.ListColor := IniRead(settingsFile, "ColorSettings", "listColor")
                 this.FormColor := IniRead(settingsFile, "ColorSettings", "formColor")
@@ -95,7 +91,7 @@ class HotstringSuggester {
     static LoadedWordList := []
     static CurrentHotstring := ""
     static Suggestions := []
-    static WordListPath := ""
+    static WordListFile := ""
     static FreqDataFile := ""
     static WordFreqMap := Map()
     static CommonLetters := "etaoinsrhdlucmfywgpbvkjxqz" ; Most common letters in English
@@ -108,14 +104,9 @@ class HotstringSuggester {
         this.Config := Config
         
         ; Set word list path and frequency file path
-        this.WordListPath := Config.WordListPath
+        this.WordListFile := Config.ScriptFiles.WordListFile
         this.FreqDataFile := Config.ScriptFiles.FreqDataFile
-        
-        ; Set icon if available
-        try TraySetIcon(A_ScriptDir "..\..\Resources\Icons\suggest.ico")
-        catch
-            Debug("Suggester icon not found")
-            
+
         ; Check for command line arguments
         if A_Args.Length > 0 {
             Debug("Command line arguments received: " A_Args.Length)
@@ -354,14 +345,14 @@ class HotstringSuggester {
     
     ; Load the word list for analysis
     static _LoadWordList() {
-        if (!FileExist(this.WordListPath)) {
-            MsgBox("Word list file not found: " this.WordListPath)
+        if (!FileExist(this.WordListFile)) {
+            MsgBox("Word list file not found: " this.WordListFile)
             return
         }
         
         try {
             this.LoadedWordList := []
-            Loop Read, this.WordListPath {
+            Loop Read, this.WordListFile {
                 this.LoadedWordList.Push(A_LoopReadLine)
             }
         } catch Error as err {
@@ -1097,12 +1088,12 @@ class HotstringSuggester {
 ; Helper functions for conditional logging
 LogError(message) {
     If Config.EnableLogError
-        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\suggester_error_log.txt")
+        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\suggester_error_log.txt")
 }
 
 Debug(message) {
     If Config.EnableDebug
-        FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\..\Data\suggester_debug_log.txt")
+        FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\suggester_debug_log.txt")
 }
 
 ; ======= Main Execution =======
