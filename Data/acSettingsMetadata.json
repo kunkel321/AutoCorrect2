@@ -124,6 +124,16 @@
     "default": "#h",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
+  "HotstringHelper.EnableDragTools": {
+    "label": "Enable DragTools module",
+    "help": "Choose whether the 'DragTools' module should be #Included.  If you already use right-click-and-drag for your file manager, or anything else, you'll want to disable this, otherwise AutoCorrect2 will hijack the hotkey.",
+    "type": "boolean",
+    "options": [
+      "0=Disable DragTools",
+      "1=Use DragTools"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
   "HotstringHelper.DefaultFontSize": {
     "label": "Default Font Size",
     "help": "Font size (in points) for normal text in the HotstringHelper window and several other tools. Usually 10-12. Don't include the 's' at the beginning.",

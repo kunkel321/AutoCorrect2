@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-11-2025
+; Version: 11-12-2025
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -18,7 +18,10 @@ SetWorkingDir(A_ScriptDir)
 ; The "*i" prevents an error if the file doesn't exist.
 #Include "*i ..\Tools\DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
 #Include "*i ..\Tools\PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
-#Include "*i ..\Tools\DragTools.ahk"          ;  Mouse click/drags trigger things   -- Optional 
+
+#HotIf Config.EnableDragTools ;  So users can permanently disable DragTools via acSettings.ini
+    #Include "*i ..\Tools\DragTools.ahk"      ;  Mouse click/drags trigger things   -- Optional 
+#HotIf 
 ; There are required includes defined below the class Config code.
 
 ;=============== PERSONAL ITEMS =================
@@ -59,6 +62,9 @@ class Config {
     
     ; Hotkeys
     static ActivationHotkey := "#h"
+
+    ; Includes
+    static EnableDragTools := 1
     
     ; UI Settings
     static DefaultFontSize := "11"
@@ -109,6 +115,7 @@ class Config {
     static FollowingWordCount := 4
     static FollowingWordTimeout := 8
     static AppSkiplist := []
+    static AutoCorrectionsEnabled := true
     static BeepOnContextLog := 1
     static BeepOnCapFix := 1
 
@@ -216,6 +223,8 @@ CODE_DEBUG_LOG=1
 CODE_ERROR_LOG=0
 ; Hotkey to activate HotstringHelper2 (default: Win+H).
 ActivationHotkey=#h
+; Optional Include
+EnableDragTools=1
 ; Large font size for emphasis of trigger and replacement boxes (no 's').
 DefaultFontSize=11
 LargeFontSize=15
@@ -336,13 +345,14 @@ keepComments=0
         this.LightRed                   := this.ReadIni("Shared", "LightRed", "fd7c73")
         this.DarkRed                    := this.ReadIni("Shared", "DarkRed", "B90012")
 
-
         ; [HotstringHelper] Section   
         ; General
         this.CODE_DEBUG_LOG             := this.ReadIni("HotstringHelper", "CODE_DEBUG_LOG", 0)
         this.CODE_ERROR_LOG             := this.ReadIni("HotstringHelper", "CODE_ERROR_LOG", 0)
         ; Hotkeys
         this.ActivationHotkey           := this.ReadIni("HotstringHelper", "ActivationHotkey", "#h")
+        ; Includes
+        this.EnableDragTools             := this.ReadIni("HotstringHelper", "EnableDragTools", "1")
         ; UI
         this.DefaultFontSize            := "s" this.ReadIni("HotstringHelper", "DefaultFontSize", "11")
         this.LargeFontSize              := "s" this.ReadIni("HotstringHelper", "LargeFontSize", "15")
@@ -438,6 +448,17 @@ keepComments=0
 }
 
 ; Check if a Skiplisted app is currently the active (focused) window
+AutoCorrectionsActivelyRunning() {
+    ; Check if skiplisted app is focused
+    if IsSkiplistedAppFocused()
+        return false
+    ; Check if user has manually disabled autocorrections
+    if !Config.AutoCorrectionsEnabled
+        return false
+    ; Autocorrections are active
+    return true
+}
+
 IsSkiplistedAppFocused() {
     activeProcessName := WinGetProcessName("A")
     for processName in Config.AppSkiplist {
@@ -451,7 +472,7 @@ IsSkiplistedAppFocused() {
 ; These files need to be in the same directory or properly referenced
 #Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 
-#HotIf !IsSkiplistedAppFocused() ; Only if no Skiplisted apps are active and focused.
+#HotIf AutoCorrectionsActivelyRunning() ; Only if no Skiplisted apps are active and autocorrections are enabled.
     #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
 #HotIf
 
@@ -491,6 +512,10 @@ SetupTrayMenu() {
     acMenu.Add("List Lines Debug", (*) => ListLines())
     acMenu.SetIcon("List Lines Debug", "..\Resources\Icons\ListLines-Blue.ico")
     
+    acMenu.Add("Enable AutoCorrections", (*) => ToggleAutoCorrections())
+    if Config.AutoCorrectionsEnabled
+        acMenu.Check("Enable AutoCorrections")
+    
     acMenu.Add("Exit Script", (*) => ExitApp())
     acMenu.SetIcon("Exit Script", "..\Resources\Icons\exit-Blue.ico")
 
@@ -509,6 +534,19 @@ SetupTrayMenu() {
             acMsgBox.show(Config.ScriptName " will now auto start with Windows.",, 4096)
         }
         Reload()
+    }
+
+    ; This function toggles AutoCorrections on/off via systray menu
+    ToggleAutoCorrections(*) {
+        Config.AutoCorrectionsEnabled := !Config.AutoCorrectionsEnabled
+        acMenu := A_TrayMenu
+        if Config.AutoCorrectionsEnabled {
+            acMenu.Check("Enable AutoCorrections")
+            acMsgBox.show("AutoCorrections are now ENABLED", , 4096)
+        } else {
+            acMenu.Uncheck("Enable AutoCorrections")
+            acMsgBox.show("AutoCorrections are now DISABLED", , 4096)
+        }
     }
 }
 
