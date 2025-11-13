@@ -1,32 +1,33 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated: 11-8-2025 
+                Updated: 11-11-2025 
 =====================================================
-Determines frequency of items in AutoCorrects Log file, then sorts by frequency (or weight).
-Date not factored in sort. Reports the top X hotstrings that were immediately followed
-by 'Backspace' (<<), and how many times they were used without backspacing (--).
-Sort by one or the other, or sort by "weight". 
+Determines frequency of items in AutoCorrects Log file, then reports the analysis
+in a ListView that can be sorted. Reports the number of times hotstrings that were 
+immediately followed by 'Backspace' (<<), and how many times they were used without 
+backspacing (--).  Sort by one or the other, or sort by "weight" via column headers. 
 
 Intended for use with kunkel321's
 'AutoCorrect for v2,' specifically, the f-function of that script. Items are reported 
-in a GUI with radio buttons. User can:
+in a GUI ListView. User can:
 - Go to the item in HotStringLibrary
-- Open it in HotStringHelper2
+- Open it in HotStringHelper2 (tip: dbl-click an item, then press Win+H)
 - See context logs for the item
 - Cull the item from the log
 - Get suggestions for fixing problematic "word-middle" hotstrings
 
-Items culled from ACLog file will get added to the RemovedHotStrings file.
-This helps avoid inadvertently "re-adding" them later.
+* Items culled from ACLog file will get added to the RemovedHotStrings file.
+  This helps avoid inadvertently "re-adding" them later.
+* Script reads from two INI files
+    -acSettings.ini
+    -ColorThemeSettings.ini
+* The nice big ToolTips are from Just Me's ToolTipOptions class (see bottom)
+
 */
 
 #SingleInstance Force
 #Requires AutoHotkey v2+
-
-; Emergency kill switch
-^Esc::ExitApp
-
 
 ; ======= Main Class Definition =======
 class ACLogAnalyzer {
@@ -48,6 +49,7 @@ class ACLogAnalyzer {
                 CopyHotstringOnSelect: Integer(IniRead(settingsFile, "ACLogAnalyzer", "CopyHotstringOnSelect", 1)),
                 PinToTop: Integer(IniRead(settingsFile, "ACLogAnalyzer", "PinToTop", 1)) = 1,
                 EnableErrorLogging: Integer(IniRead(settingsFile, "ACLogAnalyzer", "EnableErrorLogging", 1)),
+                WeighItems: Integer(IniRead(settingsFile, "ACLogAnalyzer", "WeighItems", 0)),
                 StartLine: Integer(IniRead(settingsFile, "ACLogAnalyzer", "StartLine", 7)),
                 CullDateFormat: IniRead(settingsFile, "ACLogAnalyzer", "CullDateFormat", "MM-dd-yyyy"),
                 EditorPath: "",
@@ -77,6 +79,7 @@ class ACLogAnalyzer {
     static ProgressGui := ""
     static ContextGui := ""
     static ConfirmGui := ""
+    static ScanInterrupted := false  ; Flag to interrupt scan when Esc is pressed
 
     ; Visual properties (set during initialization)
     static FontColor := "Default"
@@ -114,8 +117,21 @@ class ACLogAnalyzer {
 
             totalLines := StrSplit(allStrings, "`n").Length
             progressObj := this.CreateProgressGui(totalLines)
+            
+            ; Set up Esc hotkey to interrupt scan
+            this.ScanInterrupted := false
+            HotKey("Esc", (*) => (this.ScanInterrupted := true))
+            
             report := this.ProcessLines(allStrings, totalLines, progressObj)
             progressObj.gui.Destroy()
+            
+            ; Remove Esc hotkey after scanning completes
+            HotKey("Esc", "Off")
+            
+            ; If scan was interrupted, exit without showing results
+            if (this.ScanInterrupted) {
+                ExitApp()
+            }
             
             this.ReportArray := this.PrepareReport(report)
             this.ShowAnalysisResults()
@@ -214,6 +230,10 @@ class ACLogAnalyzer {
             
             ; SINGLE PASS - Process each line once
             Loop Parse allStrings, "`n`r" {
+                ; Check if scan was interrupted by user pressing Esc
+                if (this.ScanInterrupted)
+                    break
+                    
                 lineCount++
                 progressObj.progress.Value := lineCount
                 
@@ -338,7 +358,7 @@ class ACLogAnalyzer {
         this.HelpButton.OnEvent("Click", (*) => ACLogAnalyzerHelpSystem.ShowHelp(true))
         
         ; Add static text (reset to left margin)
-        this.ACAGui.Add("Text", "xm y+-8", "Selecting an item saves it to clipboard. Right-click for context.")
+        this.ACAGui.Add("Text", "xm y+-8", "Double-clicking an item saves it to clipboard. Right-click for context.")
         
         ; Parse and display items in ListView
         this.ParseReportItems()
@@ -472,6 +492,7 @@ class ACLogAnalyzer {
             
             ; Add event handlers
             this.ReportListView.OnEvent("ItemSelect", this.OnListViewSelect.Bind(this))
+            this.ReportListView.OnEvent("DoubleClick", this.OnListViewDoubleClick.Bind(this))
             this.ReportListView.OnEvent("ContextMenu", this.OnListViewContext.Bind(this))
             
             ; Select first item by default
@@ -848,16 +869,19 @@ class ACLogAnalyzer {
 
     ; Handle ListView item selection - copy hotstring to clipboard
     static OnListViewSelect(ctrl, *) {
+        ; This method now just handles selection
+        ; Copying to clipboard only happens on double-click (see OnListViewDoubleClick)
+        ; Nothing to do here, ListView selection is handled automatically
+    }
+    
+    ; Handle double-click to copy to clipboard
+    static OnListViewDoubleClick(ctrl, item, *) {
         try {
-            if (!this.Config.CopyHotstringOnSelect)
+            if (item = 0)
                 return
             
-            rowNum := ctrl.GetNext()
-            if (rowNum = 0)
-                return
-            
-            ; Get hotstring from first column
-            hotstring := this.ReportListView.GetText(rowNum, 1)
+            ; Get hotstring from first column of double-clicked row
+            hotstring := this.ReportListView.GetText(item, 1)
             
             if (hotstring != "") {
                 A_Clipboard := hotstring
@@ -865,7 +889,7 @@ class ACLogAnalyzer {
                 SetTimer(() => ToolTip(), -1500)
             }
         } catch Error as err {
-            LogError("Error in OnListViewSelect: " err.Message)
+            LogError("Error in OnListViewDoubleClick: " err.Message)
         }
     }
 
@@ -960,7 +984,7 @@ class ACLogAnalyzerHelpSystem {
     
     ; Initialize help texts
     static Init() {
-        this.helpTexts["ListView"] := "This is the Analysis Report ListView showing all analyzed hotstrings.`n`nColumns:`n- Hotstring: The hotstring from your library.  The f() function components are removed to make it easier to see.`n- BS: Number of times the item was followed by backspace within one second when logged (error indicator).`n- OK: Number of times it was logged without backspacing within one second (usefulness indicator).`n- Total: Total occurrences (BS + OK)`n- Weight: A calculated score indicating problem likelihood (higher = more problematic).  See code for adjusting weight parameters.`n`nClick a column header to sort by that column.`nSelect an item to copy the hotstring to clipboard.  Once the item is on the clipboard, you can press the HotstringHelper hotkey (Win-H) to open the item in hh.`nRight-click an item for context about what was being typed just before and after the Backspaced items were logged. This is a shortcut alternative to pressing the Context button."
+        this.helpTexts["ListView"] := "This is the Analysis Report ListView showing all analyzed hotstrings.`n`nColumns:`n- Hotstring: The hotstring from your library.  The f() function components are removed to make it easier to see.`n- BS: Number of times the item was followed by backspace within one second when logged (error indicator).`n- OK: Number of times it was logged without backspacing within one second (usefulness indicator).`n- Total: Total occurrences (BS + OK)`n- Weight: A calculated score indicating problem likelihood (higher = more problematic).  See code for adjusting weight parameters.`n`nClick a column header to sort by that column.`nDouble-click an item to copy the hotstring to clipboard.  Once the item is on the clipboard, you can press the HotstringHelper hotkey (Win-H) to open the item in hh.`nRight-click an item for context about what was being typed just before and after the Backspaced items were logged. This is a shortcut alternative to pressing the Context button."
         
         this.helpTexts["PinCheckbox"] := "Controls whether the Analysis Report window stays on top of other windows.`n`nWhen checked, this window will remain visible even when other applications are in focus.`n`nDefault setting can be configured in the Config section."
         
