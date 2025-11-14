@@ -2,6 +2,8 @@
 #Requires AutoHotkey v2.0
 SetWorkingDir(A_ScriptDir)
 
+; otherUser verion for testing.  11-14-2025 Ignore.
+
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
