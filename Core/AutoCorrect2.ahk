@@ -3,6 +3,7 @@
 SetWorkingDir(A_ScriptDir)
 
 ; otherUser verion for testing.  11-14-2025 Ignore.
+; another debug update... Ignore
 
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
