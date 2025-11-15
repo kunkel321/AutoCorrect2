@@ -904,6 +904,15 @@ class UI {
         }
         
         ; Check if tool is present, add button.
+        if FileExist("..\Tools\Updater.exe") {
+            this.controlButtons.Push({
+                text: " Check GitHub for Updates", 
+                action: (*) => Run("..\Tools\Updater.exe"),
+                icon: A_ScriptDir "\..\Resources\Icons\diff-files-Blue.ico"
+            })
+        }
+        
+        ; Check if tool is present, add button.
         if FileExist("..\Tools\UniqueStringExtractor.exe") {
             this.controlButtons.Push({
                 text: " Compare Two Versions of HotstringLib", 

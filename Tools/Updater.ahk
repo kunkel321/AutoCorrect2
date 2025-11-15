@@ -26,7 +26,7 @@ LatestZipUrl  := "https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/m
 ZipRootFolderName := "AutoCorrect2-main"
 
 ; Optional: Enable debug logging to file
-EnableDebugLog := false
+EnableDebugLog := 0
 
 ; Files that will appear in update dialog but unchecked by default
 RarelyUpdated := [
@@ -60,7 +60,7 @@ try {
     
     ; --- Read configuration file for HotstringLib filename ---
     settingsFile := A_ScriptDir "\..\Data\acSettings.ini"
-    hotstringLibName := IniRead(settingsFile, "Files", "NewTemporaryHotstrLib", "HotstringLib_DoNotRemove.ahk")
+    hotstringLibName := IniRead(settingsFile, "Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
     LogDebug("HotstringLib name: " hotstringLibName)
     
     ; --- Create progress GUI ---
@@ -180,6 +180,11 @@ try {
 
         ; Check if file is new or updated
         if !FileExist(destPath) {
+            ; Skip HotstringLib.ahk - it's handled specially above
+            if (relPath = "Core\HotstringLib.ahk") {
+                LogDebug("Skipping HotstringLib.ahk from new files (handled specially)")
+                continue
+            }
             ; New file
             newFiles.Push({path: destPath, relPath: relPath, srcPath: srcFile})
             LogDebug("New file found: " relPath)
