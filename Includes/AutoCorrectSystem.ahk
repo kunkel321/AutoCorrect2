@@ -351,7 +351,7 @@ class BackspaceContextLogger {
 }
 
 ; ; DEBUG HOTKEY: Press Ctrl+Shift+D to toggle BackspaceContextLogger debug mode
-; ^+d::BackspaceContextLogger.ToggleDebug()
+; ^+d::BackspaceContextLogger.ToggleDebug() ; hide
 
 
 
@@ -585,6 +585,8 @@ StringAndFixReport(caller := "Button") {
 ; https://www.autohotkey.com/boards/viewtopic.php?p=533067#p533067
 ; Minor edits added by kunkel321 2-7-2024
 
+#Hotstring Z0 ; <--- Experimental.  Turns off allowing key presses to count toward multiple hotstring triggers. 
+
 fix_consecutive_caps()
 fix_consecutive_caps() {
 ; Hotstring only works if CapsLock is off.
@@ -619,3 +621,5 @@ fix_consecutive_caps() {
 		}
 	}
 }
+
+#Hotstring Z ; turn it back on. 

@@ -4,8 +4,6 @@
                 Updated: 11-15-2025 
 =====================================================
 
-; temporary comment, 11-15-2025 for debugging updater script. 
-
 Determines frequency of items in AutoCorrects Log file, then reports the analysis
 in a ListView that can be sorted. Reports the number of times hotstrings that were 
 immediately followed by 'Backspace' (<<), and how many times they were used without 
@@ -923,9 +921,6 @@ SuggestAlternativesHandler(*) {
     selItemArr := StrSplit(result.workingItem, ":")
     hotstringPart := ":" selItemArr[2] ":" selItemArr[3] "::" selItemArr[5]
     
-    ; Log what we're sending to the suggester
-    ;FileAppend("Sending to Suggester: " hotstringPart "`n", "..\Data\suggester_bridge_log.txt")
-    
     ; Run the Suggester tool with the hotstring as a parameter
     try {
         ; Check if Suggester.exe exists
@@ -941,7 +936,7 @@ SuggestAlternativesHandler(*) {
         ACLogAnalyzer.ACAGui.Show()
 
     } catch Error as err {
-        FileAppend("Error running Suggester: " err.Message "`n", "..\Data\suggester_bridge_log.txt")
+        FileAppend("Error running Suggester: " err.Message "`n", "..\Debug\suggester_bridge_log.txt")
         MsgBox("Error launching Suggester tool: " err.Message)
     }
 }
@@ -959,7 +954,7 @@ ProcessSelectedItem() {
         ; Call ACLogAnalyzer's ProcessSelectedItem method
         return ACLogAnalyzer.ProcessSelectedItem()
     } catch Error as err {
-        FileAppend("Error processing selected item: " err.Message "`n", "..\Data\suggester_bridge_log.txt")
+        FileAppend("Error processing selected item: " err.Message "`n", "..\Debug\suggester_bridge_log.txt")
         MsgBox("Error processing selected item: " err.Message)
         return false
     }
@@ -973,7 +968,7 @@ ACLogAnalyzer.SuggestAlternatives := SuggestAlternativesHandler
 ; Error logging function - respects EnableErrorLogging config
 LogError(message) {
     if (ACLogAnalyzer.Config.EnableErrorLogging)
-        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\acla_error_debug_log.txt")
+        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\acla_error_debug_log.txt")
 }
 
 ; ======= Help System =======

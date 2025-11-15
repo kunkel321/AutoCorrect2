@@ -5,7 +5,7 @@
 ; ==============================================================================
 ; Author: kunkel321
 ; Tool Used: Claude AI
-; Version: 11-2-2025 
+; Version: 11-15-2025 
 ; It removes the function call from AutoCorrect2 hotstrings.  
 ; For example 		:B0X*?:useing::f("using") ; Web Freq 369.49 | Fixes 115 words 
 ; is converted to: 	:*?:useing::using
@@ -166,13 +166,13 @@ ProcessFile(HSLibrary) {
     ; Helper functions for conditional logging
     LogError(message) {
         ; Uncomment if you need error logging
-        ; FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "error_debug_log.txt")
+        ; FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\Df_error_debug_log.txt")
         Return
     }
     
     Debug(message) {
         ; Uncomment if you need debug logging  
-        ; FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "error_debug_log.txt")
+        ; FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\Df_error_debug_log.txt")
         Return
     }
     

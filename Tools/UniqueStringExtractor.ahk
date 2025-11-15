@@ -1,7 +1,7 @@
 #SingleInstance
 #Requires AutoHotkey v2+
 
-; Intended for updating AutoHotkey scripts.  kunkel321 10-19-2025 
+; Intended for updating AutoHotkey scripts.  kunkel321 11-15-2025
 ; A script to find unique hotstrings that are in one file but not another. 
 ; Default files to scan can be entered.  If they are not found, a file-picker will appear.
 ; The "mainFile" is the file that you plan to use--it is your new AutoCorrect file.
@@ -152,7 +152,7 @@ finalReport :=
 	extraReport
 )
 
-Location := "..\Data\Uniques_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
+Location := "..\Debug\Uniques_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
 FileAppend finalReport, Location ; Save to text file, then open the file. 
 sleep 250
 Run Location

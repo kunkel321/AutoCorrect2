@@ -2,9 +2,6 @@
 #Requires AutoHotkey v2.0
 SetWorkingDir(A_ScriptDir)
 
-; otherUser verion for testing.  11-14-2025 Ignore.
-; another debug update... Ignore
-
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
@@ -16,22 +13,20 @@ SetWorkingDir(A_ScriptDir)
 ; https://github.com/kunkel321/AutoCorrect2
 ; ========================================
 
-; temporary comment, 11-15-2025 for debugging updater script. 
-
 ; ============== OPTIONAL INCLUDES ==============
 ; These files need to be in the same directory or properly referenced
 ; The "*i" prevents an error if the file doesn't exist.
-#Include "*i ..\Tools\DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
-#Include "*i ..\Tools\PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
+#Include "*i ..\Includes\DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
+#Include "*i ..\Includes\PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
 
 #HotIf Config.EnableDragTools ;  So users can permanently disable DragTools via acSettings.ini
-    #Include "*i ..\Tools\DragTools.ahk"      ;  Mouse click/drags trigger things   -- Optional 
+    #Include "*i ..\Includes\DragTools.ahk"      ;  Mouse click/drags trigger things   -- Optional 
 #HotIf 
 ; There are required includes defined below the class Config code.
 
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
-#Include "*i ..\Optional\PersonalHotstrings.ahk" ;  -- Optional
+#Include "*i ..\Includes\PersonalHotstrings.ahk" ;  -- Optional
 
 ; =============== CONFIGURATION ===============
 ; The configuration is now centralized in acSettings.ini
@@ -475,13 +470,13 @@ IsSkiplistedAppFocused() {
 
 ; ============== REQUIRED INCLUDES ==============
 ; These files need to be in the same directory or properly referenced
-#Include "AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
+#Include "..\Includes\AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 
 #HotIf AutoCorrectionsActivelyRunning() ; Only if no Skiplisted apps are active and autocorrections are enabled.
     #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
 #HotIf
 
-#Include "..\Resources\Includes\AcMsgBox.ahk" ; For custom msgbox system.
+#Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system.
 
 ; Initialize configuration
 Config.Init()
@@ -3138,12 +3133,12 @@ if A_Args.Length > 0
 ; This is not for "End user" purposes, it is for mainstaining the code. 
 LogError(message) {
     if (Config.CODE_ERROR_LOG) {
-        FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "error_debug_log.txt")
+        FileAppend("ErrLog: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\ac2_error_debug_log.txt")
     }
 }
 Debug(message) {
     if (Config.CODE_DEBUG_LOG) {
-        FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "error_debug_log.txt")
+        FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\ac2_error_debug_log.txt")
     }
 }
 

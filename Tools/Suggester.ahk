@@ -1,7 +1,7 @@
 ﻿/*
 =====================================================
             HOTSTRING SUGGESTER TOOL
-                Updated:  11-9-2025 
+                Updated:  11-15-2025 
 =====================================================
 Analyzes hotstrings and suggests lengthened/modified alternatives
 that might be better matches. This standalone tool can be called
@@ -1088,12 +1088,12 @@ class HotstringSuggester {
 ; Helper functions for conditional logging
 LogError(message) {
     If Config.EnableLogError
-        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\suggester_error_log.txt")
+        FileAppend("ErrLog: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\suggester_error_log.txt")
 }
 
 Debug(message) {
     If Config.EnableDebug
-        FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\suggester_debug_log.txt")
+        FileAppend("Debug: " FormatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\suggester_debug_log.txt")
 }
 
 ; ======= Main Execution =======

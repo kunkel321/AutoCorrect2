@@ -1,0 +1,1 @@
+﻿; Your personal hotstrings can optionally go here.  Be advised that these hotstrings are not scanned by HotstringHelper during validity checks.   This ahk file is also not scanned by the ConflictingStringsLocator.ahk tool.

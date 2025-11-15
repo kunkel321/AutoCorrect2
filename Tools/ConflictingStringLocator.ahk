@@ -3,7 +3,7 @@
 ;                    a.k.a. DEAD STRING FINDER
 ; Author: kunkel321 
 ; Tool used: Claude AI
-; Updated: 11-08-2025
+; Updated: 11-15-2025
 ;===============================================================================
 ; Part of the AutoCorrect2 Suite of Tools.  Get new versions from 
 ; github.com/kunkel321/autocorrect2
@@ -171,7 +171,7 @@ If FullReport = ""
 	FullReport := "No duplicate or conflicting hotstring pairs located."
 FullReport := ElapsedTime "`nLine`t`tOpt`tTrigger`t`tFull item`n=================================`n" FullReport
 
-Location := "..\Data\Conflict_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
+Location := "..\Debug\Conflict_Report" FormatTime(A_Now, "_MMM_dd_hh_mm") ".txt"
 FileAppend FullReport, Location
 Sleep 1000
 Run Location

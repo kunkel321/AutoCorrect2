@@ -226,11 +226,11 @@
   },
   "HotstringHelper.MakeFuncByDefault": {
     "label": "Make Function by Default",
-    "help": "If enabled, new AutoCorrect entries will use the f() function wrapper by default (allows logging and context capture). If disabled, entries are vanilla hotstrings.  The option can be turned on/off for each hotstring.  This just determines whether the\n[ ] Make as f() function\n checkbox is checked by default.",
+    "help": "If enabled, new AutoCorrect entries will use the f() function wrapper by default (allows logging and context capture). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Make as f() function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in and f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
     "type": "boolean",
     "options": [
-      "0=Vanilla hotstrings",
-      "1=Use f() function"
+      "0=Unchecked by default'",
+      "1=Use f() function by default"
     ],
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
