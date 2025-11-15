@@ -1,8 +1,11 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated: 11-11-2025 
+                Updated: 11-15-2025 
 =====================================================
+
+; temporary comment, 11-15-2025 for debugging updater script. 
+
 Determines frequency of items in AutoCorrects Log file, then reports the analysis
 in a ListView that can be sorted. Reports the number of times hotstrings that were 
 immediately followed by 'Backspace' (<<), and how many times they were used without 

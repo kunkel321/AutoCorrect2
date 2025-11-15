@@ -5,13 +5,15 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-12-2025
+; Version: 11-15-2025
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
 ; https://github.com/kunkel321/AutoCorrect2
 ; ========================================
+
+; temporary comment, 11-15-2025 for debugging updater script. 
 
 ; ============== OPTIONAL INCLUDES ==============
 ; These files need to be in the same directory or properly referenced
