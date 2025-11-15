@@ -7120,3 +7120,5 @@ ACitemsEndAt := A_LineNumber - 3 ; hh2 validity checks will skip lines after her
 :B0X*?:likt::f("list") ; Web Freq 1172.44 | Fixes 928 words 
 :B0X*?:pregress::f("progress") ; Web Freq 74.17 | Fixes 30 words 
 :B0X*?:probpt::f("prompt") ; Web Freq 22.73 | Fixes 22 words 
+:B0X*?:accach::f("attach") ; Web Freq 42.23 | Fixes 25 words 
+:B0X*?:addression::f("aggression") ; Web Freq 2.61 | Fixes 9 words 
