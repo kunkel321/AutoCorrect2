@@ -1,6 +1,6 @@
 {
   "_Information": "This is the metadata file for the acSettingManger tool, which is part of the AutoCorrect2 package available from https://github.com/kunkel321/AutoCorrect2",
-  "_Version_Date" : "11-8-2025",
+  "_Version_Date" : "11-15-2025",
   "Files.HotstringLibrary": {
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.",
@@ -9,7 +9,7 @@
   },
   "Files.NewTemporaryHotstrLib": {
     "label": "New Temporary Hotstring Library",
-    "help": "Path to a new version of the hotstring library (usually from GitHub). Used for comparison and merging, when updating to a newly-released verions of the hotstring library.  Choose a naming convention that is convenient.  If you copy over the new version into your existing 'Core' folder, then it will likely be automatically named HotstringLib.ahk (1) or HotstringLib.ahk_1.  Choosing that as the default pattern here will allow the Unique String Extrator to instantly run its scan without the need to manually choose the file each time.",
+    "help": "Name of file for the Updater Tool to write to.  Used for comparison and merging, when updating to a newly-released verions of the hotstring library.  Having a file name defined here will allow the Unique String Extrator to instantly run its scan without the need to manually choose the file each time.",
     "type": "file",
     "filter": "AHK Files (*.ahk)|*.ahk"
   },

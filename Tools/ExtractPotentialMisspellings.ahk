@@ -5,6 +5,8 @@ File: ExtractPotentialMisspellings.ahk
 Made by kunkel321 using Claude AI. 
 Version 6-17-2025 
 
+Another comment update just for debugging the new Updater tool on Saturday, 11-15-2025, at 9:59am 
+
 For use with the AutoCorrect2 library of hotstrings.
 AHK v2 Script to extract words that are potentially misspelled by certain AutoCorrect hotstrings.  It doesn't remove them from the HotstringsLib file, it just generates a separate list of them.
 
