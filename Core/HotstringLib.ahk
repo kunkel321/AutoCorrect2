@@ -1,7 +1,7 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
 ; Library of HotStrings for AutoCorrect2.  Please note that the f() function calls require the function that is defined in the AutoCorrectSystem.ahk code.
-; Library updated 11-15-2025 
+; Library updated 11-15-2025 12:38pm
 
 ; Ignore the debug function call.  If the f() definition is not present, this replacement text will appear in the error message.
 :B0XC:Ign0re Th!s STRing::f("Did you forget to '#Include' the AutoCorrectSystem.ahk file in AutoCorrect2?")
@@ -7116,3 +7116,7 @@ ACitemsEndAt := A_LineNumber - 3 ; hh2 validity checks will skip lines after her
 :B0X*:wirrd::f("weird") ; Web Freq 24.73 | Fixes 17 words 
 :B0X*:worng::f("wrong") ; Web Freq 54.65 | Fixes 22 words 
 :B0X*?:accosi::f("associ") ; Web Freq 272.83 | Fixes 43 words 
+:B0X?:holle::f("whole") ; Web Freq 85.25 | Fixes 2 words 
+:B0X*?:likt::f("list") ; Web Freq 1172.44 | Fixes 928 words 
+:B0X*?:pregress::f("progress") ; Web Freq 74.17 | Fixes 30 words 
+:B0X*?:probpt::f("prompt") ; Web Freq 22.73 | Fixes 22 words 
