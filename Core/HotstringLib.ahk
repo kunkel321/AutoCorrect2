@@ -3,6 +3,8 @@
 ; Library of HotStrings for AutoCorrect2.  Please note that the f() function calls require the function that is defined in the AutoCorrect2 code.
 ; Library updated 5-14-2025
 
+; debug comment added via github site 11-15-2025
+
 ; Ignore the debug function call.  If the f() definition is not present, this replacement text will appear in the error message.
 :B0XC:Ign0re Th!s STRing::f("Did you forget to '#Include' the AutoCorrectSystem.ahk file in AutoCorrect2?")
 
@@ -7160,3 +7162,4 @@ ACitemsEndAt := A_LineNumber - 3 ; hh2 validity checks will skip lines after her
 :B0X:xisw::f("code") ; Web Freq 250.25 | Fixes 1 word 
 :B0X:rhw::f("the") ; Fixes 1 word 
 :B0X:tiiks::f("tools") ; Fixes 1 word 
+:B0X:tiixxxxxxks::f("toxxxxxxxxols") ; Fixes 1 word 
