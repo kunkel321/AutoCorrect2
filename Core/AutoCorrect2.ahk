@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-15-2025
+; Version: 11-16-2025
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -480,6 +480,7 @@ IsSkiplistedAppFocused() {
 
 ; Initialize configuration
 Config.Init()
+Debug("======[SCRIPT START]======")
 
 ; =============== TRAY MENU SETUP ===============
 SetupTrayMenu() {
@@ -775,6 +776,7 @@ class UI {
     
     ; Create the examination pane (initially hidden)
     static _CreateExamPane() {
+        Debug("In UI class, at top of _CreateExamPane()")
         ; Set font for delta string display
         this.MainForm.SetFont("s10")
         
@@ -810,6 +812,7 @@ class UI {
         
     ; Create the control pane (initially hidden)
     static _CreateControlPane() {
+        Debug("In UI class, at top of _CreateControlPane()")
         ; Configuration for control panel buttons
         this.Controls["ControlPanelLabel"] := this.MainForm.AddText("center c" this.DeltaColor " ym+270 h25 xm w" Config.DefaultWidth, "Secret Control Panel!")
         
@@ -1157,9 +1160,11 @@ class UIActions {
     static ShowHideExamPane(visible := false) {
         for ctrl in UI.GetExamPaneControls()
             ctrl.Visible := visible
-            
+        
+        ; Load dictionary in a TRUE background thread instead of blocking the message loop
         if visible {
-            Dictionary.StartBackgroundLoad()
+            ; Don't load dictionary on first show - load it much later, after UI is responsive
+            SetTimer(() => Dictionary.StartBackgroundLoad(), -3000)  ; Load after 3 seconds, not immediately
         }
         
         State.ExamPaneOpen := visible
@@ -1398,6 +1403,7 @@ class UIActions {
     
     ; Filter word lists based on current trigger/replacement and options
     static FilterWordLists(viaExamButton := false) {
+        Debug("FilterWordLists called, isLoaded=" WordFrequency.isLoaded ", isLoading=" WordFrequency.isLoading)
         ; Get trigger and replacement text
         triggerText := Trim(UI.Controls["TriggerEdit"].Value)
         if triggerText = ""
@@ -1572,13 +1578,12 @@ class UIActions {
     
     ; Examine the words - analyze the differences between trigger and replacement
     static ExamineWords(triggerText, replacementText) {
-        ; Reset size if needed
+        Debug("At top of ExamineWords() method")
         if State.FormBig {
             UI.Controls["SizeToggle"].Text := "Make Bigger"
             SoundBeep(200, 100)
             this.ToggleSize()
         }
-        
         UI.MainForm.Show("AutoSize yCenter")
         
         ; Analyze the delta between trigger and replacement
@@ -1639,8 +1644,10 @@ class UIActions {
             
             this.ShowHideExamPane(true)
         }
-        
+        Debug("In ExamineWords() method, before second mainForm.show")
+        ; Commenting-out the next line does not prevent the form from reappearing.
         UI.MainForm.Show("AutoSize yCenter")
+        Debug("At bottom of ExamineWords() method")
     }
     
     ; Handler for the Exam button
@@ -2428,7 +2435,7 @@ class Dictionary {
         }
         return dataMap
     }
-    
+
     ; Read index file for dictionary
     static _ReadIndexFile(filePath, dataFilePath) {
         if !FileExist(filePath)
@@ -2814,6 +2821,9 @@ class Utils {
             else
                 UI.Controls["MiddleRadio"].Value := 1
             
+            Debug("About to call ExamineWords")
+            Debug("WordFrequency state before ExamineWords: isLoaded=" WordFrequency.isLoaded)
+
             ; Always close Control Pane and open Exam Pane
             ; This ensures proper state management
             UIActions.ShowHideControlPane(false)
@@ -2821,9 +2831,12 @@ class Utils {
             
             UI.Controls["ExamButton"].Text := "Done"
             UIActions.ShowHideExamPane(true)
-            State.ExamPaneOpen := 1
-            
+
+            Debug("just before UIActions.ExamineWords()")
             UIActions.ExamineWords(hotstr.Trig, hotstr.Repl)
+            Debug("just after UIActions.ExamineWords()")
+
+            State.ExamPaneOpen := 1
             
             ; Reset history for add-a-letter feature
             State.TriggerHistory := []
@@ -3034,6 +3047,7 @@ class WordFrequency {
 
     ; Add a synchronous loading method to the WordFrequency class
     static LoadSync() {
+        Debug("LoadSync called - isLoaded=" this.isLoaded ", isLoading=" this.isLoading)
         if (!this.isLoaded) {
             this.isLoading := true
             result := this.LoadWordFrequencies()
