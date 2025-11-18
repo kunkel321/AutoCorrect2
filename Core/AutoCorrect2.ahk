@@ -911,7 +911,7 @@ class UI {
             this.controlButtons.Push({
                 text: " Check GitHub for Updates", 
                 action: (*) => Run("..\Tools\Updater.exe"),
-                icon: A_ScriptDir "\..\Resources\Icons\diff-files-Blue.ico"
+                icon: A_ScriptDir "\..\Resources\Icons\update-Blue.ico"
             })
         }
         
@@ -3129,13 +3129,13 @@ TraySetIcon(A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
 UI.Init()
 
 ; Initialize word frequency data in the background
-SetTimer(() => WordFrequency.Initialize(), -2000)  ; Start loading 2 seconds after script startup
+SetTimer(() => WordFrequency.Initialize(), -500)  ; Start loading x seconds after script startup
 
 ; Set up form-specific hotkeys
 UI.SetupFormHotkeys()
 
 ; Register activation hotkey with a delay
-SetTimer(RegisterHotkeyDelayed, -2000)  ; 3-second delay
+SetTimer(RegisterHotkeyDelayed, -250)  ; x-second delay
 
 ; Add this function somewhere appropriate, perhaps near your other helper functions
 RegisterHotkeyDelayed() {
