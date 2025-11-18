@@ -1,6 +1,9 @@
 ﻿#Requires AutoHotkey v2.0
 #SingleInstance Force
 
+; #Include custom message box
+#Include "..\Includes\AcMsgBox.ahk"
+
 /*
 AutoCorrect2 Updater Tool
 Author: kunkel321
@@ -19,6 +22,9 @@ to compare that file with their own.
 */
 
 ; --- CONFIG ---------------------------------------------------------------
+; GitHub API endpoint for checking latest commit
+GitHubApiUrl  := "https://api.github.com/repos/kunkel321/AutoCorrect2/commits?per_page=1"
+
 ; URL of zip containing the latest version of your repo
 LatestZipUrl  := "https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/main.zip"
 
@@ -26,7 +32,7 @@ LatestZipUrl  := "https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/m
 ZipRootFolderName := "AutoCorrect2-main"
 
 ; Optional: Enable debug logging to file
-EnableDebugLog := 0
+EnableDebugLog := 1
 
 ; Files that will appear in update dialog but unchecked by default
 RarelyUpdated := [
@@ -48,6 +54,148 @@ LogDebug(msg) {
     }
 }
 
+CheckGitHubForUpdates() {
+    /*
+    Checks GitHub API for the latest commit info.
+    Returns an object with {sha, date} on success, or error string on failure
+    */
+    try {
+        LogDebug("Checking GitHub API for latest commit...")
+        
+        ; Create HTTP request
+        http := ComObject("MSXML2.XMLHTTP")
+        http.Open("GET", GitHubApiUrl, false)
+        http.SetRequestHeader("User-Agent", "AutoCorrect2-Updater")
+        http.Send()
+        
+        if http.Status != 200 {
+            return "GitHub API returned status " http.Status
+        }
+        
+        ; Parse JSON response
+        responseText := http.ResponseText
+        LogDebug("GitHub API response received, parsing JSON...")
+        LogDebug("Response length: " StrLen(responseText))
+        LogDebug("First 500 chars: " SubStr(responseText, 1, 500))
+        
+        ; Extract sha and date using simple string parsing
+        ; GitHub API format: "sha": "abcd1234...", "author": {"date": "2025-01-15T12:34:56Z"}
+        sha := ""
+        date := ""
+        
+        ; Extract SHA (commit hash)
+        shaPos := InStr(responseText, '"sha"')
+        LogDebug("shaPos: " shaPos)
+        if shaPos > 0 {
+            quotePos := InStr(responseText, '"',, shaPos + 5)
+            LogDebug("First quote after sha: " quotePos)
+            if quotePos > 0 {
+                startPos := quotePos + 1
+                endQuotePos := InStr(responseText, '"',, startPos)
+                LogDebug("End quote: " endQuotePos)
+                if endQuotePos > 0 {
+                    sha := SubStr(responseText, startPos, endQuotePos - startPos)
+                }
+            }
+        }
+        
+        ; Extract commit date
+        ; JSON format: "date":"2025-11-17T..."
+        datePos := InStr(responseText, '"date"')
+        LogDebug("datePos: " datePos)
+        if datePos > 0 {
+            ; Find the colon after "date"
+            colonPos := InStr(responseText, ":",, datePos)
+            LogDebug("colonPos: " colonPos)
+            ; Find the quote after the colon
+            if colonPos > 0 {
+                quotePos := InStr(responseText, '"',, colonPos)
+                LogDebug("Quote after colon: " quotePos)
+                if quotePos > 0 {
+                    startPos := quotePos + 1
+                    endQuotePos := InStr(responseText, '"',, startPos)
+                    LogDebug("End quote: " endQuotePos)
+                    if endQuotePos > 0 {
+                        date := SubStr(responseText, startPos, endQuotePos - startPos)
+                    }
+                }
+            }
+        }
+        
+        LogDebug("Extracted SHA: " sha)
+        LogDebug("Extracted date: " date)
+        
+        if sha = "" or date = "" {
+            return "Could not parse GitHub API response"
+        }
+        
+        LogDebug("Latest commit: SHA=" sha ", Date=" date)
+        result := Map()
+        result["sha"] := sha
+        result["date"] := date
+        return result
+        
+    } catch Error as e {
+        return e.Message
+    }
+}
+
+GetLastUpdateCheckInfo() {
+    /*
+    Reads the stored update check info from Data\LastUpdateCheck.ini
+    Returns a Map with {sha, date} or empty Map if file doesn't exist
+    */
+    checkFile := A_ScriptDir "\..\Data\LastUpdateCheck.ini"
+    
+    if !FileExist(checkFile) {
+        LogDebug("LastUpdateCheck.ini not found - first run or data file missing")
+        return Map()
+    }
+    
+    try {
+        lastSha := IniRead(checkFile, "UpdateCheck", "LastCommitHash", "")
+        lastDate := IniRead(checkFile, "UpdateCheck", "LastCommitDate", "")
+        
+        if lastSha = "" or lastDate = "" {
+            LogDebug("LastUpdateCheck.ini exists but is empty")
+            return Map()
+        }
+        
+        LogDebug("Last update check: SHA=" lastSha ", Date=" lastDate)
+        result := Map()
+        result["sha"] := lastSha
+        result["date"] := lastDate
+        return result
+        
+    } catch Error as e {
+        LogDebug("Error reading LastUpdateCheck.ini: " e.Message)
+        return Map()
+    }
+}
+
+StoreUpdateCheckInfo(sha, date) {
+    /*
+    Stores the latest commit info to Data\LastUpdateCheck.ini
+    */
+    checkFile := A_ScriptDir "\..\Data\LastUpdateCheck.ini"
+    checkDir := A_ScriptDir "\..\Data"
+    
+    try {
+        if !DirExist(checkDir) {
+            DirCreate(checkDir)
+            LogDebug("Created Data directory")
+        }
+        
+        IniWrite(sha, checkFile, "UpdateCheck", "LastCommitHash")
+        IniWrite(date, checkFile, "UpdateCheck", "LastCommitDate")
+        IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), checkFile, "UpdateCheck", "LastCheckTime")
+        LogDebug("Stored update check info: SHA=" sha ", Date=" date)
+        
+    } catch Error as e {
+        LogDebug("Error writing LastUpdateCheck.ini: " e.Message)
+    }
+}
+
 UpdateProgress(gui, textCtrl, progressBar, statusText, progressValue := 0) {
     gui.Title := "AutoCorrect2 Updater - " statusText
     textCtrl.Value := statusText
@@ -58,18 +206,71 @@ try {
     LogDebug("=== Update Started ===")
     LogDebug("Script Directory: " A_ScriptDir)
     
-    ; --- Read configuration file for HotstringLib filename ---
+    ; --- Read configuration from settings file ---
     settingsFile := A_ScriptDir "\..\Data\acSettings.ini"
+    fontSize := IniRead(settingsFile, "HotstringHelper", "DefaultFontSize", "11")
+    largeFontSize := IniRead(settingsFile, "HotstringHelper", "LargeFontSize", "13")
     hotstringLibName := IniRead(settingsFile, "Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
+    
+    ; Read colors from color theme settings (with defaults)
+    formColor := "0xE5E4E2"
+    fontColor := "c0x1F1F1F"
+    listColor := "0xFFFFFF"
+    
+    if FileExist(A_ScriptDir "\..\Data\colorThemeSettings.ini") {
+        ctSettingsFile := A_ScriptDir "\..\Data\colorThemeSettings.ini"
+        formColor := IniRead(ctSettingsFile, "ColorSettings", "formColor", formColor)
+        fontColor := "c" IniRead(ctSettingsFile, "ColorSettings", "fontColor", "0x1F1F1F")
+        listColor := IniRead(ctSettingsFile, "ColorSettings", "listColor", listColor)
+    }
+    
+    ; Create Config class for AcMsgBox
+    class Config {
+        static FormColor := formColor
+        static FontColor := fontColor
+        static LargeFontSize := "s" . largeFontSize
+    }
+    
     LogDebug("HotstringLib name: " hotstringLibName)
     
     ; --- Create progress GUI ---
     progressGui := Gui()
     progressGui.Title := "AutoCorrect2 Updater"
     progressGui.Opt("+AlwaysOnTop")
-    statusTextCtrl := progressGui.Add("Text", "w400 h30 cBlue", "Initializing...")
+    progressGui.BackColor := formColor
+    progressGui.SetFont("s" fontSize " " fontColor)
+    
+    statusTextCtrl := progressGui.Add("Text", "w400 h30 cBlue", "Checking for updates...")
     progressBarCtrl := progressGui.Add("Progress", "w400 h20 vMyProgress Range0-100", 0)
     progressGui.Show("w420 h100")
+    
+    UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Checking GitHub for updates...", 10)
+    
+    ; --- Check GitHub API for latest commit ---
+    latestInfo := CheckGitHubForUpdates()
+    
+    if Type(latestInfo) = "String" {
+        progressGui.Destroy()
+        AcMsgBox.Show("Unable to check GitHub for updates:`n" latestInfo "`n`nPlease check your internet connection and try again.", "AutoCorrect2 Updater")
+        LogDebug("GitHub API check failed: " latestInfo)
+        ExitApp
+    }
+    
+    ; --- Compare with stored update check info ---
+    lastCheckInfo := GetLastUpdateCheckInfo()
+    lastSha := ""
+    try {
+        lastSha := lastCheckInfo["sha"]
+    }
+    
+    if lastSha != "" and lastSha = latestInfo["sha"] {
+        LogDebug("No updates available - commit hash matches")
+        progressGui.Destroy()
+        AcMsgBox.Show("No updates available. You have the latest version!", "AutoCorrect2 Updater")
+        ExitApp
+    }
+    
+    LogDebug("Update available! Proceeding with file comparison...")
     
     UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Connecting to GitHub...", 20)
 
@@ -215,14 +416,14 @@ try {
     if updatedFiles.Length = 0 and rarelyUpdatedFiles.Length = 0 and newFiles.Length = 0 and hotstringLibUpdate = "" {
         LogDebug("No updates available.")
         progressGui.Destroy()
-        MsgBox "No updates available.", "AutoCorrect2 Updater"
+        AcMsgBox.Show("No updates available.", "AutoCorrect2 Updater")
         ExitApp
     }
 
     ; Close progress GUI and show update selection GUI
     progressGui.Destroy()
     ; Show GUI with checkboxes
-    ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir)
+    ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir, latestInfo, fontSize, formColor, fontColor, listColor)
 
 } catch Error as e {
     LogDebug("ERROR: " e.Message)
@@ -238,57 +439,73 @@ try {
         errorMsg := e.Message
     }
     
-    MsgBox errorMsg, "AutoCorrect2 Updater", "Iconx"
+    AcMsgBox.Show(errorMsg, "AutoCorrect2 Updater")
     ExitApp
 }
 
-ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir) {
-    myGui := Gui()
-    myGui.Title := "AutoCorrect2 - Select Updates"
-    myGui.Opt("+AlwaysOnTop")
+ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir, latestInfo, fontSize, formColor, fontColor, listColor) {
+    updateGui := Gui()
+    updateGui.Title := "AutoCorrect2 - Select Updates"
+    updateGui.Opt("+AlwaysOnTop")
+    updateGui.BackColor := formColor
+    
+    ; Apply font size from settings
+    updateGui.SetFont("s" fontSize " " fontColor)
 
-    myGui.Add("Text", "w700", "Review and select files to update:")
-    myGui.Add("Text", "w700 h2")  ; Separator
+    updateGui.Add("Text", "w700 h2")  ; Separator
 
     lvUpdated := ""
-    lvRarelyUpdated := ""
     lvNew := ""
     lvHotstringLib := ""
+    
+    ; Build a combined list of all updated files with checked state info
+    allUpdatedFiles := []
+    rarelyUpdatedMap := Map()
+    
+    ; Add regularly updated files (will be checked)
+    for item in updatedFiles {
+        allUpdatedFiles.Push({data: item, shouldCheck: true})
+    }
+    
+    ; Add rarely updated files (will be unchecked) and track them
+    for item in rarelyUpdatedFiles {
+        allUpdatedFiles.Push({data: item, shouldCheck: false})
+        rarelyUpdatedMap[item.path] := true
+    }
 
-    ; Show updated files with checkboxes (pre-checked)
-    if updatedFiles.Length > 0 {
-        myGui.Add("Text", "w700 cBlue", "Updated files (" updatedFiles.Length "):")
-        lvUpdated := myGui.Add("ListView", "w700 r8 Checked -Multi", ["Filename", "Path"])
+    ; Show all updated files in one ListView
+    if allUpdatedFiles.Length > 0 {
+        updateGui.Add("Text", "w700 cBlue", "Updated files (" allUpdatedFiles.Length "):")
+        lvUpdated := updateGui.Add("ListView", "w700 r8 Checked -Multi +Background" listColor, ["Filename", "Path"])
         
-        for item in updatedFiles {
-            lvUpdated.Add("Check", SubStr(item.relPath, InStr(item.relPath, "\") + 1), item.relPath)
+        for item in allUpdatedFiles {
+            if item.shouldCheck {
+                lvUpdated.Add("Check", SubStr(item.data.relPath, InStr(item.data.relPath, "\") + 1), item.data.relPath)
+            } else {
+                lvUpdated.Add("", SubStr(item.data.relPath, InStr(item.data.relPath, "\") + 1), item.data.relPath)
+            }
         }
         
         lvUpdated.ModifyCol(1, 200)
         lvUpdated.ModifyCol(2, 500)
         
-        ; Pre-check all updated items
-        loop lvUpdated.GetCount()
-            lvUpdated.Modify(A_Index, "+Check")
-    }
-
-    ; Show rarely-updated files with checkboxes (unchecked by default)
-    if rarelyUpdatedFiles.Length > 0 {
-        myGui.Add("Text", "w700 cBlack y+10", "Configuration files (" rarelyUpdatedFiles.Length ") - optional:")
-        lvRarelyUpdated := myGui.Add("ListView", "w700 r4 Checked -Multi", ["Filename", "Path"])
-        
-        for item in rarelyUpdatedFiles {
-            lvRarelyUpdated.Add("", SubStr(item.relPath, InStr(item.relPath, "\") + 1), item.relPath)
+        ; Pre-check only the regularly updated items
+        rowNum := 0
+        loop {
+            rowNum := lvUpdated.GetNext(rowNum)
+            if rowNum = 0
+                break
+            
+            if rowNum <= updatedFiles.Length {
+                lvUpdated.Modify(rowNum, "+Check")
+            }
         }
-        
-        lvRarelyUpdated.ModifyCol(1, 200)
-        lvRarelyUpdated.ModifyCol(2, 500)
     }
 
     ; Show new files with checkboxes (checked by default)
     if newFiles.Length > 0 {
-        myGui.Add("Text", "w700 cGreen y+10", "New files (" newFiles.Length "):")
-        lvNew := myGui.Add("ListView", "w700 r8 Checked -Multi", ["Filename", "Path"])
+        updateGui.Add("Text", "w700 cGreen y+10", "New files (" newFiles.Length "):")
+        lvNew := updateGui.Add("ListView", "w700 r8 Checked -Multi +Background" listColor, ["Filename", "Path"])
         
         for item in newFiles {
             lvNew.Add("Check", SubStr(item.relPath, InStr(item.relPath, "\") + 1), item.relPath)
@@ -304,62 +521,54 @@ ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, ho
 
     ; Show HotstringLib update (special handling)
     if hotstringLibUpdate != "" {
-        myGui.Add("Text", "w700 cBlack y+10", "Hotstring Library Update:")
-        myGui.Add("Text", "w700", "A new version of HotstringLib.ahk is available. It will be saved as:`nCore\" hotstringLibName "`n`nYour current HotstringLib.ahk will not be modified. Use UniqueStringExtractor.ahk to compare and merge custom hotstrings.", )
-        lvHotstringLib := myGui.Add("ListView", "w700 r2 Checked -Multi", ["Filename", "Path"])
+        updateGui.Add("Text", "w700 cBlack y+10", "HotstringLib Update Available")
+        updateGui.Add("Text", "w700", "Will be saved as: Core\" hotstringLibName ". Your current HotstringLib.ahk will not be modified. Use UniqueStringExtractor.ahk to compare and merge.")
+        lvHotstringLib := updateGui.Add("ListView", "w700 r2 Checked -Multi +Background" listColor, ["Filename", "Path"])
         lvHotstringLib.Add("", hotstringLibName, "Core\" hotstringLibName)
         lvHotstringLib.ModifyCol(1, 200)
         lvHotstringLib.ModifyCol(2, 500)
     }
 
     ; Buttons
-    myGui.Add("Button", "w100 y+10", "Update").OnEvent("Click", (*) => PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, myGui, lvUpdated, lvRarelyUpdated, lvNew, lvHotstringLib))
-    myGui.Add("Button", "x+10 w100", "Cancel").OnEvent("Click", (*) => ExitApp())
+    updateGui.Add("Button", "w100 y+10", "Update").OnEvent("Click", (*) => PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, updateGui, lvUpdated, lvNew, lvHotstringLib, latestInfo))
+    updateGui.Add("Button", "x+10 w100", "Cancel").OnEvent("Click", (*) => ExitApp())
 
-    myGui.Show()
+    updateGui.Show()
 }
 
-PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, myGui, lvUpdated, lvRarelyUpdated, lvNew, lvHotstringLib) {
+PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, updateGui, lvUpdated, lvNew, lvHotstringLib, latestInfo) {
     LogDebug("Starting file copy...")
     LogDebug("lvUpdated: " (lvUpdated != "" ? "exists" : "null"))
-    LogDebug("lvRarelyUpdated: " (lvRarelyUpdated != "" ? "exists" : "null"))
     LogDebug("lvNew: " (lvNew != "" ? "exists" : "null"))
     LogDebug("lvHotstringLib: " (lvHotstringLib != "" ? "exists" : "null"))
     
-    ; Copy checked updated files
+    ; Copy checked files from combined updated files list
     if lvUpdated != "" {
         LogDebug("Processing updated files...")
         rowNum := 0
+        rowIndex := 0
         loop {
             rowNum := lvUpdated.GetNext(rowNum, "C")  ; "C" for checked rows
             if rowNum = 0
                 break
             
+            rowIndex++
             LogDebug("Found checked row: " rowNum)
+            
+            ; Determine if this row is from updatedFiles or rarelyUpdatedFiles
             if rowNum <= updatedFiles.Length {
                 file := updatedFiles[rowNum]
-                LogDebug("Copying: " file.relPath)
+                LogDebug("Copying (updated): " file.relPath)
                 CopyFileWithDirCreation(file.srcPath, file.path)
                 LogDebug("Updated: " file.relPath)
-            }
-        }
-    }
-
-    ; Copy checked rarely-updated files
-    if lvRarelyUpdated != "" {
-        LogDebug("Processing rarely-updated files...")
-        rowNum := 0
-        loop {
-            rowNum := lvRarelyUpdated.GetNext(rowNum, "C")  ; "C" for checked rows
-            if rowNum = 0
-                break
-            
-            LogDebug("Found checked row: " rowNum)
-            if rowNum <= rarelyUpdatedFiles.Length {
-                file := rarelyUpdatedFiles[rowNum]
-                LogDebug("Copying: " file.relPath)
-                CopyFileWithDirCreation(file.srcPath, file.path)
-                LogDebug("Updated: " file.relPath)
+            } else {
+                rarelyIndex := rowNum - updatedFiles.Length
+                if rarelyIndex <= rarelyUpdatedFiles.Length {
+                    file := rarelyUpdatedFiles[rarelyIndex]
+                    LogDebug("Copying (rarely updated): " file.relPath)
+                    CopyFileWithDirCreation(file.srcPath, file.path)
+                    LogDebug("Updated: " file.relPath)
+                }
             }
         }
     }
@@ -396,9 +605,14 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
         }
     }
 
+    ; Store the latest update check info
+    if Type(latestInfo) = "Map" {
+        StoreUpdateCheckInfo(latestInfo["sha"], latestInfo["date"])
+    }
+
     LogDebug("=== Update Completed Successfully ===")
-    myGui.Hide()
-    MsgBox "AutoCorrect2 has been updated successfully!"
+    updateGui.Hide()
+    AcMsgBox.Show("AutoCorrect2 has been updated successfully!", "AutoCorrect2 Updater")
     ExitApp
 }
 
