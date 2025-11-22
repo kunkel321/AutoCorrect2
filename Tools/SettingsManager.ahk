@@ -3,165 +3,84 @@
 
 ; ============================================================================
 ; Settings Manager - Standalone GUI for editing INI configuration files
-; Version: 11-8-2025
+; Version: 11-22-2025
 ; 
 ; A dedicated GUI application for viewing and editing INI settings with
-; metadata-driven features like validation, custom types, and helpful descriptions.
+; metadata-driven features: type-specific editing, auto-generation, validation,
+; and quick navigation to properties in your preferred editor.
 ;
-; QUICK START FOR YOUR OWN PROJECT:
+; QUICK START:
 ; ============================================================================
 ; 1. UPDATE CONFIGURATION (see below):
-;    - Change AppName, IniFileName, MetadataFileName, and ExpectedDataDir
-;    - Point to your existing INI file location
+;    - Change AppName, IniFileName, MetadataFileName, ExpectedDataDir
+;    - Set EditorPath (optional, auto-detects VS Code)
 ;
-; 2. RUN THE SCRIPT:
-;    - If metadata file doesn't exist, the script will offer to generate
-;      a skeleton JSON based on your INI sections and keys
-;    - Click "Yes" to auto-generate the skeleton
-;    - File will be created in Data Dir.
+; 2. RUN: If metadata file doesn't exist, script offers to auto-generate
+;    skeleton based on INI structure
 ;
-; 3. CUSTOMIZE THE METADATA:
-;    - Open the generated JSON file in a text editor (VSCode recommended)
-;    - For each setting, add meaningful labels, help text, and set the type
-;    - See METADATA REFERENCE section below for all options
+; 3. USE: Double-click to edit settings, Validate Metadata to sync JSON,
+;    Go To to jump to properties in your editor
 ;
 ; ============================================================================
-; METADATA REFERENCE - Supported Field Types
+; METADATA FIELD TYPES
 ; ============================================================================
 ;
-; TEXT Type (default):
-;   {
-;     "label": "Setting Name",
-;     "help": "Description of this setting that appears in the help pane",
-;     "type": "text",
-;     "validation": "(optional) regex pattern for validation"
-;   }
-;   Example: validation: "^[A-Za-z0-9_-]+$"
+; TEXT (default):    { "label": "...", "help": "...", "type": "text" }
 ;
-; INTEGER Type:
-;   {
-;     "label": "Setting Name",
-;     "help": "Description",
-;     "type": "integer",
-;     "min": 0,
-;     "max": 100
-;   }
+; INTEGER:           { "type": "integer", "min": 0, "max": 100 }
 ;
-; BOOLEAN Type:
-;   {
-;     "label": "Setting Name",
-;     "help": "Description",
-;     "type": "boolean",
-;     "options": [
-;       "0=Disabled",
-;       "1=Enabled"
-;     ]
-;   }
-;   Note: Values must be 0 or 1. Customize option labels as needed.  
+; BOOLEAN:           { "type": "boolean", "options": ["0=Off", "1=On"] }
 ;
-; FILE Type:
-;   {
-;     "label": "Setting Name",
-;     "help": "Description",
-;     "type": "file",
-;     "filter": "Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
-;   }
-;   Note: Uses Windows file picker. Filter format: "Description|*.ext|..."
+; FILE:              { "type": "file", "filter": "Text Files (*.txt)|*.txt" }
 ;
-; COLOR Type:
-;   {
-;     "label": "Setting Name",
-;     "help": "Description (hex colors like b8f3ab)",
-;     "type": "color"
-;   }
-;   Note: Uses Windows color picker. User selects color graphically.
+; COLOR:             { "type": "color" }  (uses Windows color picker)
 ;
-; HOTKEY Type:
-;   {
-;     "label": "Setting Name",
-;     "help": "Description",
-;     "type": "hotkey"
-;   }
-;   Example values: #h (Win+H), ^+h (Ctrl+Shift+H), F12
-;   Tip: Check Win Key checkbox for # prefix
+; HOTKEY:            { "type": "hotkey" }  (examples: #h, ^+h, F12)
 ;
-; LIST Type:
-;   {
-;     "label": "Setting Name",
-;     "help": "Description (select from list of options)",
-;     "type": "list",
-;     "validation": "option1|option2|option3|..."
-;   }
-;   Note: Uses a ListBox dialog. Items are pipe-delimited in validation field.
-;   Example validation: "options|trigger|replacement|comment|auto"
+; LIST:              { "type": "list", "validation": "option1|option2|..." }
 ;
-; ============================================================================
-; METADATA FEATURES
-; ============================================================================
-;
-; COMMON FIELDS (all types):
-;   - "label": Display name in settings list
-;   - "help": Help text shown in the help pane
-;   - "type": One of: text, integer, boolean, file, color, hotkey, list
-;   - "default": (optional) Default value if key missing from INI
-;   - "restart": (optional) Path to executable to restart when this setting changes
-;
-; RESTART FIELD (all types - optional):
-;   - "restart": Path to an executable that should be restarted after this setting is saved
-;   - Can be relative path (e.g., "..\\Core\\AutoCorrect2.exe") or absolute path
-;   - When user saves a setting with a restart field, SettingsManager will prompt to restart
-;   - Multiple settings can reference the same app - it will only restart once
-;   - Example: "restart": "..\\Core\\AutoCorrect2.exe"
-;
-; VALIDATION (text type):
-;   - "validation": Regex pattern that value must match
-;   - Invalid entries will show rejected characters and the pattern
-;   - Example: "validation": "(\\*|B0|\\?|SI|C)"
-;   Note: Backslashes in JSON must be escaped (\\)
-;
-; VALIDATION (list type):
-;   - "validation": A pipe-separated list
-;   - The edit dialog will use the list in a listBox
-;   - Example: validation: "options|trigger|replacement|comment|auto"
-;   Note: Backslashes in JSON must be escaped (\\)
-;
-; OPTIONS (boolean type):
-;   - "options": Array of "0=Label" and "1=Label" strings
-;   - Customizes the radio button text in the edit dialog
-;   - Example: ["0=Off", "1=On"]
-;
-; RANGES (integer type):
-;   - "min": Minimum allowed value
-;   - "max": Maximum allowed value
-;   - Invalid entries will be rejected with range shown
+; OPTIONAL FIELDS (all types):
+;   - "default": Default value if key missing from INI
+;   - "restart": Path to .exe to restart when this setting changes
 ;
 ; ============================================================================
 ; SPECIAL FEATURES
 ; ============================================================================
 ;
-; MULTI-LINE HELP TEXT:
-;   Use \n for newlines in JSON strings (shown on separate lines in help pane)
+; AUTO-DETECTION: New metadata types are detected from INI values
+;   - Boolean: 0 or 1 values
+;   - Integer: Numeric values
+;   - Color: Hex color patterns
+;   - Hotkey: Common hotkey patterns
+;   - File: Common file extensions (.ahk, .exe, .txt, .csv)
+;   - Text: Default for everything else
+;
+; MULTI-LINE HELP: Use \n in JSON for line breaks
 ;   Example: "help": "Line 1\nLine 2\nLine 3"
 ;
-; AUTO-DETECTION:
-;   - Values "0" or "1" are auto-detected as boolean type in skeleton 
-;   - All other values default to "text" type
-;   - Change types manually afterward as needed
-;
-; COMMENTS IN JSON:
-;   - Add a "_Comment" key with instructions for users
-;   - Skeleton generation includes a helpful comment automatically
-;   - Safe to remove if not needed
+; COMMENTS IN JSON: Add "_Comment" key for documentation (optional)
 ;
 ; ============================================================================
-; EDITING WORKFLOW
+; GUI BUTTONS & WORKFLOW
 ; ============================================================================
 ;
-; 1. DOUBLE-CLICK any row in the settings list to edit
-; 2. RIGHT-CLICK to copy the value to clipboard
-; 3. RELOAD button: Revert unsaved changes
-; 4. SAVE button: Write changes to INI file
-; 5. OPEN INI FILE button: Open with default editor
+; EDIT:               Edit selected setting (type-specific dialog)
+;
+; VALIDATE METADATA:  Check INI/JSON sync and fix mismatches
+;                     - Detects new keys to add
+;                     - Detects orphaned keys to remove
+;                     - One-click update preserves all customizations
+;
+; GO TO:              Jump to selected property in your editor
+;                     - Opens metadata file
+;                     - Searches for the property key
+;                     - Perfect for customizing newly-added metadata
+;
+; OPEN INI FILE:      Open INI file in default editor
+;
+; RELOAD:             Discard unsaved changes
+;
+; SAVE:               Write changes to INI file
 ;
 ; ============================================================================
 
@@ -172,6 +91,12 @@ AppName := "AutoCorrect2 Settings Manager"
 IniFileName := "acSettings.ini"
 MetadataFileName := "acSettingsMetadata.json"
 ExpectedDataDir := "..\Data"  ; Relative path to expected data directory
+
+; Path to your preferred editor. Will be used by "Go To" button to open metadata file.
+; If path is blank or invalid, defaults to VS Code.
+; Examples: "C:\Program Files\Notepad++\notepad++.exe"
+;           "C:\Program Files\Microsoft VS Code\Code.exe"
+EditorPath := ""  ; Leave blank to auto-detect VS Code, or set your own path
 
 ; ============================================================================
 ; Global variables
@@ -200,8 +125,31 @@ ListColor := "FFFFFF"
 TraySetIcon("shell32.dll", 70)
 
 ; ============================================================================
-; COLOR PICKER FUNCTION
+; COLOR PICKER FUNCTION based on work by Teadrinker
 ; ============================================================================
+
+ValidateAndInitializeEditorPath() {
+    global EditorPath
+    
+    ; If EditorPath is blank or file doesn't exist, try to find VS Code
+    if (EditorPath = "" || !FileExist(EditorPath)) {
+        ; Try default VS Code location
+        defaultVSCode := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
+        
+        if (FileExist(defaultVSCode)) {
+            EditorPath := defaultVSCode
+        } else {
+            ; If still not found, try Program Files location
+            altVSCode := "C:\Program Files\Microsoft VS Code\Code.exe"
+            if (FileExist(altVSCode)) {
+                EditorPath := altVSCode
+            } else {
+                ; Last resort: try to find it in PATH or just use "code"
+                EditorPath := "code"
+            }
+        }
+    }
+}
 
 ChooseColor(initColor := 0, hWnd := 0, customColorsArr := '', flags := 3) { 
     ; flags: CC_RGBINIT = 1, CC_FULLOPEN = 2, CC_PREVENTFULLOPEN = 4
@@ -274,7 +222,7 @@ EditBoolean(section, key, originalValue) {
     global mainGui, allSettings, isDirty, lvSettings, DefaultFontSize, FormColor, FontColor, settingsMetadata
     
     editGui := Gui()
-    editGui.Opt("+AlwaysOnTop +Owner" mainGui.Hwnd)
+    editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Boolean Setting"
     editGui.BackColor := FormColor
     editGui.SetFont(DefaultFontSize " " FontColor)
@@ -386,7 +334,7 @@ EditInteger(section, key, originalValue) {
     maxVal := metadata.Has("max") ? metadata["max"] : 999999
     
     editGui := Gui()
-    editGui.Opt("+AlwaysOnTop +Owner" mainGui.Hwnd)
+    editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Integer Setting"
     editGui.BackColor := FormColor
     editGui.SetFont(DefaultFontSize " " FontColor)
@@ -444,7 +392,7 @@ EditHotkey(section, key, originalValue) {
     global mainGui, allSettings, isDirty, lvSettings, DefaultFontSize, FormColor, FontColor
     
     editGui := Gui()
-    editGui.Opt("+AlwaysOnTop +Owner" mainGui.Hwnd)
+    editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Hotkey Setting"
     editGui.BackColor := FormColor
     editGui.SetFont(DefaultFontSize " " FontColor)
@@ -506,7 +454,7 @@ EditText(section, key, originalValue) {
     global mainGui, allSettings, isDirty, lvSettings, DefaultFontSize, FormColor, FontColor, ListColor, settingsMetadata
     
     editGui := Gui()
-    editGui.Opt("+AlwaysOnTop +Owner" mainGui.Hwnd)
+    editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Text Setting"
     editGui.BackColor := FormColor
     editGui.SetFont(DefaultFontSize " " FontColor)
@@ -533,7 +481,7 @@ EditText(section, key, originalValue) {
                 
                 if (remainingInvalid != "") {
                     ; Found invalid characters
-                    MsgBox("Invalid characters found: " remainingInvalid "`n`nMust match pattern: " validationPattern, "Validation Error", "Iconx Owner" mainGui.Hwnd)
+                    MsgBox("Invalid characters found: " remainingInvalid "`n`nMust match pattern: " validationPattern, "Validation Error", "Iconx 4096")
                     return
                 }
             }
@@ -566,7 +514,7 @@ EditList(section, key, originalValue) {
     metadata := GetMetadata(section, key)
     
     if (!metadata.Has("validation") || metadata["validation"] = "") {
-        MsgBox("List type requires a 'validation' field with pipe-delimited items", "Configuration Error", "Iconx Owner" mainGui.Hwnd)
+        MsgBox("List type requires a 'validation' field with pipe-delimited items", "Configuration Error", "Iconx 4096")
         return
     }
     
@@ -576,7 +524,7 @@ EditList(section, key, originalValue) {
     
     ; Create the dialog
     editGui := Gui()
-    editGui.Opt("+AlwaysOnTop +Owner" mainGui.Hwnd)
+    editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Select from List"
     editGui.BackColor := FormColor
     editGui.SetFont(DefaultFontSize " " FontColor)
@@ -608,7 +556,7 @@ EditList(section, key, originalValue) {
         submitted := editGui.Submit(0)
         
         if (submitted.SelectedItem = "") {
-            MsgBox("Please select an item from the list", "No Selection", "Iconx Owner" mainGui.Hwnd)
+            MsgBox("Please select an item from the list", "No Selection", "Iconx 4096")
             return
         }
         
@@ -654,6 +602,85 @@ ProcessJSONEscapes(str) {
 ; METADATA SKELETON GENERATION
 ; ============================================================================
 
+DetectFieldType(value) {
+    ; Type detection order: Boolean -> Integer -> Color -> Hotkey -> File -> Text
+    
+    ; 1. BOOLEAN: Must be exactly "0" or "1"
+    if (value = "0" || value = "1") {
+        return "boolean"
+    }
+    
+    ; 2. INTEGER: Only digits (and optional leading minus)
+    if (RegExMatch(value, "^-?\d+$")) {
+        return "integer"
+    }
+    
+    ; 3. COLOR: Exactly 6 hex digits
+    if (RegExMatch(value, "^[0-9A-Fa-f]{6}$")) {
+        return "color"
+    }
+    
+    ; 4. HOTKEY: Contains hotkey modifiers or function keys
+    ; Hotkey patterns: # (Win), ^ (Ctrl), ! (Alt), + (Shift), or F1-F24, or other keys
+    if (InStr(value, "#") || InStr(value, "^") || InStr(value, "!") || InStr(value, "+")) {
+        return "hotkey"
+    }
+    ; Check for function keys F1-F24
+    if (RegExMatch(value, "^F(1|2|[0-9]|1[0-9]|2[0-4])$")) {
+        return "hotkey"
+    }
+    ; Check for common special keys
+    if (value ~= "i)^(Enter|Tab|Escape|Backspace|Delete|Home|End|PgUp|PgDn|Up|Down|Left|Right|LCtrl|RCtrl|LAlt|RAlt|LShift|RShift|LWin|RWin)$") {
+        return "hotkey"
+    }
+    
+    ; 5. FILE: Smart detection
+    ; Pattern: Name.extension where extension is 3+ alphanumeric chars, not a TLD
+    ; Exclude common TLDs: com, org, edu, net, gov, io, co, uk, etc.
+    ; Also reject if multiple file patterns exist
+    
+    ; Check for file pattern: something.extension
+    filePattern := "\.([a-zA-Z0-9]{3,})"
+    fileMatches := Array()
+    match := ""  ; Initialize for RegExMatch
+    pos := 1
+    while (pos := RegExMatch(value, filePattern, &match, pos)) {
+        ext := match[1]
+        fileMatches.Push(ext)
+        pos += StrLen(match[0])
+    }
+    
+    ; If we found exactly one file pattern, validate it's not a URL/TLD
+    if (fileMatches.Length = 1) {
+        ext := fileMatches[1]
+        ; Common TLDs and web patterns to exclude
+        tlds := "com|org|edu|net|gov|io|co|uk|us|de|fr|jp|cn|au|ca|ru|br|in|info|biz|xyz|site|online|shop|app|dev|cloud"
+        if (!RegExMatch(ext, "^(" tlds ")$", , 1)) {
+            return "file"
+        }
+    }
+    
+    ; 6. TEXT: Default fallback
+    return "text"
+}
+
+GetMinMaxForInteger(value) {
+    ; If value <= 50, use 0-100
+    ; If value > 50, use 0 to value*1.5 rounded up to nearest 10
+    
+    numValue := Integer(value)
+    
+    if (numValue <= 50) {
+        return { min: 0, max: 100 }
+    }
+    
+    ; Calculate max as value * 1.5, rounded up to nearest 10
+    maxValue := numValue * 1.5
+    maxValue := Ceil(maxValue / 10) * 10
+    
+    return { min: 0, max: maxValue }
+}
+
 GenerateMetadataSkeleton() {
     global sectionOrder, keyOrder, allSettings
     
@@ -663,11 +690,10 @@ GenerateMetadataSkeleton() {
     
     ; Add comment as first entry
     json .= "`n  " quote "_Comment" quote ": " quote 
-    json .= "Please review and adjust field types as needed. Default type is 'text'. "
-    json .= "Change to: file, integer, boolean, color, hotkey, or list as appropriate. "
-    json .= "Boolean types can have custom 0/1 labels. Text types can have regex validation rules. "
-    json .= "List types require pipe-delimited options in the validation field. "
-    json .= "Feel free to remove this _Comment if desired." quote
+    json .= "Auto-detected field types: text, boolean, integer, color, hotkey, file, or list. "
+    json .= "Review and customize labels and help text. Boolean types can have custom 0/1 labels. "
+    json .= "Integer types have auto-calculated min/max ranges. Text types can have regex validation. "
+    json .= "List types require pipe-delimited options in validation field." quote
     isFirst := false
     
     for section in sectionOrder {
@@ -678,28 +704,53 @@ GenerateMetadataSkeleton() {
                 isFirst := false
                 
                 fullKey := section "." key
+                value := ""
                 
-                ; Detect type based on value
-                fieldType := "text"
                 if allSettings.Has(fullKey) {
                     value := allSettings[fullKey]
-                    if (value = "0" || value = "1") {
-                        fieldType := "boolean"
-                    }
                 }
+                
+                ; Use enhanced type detection
+                fieldType := DetectFieldType(value)
                 
                 json .= "`n  " quote fullKey quote ": {"
                 json .= "`n    " quote "label" quote ": " quote key quote ","
                 json .= "`n    " quote "help" quote ": " quote "Help for " key " goes here" quote ","
                 json .= "`n    " quote "type" quote ": " quote fieldType quote
                 
-                ; Add options for boolean types
-                if (fieldType = "boolean") {
-                    json .= ","
-                    json .= "`n    " quote "options" quote ": ["
-                    json .= "`n      " quote "0=Disabled" quote ","
-                    json .= "`n      " quote "1=Enabled" quote
-                    json .= "`n    ]"
+                ; Add type-specific fields
+                switch fieldType {
+                    case "boolean":
+                        json .= ","
+                        json .= "`n    " quote "options" quote ": ["
+                        json .= "`n      " quote "0=Disabled" quote ","
+                        json .= "`n      " quote "1=Enabled" quote
+                        json .= "`n    ]"
+                    
+                    case "integer":
+                        range := GetMinMaxForInteger(value)
+                        json .= ","
+                        json .= "`n    " quote "min" quote ": " range.min ","
+                        json .= "`n    " quote "max" quote ": " range.max
+                    
+                    case "color":
+                        json .= ","
+                        json .= "`n    " quote "validation" quote ": " quote "^[0-9A-Fa-f]{6}$" quote
+                    
+                    case "file":
+                        json .= ","
+                        ; Try to guess file type from extension
+                        if (InStr(value, ".ahk")) {
+                            json .= "`n    " quote "filter" quote ": " quote "AHK Files (*.ahk)|*.ahk" quote
+                        } else if (InStr(value, ".exe")) {
+                            json .= "`n    " quote "filter" quote ": " quote "Executables (*.exe)|*.exe" quote
+                        } else if (InStr(value, ".txt")) {
+                            json .= "`n    " quote "filter" quote ": " quote "Text Files (*.txt)|*.txt" quote
+                        } else if (InStr(value, ".csv")) {
+                            json .= "`n    " quote "filter" quote ": " quote "CSV Files (*.csv)|*.csv" quote
+                        } else {
+                            json .= "`n    " quote "filter" quote ": " quote "All Files (*.*)|*.*" quote
+                        }
                 }
                 
                 json .= "`n  }"
@@ -712,20 +763,21 @@ GenerateMetadataSkeleton() {
 }
 
 CheckAndGenerateMetadata(metadataPath) {
+    global mainGui
     fileInfo := FileExist(metadataPath)
     shouldGenerate := false
     
     if (fileInfo = "") {
         ; File doesn't exist
         result := MsgBox("No metadata file found.`n`nWould you like to generate a skeleton metadata file`nbased on the sections and keys in your INI file?`n`nThe metadata file will be a .JSON file and will be created`nin the same folder as your INI file.`n`nYou can then customize the labels and help text.",
-            "Generate Metadata?", "YesNo Icon?")
+            "Generate Metadata?", "YesNo Icon? 4096")
         shouldGenerate := (result = "Yes")
     } 
     else if (fileInfo = "A") {
         ; File exists, check if it's empty
         if (FileGetSize(metadataPath) = 0) {
             result := MsgBox("Metadata file is empty.`n`nWould you like to generate a skeleton metadata file`nbased on the sections and keys in your INI file?`n`nThe metadata file will be a .JSON file and will be created`nin the same folder as your INI file.`n`nYou can then customize the labels and help text.",
-                "Generate Metadata?", "YesNo Icon?")
+                "Generate Metadata?", "YesNo Icon? 4096")
             shouldGenerate := (result = "Yes")
         }
     }
@@ -740,12 +792,460 @@ CheckAndGenerateMetadata(metadataPath) {
             SetTimer(() => ToolTip(), 2000)
             return true
         } catch as err {
-            MsgBox("Error creating metadata file: " err.What, "Error", "Iconx")
+            MsgBox("Error creating metadata file: " err.What, "Error", "Iconx 4096")
             return false
         }
     }
     
     return false
+}
+
+ValidateMetadata() {
+    global allSettings, iniPath, mainGui
+    
+    ; Get all INI keys
+    iniKeys := Map()
+    for fullKey in allSettings {
+        iniKeys[fullKey] := true
+    }
+    
+    ; Find missing keys (in INI but not in JSON)
+    missingKeys := FindMissingKeys()
+    
+    ; Find unused keys (in JSON but not in INI)
+    unusedKeys := FindUnusedKeys()
+    
+    ; Build report
+    report := "=== Metadata Validation Report ===`n`n"
+    report .= "INI Keys: " iniKeys.Count "`n"
+    report .= "JSON Keys: (will be calculated)`n`n"
+    
+    if (missingKeys.Length > 0) {
+        report .= "❌ MISSING IN JSON (" missingKeys.Length " keys):`n"
+        for key in missingKeys {
+            report .= "  • " key "`n"
+        }
+        report .= "`n"
+    }
+    
+    if (unusedKeys.Length > 0) {
+        report .= "⚠ UNUSED IN JSON (" unusedKeys.Length " keys):`n"
+        report .= "  (These keys are in JSON but not in INI)`n"
+        for key in unusedKeys {
+            report .= "  • " key "`n"
+        }
+        report .= "`n"
+    }
+    
+    if (missingKeys.Length = 0 && unusedKeys.Length = 0) {
+        report .= "✓ All keys are in sync!`n"
+    }
+    
+    ; If there are changes needed, offer to fix them
+    if (missingKeys.Length > 0 || unusedKeys.Length > 0) {
+        report .= "`nPress 'Yes' to correct the JSON file,"
+        report .= "`nor 'No' to ignore."
+        
+        result := MsgBox(report, "Metadata Validation Report", "YesNo Icon! 4096")
+        
+        if (result = "Yes") {
+            jsonPath := SubStr(iniPath, 1, InStr(iniPath, "\", , -1) - 1) "\" "acSettingsMetadata.json"
+            
+            ; Proceed with merge to add missing keys and remove unused keys
+            if MergeKeysIntoJSON(missingKeys, unusedKeys, jsonPath) {
+                summaryMsg := "Metadata updated successfully!`n`n"
+                
+                if (missingKeys.Length > 0) {
+                    summaryMsg .= "Added: " missingKeys.Length " new keys`n"
+                }
+                if (unusedKeys.Length > 0) {
+                    summaryMsg .= "Removed: " unusedKeys.Length " unused keys`n"
+                }
+                
+                summaryMsg .= "`nSettings will now be reloaded."
+                
+                MsgBox(summaryMsg, "Success", "Icon! 4096")
+                
+                ; Reload everything
+                Btn_Reload()
+            } else {
+                MsgBox("Error updating metadata. Changes were not saved.", "Error", "Iconx 4096")
+            }
+        } else {
+            ; User clicked No - just copy report to clipboard
+            A_Clipboard := report
+            ToolTip("Report copied to clipboard")
+            SetTimer(() => ToolTip(), 2000)
+        }
+    } else {
+        ; All in sync - just show report
+        MsgBox(report, "Metadata Validation Report", "Icon! 4096")
+        
+        ; Copy to clipboard for convenience
+        A_Clipboard := report
+        ToolTip("Report copied to clipboard")
+        SetTimer(() => ToolTip(), 2000)
+    }
+}
+
+quote(str) {
+    return chr(34) str chr(34)
+}
+
+FindMissingKeys() {
+    ; Returns array of keys in INI but not in JSON
+    global iniPath
+    
+    missingKeys := Array()
+    
+    jsonPath := SubStr(iniPath, 1, InStr(iniPath, "\", , -1) - 1) "\" "acSettingsMetadata.json"
+    
+    if !FileExist(jsonPath) {
+        return missingKeys  ; All keys are "missing" if no JSON exists
+    }
+    
+    ; Read JSON and search for each INI key
+    try {
+        jsonContent := FileRead(jsonPath)
+        
+        ; Get all INI keys and check if each exists in JSON
+        for fullKey in allSettings {
+            searchPattern := quote(fullKey) ":"
+            if !InStr(jsonContent, searchPattern) {
+                missingKeys.Push(fullKey)
+            }
+        }
+    } catch as err {
+        MsgBox("Error reading JSON file: " err.What, "Error", "Iconx")
+    }
+    
+    return missingKeys
+}
+
+FindUnusedKeys() {
+    ; Returns array of keys in JSON but not in INI
+    global iniPath, allSettings
+    
+    unusedKeys := Array()
+    
+    jsonPath := SubStr(iniPath, 1, InStr(iniPath, "\", , -1) - 1) "\" "acSettingsMetadata.json"
+    
+    if !FileExist(jsonPath) {
+        return unusedKeys
+    }
+    
+    try {
+        jsonContent := FileRead(jsonPath)
+        
+        ; Find all properties in JSON that match the "Section.Key": pattern
+        regex := '"([^"]+)"\s*:\s*\{'
+        pos := 1
+        while (pos := RegExMatch(jsonContent, regex, &match, pos)) {
+            fullKey := match[1]
+            
+            ; Skip special entries like _Comment
+            if !InStr(fullKey, "_") {
+                if !allSettings.Has(fullKey) {
+                    unusedKeys.Push(fullKey)
+                }
+            }
+            
+            pos += StrLen(match[0])
+        }
+    } catch as err {
+        MsgBox("Error reading JSON file: " err.What, "Error", "Iconx")
+    }
+    
+    return unusedKeys
+}
+
+GenerateMetadataObject(fullKey, fieldType, value) {
+    ; Generates a metadata object (the value part only, not the key)
+    ; Returns: { "label": ..., "help": ..., "type": ... }
+    ; This is used for proper JSON reconstruction
+    q := chr(34)
+    
+    ; Extract just the key name for label
+    keyName := SubStr(fullKey, InStr(fullKey, ".") + 1)
+    
+    obj := "{`n    "
+    obj .= q "label" q ": " q keyName q ",`n    "
+    obj .= q "help" q ": " q "Help for " keyName " goes here" q ",`n    "
+    obj .= q "type" q ": " q fieldType q
+    
+    ; Add type-specific fields
+    switch fieldType {
+        case "boolean":
+            obj .= ",`n    " q "options" q ": [`n"
+            obj .= "      " q "0=Disabled" q ",`n"
+            obj .= "      " q "1=Enabled" q "`n"
+            obj .= "    ]"
+        
+        case "integer":
+            range := GetMinMaxForInteger(value)
+            obj .= ",`n    " q "min" q ": " range.min ",`n"
+            obj .= "    " q "max" q ": " range.max
+        
+        case "color":
+            obj .= ",`n    " q "validation" q ": " q "^[0-9A-Fa-f]{6}$" q
+        
+        case "file":
+            obj .= ",`n    " q "filter" q ": " q
+            if (InStr(value, ".ahk")) {
+                obj .= "AHK Files (*.ahk)|*.ahk"
+            } else if (InStr(value, ".exe")) {
+                obj .= "Executables (*.exe)|*.exe"
+            } else if (InStr(value, ".csv")) {
+                obj .= "CSV Files (*.csv)|*.csv"
+            } else if (InStr(value, ".txt")) {
+                obj .= "Text Files (*.txt)|*.txt"
+            } else {
+                obj .= "All Files (*.*)|*.*"
+            }
+            obj .= chr(34)
+    }
+    
+    obj .= "`n  }"
+    
+    return obj
+}
+
+GenerateMetadataEntryAsString(fullKey, fieldType, value) {
+    ; Generates a single metadata property as formatted JSON string
+    q := chr(34)
+    
+    ; Extract just the key name for label
+    keyName := SubStr(fullKey, InStr(fullKey, ".") + 1)
+    
+    entry := q fullKey q ": {`n"
+    entry .= "      " q "label" q ": " q keyName q ",`n"
+    entry .= "      " q "help" q ": " q "Help for " keyName " goes here" q ",`n"
+    entry .= "      " q "type" q ": " q fieldType q
+    
+    ; Add type-specific fields
+    switch fieldType {
+        case "boolean":
+            entry .= ",`n      " q "options" q ": [`n"
+            entry .= "        " q "0=Disabled" q ",`n"
+            entry .= "        " q "1=Enabled" q "`n"
+            entry .= "      ]"
+        
+        case "integer":
+            range := GetMinMaxForInteger(value)
+            entry .= ",`n      " q "min" q ": " range.min ",`n"
+            entry .= "      " q "max" q ": " range.max
+        
+        case "color":
+            entry .= ",`n      " q "validation" q ": " q "^[0-9A-Fa-f]{6}$" q
+        
+        case "file":
+            entry .= ",`n      " q "filter" q ": " q
+            if (InStr(value, ".ahk")) {
+                entry .= "AHK Files (*.ahk)|*.ahk"
+            } else if (InStr(value, ".exe")) {
+                entry .= "Executables (*.exe)|*.exe"
+            } else if (InStr(value, ".csv")) {
+                entry .= "CSV Files (*.csv)|*.csv"
+            } else if (InStr(value, ".txt")) {
+                entry .= "Text Files (*.txt)|*.txt"
+            } else {
+                entry .= "All Files (*.*)|*.*"
+            }
+            entry .= chr(34)
+    }
+    
+    entry .= "`n    }"
+    
+    return entry
+}
+
+MergeKeysIntoJSON(missingKeys, unusedKeys, jsonPath) {
+    ; Merges new keys into JSON, removes unused keys, maintains INI order
+    ; Uses robust regex-based parsing instead of fragile string splitting
+    global sectionOrder, keyOrder, allSettings, mainGui
+    
+    ; Read existing JSON
+    if !FileExist(jsonPath) {
+        MsgBox("JSON file not found: " jsonPath, "Error", "Iconx 4096")
+        return false
+    }
+    
+    originalJson := FileRead(jsonPath)
+    
+    ; Parse existing properties using regex - handles both strings and objects
+    ; Regex matches: "key": "string" or "key": {...}
+    existingProps := Map()
+    
+    regex := '"([^"]+)"\s*:\s*(?:(\{(?:[^{}]|(?:\{[^{}]*\}))*\})|("[^"]*"))'
+    pos := 1
+    
+    while (pos := RegExMatch(originalJson, regex, &match, pos)) {
+        keyName := match[1]
+        fullValue := match[0]  ; Complete "key": value
+        
+        ; Extract just the value part (everything after the colon)
+        colonPos := InStr(fullValue, ":")
+        valueContent := SubStr(fullValue, colonPos + 1)
+        valueContent := Trim(valueContent)
+        
+        existingProps[keyName] := valueContent
+        pos += StrLen(match[0])
+    }
+    
+    ; Build new JSON with consistent formatting (no extra blank lines)
+    newJson := "{"
+    isFirst := true
+    
+    ; Add special _Comment property first if it exists (it's a string, not an object)
+    if (existingProps.Has("_Comment")) {
+        newJson .= "`n  " quote("_Comment") ": " existingProps["_Comment"]
+        isFirst := false
+    }
+    
+    ; For each section in INI order, add all keys
+    for section in sectionOrder {
+        if keyOrder.Has(section) {
+            for key in keyOrder[section] {
+                fullKey := section "." key
+                
+                ; Check if this key should be removed (unused)
+                shouldRemove := false
+                for unusedKey in unusedKeys {
+                    if (unusedKey = fullKey) {
+                        shouldRemove := true
+                        break
+                    }
+                }
+                if (shouldRemove) {
+                    continue
+                }
+                
+                ; Add comma separator if not first property
+                if (!isFirst) {
+                    newJson .= ","
+                }
+                isFirst := false
+                newJson .= "`n  "
+                
+                if (existingProps.Has(fullKey)) {
+                    ; Existing property - reconstruct as "key": value
+                    newJson .= quote(fullKey) ": " existingProps[fullKey]
+                } else {
+                    ; Check if this is a missing key that needs to be added
+                    isNew := false
+                    for missingKey in missingKeys {
+                        if (missingKey = fullKey) {
+                            isNew := true
+                            break
+                        }
+                    }
+                    
+                    if (isNew) {
+                        ; Generate new property using type detection
+                        value := allSettings[fullKey]
+                        fieldType := DetectFieldType(value)
+                        objContent := GenerateMetadataObject(fullKey, fieldType, value)
+                        newJson .= quote(fullKey) ": " objContent
+                    }
+                }
+            }
+        }
+    }
+    
+    newJson .= "`n}"
+    
+    ; Backup original file
+    backupPath := jsonPath ".backup"
+    try {
+        if FileExist(backupPath) {
+            FileDelete(backupPath)
+        }
+        FileCopy(jsonPath, backupPath)
+    } catch as err {
+        MsgBox("Warning: Could not create backup: " err.What, "Backup Warning", "Icon!")
+    }
+    
+    ; Delete old file and write new one
+    try {
+        FileDelete(jsonPath)
+        FileAppend(newJson, jsonPath)
+        return true
+    } catch as err {
+        MsgBox("Error writing JSON file: " err.What, "Error", "Iconx 4096")
+        ; Try to restore from backup
+        if FileExist(backupPath) {
+            FileCopy(backupPath, jsonPath)
+        }
+        return false
+    }
+}
+
+ShowManageMissingKeysDialog(missingKeys, unusedKeys) {
+    ; Shows dialog for user to choose what to do with missing/unused keys
+    global mainGui
+    
+    message := "=== Metadata Management ===" . "`n`n"
+    
+    if (missingKeys.Length > 0) {
+        message .= "NEW KEYS TO ADD (" missingKeys.Length "):`n"
+        for key in missingKeys {
+            message .= "  • " key "`n"
+        }
+        message .= "`n"
+    }
+    
+    if (unusedKeys.Length > 0) {
+        message .= "UNUSED KEYS TO REMOVE (" unusedKeys.Length "):`n"
+        for key in unusedKeys {
+            message .= "  • " key "`n"
+        }
+        message .= "`n"
+    }
+    
+    if (missingKeys.Length = 0 && unusedKeys.Length = 0) {
+        MsgBox("All metadata is already in sync!`n`nNo changes needed.", "Metadata Sync", "Icon!" "4096")
+        return "Cancel"
+    }
+    
+    message .= "New keys will be auto-detected with appropriate types.`n"
+    message .= "Your existing metadata will be preserved.`n`n"
+    message .= "Proceed with these changes?"
+    
+    result := MsgBox(message, "Manage Metadata", "YesNo Icon?" "4096")
+    return result
+}
+
+Btn_ManageMissingKeys(GuiCtrlObj := "", Info := "") {
+    global mainGui, metadataPath, iniPath
+    
+    missingKeys := FindMissingKeys()
+    unusedKeys := FindUnusedKeys()
+    
+    if (missingKeys.Length = 0 && unusedKeys.Length = 0) {
+        MsgBox("All metadata is already in sync!`n`nNo changes needed.", "Metadata Sync", "Icon!" "4096")
+        return
+    }
+    
+    ; Show dialog
+    result := ShowManageMissingKeysDialog(missingKeys, unusedKeys)
+    
+    if (result = "Yes") {
+        ; Proceed with merge
+        jsonPath := SubStr(iniPath, 1, InStr(iniPath, "\", , -1) - 1) "\" "acSettingsMetadata.json"
+        
+        if MergeKeysIntoJSON(missingKeys, unusedKeys, jsonPath) {
+            MsgBox("Metadata updated successfully!`n`n"
+                . "Added: " missingKeys.Length " new keys`n"
+                . "Removed: " unusedKeys.Length " unused keys`n`n"
+                . "Settings will now be reloaded.",
+                "Success", "Icon!" "4096")
+            
+            ; Reload everything
+            Btn_Reload()
+        } else {
+            MsgBox("Error updating metadata. Changes were not saved.", "Error", "Iconx 4096")
+        }
+    }
 }
 
 LoadMetadata(filePath) {
@@ -1153,7 +1653,7 @@ CreateGUI() {
     mainGui.Add("Text", "x10 y410 w730 h2 cGray")
     helpLabel := mainGui.Add("Text", "x10 y415 w730 h20 vHelpLabel", "Select a setting for help")
     helpPane := mainGui.Add("Edit", "x10 y435 w730 h110 ReadOnly vHelpPane Background" ListColor, "")
-    helpPane.Value := ""
+    helpPane.Value := "Select an item and press Go To to open it in your preferred editor."
     
     
     ; Status bar
@@ -1163,7 +1663,11 @@ CreateGUI() {
     btnEdit := mainGui.Add("Button", "x10 y575 w80 h30", "Edit")
     btnEdit.OnEvent("Click", Btn_Edit)
     
-    mainGui.Add("Text", "x100 y575 w280 h30")  ; Spacer
+    btnValidate := mainGui.Add("Button", "x100 y575 w150 h30", "Validate Metadata")
+    btnValidate.OnEvent("Click", Btn_ValidateMetadata)
+    
+    btnGoTo := mainGui.Add("Button", "x260 y575 w80 h30", "Go To")
+    btnGoTo.OnEvent("Click", Btn_GoTo)
     
     btnOpenINI := mainGui.Add("Button", "x390 y575 w100 h30", "Open INI File")
     btnOpenINI.OnEvent("Click", Btn_OpenINI)
@@ -1346,6 +1850,77 @@ Btn_Edit(GuiCtrlObj := "", Info := "") {
     }
 }
 
+Btn_ValidateMetadata(GuiCtrlObj := "", Info := "") {
+    ValidateMetadata()
+}
+
+Btn_GoTo(GuiCtrlObj := "", Info := "") {
+    global lvSettings, currentSection, metadataPath, EditorPath
+    
+    ; Check if an item is selected
+    item := lvSettings.GetNext(0, "Checked")
+    if (item = 0) {
+        item := lvSettings.GetNext(0)  ; Get first selected item
+    }
+    
+    if (item = 0) {
+        ToolTip("Please select a setting first")
+        SetTimer(() => ToolTip(), 2000)
+        return
+    }
+    
+    ; Get the key name from the selected row
+    keyName := lvSettings.GetText(item, 1)
+    if (keyName = "" || currentSection = "") {
+        ToolTip("Error: Could not determine setting location")
+        SetTimer(() => ToolTip(), 2000)
+        return
+    }
+    
+    ; Construct the full key
+    fullKey := currentSection "." keyName
+    
+    ; Check if metadata file exists
+    if (!FileExist(metadataPath)) {
+        ToolTip("Metadata file not found: " metadataPath)
+        SetTimer(() => ToolTip(), 3000)
+        return
+    }
+    
+    ; Open the file in editor
+    try {
+        Run(EditorPath " " chr(34) metadataPath chr(34))
+    } catch as err {
+        ToolTip("Error opening editor: " err.What)
+        SetTimer(() => ToolTip(), 3000)
+        return
+    }
+    
+    ; Wait for editor to open and settle
+    Sleep(800)
+    
+    ; Try to activate the editor window (works for most editors)
+    WinActivate("ahk_exe Code.exe")  ; For VS Code
+    Sleep(200)
+    
+    ; Open Find dialog
+    Send("^f")
+    Sleep(300)
+    
+    ; Type the search string in quotes to match JSON format exactly
+    ; Using single quotes to wrap double quotes is cleaner in AHK v2
+    searchString := '"' fullKey '"'
+    SendText(searchString)
+    
+    Sleep(200)
+    
+    ; Press Enter to find the first occurrence
+    Send("{Enter}")
+    
+    ToolTip("Found: " fullKey)
+    SetTimer(() => ToolTip(), 2000)
+}
+
 EditSetting(itemRow) {
     global currentSection, lvSettings, settingsMetadata
     
@@ -1389,7 +1964,7 @@ Btn_Exit(GuiCtrlObj := "", Info := "") {
     
     ; Check for unsaved changes before exiting
     if isDirty {
-        result := MsgBox("You have unsaved changes. Exit anyway?", "Unsaved Changes", "YesNo Icon! Owner" mainGui.Hwnd)
+        result := MsgBox("You have unsaved changes. Exit anyway?", "Unsaved Changes", "YesNo Icon! 4096")
         if (result = "No") {
             return  ; Don't exit if user says No
         }
@@ -1402,7 +1977,7 @@ Btn_Reload(GuiCtrlObj := "", Info := "") {
     global allSettings, originalSettings, iniPath, lvSettings, tvSections, isDirty, currentSection, mainGui, sectionMap, sectionOrder, keyOrder
     
     if isDirty {
-        result := MsgBox("You have unsaved changes. Reload anyway?", "Unsaved Changes", "YesNo Icon! Owner" mainGui.Hwnd)
+        result := MsgBox("You have unsaved changes. Reload anyway?", "Unsaved Changes", "YesNo Icon! 4096")
         if (result = "No") {
             return
         }
@@ -1459,7 +2034,7 @@ GUI_Close(GuiObj) {
     global isDirty, mainGui
     
     if isDirty {
-        result := MsgBox("You have unsaved changes. Exit anyway?", "Unsaved Changes", "YesNo Icon! Owner" mainGui.Hwnd)
+        result := MsgBox("You have unsaved changes. Exit anyway?", "Unsaved Changes", "YesNo Icon! 4096")
         if (result = "No") {
             return 1  ; Prevent closing
         }
@@ -1523,7 +2098,7 @@ ShowRestartDialog(appsToRestart) {
         . appList 
         . "`n`nRestart now?", 
         "Restart Required", 
-        "YesNo Icon! Owner" mainGui.Hwnd)
+        "YesNo Icon! 4096")
     
     if (result = "Yes") {
         launchCount := 0
@@ -1544,7 +2119,7 @@ ShowRestartDialog(appsToRestart) {
                 failList .= "  • " failApp "`n"
             }
             MsgBox("Successfully restarted: " launchCount " app(s)`n`nFailed to restart:`n" failList, 
-                "Restart Partial", "Iconx Owner" mainGui.Hwnd)
+                "Restart Partial", "Iconx 4096")
         } else if (launchCount > 0) {
             ToolTip("Application(s) restarted successfully")
             SetTimer(() => ToolTip(), 2000)
@@ -1559,6 +2134,7 @@ ShowRestartDialog(appsToRestart) {
 SetupTrayMenu() {
     A_TrayMenu.Add("Select INI File", Tray_SelectFile)
     A_TrayMenu.Add("Reload Settings", Tray_Reload)
+    A_TrayMenu.Add("Manage Metadata Keys", Tray_ManageMetadata)
     A_TrayMenu.Add()
     A_TrayMenu.Add("Exit", Tray_Exit)
 }
@@ -1600,6 +2176,10 @@ Tray_Reload(ItemName, ItemPos, MyMenu) {
     Btn_Reload()
 }
 
+Tray_ManageMetadata(ItemName, ItemPos, MyMenu) {
+    Btn_ManageMissingKeys()
+}
+
 Tray_Exit(ItemName, ItemPos, MyMenu) {
     ExitApp
 }
@@ -1607,6 +2187,9 @@ Tray_Exit(ItemName, ItemPos, MyMenu) {
 ; ============================================================================
 ; MAIN EXECUTION
 ; ============================================================================
+
+; Initialize editor path (with fallback to VS Code)
+ValidateAndInitializeEditorPath()
 
 ; Find INI file
 iniPath := FindINIFile()
