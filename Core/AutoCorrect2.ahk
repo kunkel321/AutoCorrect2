@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-16-2025
+; Version: 11--2025
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -16,8 +16,9 @@ SetWorkingDir(A_ScriptDir)
 ; ============== OPTIONAL INCLUDES ==============
 ; These files need to be in the same directory or properly referenced
 ; The "*i" prevents an error if the file doesn't exist.
-#Include "*i ..\Includes\DateTool.ahk"           ;  Calendar tool with holidays        -- Optional
-#Include "*i ..\Includes\PrinterTool.ahk"        ;  Shows list of installed printers   -- Optional 
+#Include "*i ..\Includes\DateTool.ahk"              ;  Calendar tool with holidays -- Optional
+#Include "*i ..\Includes\PrinterTool.ahk"           ;  Shows list of installed printers -- Optional 
+#Include "*i ..\Includes\HotstringQuickLookup.ahk"  ;  Get usage stats for selected hotstring --Optional
 
 #HotIf Config.EnableDragTools ;  So users can permanently disable DragTools via acSettings.ini
     #Include "*i ..\Includes\DragTools.ahk"      ;  Mouse click/drags trigger things   -- Optional 
@@ -27,6 +28,7 @@ SetWorkingDir(A_ScriptDir)
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
 #Include "*i ..\Includes\PersonalHotstrings.ahk" ;  -- Optional
+
 
 ; =============== CONFIGURATION ===============
 ; The configuration is now centralized in acSettings.ini
@@ -115,6 +117,7 @@ class Config {
     static FollowingWordCount := 4
     static FollowingWordTimeout := 8
     static AppSkiplist := []
+    static WinSkiplist := []
     static AutoCorrectionsEnabled := true
     static BeepOnContextLog := 1
     static BeepOnCapFix := 1
@@ -206,7 +209,7 @@ FrequencyListFile=unigram_freq_list_filtered_88k.csv
 MCLoggerPath=MCLogger.exe
 MCLogFile=ManualCorrectionsLog.txt
 AutoCorrect2Script=AutoCorrect2.ahk
-SettingsManager="SettingsManager.exe"
+SettingsManager=SettingsManager.exe
 
 [Shared]
 ; Default editor for opening scripts (usually VSCode or Notepad).
@@ -219,7 +222,7 @@ DarkRed=B90012
 
 [HotstringHelper]
 ; Enable/disable debug (very verbose) and error logging (1=yes, 0=no).
-CODE_DEBUG_LOG=1
+CODE_DEBUG_LOG=0
 CODE_ERROR_LOG=0
 ; Hotkey to activate HotstringHelper2 (default: Win+H).
 ActivationHotkey=#h
@@ -233,10 +236,7 @@ DefaultWidth=366
 ; Height/Width increase for larger boilerplate texts when 'Make Bigger' button is pressed.
 HeightSizeIncrease=300
 WidthSizeIncrease=400
-; Which field to focus on when HotstringHelper opens.
-; Options: "options", "trigger", "replacement", "comment", "auto"
-; "auto" chooses based on entry type: boilerplate -> replacement, autocorrect -> trigger, neither -> trigger
-; Invalid values default to "auto"
+; Default focus to options|trigger|replacement|comment|auto 
 InitialFocusTarget=auto
 ; Default hotstring options for boilerplate/template triggers.
 ; Prefix/Suffix for boilerplate triggers (leave blank for none)
@@ -264,11 +264,12 @@ BeepOnCorrection=1
 BeepOnContextLog=1
 ; Number of words to cache before, and additional words to wait for, after an autocorrection (for context logging).
 ; Also amount of time to wait for those following words.
-PrecedingWordCount=6
-FollowingWordCount=4
+PrecedingWordCount=8
+FollowingWordCount=6
 FollowingWordTimeout=12
 ; "SkipList" Apps where AutoCorrect should NOT trigger. Separate multiple apps with commas (no spaces).
 AppSkiplist=PipeWalker.exe,Roblox.exe,RimWorldWin64.exe
+WinSkiplist=Hotstring Quick Lookup
 ; Items for the AUto-COrrect TWo COnsecutive CApitals code
 BeepOnCapFix=1
 CapFixTwoLetterWords=1
@@ -295,7 +296,7 @@ KeepReportOpen=1
 
 [ACLogAnalyzer]
 ; Importance weight for high-frequency items in weight calculation (0-50, 0=not important).
-FreqImportance=25
+FreqImportance=50
 ; Minimum threshold for consideration when weighing items. Zero means consider them all.
 IgnoreFewerThan=0
 ; Copy hotstring to clipboard when item is selected--Facilitates sending to HH (1=yes, 0=no).
@@ -380,9 +381,11 @@ keepComments=0
         this.PrecedingWordCount         := this.ReadIni("ACSystem", "PrecedingWordCount", 6)
         this.FollowingWordCount         := this.ReadIni("ACSystem", "FollowingWordCount", 4)
         this.FollowingWordTimeout       := this.ReadIni("ACSystem", "FollowingWordTimeout", 8)
-        ; Skiplist
+        ; Skiplist (Apps and Windows)
         SkiplistString                  := this.ReadIni("ACSystem", "AppSkiplist", "")
         this.AppSkiplist                := StrSplit(SkiplistString, ",")
+        WinSkiplistString               := this.ReadIni("ACSystem", "WinSkiplist", "")
+        this.WinSkiplist                := StrSplit(WinSkiplistString, ",")
         this.BeepOnCapFix               := this.ReadIni("ACSystem", "BeepOnCapFix", 1)
         this.CapFixTwoLetterWords       := this.ReadIni("ACSystem", "CapFixTwoLetterWords", 1)
     }
@@ -450,7 +453,7 @@ keepComments=0
 ; Check if a Skiplisted app is currently the active (focused) window
 AutoCorrectionsActivelyRunning() {
     ; Check if skiplisted app is focused
-    if IsSkiplistedAppFocused()
+    if IsSkiplistedFocused()
         return false
     ; Check if user has manually disabled autocorrections
     if !Config.AutoCorrectionsEnabled
@@ -459,12 +462,20 @@ AutoCorrectionsActivelyRunning() {
     return true
 }
 
-IsSkiplistedAppFocused() {
+IsSkiplistedFocused() {
+    ; Check app skiplist (by process name)
     activeProcessName := WinGetProcessName("A")
     for processName in Config.AppSkiplist {
         if (activeProcessName = processName)
             return true
     }
+    
+    ; Check window skiplist (by window title, partial match)
+    for windowTitle in Config.WinSkiplist {
+        if WinActive(windowTitle)
+            return true
+    }
+    
     return false
 }
 
@@ -528,11 +539,11 @@ SetupTrayMenu() {
     StartUpAC(*) {	
         if FileExist(A_Startup "\" Config.ScriptName ".lnk") {
             FileDelete(A_Startup "\" Config.ScriptName ".lnk")
-            acMsgBox.show("" Config.ScriptName " will NO LONGER auto start with Windows.",, 4096)
+            acMsgBox.show("" Config.ScriptName " will NO LONGER auto`nstart with Windows.",, "icon!")
         } Else {
             FileCreateShortcut(A_WorkingDir "\" StrReplace(Config.ScriptName, ".ahk") ".exe", A_Startup "\" Config.ScriptName ".lnk"
             , A_WorkingDir, "", "", A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
-            acMsgBox.show(Config.ScriptName " will now auto start with Windows.",, 4096)
+            acMsgBox.show(Config.ScriptName " will now auto`nstart with Windows.",, "icon!")
         }
         Reload()
     }
@@ -543,10 +554,10 @@ SetupTrayMenu() {
         acMenu := A_TrayMenu
         if Config.AutoCorrectionsEnabled {
             acMenu.Check("Enable AutoCorrections")
-            acMsgBox.show("AutoCorrections are now ENABLED", , 4096)
+            acMsgBox.show("AutoCorrections are now ENABLED", , "icon!")
         } else {
             acMenu.Uncheck("Enable AutoCorrections")
-            acMsgBox.show("AutoCorrections are now DISABLED", , 4096)
+            acMsgBox.show("AutoCorrections are now DISABLED", , "icon!")
         }
     }
 }
@@ -577,7 +588,7 @@ RunDateTool(*) {
 
 !+u:: ; Uptime -- time since Windows restart
 UpTime(*) { 
-	acMsgBox.show("UpTime is:`n" . Uptime(A_TickCount))
+	acMsgBox.show("UpTime is:`n" . Uptime(A_TickCount), "UpTime!", {icon: "iconi", buttons: ["OK"]} )
 	Uptime(ms) {
 		VarSetStrCapacity(&b, 256) ; V1toV2: if 'b' is NOT a UTF-16 string, use 'b := Buffer(256)'
 		;    DllCall("GetDurationFormat","uint",2048,"uint",0,"ptr",0,"int64",ms*10000,"wstr"," d 'days, 'h' hours, 'm' minutes, 's' seconds'", "wstr",b,"int",256)
@@ -1774,13 +1785,13 @@ class UIActions {
         replacementText := UI.Controls["ReplacementEdit"].Text
         
         if replacementText = "" {
-            acMsgBox.show("Replacement Text not found.", , 4096)
+            acMsgBox.show("Replacement Text not found.", , "4096 icon!")
         }
         else {
             suggestion := Utils.SpellingGrammarSuggestion(replacementText)
             
             if suggestion = "" || suggestion = replacementText {
-                acMsgBox.show("No suggestions found.", , 4096)
+                acMsgBox.show("No suggestions found.", , "4096 iconi")
             }
             else {
                 ; Show suggestion in a custom GUI instead of MsgBox
