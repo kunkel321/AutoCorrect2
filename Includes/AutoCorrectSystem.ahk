@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 10-27-2025 
+; Version: 11-25-2025
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -9,8 +9,9 @@
 ; Master switch to enable/disable logging globally
 ; Setting this to 0 in the acSettings.ini file will:
 ; 1. Disable the autocorrection log (AutoCorrectsLog.txt)
-; 2. Disable the backspace context logger (ErrContextLog.txt)
-; 3. Skip all logging operations but maintain other functionality
+; 2. Disable the 'continuous' autocorrection log (ACLogContinuous.txt)
+; 3. Disable the backspace context logger (ErrContextLog.txt)
+; 4. Skip all logging operations but maintain other functionality
 ; This can improve performance and reduce disk writes for users
 ; who don't need the logging features
 
@@ -18,7 +19,15 @@
 ; Logger file paths are set in Class Config in AutoCorrect2.ahk.
 If Config.EnableLogging {
     If not FileExist(Config.AutoCorrectsLogFile)
-        FileAppend("This will be the log of all autocorrections.`n", Config.AutoCorrectsLogFile)
+        FileAppend(
+            "========== AUTO CORRECTION LOG =============`n"
+            "Intended for use with kunkel321's 'AutoCorrect for v2' package.  Log of all autocorrects sent via f(unction). YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘--’ indicates that it was not.  The ACLogAnalyzer tool reads from this, and culls items from it.`n"
+            "=======================================`n", Config.AutoCorrectsLogFile)
+    If not FileExist(Config.ACLogContinuousFile)
+        FileAppend(
+            "===== CONTINUOUS AUTO CORRECTION LOG =======`n"
+            "Intended for use with kunkel321's 'AutoCorrect for v2' package.  Log of all autocorrects sent via f(unction).  YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘--’ indicates that it was not.  The ACLogStatistics tool reads from this.  Items are NEVER CULLED from this file.  This will allow an accurate measure of BS-to-Kept ratios over time.`n"
+            "=======================================`n", Config.ACLogContinuousFile)
     If not FileExist(Config.ErrContextLog)
         FileAppend(
             "This will be the log of extended context information for backspaced autocorrections.`n"
@@ -92,7 +101,9 @@ keepText(KeepForLog, *) {
     hyphen := (lih.EndKey = "Backspace") ? " << " : " -- "
     
     ; Log the autocorrection with timestamp and hyphen style
-    FileAppend("`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog, Config.AutoCorrectsLogFile)
+    logEntry := "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog
+    FileAppend(logEntry, Config.AutoCorrectsLogFile) ; For ACLogAnalyzer. Gets culled from.
+    FileAppend(logEntry, Config.ACLogContinuousFile) ; For ACLogStatistics. Never gets culled. 
 }
 #MaxThreadsPerHotkey 1
 

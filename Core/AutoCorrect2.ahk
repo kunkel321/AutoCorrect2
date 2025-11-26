@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11--2025
+; Version: 11-25-2025
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -21,7 +21,9 @@ SetWorkingDir(A_ScriptDir)
 #Include "*i ..\Includes\HotstringQuickLookup.ahk"  ;  Get usage stats for selected hotstring --Optional
 
 #HotIf Config.EnableDragTools ;  So users can permanently disable DragTools via acSettings.ini
-    #Include "*i ..\Includes\DragTools.ahk"      ;  Mouse click/drags trigger things   -- Optional 
+    #Include "*i ..\Includes\DragTools.ahk"      ;  Mouse right-click/drags trigger things   -- Optional 
+#HotIf Config.EnableMoveResizeTools 
+    #Include "*i ..\Includes\MoveResizeTools.ahk"      ;  Alt+Ctrl left/right mouse drag on Window   -- Optional 
 #HotIf 
 ; There are required includes defined below the class Config code.
 
@@ -56,6 +58,7 @@ class Config {
     static NewTemporaryHotstrLib := "HotstringLib (1).ahk"
     static RemovedHsFile := "..\Data\RemovedHotstrings.txt"
     static AutoCorrectsLogFile := "..\Data\AutoCorrectsLog.txt"
+    static ACLogContinuousFile := "..\Data\ACLogContinuous.txt"
     static ErrContextLog := "..\Data\ErrContextLog.txt"
     static ACLogAnalyzer := "..\Tools\ACLogAnalyzer.exe"
     static SettingsManager := "..\Tools\SettingsManager.exe"
@@ -67,6 +70,7 @@ class Config {
 
     ; Includes
     static EnableDragTools := 1
+    static EnableMoveResizeTools := 1
     
     ; UI Settings
     static DefaultFontSize := "11"
@@ -185,7 +189,7 @@ class Config {
         (
 ; ============================================================
 ; AutoCorrect2 Suite 'asSettings.ini' File
-; ini File template version date:  11-6-2025
+; ini File template version date:  11-25-2025
 ; ============================================================
 ; Edit the values below to customize behavior and appearance of
 ; AutoCorrect2.ahk and related tools.  Keys can be edited directory,
@@ -202,6 +206,7 @@ HotstringLibrary=HotstringLib.ahk
 NewTemporaryHotstrLib=HotstringLib (1).ahk
 RemovedHsFile=RemovedHotstrings.txt
 AutoCorrectsLogFile=AutoCorrectsLog.txt
+ACLogContinuousFile=ACLogContinuous.txt
 ErrContextLog=ErrContextLog.txt
 ACLogAnalyzer=ACLogAnalyzer.exe
 WordListFile=GitHubComboList249k.txt
@@ -228,6 +233,7 @@ CODE_ERROR_LOG=0
 ActivationHotkey=#h
 ; Optional Include
 EnableDragTools=1
+EnableMoveResizeTools=1
 ; Large font size for emphasis of trigger and replacement boxes (no 's').
 DefaultFontSize=11
 LargeFontSize=15
@@ -331,6 +337,7 @@ keepComments=0
         this.NewTemporaryHotstrLib      := this.ReadIni("Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
         this.RemovedHsFile              := "..\Data\" this.ReadIni("Files", "RemovedHsFile", "..\Data\RemovedHotstrings.txt")
         this.AutoCorrectsLogFile        := "..\Data\" this.ReadIni("Files", "AutoCorrectsLogFile", "..\Data\AutoCorrectsLog.txt")
+        this.ACLogContinuousFile        := "..\Data\" this.ReadIni("Files", "ACLogContinuousFile", "..\Data\ACLogContinuous.txt")
         this.ErrContextLog              := "..\Data\" this.ReadIni("Files", "ErrContextLog", "..\Data\ErrContextLog.txt")
         this.WordListFile               := "..\Data\" this.ReadIni("Files", "WordListFile", "GitHubComboList249k.txt")
         this.FrequencyListFile          := "..\Data\" this.ReadIni("Files", "FrequencyListFile", "unigram_freq_list_filtered_88k.csv")
@@ -354,6 +361,7 @@ keepComments=0
         this.ActivationHotkey           := this.ReadIni("HotstringHelper", "ActivationHotkey", "#h")
         ; Includes
         this.EnableDragTools             := this.ReadIni("HotstringHelper", "EnableDragTools", "1")
+        this.EnableMoveResizeTools             := this.ReadIni("HotstringHelper", "EnableMoveResizeTools", "1")
         ; UI
         this.DefaultFontSize            := "s" this.ReadIni("HotstringHelper", "DefaultFontSize", "11")
         this.LargeFontSize              := "s" this.ReadIni("HotstringHelper", "LargeFontSize", "15")
@@ -852,6 +860,12 @@ class UI {
                 icon: A_ScriptDir "\..\Resources\Icons\AcAnalysis.ico"
             })
             
+            ; this.controlButtons.Push({
+            ;     text: " Open AutoCorrection Continuous Log", 
+            ;     action: (*) => Run(Config.ACLogContinuousFile),
+            ;     icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
+            ; })
+            
             this.controlButtons.Push({
                 text: " Open Backspace Context Log", 
                 action: (*) => Run(Config.ErrContextLog),
@@ -1105,7 +1119,7 @@ class UI {
             
         return controls
     }
-    
+
     ; Resize the form based on current size state
     static Resize(isLarge) {
         hFactor := isLarge ? Config.HeightSizeIncrease : 0
