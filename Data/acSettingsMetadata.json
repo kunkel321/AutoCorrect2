@@ -19,7 +19,13 @@
   },
   "Files.AutoCorrectsLogFile": {
     "label": "AutoCorrects Log",
-    "help": "Text file where AutoCorrect2 logs every correction it makes. Used for analysis and statistics.  If 'EnableLogging' is turned off, then this file doesn't get used.",
+    "help": "Text file where AutoCorrect2 logs every correction it makes. Used for analysis.  Gets culled via ACLogAnalyzer.  If 'EnableLogging' is turned off, then this file doesn't get used.",
+    "type": "file",
+    "filter": "Text Files (*.txt)|*.txt"
+  },
+  "Files.ACLogContinuousFile": {
+    "label": "Auto Corrects Continuous Log",
+    "help": "Text file where AutoCorrect2 logs every correction it makes. Used for stACLogStatistics Tool.  Never gets culled-from, just accumulates forever.  If 'EnableLogging' is turned off, then this file doesn't get used.",
     "type": "file",
     "filter": "Text Files (*.txt)|*.txt"
   },
@@ -137,6 +143,15 @@
       "1=Use DragTools"
     ],
     "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.EnableMoveResizeTools": {
+    "label": "Enable Window Move/Resize Tools",
+    "help": "Alt+Ctrl+Left Click to drag a window from anywhere (not just titlebar). Alt+Ctrl+Right Click and drag to resize a window.  Shouldn't hijack Windows' right-click-and drag because this uses modifier keys.",
+    "type": "boolean",
+    "options": [
+      "0=Disable Move/Resize Tools",
+      "1=Use Move/Resize Tools"
+    ]
   },
   "HotstringHelper.DefaultFontSize": {
     "label": "Default Font Size",
