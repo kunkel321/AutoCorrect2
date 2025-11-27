@@ -595,24 +595,42 @@ RunDateTool(*) {
 }
 
 !+u:: ; Uptime -- time since Windows restart
-UpTime(*) { 
-	acMsgBox.show("UpTime is:`n" . Uptime(A_TickCount), "UpTime!", {icon: "iconi", buttons: ["OK"]} )
-	Uptime(ms) {
-		VarSetStrCapacity(&b, 256) ; V1toV2: if 'b' is NOT a UTF-16 string, use 'b := Buffer(256)'
-		;    DllCall("GetDurationFormat","uint",2048,"uint",0,"ptr",0,"int64",ms*10000,"wstr"," d 'days, 'h' hours, 'm' minutes, 's' seconds'", "wstr",b,"int",256)
-		DllCall("GetDurationFormat", "uint", 2048, "uint", 0, "ptr", 0, "int64", ms * 10000, "wstr", " d 'days, 'h' hours, 'm' minutes'", "wstr", b, "int", 256)
-		b := StrReplace(b, " 0 days,")
-		b := StrReplace(b, " 0 hours,")
-		b := StrReplace(b, " 0 minutes,")
-		b := StrReplace(b, " 1 days,", "1 day,")
-		b := StrReplace(b, " 1 hours,", " 1 hour,")
-		b := StrReplace(b, " 1 minutes,", " 1 minute,")
-		; b := StrReplace(b," 1 seconds"," 1 second")
-		return b
+UpTime(*) {
+	; Get uptime using math
+	ms := A_TickCount // 1000  ; Convert to seconds
+	d := ms // 86400
+	h := Mod(ms // 3600, 24)
+	m := Mod(ms // 60, 60)
+	s := Mod(ms, 60)
+	
+	uptime := RTrim((d ? d . " day" . (d = 1 ? "" : "s") . ", " : "")
+	                . (h ? h . " hour" . (h = 1 ? "" : "s") . ", " : "")
+	                . (m ? m . " minute" . (m = 1 ? "" : "s") . ", " : "")
+	                . (s ? s . " second" . (s = 1 ? "" : "s") : ""), ", ")
+	
+	; Check for pending updates
+	hasPendingUpdates := false
+	try {
+		RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update", "RebootRequired")
+		hasPendingUpdates := true
+	} catch {
+	}
+	
+	; Build message
+	messageText := "Uptime:`n" . uptime
+	if (hasPendingUpdates) {
+		messageText .= "`n`n⚠ Windows updates are pending"
+	}
+	
+	buttons := ["Restart", "OK"]
+	
+	; Show dialog
+	result := acMsgBox.Show(messageText, "System Uptime", {icon: "iconi", buttons: buttons})
+	
+	if (result == "Restart") {
+		Shutdown(2)
 	}
 }
-; =============== INITIALIZATION ===============
-; Set up the application
 
 ; Initialize tray menu
 SetupTrayMenu()
