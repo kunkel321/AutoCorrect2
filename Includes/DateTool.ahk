@@ -7,7 +7,7 @@
 ;======== DateTool-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 9-28-2025
+; The 'H' is for 'Holidays.'   Version: 11-28-2025
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -1036,6 +1036,223 @@ SendDateAlt() {
 }
 
 ; ===================================================================
+; Reference data for 2025-2050 from astropixels.com
+; MARK: Celestial Dates
+; ===================================================================
+
+CalcSolsticeEquinox(Year, EventType := "summer") {
+    ; Calculate solstices and equinoxes for a given year
+    ; EventType: "spring", "summer", "autumn", "winter"
+    ; Returns: YYYYMMDD format
+    ; Only calculates the requested year (on-demand)
+    
+    static cache := Map()
+    
+    ; Create cache key
+    local key := Year "_" EventType
+    
+    ; Return cached result if available
+    if (cache.Has(key))
+        return cache[key]
+    
+    local result := ""
+    
+    ; Direct lookup - exact dates for 2025-2050
+    switch Year {
+        case 2025:
+            switch EventType {
+                case "spring": result := "20250320"
+                case "summer": result := "20250621"
+                case "autumn": result := "20250922"
+                case "winter": result := "20251221"
+            }
+        case 2026:
+            switch EventType {
+                case "spring": result := "20260320"
+                case "summer": result := "20260621"
+                case "autumn": result := "20260923"
+                case "winter": result := "20261221"
+            }
+        case 2027:
+            switch EventType {
+                case "spring": result := "20270320"
+                case "summer": result := "20270621"
+                case "autumn": result := "20270923"
+                case "winter": result := "20271222"
+            }
+        case 2028:
+            switch EventType {
+                case "spring": result := "20280320"
+                case "summer": result := "20280620"
+                case "autumn": result := "20280922"
+                case "winter": result := "20281221"
+            }
+        case 2029:
+            switch EventType {
+                case "spring": result := "20290320"
+                case "summer": result := "20290621"
+                case "autumn": result := "20290922"
+                case "winter": result := "20291221"
+            }
+        case 2030:
+            switch EventType {
+                case "spring": result := "20300320"
+                case "summer": result := "20300621"
+                case "autumn": result := "20300922"
+                case "winter": result := "20301221"
+            }
+        case 2031:
+            switch EventType {
+                case "spring": result := "20310320"
+                case "summer": result := "20310621"
+                case "autumn": result := "20310923"
+                case "winter": result := "20311222"
+            }
+        case 2032:
+            switch EventType {
+                case "spring": result := "20320320"
+                case "summer": result := "20320620"
+                case "autumn": result := "20320922"
+                case "winter": result := "20321221"
+            }
+        case 2033:
+            switch EventType {
+                case "spring": result := "20330320"
+                case "summer": result := "20330621"
+                case "autumn": result := "20330922"
+                case "winter": result := "20331221"
+            }
+        case 2034:
+            switch EventType {
+                case "spring": result := "20340320"
+                case "summer": result := "20340621"
+                case "autumn": result := "20340922"
+                case "winter": result := "20341221"
+            }
+        case 2035:
+            switch EventType {
+                case "spring": result := "20350320"
+                case "summer": result := "20350621"
+                case "autumn": result := "20350923"
+                case "winter": result := "20351222"
+            }
+        case 2036:
+            switch EventType {
+                case "spring": result := "20360320"
+                case "summer": result := "20360620"
+                case "autumn": result := "20360922"
+                case "winter": result := "20361221"
+            }
+        case 2037:
+            switch EventType {
+                case "spring": result := "20370320"
+                case "summer": result := "20370621"
+                case "autumn": result := "20370922"
+                case "winter": result := "20371221"
+            }
+        case 2038:
+            switch EventType {
+                case "spring": result := "20380320"
+                case "summer": result := "20380621"
+                case "autumn": result := "20380922"
+                case "winter": result := "20381221"
+            }
+        case 2039:
+            switch EventType {
+                case "spring": result := "20390320"
+                case "summer": result := "20390621"
+                case "autumn": result := "20390923"
+                case "winter": result := "20391222"
+            }
+        case 2040:
+            switch EventType {
+                case "spring": result := "20400320"
+                case "summer": result := "20400620"
+                case "autumn": result := "20400922"
+                case "winter": result := "20401221"
+            }
+        case 2041:
+            switch EventType {
+                case "spring": result := "20410320"
+                case "summer": result := "20410620"
+                case "autumn": result := "20410922"
+                case "winter": result := "20411221"
+            }
+        case 2042:
+            switch EventType {
+                case "spring": result := "20420320"
+                case "summer": result := "20420621"
+                case "autumn": result := "20420922"
+                case "winter": result := "20421221"
+            }
+        case 2043:
+            switch EventType {
+                case "spring": result := "20430320"
+                case "summer": result := "20430621"
+                case "autumn": result := "20430923"
+                case "winter": result := "20431222"
+            }
+        case 2044:
+            switch EventType {
+                case "spring": result := "20440319"
+                case "summer": result := "20440620"
+                case "autumn": result := "20440922"
+                case "winter": result := "20441221"
+            }
+        case 2045:
+            switch EventType {
+                case "spring": result := "20450320"
+                case "summer": result := "20450620"
+                case "autumn": result := "20450922"
+                case "winter": result := "20451221"
+            }
+        case 2046:
+            switch EventType {
+                case "spring": result := "20460320"
+                case "summer": result := "20460621"
+                case "autumn": result := "20460922"
+                case "winter": result := "20461221"
+            }
+        case 2047:
+            switch EventType {
+                case "spring": result := "20470320"
+                case "summer": result := "20470621"
+                case "autumn": result := "20470923"
+                case "winter": result := "20471221"
+            }
+        case 2048:
+            switch EventType {
+                case "spring": result := "20480319"
+                case "summer": result := "20480620"
+                case "autumn": result := "20480922"
+                case "winter": result := "20481221"
+            }
+        case 2049:
+            switch EventType {
+                case "spring": result := "20490320"
+                case "summer": result := "20490620"
+                case "autumn": result := "20490922"
+                case "winter": result := "20491221"
+            }
+        case 2050:
+            switch EventType {
+                case "spring": result := "20500320"
+                case "summer": result := "20500621"
+                case "autumn": result := "20500922"
+                case "winter": result := "20501221"
+            }
+        default:
+            return -1  ; Year not in lookup table
+    }
+    
+    ; Cache the result
+    if (result != "")
+        cache[key] := result
+    
+    return result
+}
+
+; ===================================================================
 ; Function Name: isHoliday, (see links at top of code)
 ; Original Author: tidbit, Jun 11, 2020
 ; Converted to AHK v2 by just me, Dec 12, 2023
@@ -1070,6 +1287,13 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         Eastern[Date.Year] := { EDay: EDay, EMon: EMon }
     }
 
+    ; Check for Solstices and Equinoxes (calculated dynamically for any year)
+    local TodayDate := Date.Year . Date.Mon . Date.Day
+    local SpringEquinox := CalcSolsticeEquinox(Date.Year, "spring")
+    local SummerSolstice := CalcSolsticeEquinox(Date.Year, "summer")
+    local AutumnEquinox := CalcSolsticeEquinox(Date.Year, "autumn")
+    local WinterSolstice := CalcSolsticeEquinox(Date.Year, "winter")
+
     ; MARK: Holiday Define.
     ; single space delimited, strictly
     ; ["month day-day dayName", "Day Text", start_year, end_year, original_year]
@@ -1092,7 +1316,6 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         ["03 17", "St. Patrick's Day"],
         ; Years make it a single (or double)-year event.  Remove after it's used.
         ;["03 14", "Lunar Eclipse", 2025],
-        ["03 20", "Spring Equinox", 2025, 2026],
         ;["03 17-21", "Spring Break", 2025],
         ["04 15", "Tax Day"],
         ["05 08-14 Sunday", "Mother's Day"],
@@ -1100,16 +1323,13 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         ; Juneteenth is celebrated on the 19th, or the nearest weekday (M or F) if the 19th is a weekend.
         ["06 19 nearest", "Juneteenth", , , 1866],
         ["06 15-21 Sunday", "Father's Day"],
-        ["06 21", "Summer Solstice", 2026],
         ["07 04", "Independence Day", , , 1776],
         ["08 25", "Anniversary", , , 2000], ;       <---------- Specific to kunkel321, remove.
         ["09 01-07 Monday", "Labor Day"],
-        ["09 22", "Autumn Equinox", 2025, 2026], ; Happens on same date both years, so...
         ["10 31", "Halloween"],
         ["11 01-07 Sunday", "Daylight Savings Ends"], ; First Sunday in November (Fall Behind/Gain hour of sleep)
         ["11 11 nearest", "Veterans Day"],
         ["11 22-28 Thursday", "Thanksgiving Day"],
-        ["12 21", "Winter Solstice", 2025, 2026], ; Same date both years.
         ["12 25", "Christmas Day"],
         [EMon " " EDay, "Easter"] ; No comma after last array element :)
     ]
@@ -1136,6 +1356,12 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
             ; Handle holidays that move to nearest weekday
             Range := [Stamp[2], Stamp[2]] ; Single date
 
+            ; Add age calculation if original_year is specified
+            if Day.Length = 5 { ;age is called for
+                iAge := Date.year - Day[5]
+                Holiday .= " (" iAge ")"
+            }
+
             ; Create a timestamp for the actual holiday date
             local HolidayDate := Date.Year Stamp[1] Stamp[2]
             local HolidayDayName := FormatTime(HolidayDate, "dddd")
@@ -1161,6 +1387,13 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         }
         else if (Stamp[3] = "absolute") {
             Range := [Stamp[2], Stamp[2]]
+            
+            ; Add age calculation if original_year is specified
+            if Day.Length = 5 { ;age is called for
+                iAge := Date.year - Day[5]
+                Holiday .= " (" iAge ")"
+            }
+            
             if (IsLeap = Stamp[1] && Date.DayY = Stamp[2])
                 Out .= Holiday "`n", Stop := 1
         }
@@ -1183,6 +1416,17 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         if (StopAtFirst = 1 && Stop = 1)
             return Trim(Out, "`r`n `t")
     }
+    
+    ; Check for dynamically calculated Solstices and Equinoxes
+    if (TodayDate = SpringEquinox)
+        Out .= "Spring Equinox`n"
+    if (TodayDate = SummerSolstice)
+        Out .= "Summer Solstice`n"
+    if (TodayDate = AutumnEquinox)
+        Out .= "Autumn Equinox`n"
+    if (TodayDate = WinterSolstice)
+        Out .= "Winter Solstice`n"
+    
     return Trim(Out, "`r`n `t")
 
 }
