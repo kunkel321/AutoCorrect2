@@ -1,7 +1,7 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated: 11-15-2025 
+                Updated: 11-29-2025 
 =====================================================
 
 Determines frequency of items in AutoCorrects Log file, then reports the analysis
@@ -81,6 +81,7 @@ class ACLogAnalyzer {
     static ContextGui := ""
     static ConfirmGui := ""
     static ScanInterrupted := false  ; Flag to interrupt scan when Esc is pressed
+    static CachedEditorPath := ""  ; Cache for editor path
 
     ; Visual properties (set during initialization)
     static FontColor := "Default"
@@ -174,9 +175,9 @@ class ACLogAnalyzer {
         defaultPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
         
         if FileExist(defaultPath) {
-            this.Config.EditorPath := defaultPath
+            this.CachedEditorPath := defaultPath
         } else {
-            this.Config.EditorPath := "Notepad.exe"  ; Fallback to Notepad
+            this.CachedEditorPath := "Notepad.exe"  ; Fallback to Notepad
         }
     }
 
@@ -371,6 +372,7 @@ class ACLogAnalyzer {
         ; Show the GUI
         this.ACAGui.Show("AutoSize")
         this.ACAGui.OnEvent("Escape", (*) => ExitApp())
+        this.ACAGui.OnEvent("Close", (*) => ExitApp())
     }
 
     ; Toggle the always-on-top property
@@ -514,7 +516,7 @@ class ACLogAnalyzer {
             {label: "Lookup", callback: this.GoToHS.Bind(this)},
             {label: "Context", callback: this.SeeContext.Bind(this)},
             {label: "Suggest", callback: SuggestAlternativesHandler},
-            {label: "Edit", callback: (*) => Run(this.Config.EditorPath " " A_ScriptName)},
+            {label: "Edit", callback: this.EditScript.Bind(this)},
             {label: "Close", callback: (*) => ExitApp()}
         ]
         
@@ -529,6 +531,17 @@ class ACLogAnalyzer {
     }
 
     ; ======= Action Button Handlers =======
+
+    ; Edit the ACLogAnalyzer script itself
+    static EditScript(*) {
+        try {
+            cmd := '"' . this.CachedEditorPath . '" "' . A_ScriptFullPath . '"'
+            Run(cmd)
+        } catch Error as err {
+            LogError("Error in EditScript: " err.Message)
+            MsgBox("Error opening script in editor: " err.Message)
+        }
+    }
 
     ; Send the selected item to HotString Helper
     static SendToHH(*) {
@@ -567,12 +580,13 @@ class ACLogAnalyzer {
         selItemArr := StrSplit(this.WorkingItem, ":")
         selItemTrigger := selItemArr[2] ":" selItemArr[3] "::"
 
-        hsLibPath := this.Config.ScriptFiles.HSLibrary
+        hsLibPath := this.GetAbsolutePath(this.Config.ScriptFiles.HSLibrary)
         hsLibFilename := StrSplit(hsLibPath, "\").Pop()
         
         try {
             if !WinExist(hsLibFilename) {
-                Run(this.Config.EditorPath ' "' hsLibPath '"')
+                cmd := '"' . this.CachedEditorPath . '" "' . hsLibPath . '"'
+                Run(cmd)
                 Sleep(1500)
             }
             
@@ -815,6 +829,44 @@ class ACLogAnalyzer {
 
     ; Helper Methods =======
 
+    ; Resolve relative paths to absolute paths
+    static GetAbsolutePath(relativePath) {
+        ; If the path starts with a drive letter (e.g., D:), it's already absolute
+        if (SubStr(relativePath, 2, 1) = ":") {
+            return relativePath
+        }
+        
+        ; Start with the script's directory
+        basePath := A_ScriptDir
+        path := relativePath
+        
+        ; Process ".." components at the beginning of the path
+        while (SubStr(path, 1, 3) = "..\" || path = "..") {
+            ; Go up one directory level
+            lastSlash := InStr(basePath, "\", , -1)
+            if (lastSlash > 0) {
+                basePath := SubStr(basePath, 1, lastSlash - 1)
+            }
+            
+            ; Remove the ".." from the path
+            if (SubStr(path, 1, 3) = "..\") {
+                path := SubStr(path, 4)
+            } else {
+                path := ""
+                break
+            }
+        }
+        
+        ; Combine base path with remaining path
+        if (path = "") {
+            return basePath
+        } else {
+            return basePath "\" path
+        }
+    }
+
+    ; Helper Methods =======
+
     ; Detect which control currently has focus
     static GetFocusedControl() {
         try {
@@ -982,7 +1034,7 @@ class ACLogAnalyzerHelpSystem {
     
     ; Initialize help texts
     static Init() {
-        this.helpTexts["ListView"] := "This is the Analysis Report ListView showing all analyzed hotstrings.`n`nColumns:`n- Hotstring: The hotstring from your library.  The f() function components are removed to make it easier to see.`n- BS: Number of times the item was followed by backspace within one second when logged (error indicator).`n- OK: Number of times it was logged without backspacing within one second (usefulness indicator).`n- Total: Total occurrences (BS + OK)`n- Weight: A calculated score indicating problem likelihood (higher = more problematic).  See code for adjusting weight parameters.`n`nClick a column header to sort by that column.`nDouble-click an item to copy the hotstring to clipboard.  Once the item is on the clipboard, you can press the HotstringHelper hotkey (Win-H) to open the item in hh.`nRight-click an item for context about what was being typed just before and after the Backspaced items were logged. This is a shortcut alternative to pressing the Context button."
+        this.helpTexts["ListView"] := "This is the Analysis Report ListView showing all analyzed hotstrings.`n`nColumns:`n- Hotstring: The hotstring from your library.  The f() function components are removed to make it easier to see.`n- BS: Number of times the item was followed by backspace within one second when logged (error indicator).`n- OK: Number of times it was logged without backspacing within one second (usefulness indicator).`n- Total: Total occurrences (BS + OK)`n- Weight: A calculated score indicating problem likelihood (higher = more problematic).  See acSettings.ini for adjusting weight parameters.`n`nClick a column header to sort by that column.`nDouble-click an item to copy the hotstring to clipboard.  Once the item is on the clipboard, you can press the HotstringHelper hotkey (Win-H) to open the item in hh.`nRight-click an item for context about what was being typed just before and after the Backspaced items were logged. This is a shortcut alternative to pressing the Context button."
         
         this.helpTexts["PinCheckbox"] := "Controls whether the Analysis Report window stays on top of other windows.`n`nWhen checked, this window will remain visible even when other applications are in focus.`n`nDefault setting can be configured in the Config section."
         
@@ -998,9 +1050,9 @@ class ACLogAnalyzerHelpSystem {
         
         this.helpTexts["SuggestButton"] := "Launches the Hotstring Suggester tool for the selected item.`n`nThis tool helps generate related hotstrings or variations based on the current entry, useful for analyzing patterns.  The Suggester tool won't send items back to the AC Analysis Report, but you'll be able to send hotstrings from the Suggester to HotstringHelper."
         
-        this.helpTexts["Edit"] := "Opens this script file in your configured editor, allowing you to modify settings and configuration.`n`nChanges require restarting the script to take effect."
+        this.helpTexts["EditButton"] := "Opens this script file in your configured editor, allowing you to modify settings and configuration.`n`nChanges require restarting the script to take effect."
         
-        this.helpTexts["Close"] := "Closes the AC Log Analyzer window and exits the program."
+        this.helpTexts["CloseButton"] := "Closes the AC Log Analyzer window and exits the program."
     }
     
     static ShowHelp(showGeneral := false) {
@@ -1014,7 +1066,7 @@ class ACLogAnalyzerHelpSystem {
         
         if (showGeneral) {
             helpTitle := "AC Log Analyzer - Help"
-            helpText := "`t`t`tWelcome to the AC Log Analyzer!`n`nThis tool is part of the package from https://github.com/kunkel321/AutoCorrect2. It analyzes your AutoCorrection log file and generates a report of logged hotstrings.  After logging many of your autocorrections via the f() functionality of AutoCorrect2.ahk, you can systematically determine which items are problematic and modify or remove them.`n`nPress F1 while focusing on a control for specific help.  Press Tab or Shift-Tab to move between controls without clicking them.`n`nPlease see the AutoCorrect2 User Manual for more information.  In-Code Configuration:`n- Adjust FreqImportance (0-50) to control the importance of occurence-frequency vs. just the OK-to-BS ratios, in weight calculation`n- Toggle error logging on/off`n- Set default 'Stay on top' behavior."
+            helpText := "`t`t`tWelcome to the AC Log Analyzer!`n`nThis tool is part of the package from https://github.com/kunkel321/AutoCorrect2. It analyzes your AutoCorrection log file and generates a report of logged hotstrings.  After logging many of your autocorrections via the f() functionality of AutoCorrect2.ahk, you can systematically determine which items are problematic and modify or remove them.`n`nPress F1 while focusing on a control for specific help.  Press Tab or Shift-Tab to move between controls without clicking them.`n`nPlease see the AutoCorrect2 User Manual for more information.  acSettings.ini Configuration:`n- Adjust FreqImportance (0-50) to control the importance of occurence-frequency vs. just the OK-to-BS ratios, in weight calculation`n- Toggle error logging on/off`n- Set default 'Stay on top' behavior."
         } else {
             ; Get the currently focused control
             focusedControl := ACLogAnalyzer.GetFocusedControl()
@@ -1039,6 +1091,10 @@ class ACLogAnalyzerHelpSystem {
                         helpText := this.helpTexts["ContextButton"]
                     case "Suggest":
                         helpText := this.helpTexts["SuggestButton"]
+                    case "Edit":
+                        helpText := this.helpTexts["EditButton"]
+                    case "Close":
+                        helpText := this.helpTexts["CloseButton"]
                     default:
                         helpText := "Button: " buttonLabel "`n`nPress F1 while focusing on a specific control for detailed help."
                 }
@@ -1048,7 +1104,7 @@ class ACLogAnalyzerHelpSystem {
         ; Fallback to general help if no specific text found
         if (helpText = "") {
             helpTitle := "AC Log Analyzer - Help"
-            helpText := "Welcome to the AC Log Analyzer!`n`nThis tool is part of the package from https://github.com/kunkel321/AutoCorrect2. It analyzes your AutoCorrection log file and generates a report of logged hotstrings.  After logging many of your autocorrections via the f() functionality of AutoCorrect2.ahk, you can systematically determine which items are problematic and modify or remove them.`n`nPress F1 while focusing on a control for specific help.  Press Tab or Shift-Tab to move between buttons.`n`nPlease see the AutoCorrect2 User Manual for more information.  In-Code Configuration:`n- Adjust FreqImportance (0-50) to control the importance of occurence-frequency vs. just the OK-to-BS ratios, in weight calculation`n- Toggle error logging on/off`n- Set default 'Stay on top' behavior"
+            helpText := "Welcome to the AC Log Analyzer!`n`nThis tool is part of the package from https://github.com/kunkel321/AutoCorrect2. It analyzes your AutoCorrection log file and generates a report of logged hotstrings.  After logging many of your autocorrections via the f() functionality of AutoCorrect2.ahk, you can systematically determine which items are problematic and modify or remove them.`n`nPress F1 while focusing on a control for specific help.  Press Tab or Shift-Tab to move between buttons.`n`nPlease see the AutoCorrect2 User Manual for more information.  acSettings.ini Configuration:`n- Adjust FreqImportance (0-50) to control the importance of occurence-frequency vs. just the OK-to-BS ratios, in weight calculation`n- Toggle error logging on/off`n- Set default 'Stay on top' behavior"
         }
         
         ; Create help GUI
