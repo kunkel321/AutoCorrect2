@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-25-2025
+; Version: 12-3-2025
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -19,6 +19,7 @@ SetWorkingDir(A_ScriptDir)
 #Include "*i ..\Includes\DateTool.ahk"              ;  Calendar tool with holidays -- Optional
 #Include "*i ..\Includes\PrinterTool.ahk"           ;  Shows list of installed printers -- Optional 
 #Include "*i ..\Includes\HotstringQuickLookup.ahk"  ;  Get usage stats for selected hotstring --Optional
+#Include "*i ..\Includes\ChatGptWordLookup.ahk"     ;  ChatGPT-based word definitions -- Optional
 
 #HotIf Config.EnableDragTools ;  So users can permanently disable DragTools via acSettings.ini
     #Include "*i ..\Includes\DragTools.ahk"      ;  Mouse right-click/drags trigger things   -- Optional 
@@ -2405,6 +2406,14 @@ class Dictionary {
     static loadingStatus := ""
     static WORDNET_PATH := "..\Resources\Dictionary\WordNet-3.0\dict\"
     
+    ; Temporary references for optional ChatGPT module
+    static _DefinitionGui := ""
+    static _DefinitionWord := ""
+    static _DefinitionEdit := ""
+    
+    ; Optional callback after Dictionary GUI is created
+    static _PostShowCallback := ""
+    
     ; Start loading dictionary in background
     static StartBackgroundLoad() {
         if !this.isLoaded && !this.isLoading {
@@ -2580,16 +2589,15 @@ class Dictionary {
     
     ; Show dictionary definition in a GUI
     static ShowDefinitionGui(word) {
+        ; Get the definition - use loading message if dictionary isn't ready yet
         if !this.isLoaded {
             if !this.isLoading {
                 this.StartBackgroundLoad()
             }
-            acMsgBox.show("Dictionary is still loading.`nCurrent status: " this.loadingStatus 
-                "`n`nPlease try again in a moment.", "Dictionary Loading")
-            return
+            definition := "Dictionary is still loading...`n`nCurrent status: " this.loadingStatus "`n`nYou can still use 'Try GCIDE' or 'Try ChatGPT' while waiting, or close this window and try again in a moment."
+        } else {
+            definition := this.LookupWord(word)
         }
-        
-        definition := this.LookupWord(word)
     
         dictGui := Gui()
         dictGui.SetFont(Config.LargeFontSize, "Segoe UI")
@@ -2603,13 +2611,24 @@ class Dictionary {
         defEdit.Opt("Background" Config.FormColor)
         
         ; Add buttons
-        closeBtn := dictGui.AddButton("x100 y+10", "Close")
+        closeBtn := dictGui.AddButton("x10 y+10", "Close")
         dictGui.AddButton("x+8", "Copy Text").OnEvent("Click", (*) => A_Clipboard := definition)
         dictGui.AddButton("x+8", "Try GCIDE").OnEvent("Click", (*) => Run("https://gcide.gnu.org.ua/?q=" word "&define=Define&strategy=."))
+        
+        ; Store references for optional ChatGPT module to add its button post-hoc
+        this._DefinitionGui := dictGui
+        this._DefinitionWord := word
+        this._DefinitionEdit := defEdit
         
         ; Setup events
         closeBtn.OnEvent("Click", (*) => dictGui.Destroy())
         dictGui.OnEvent("Escape", (*) => dictGui.Destroy())
+        
+        ; Call optional post-show callback (for ChatGPT module, etc.)
+        callback := this._PostShowCallback
+        if (callback != "") {
+            callback(dictGui, word, defEdit)
+        }
         
         dictGui.Show("AutoSize")
         closeBtn.Focus()
