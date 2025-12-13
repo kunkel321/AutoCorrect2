@@ -1,24 +1,17 @@
 ﻿#Requires AutoHotkey v2.0
 #SingleInstance Force
 
-; #Include custom message box
+; #Include custom message box -- Required.
 #Include "..\Includes\AcMsgBox.ahk"
 
 /*
 AutoCorrect2 Updater Tool
 Author: kunkel321
 Tool Used: Claude
-Version: 11-15-2025 
-Intended to use with AutoCorrect2 repo. Run the script, and it will download a 
-temporary copy of the repository, then look for files that have been updated.
-The script will then offer to replace the old files with the newer versions.
-The files listed below as "RarelyUpdated" will be unchecked by default.  The user
-must check them to update them.  Any new files will be listed in the dialog 
-separately. HotstringLib.ahk is a special case and never gets over-written.  
-Instead, the user should keep a copy of "HotstringLib_DoNotRemove.ahk" in the
-Core\ folder.  The Updater script will compare against that file and update it 
-if a newer version is on GitHub.  The user must then use the UniueStringExtracter
-to compare that file with their own.  
+Version: 12-13-2025 
+Intended to use with AutoCorrect2 repo. Run the script, and it will download a temporary copy of the repository, then look for files that have been updated.  The script makes this faster by saving a 'LastUpdateCheck.ini' file in the Core\ folder.  Then it checks the github commits page, and compares to the ini date.  If a newer version is found, only then is the zip downloaded and opened.  The script will then offer to replace the old files with the newer versions.  The files listed below as "RarelyUpdated" will be unchecked by default.  The user must check them to update them.  Any new files will be listed in a separate dialog.  
+
+HotstringLib.ahk is a special case and never gets over-written by default. Instead, a copy called  "HotstringLib (1).ahk" is saved to the Core\ folder.  The user must then use the UniueStringExtracter to compare that file with their own.  If the user NEVER customizes their HotstringLib.ahk file, and only wants to adopt the newer version, they can select the radio button to *Overwrite* their existing lib file.  The font is made red to ensure that the user sees what they are doing. 
 */
 
 ; --- CONFIG ---------------------------------------------------------------
@@ -45,20 +38,33 @@ RarelyUpdated := [
 
 ; Setup debug logging
 SplitPath(A_ScriptDir, , &parentDir)
-debugFile := parentDir "\Debug\Updater_debug.txt"
+debugDir := parentDir "\Debug"
+debugFile := debugDir "\Updater_debug.txt"
 
 LogDebug(msg) {
     if EnableDebugLog {
+        ; Ensure Debug folder exists before attempting to write
+        if !DirExist(debugDir) {
+            try {
+                DirCreate(debugDir)
+            } catch Error as e {
+                ; Silently fail if we can't create debug folder
+                return
+            }
+        }
+        
         timestamp := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
-        FileAppend("[" timestamp "] " msg "`n", debugFile)
+        try {
+            FileAppend("[" timestamp "] " msg "`n", debugFile)
+        } catch Error as e {
+            ; Silently fail if we can't write debug log
+        }
     }
 }
 
 CheckGitHubForUpdates() {
-    /*
-    Checks GitHub API for the latest commit info.
-    Returns an object with {sha, date} on success, or error string on failure
-    */
+    ; Checks GitHub API for the latest commit info.
+    ; Returns an object with {sha, date} on success, or error string on failure
     try {
         LogDebug("Checking GitHub API for latest commit...")
         
@@ -141,10 +147,8 @@ CheckGitHubForUpdates() {
 }
 
 GetLastUpdateCheckInfo() {
-    /*
-    Reads the stored update check info from Data\LastUpdateCheck.ini
-    Returns a Map with {sha, date} or empty Map if file doesn't exist
-    */
+    ; Reads the stored update check info from Data\LastUpdateCheck.ini
+    ; Returns a Map with {sha, date} or empty Map if file doesn't exist
     checkFile := A_ScriptDir "\..\Data\LastUpdateCheck.ini"
     
     if !FileExist(checkFile) {
@@ -174,9 +178,7 @@ GetLastUpdateCheckInfo() {
 }
 
 StoreUpdateCheckInfo(sha, date) {
-    /*
-    Stores the latest commit info to Data\LastUpdateCheck.ini
-    */
+    ; Stores the latest commit info to Data\LastUpdateCheck.ini
     checkFile := A_ScriptDir "\..\Data\LastUpdateCheck.ini"
     checkDir := A_ScriptDir "\..\Data"
     
@@ -452,11 +454,12 @@ ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, ho
     ; Apply font size from settings
     updateGui.SetFont("s" fontSize " " fontColor)
 
-    updateGui.Add("Text", "w700 h2")  ; Separator
-
     lvUpdated := ""
     lvNew := ""
     lvHotstringLib := ""
+    
+    ; Track HotstringLib state (true = append (1), false = replace)
+    hotstringLibMode := Map()  ; Will store which radio is selected
     
     ; Build a combined list of all updated files with checked state info
     allUpdatedFiles := []
@@ -504,7 +507,7 @@ ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, ho
 
     ; Show new files with checkboxes (checked by default)
     if newFiles.Length > 0 {
-        updateGui.Add("Text", "w700 cGreen y+10", "New files (" newFiles.Length "):")
+        updateGui.Add("Text", "w700 cGreen y+8", "New files (" newFiles.Length "):")
         lvNew := updateGui.Add("ListView", "w700 r8 Checked -Multi +Background" listColor, ["Filename", "Path"])
         
         for item in newFiles {
@@ -519,21 +522,67 @@ ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, ho
             lvNew.Modify(A_Index, "+Check")
     }
 
-    ; Show HotstringLib update (special handling)
+    ; Show HotstringLib update with radio button options
     if hotstringLibUpdate != "" {
-        updateGui.Add("Text", "w700 cBlack y+10", "HotstringLib Update Available")
-        updateGui.Add("Text", "w700", "Will be saved as: Core\" hotstringLibName ". Your current HotstringLib.ahk will not be modified. Use UniqueStringExtractor.ahk to compare and merge.")
-        lvHotstringLib := updateGui.Add("ListView", "w700 r2 Checked -Multi +Background" listColor, ["Filename", "Path"])
-        lvHotstringLib.Add("", hotstringLibName, "Core\" hotstringLibName)
+        updateGui.Add("Text", "w700 cBlack y+8", "HotstringLib Update Available")
+        
+        ; Radio button option 1: Keep as (1), safe for customizers
+        radAppend := updateGui.Add("Radio", "w700 h38 Checked vHotstringLibMode", "Save new library as: Core\HotstringLib (1).ahk. Your current HotstringLib.ahk will not be modified. Use UniqueStringExtractor tool to compare and merge.")
+        
+        ; Radio button option 2: Replace existing, no merge needed
+        radReplace := updateGui.Add("Radio", "w700 h38", "WARNING: Replaces your existing HotstringLib.ahk file. Any customizations you've made will be lost, but you won't have to bother merging the old and new versions.")
+        
+        ; ListView for HotstringLib - initially shows merge mode
+        lvHotstringLib := updateGui.Add("ListView", "w700 r2 Checked -Multi +Background" listColor " y+5", ["Filename", "Path"])
+        lvHotstringLib.Add("", "HotstringLib (1).ahk", "Core\HotstringLib (1).ahk")
         lvHotstringLib.ModifyCol(1, 200)
         lvHotstringLib.ModifyCol(2, 500)
+        
+        ; Store the ListView reference in the GUI object for access in event handlers
+        updateGui.lvHotstringLib := lvHotstringLib
+        updateGui.radReplace := radReplace
+        updateGui.fontColor := fontColor
+        
+        ; Add event handlers to update the ListView filename and color when radio button changes
+        radAppend.OnEvent("Click", HotstringLibModeChanged.Bind(updateGui, 1))
+        radReplace.OnEvent("Click", HotstringLibModeChanged.Bind(updateGui, 0))
     }
 
     ; Buttons
-    updateGui.Add("Button", "w100 y+10", "Update").OnEvent("Click", (*) => PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, updateGui, lvUpdated, lvNew, lvHotstringLib, latestInfo))
+    updateGui.Add("Button", "w100 y+8", "Update").OnEvent("Click", (*) => PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, updateGui, lvUpdated, lvNew, lvHotstringLib, latestInfo))
     updateGui.Add("Button", "x+10 w100", "Cancel").OnEvent("Click", (*) => ExitApp())
 
     updateGui.Show()
+}
+
+; Event handler for HotstringLib radio button changes
+HotstringLibModeChanged(updateGui, mode, GuiCtrlObj, Info) {
+    ; Update ListView
+    if updateGui.lvHotstringLib != "" {
+        updateGui.lvHotstringLib.Delete(1)  ; Delete the existing row
+        if mode = 1 {
+            ; Mode 1: Append as (1) - merge mode
+            updateGui.lvHotstringLib.Add("", "HotstringLib (1).ahk", "Core\HotstringLib (1).ahk")
+            LogDebug("Radio mode changed to: MERGE (1)")
+        } else {
+            ; Mode 2: Replace existing - simple mode
+            updateGui.lvHotstringLib.Add("", "HotstringLib.ahk", "Core\HotstringLib.ahk")
+            LogDebug("Radio mode changed to: REPLACE")
+        }
+    }
+    
+    ; Update radio button font colors for visual warning
+    if updateGui.radReplace != "" {
+        if mode = 0 {
+            ; Replace mode selected - turn text RED as a warning
+            updateGui.radReplace.Opt("+cFF0000")
+            LogDebug("Replace mode selected - radio button text is RED")
+        } else {
+            ; Merge mode selected - return to normal font color
+            updateGui.radReplace.Opt("+" updateGui.fontColor)
+            LogDebug("Merge mode selected - radio button text is normal color")
+        }
+    }
 }
 
 PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, updateGui, lvUpdated, lvNew, lvHotstringLib, latestInfo) {
@@ -541,6 +590,9 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
     LogDebug("lvUpdated: " (lvUpdated != "" ? "exists" : "null"))
     LogDebug("lvNew: " (lvNew != "" ? "exists" : "null"))
     LogDebug("lvHotstringLib: " (lvHotstringLib != "" ? "exists" : "null"))
+    
+    ; Get the form values to check which HotstringLib mode was selected
+    formValues := updateGui.Submit(0)  ; Submit without destroying the GUI
     
     ; Copy checked files from combined updated files list
     if lvUpdated != "" {
@@ -592,14 +644,43 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
         }
     }
 
-    ; Handle HotstringLib update (checked = copy, unchecked = skip)
+    ; Handle HotstringLib update with mode selection
     if lvHotstringLib != "" {
         LogDebug("Processing HotstringLib...")
         rowNum := lvHotstringLib.GetNext(0, "C")  ; Check first (and only) row
         if rowNum = 1 {
-            LogDebug("Copying: " hotstringLibUpdate.relPath)
-            CopyFileWithDirCreation(hotstringLibUpdate.srcPath, hotstringLibUpdate.path)
-            LogDebug("Added: " hotstringLibUpdate.relPath)
+            ; Determine which mode was selected based on radio button value
+            ; formValues.HotstringLibMode = 1 means first radio (append as (1), merge mode)
+            ; formValues.HotstringLibMode = 0 means second radio (replace existing)
+            
+            if formValues.HotstringLibMode = 1 {
+                ; Mode 1: Keep as HotstringLib (1).ahk - MERGE MODE
+                LogDebug("HotstringLib mode: MERGE (append as (1))")
+                
+                ; Source file from GitHub
+                srcFile := hotstringLibUpdate.srcPath
+                
+                ; Destination: Core\HotstringLib (1).ahk
+                destFile := A_ScriptDir "\..\Core\HotstringLib (1).ahk"
+                
+                LogDebug("Copying (merge mode): " srcFile " -> " destFile)
+                CopyFileWithDirCreation(srcFile, destFile)
+                LogDebug("Created: HotstringLib (1).ahk (existing HotstringLib.ahk untouched)")
+                
+            } else {
+                ; Mode 2: Replace existing HotstringLib.ahk - REPLACE MODE
+                LogDebug("HotstringLib mode: REPLACE (direct replacement)")
+                
+                ; Source file from GitHub
+                srcFile := hotstringLibUpdate.srcPath
+                
+                ; Destination: Core\HotstringLib.ahk (replacing existing)
+                destFile := A_ScriptDir "\..\Core\HotstringLib.ahk"
+                
+                LogDebug("Copying (replace mode): " srcFile " -> " destFile)
+                CopyFileWithDirCreation(srcFile, destFile)
+                LogDebug("Replaced: HotstringLib.ahk")
+            }
         } else {
             LogDebug("HotstringLib update skipped by user")
         }
