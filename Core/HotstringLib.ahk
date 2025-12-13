@@ -7184,3 +7184,6 @@ ACitemsEndAt := A_LineNumber - 3 ; hh2 validity checks will skip lines after her
 :B0X*?:grouth::f("growth") ; Web Freq 81.32 | Fixes 28 words 
 :B0X*?C:tpio::f("ptio") ; Web Freq 748.83 | Fixes 247 words 
 :B0X*?:proir::f("prior") ; Web Freq 111.57 | Fixes 39 words 
+:B0X?C:ragn::f("rang") ; Web Freq 4.02 | Fixes 18 words 
+:B0X?C:ragne::f("range") ; Web Freq 232.55 | Fixes 18 words 
+:B0X*C:ragne::f("range") ; Web Freq 163.05 | Fixes 11 words 
