@@ -397,46 +397,48 @@ EditHotkey(section, key, originalValue) {
     editGui.BackColor := FormColor
     editGui.SetFont(DefaultFontSize " " FontColor)
     
-    editGui.Add("Text", "x10 y10 w300 h20", section "." key)
-    editGui.Add("Text", "x10 y35 w400 h40", "Enter the hotkey combination (e.g., Ctrl+H, F12)`nNote: Use the Win checkbox below to include the Win key")
+    editGui.Add("Text", "x10 y10 w400 h20", section "." key)
+    editGui.Add("Text", "x10 y32 w400", "Enter the hotkey combination (e.g., Ctrl+H, F12)`nOr leave blank for no hotkey`nNote: Use the Win checkbox below to include the Win key")
     
     ; Determine if Win key is present and prepare hotkey value without Win prefix
     hasWinKey := InStr(originalValue, "#") > 0
     hotkeyValue := StrReplace(originalValue, "#", "")
     
-    hotkeyCtrl := editGui.Add("Hotkey", "x10 y80 w300 h25 vHotkeyValue", hotkeyValue)
-    winCheckbox := editGui.Add("Checkbox", "x10 y110 w250 h25 vWinKey", "Include Win Key")
+    hotkeyCtrl := editGui.Add("Hotkey", "x10 y+10 w300 h25 vHotkeyValue", hotkeyValue)
+    winCheckbox := editGui.Add("Checkbox", "x10 y+4 w250 h25 vWinKey", "Include Win Key")
     
     ; Pre-check Win Key if "#" was present
     if (hasWinKey) {
         winCheckbox.Value := 1
     }
     
-    btnOK := editGui.Add("Button", "x120 y150 w80 h30 Default", "OK")
-    btnCancel := editGui.Add("Button", "x210 y150 w80 h30", "Cancel")
+    btnOK := editGui.Add("Button", "x120 y155 w80 h30 Default", "OK")
+    btnCancel := editGui.Add("Button", "x210 y155 w80 h30", "Cancel")
     
     EditDlg_OK(GuiCtrlObj, Info) {
         submitted := editGui.Submit(0)
         hotkey := submitted.HotkeyValue
         includeWin := submitted.WinKey
         
-        if (hotkey = "") {
-            MsgBox("Please enter a hotkey", "Invalid Hotkey", "Iconx")
-            return
-        }
-        
-        ; Add Win key prefix if checked
-        if (includeWin) {
-            hotkey := "#" hotkey
+        ; Allow empty hotkey (no hotkey assigned)
+        if (hotkey != "") {
+            ; Add Win key prefix if checked
+            if (includeWin) {
+                hotkey := "#" hotkey
+            }
+        } else {
+            ; Empty hotkey is valid - means "no hotkey assigned"
+            includeWin := 0
         }
         
         fullKey := section "." key
         allSettings[fullKey] := hotkey
-        lvSettings.Modify(lvSettings.GetNext(0), , key, hotkey)
+        displayValue := (hotkey = "") ? "(none)" : hotkey
+        lvSettings.Modify(lvSettings.GetNext(0), , key, displayValue)
         isDirty := true
         
         editGui.Destroy()
-        ToolTip("Hotkey updated: " hotkey)
+        ToolTip("Hotkey updated: " displayValue)
         SetTimer(() => ToolTip(), 1500)
     }
     
@@ -447,7 +449,7 @@ EditHotkey(section, key, originalValue) {
     btnOK.OnEvent("Click", EditDlg_OK)
     btnCancel.OnEvent("Click", EditDlg_Cancel)
     
-    editGui.Show("w450 h200")
+    editGui.Show("w450 h210")
 }
 
 EditText(section, key, originalValue) {

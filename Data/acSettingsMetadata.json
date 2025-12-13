@@ -77,6 +77,46 @@
     "type": "file",
     "filter": "Executables (*.exe)|*.exe"
   },
+  "Hotkeys.HotstringHelperActivationHotkey": {
+    "label": "HotstringHelper Activation Hotkey",
+    "help": "Define the hotkey combination to open HotstringHelper. Examples: #h (Win+H), ^+h (Ctrl+Shift+H), F12",
+    "type": "hotkey",
+    "default": "#h",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "Hotkeys.AutoCorrect2EditThisScriptHk": {
+    "label": "AutoCorrect2 Edit This Script",
+    "help": "Hotkey for opening the AutoCorrect2.ahk script in your editor.  If you are going to use this feature, I recommend setting a preferred ahk editor in Shared/DefaultEditor.",
+    "type": "hotkey",
+    "default": "^+e",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "Hotkeys.SystemUpTimeHk": {
+    "label": "System Up Time",
+    "help": "It's a scriptlet that shows how long your computer has been running since the last reboot.",
+    "type": "hotkey",
+    "default": "!+u",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "Hotkeys.MCLoggerRunAnalysisHotkey": {
+    "label": "MCLogger Run Analysis Hotkey",
+    "help": "Hotkey to open and run analysis of the MCLogger manual correction log.",
+    "type": "hotkey",
+    "default": "#^+q",
+    "restart": "..\\Core\\MCLogger.exe"
+  },
+  "Hotkeys.MCLoggerSneakPeekHotkey": {
+    "label": "MCLogger Sneak Peek Hotkey",
+    "help": "Hotkey to get a quick preview/peek at the current MCLogger cached character presses and the captured hotstrings that are due to be logged at the next save interval.",
+    "type": "hotkey",
+    "default": "#+q",
+    "restart": "..\\Core\\MCLogger.exe"
+  },
+  "Hotkeys.ACLogAnalyzerHk": {
+    "label": "ACLog Analyzer Hotkey",
+    "help": "The ACLogAnalyzer tool doesn't always run in the background, so this hotkey assignment is actually in the AutoCorrect2.ahk code.  This will initial an analysis of the AutoCorrections Log.",
+    "type": "hotkey"
+  },
   "Shared.DefaultEditor": {
     "label": "Default Editor",
     "help": "Executable name of your preferred text editor.  The .ahk scripts will use VScode if it is in the default install location.  If not, then this 'backup default' will be used.",
@@ -125,13 +165,6 @@
       "0=Disabled",
       "1=Enabled"
     ],
-    "restart": "..\\Core\\AutoCorrect2.exe"
-  },
-  "HotstringHelper.ActivationHotkey": {
-    "label": "Activation Hotkey",
-    "help": "Define the hotkey combination to open HotstringHelper. Examples: #h (Win+H), ^+h (Ctrl+Shift+H), F12",
-    "type": "hotkey",
-    "default": "#h",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.EnableDragTools": {
@@ -406,20 +439,6 @@
       "0=Append to directly to Library",
       "1=Send to HotstringHelper"
     ],
-    "restart": "..\\Core\\MCLogger.exe"
-  },
-  "MCLogger.RunAnalysisHotkey": {
-    "label": "Run Analysis Hotkey",
-    "help": "Hotkey to open and run analysis of the MCLogger manual correction log.",
-    "type": "hotkey",
-    "default": "#^+q",
-    "restart": "..\\Core\\MCLogger.exe"
-  },
-  "MCLogger.SneakPeekHotkey": {
-    "label": "Sneak Peek Hotkey",
-    "help": "Hotkey to get a quick preview/peek at the current MCLogger cached character presses and the captured hotstrings that are due to be logged at the next save interval.",
-    "type": "hotkey",
-    "default": "#+q",
     "restart": "..\\Core\\MCLogger.exe"
   },
   "MCLogger.SaveFullToClipboard": {
