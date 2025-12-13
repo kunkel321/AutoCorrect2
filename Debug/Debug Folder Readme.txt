@@ -1,0 +1,1 @@
+This is the Debug folder.  Several of the .ahk files write debug or error logs to this file.  Mostly the error and debug logging can be turned-off in the respective .ahk files.  It's mostly okay to delete the log files in this folder, but don't delete the Debug folder itself.  
