@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 12-3-2025
+; Version: 12-13-2025
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -67,7 +67,12 @@ class Config {
     static CODE_DEBUG_LOG := 0
     
     ; Hotkeys
-    static ActivationHotkey := "#h"
+    static HotstringHelperActivationHotkey := "#h"
+    static AutoCorrect2EditThisScriptHk := "^+e"
+    static SystemUpTimeHk := "!+u"
+    static MCLoggerRunAnalysisHotkey := "#^+q"
+    static MCLoggerSneakPeekHotkey := "#+q"
+    static ACLogAnalyzerHk := "!^+q"
 
     ; Includes
     static EnableDragTools := 1
@@ -217,6 +222,14 @@ MCLogFile=ManualCorrectionsLog.txt
 AutoCorrect2Script=AutoCorrect2.ahk
 SettingsManager=SettingsManager.exe
 
+[Hotkeys]
+HotstringHelperActivationHotkey=#h
+AutoCorrect2EditThisScriptHk=^+e
+SystemUpTimeHk=!+u
+MCLoggerRunAnalysisHotkey=#^+q
+MCLoggerSneakPeekHotkey=#+q
+ACLogAnalyzerHk=!^+q
+
 [Shared]
 ; Default editor for opening scripts (usually VSCode or Notepad).
 DefaultEditor=Notepad.exe
@@ -230,8 +243,6 @@ DarkRed=B90012
 ; Enable/disable debug (very verbose) and error logging (1=yes, 0=no).
 CODE_DEBUG_LOG=0
 CODE_ERROR_LOG=0
-; Hotkey to activate HotstringHelper2 (default: Win+H).
-ActivationHotkey=#h
 ; Optional Include
 EnableDragTools=1
 EnableMoveResizeTools=1
@@ -291,9 +302,6 @@ SaveIntervalMinutes=10
 IntervalsBeforeStopping=2
 ; Export directly to HotString Helper2 GUI (1=yes, 0=append to AutoCorrect script)
 SendToHH=1
-; Hotkey to run analysis of MCLogger manual correction log and for quick peek of MCLogger cache.
-RunAnalysisHotkey=#^+q
-SneakPeekHotkey=#+q
 ; Also save full report to Windows Clipboard (1=yes, 0=no). Warning: does not restore previous clipboard contents.
 SaveFullToClipboard=1
 ; When removing old single-occurrence items, only remove strings older than this many days.
@@ -354,15 +362,18 @@ keepComments=0
         this.LightRed                   := this.ReadIni("Shared", "LightRed", "fd7c73")
         this.DarkRed                    := this.ReadIni("Shared", "DarkRed", "B90012")
 
+        ; [Hotkeys] Section
+        this.HotstringHelperActivationHotkey := this.ReadIni("Hotkeys", "HotstringHelperActivationHotkey", "#h")
+        this.AutoCorrect2EditThisScriptHk := this.ReadIni("Hotkeys", "AutoCorrect2EditThisScriptHk", "^+e")
+        this.SystemUpTimeHk := this.ReadIni("Hotkeys", "SystemUpTimeHk", "!+u")
+        this.MCLoggerRunAnalysisHotkey := this.ReadIni("Hotkeys", "MCLoggerRunAnalysisHotkey", "#^+q")
+        this.MCLoggerSneakPeekHotkey := this.ReadIni("Hotkeys", "MCLoggerSneakPeekHotkey", "#+q")
+        this.ACLogAnalyzerHk := this.ReadIni("Hotkeys", "ACLogAnalyzerHk", "#+q")
+        
         ; [HotstringHelper] Section   
         ; General
         this.CODE_DEBUG_LOG             := this.ReadIni("HotstringHelper", "CODE_DEBUG_LOG", 0)
         this.CODE_ERROR_LOG             := this.ReadIni("HotstringHelper", "CODE_ERROR_LOG", 0)
-        ; Hotkeys
-        this.ActivationHotkey           := this.ReadIni("HotstringHelper", "ActivationHotkey", "#h")
-        ; Includes
-        this.EnableDragTools             := this.ReadIni("HotstringHelper", "EnableDragTools", "1")
-        this.EnableMoveResizeTools             := this.ReadIni("HotstringHelper", "EnableMoveResizeTools", "1")
         ; UI
         this.DefaultFontSize            := "s" this.ReadIni("HotstringHelper", "DefaultFontSize", "11")
         this.LargeFontSize              := "s" this.ReadIni("HotstringHelper", "LargeFontSize", "15")
@@ -424,10 +435,13 @@ keepComments=0
         if !FileExist(this.SettingsFile)
             return default
         
-        value := IniRead(this.SettingsFile, section, key, "")
+        ; Use a unique sentinel value to distinguish between "key not found" and "key is empty"
+        ; This allows optional hotkeys to be saved as blank values
+        sentinel := "<<<KEY_NOT_FOUND>>>"
+        value := IniRead(this.SettingsFile, section, key, sentinel)
         
-        ; Return default if key not found or empty
-        if (value = "")
+        ; Only return default if key was not found in INI file
+        if (value = sentinel)
             return default
         
         ; If default is numeric (Integer or Float), convert the read value to integer
@@ -435,7 +449,7 @@ keepComments=0
             return Integer(value)
         }
         
-        ; Otherwise return as-is
+        ; Return the actual value (even if it's empty string, which allows optional hotkeys)
         return value
     }
     
@@ -571,8 +585,10 @@ SetupTrayMenu() {
     }
 }
 
-^+e:: ; Open AutoCorrect2 script in VSCode
-EditThisScript(*) {	
+If (Config.AutoCorrect2EditThisScriptHk != "") {
+    Hotkey(Config.AutoCorrect2EditThisScriptHk,EditThisScript)
+}
+EditThisScript(*) {	; Open AutoCorrect2 script in VSCode
 	Try
 		Run Config.EditorPath " "  Config.ScriptName
 	Catch
@@ -595,8 +611,9 @@ RunDateTool(*) {
     Send "!+d"
 }
 
-!+u:: ; Uptime -- time since Windows restart
-UpTime(*) {
+If (Config.SystemUpTimeHk != "")
+    Hotkey(Config.SystemUpTimeHk, UpTime)
+UpTime(*) { ; Uptime -- time since Windows restart
 	; Get uptime using math
 	ms := A_TickCount // 1000  ; Convert to seconds
 	d := ms // 86400
@@ -623,13 +640,15 @@ UpTime(*) {
 		messageText .= "`n`n⚠ Windows updates are pending"
 	}
 	
-	buttons := ["Restart", "OK"]
+	buttons := ["OK", "Restart"]
 	
 	; Show dialog
 	result := acMsgBox.Show(messageText, "System Uptime", {icon: "iconi", buttons: buttons})
 	
 	if (result == "Restart") {
-		Shutdown(2)
+        result := acMsgBox.Show("Really Restart Computer?", "Confirmation", {icon: "icon!", buttons: ["Confirm", "Cancel"]})
+		if (result == "Confirm") 
+            Shutdown(2)
 	}
 }
 
@@ -3185,7 +3204,7 @@ class WordFrequency {
 ; =============== MAIN PROGRAM ===============
 
 TraySetIcon(A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
-;TrayTip("HotString Helper 2", "Running - Press " Config.ActivationHotkey " to activate", 10)
+;TrayTip("HotString Helper 2", "Running - Press " Config.HotstringHelperActivationHotkey " to activate", 10)
 
 ; Initialize UI components
 UI.Init()
@@ -3202,8 +3221,8 @@ SetTimer(RegisterHotkeyDelayed, -250)  ; x-second delay
 ; Add this function somewhere appropriate, perhaps near your other helper functions
 RegisterHotkeyDelayed() {
     try {
-        Hotkey(Config.ActivationHotkey, (*) => Utils.CheckClipboard())
-        Debug("Successfully registered activation hotkey after delay: " Config.ActivationHotkey)
+        Hotkey(Config.HotstringHelperActivationHotkey, (*) => Utils.CheckClipboard())
+        Debug("Successfully registered activation hotkey after delay: " Config.HotstringHelperActivationHotkey)
     } catch Error as err {
         LogError("Failed to register delayed activation hotkey: " err.Message)
     }
@@ -3227,7 +3246,11 @@ Debug(message) {
     }
 }
 
-!^+q::Run(Config.AcLogAnalyzer) ; Run AutoCorrection Log Analyzer tool.
+If (Config.ACLogAnalyzerHk != "")
+    Hotkey(Config.ACLogAnalyzerHk, RunACLogAnalyzer)
+RunACLogAnalyzer(*) {
+    Run(Config.AcLogAnalyzer) ; Run AutoCorrection Log Analyzer tool.
+}
 
 ;===============================================================================
 #HotIf WinActive(Config.ScriptName) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" ) ; If this file is open and active.

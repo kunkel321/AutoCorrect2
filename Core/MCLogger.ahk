@@ -7,7 +7,7 @@ Persistent
 ; ==============================================================================
 ; Author: Kunkel321
 ; Tool Used: Claude AI
-; Version: 11-2-2025 
+; Version: 12-13-2025  
 ; Get latest version here: https://github.com/kunkel321/AutoCorrect2
 ; A script to run in the background all the time and log your typing
 ; errors and manual corrections, formatting the viable ones into ahk hotstrings,
@@ -41,23 +41,26 @@ if !FileExist(settingsFile) {
 }
 
 ; Load settings from INI file.  
+MCLogFile := "..\Data\" IniRead(settingsFile, "Files", "MCLogFile", "ManualCorrectionsLog.txt")
+myAutoCorrectLibrary := IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
+RemovedHsFile := "..\Data\" IniRead(settingsFile, "Files", "RemovedHsFile", "Data\RemovedHotstrings.txt")
+myAutoCorrectScript := IniRead(settingsFile, "Files", "MyAutoCorrectScript", "AutoCorrect2.ahk")
+WordListFile := "..\Data\" IniRead(settingsFile, "Files", "WordListFile", "GitHubComboList249k.txt")
+
+MCLoggerRunAnalysisHotkey := IniRead(settingsFile, "HotKeys", "MCLoggerRunAnalysisHotkey", "#^+q")
+MCLoggerSneakPeekHotkey := IniRead(settingsFile, "HotKeys", "MCLoggerSneakPeekHotkey", "#+q")
+
+LightGreen := "c" IniRead(settingsFile, "Shared", "LightGreen", "b8f3ab")
+DarkGreen := "c" IniRead(settingsFile, "Shared", "DarkGreen", "0d3803")
+
 showEachHotString := IniRead(settingsFile, "MCLogger", "ShowEachHotString", 1)
 beepEachHotString := IniRead(settingsFile, "MCLogger", "BeepEachHotString", 1)
 saveIntervalMinutes := IniRead(settingsFile, "MCLogger", "SaveIntervalMinutes", 10)
 IntervalsBeforeStopping := IniRead(settingsFile, "MCLogger", "IntervalsBeforeStopping", 2)
-MCLogFile := "..\Data\" IniRead(settingsFile, "Files", "MCLogFile", "ManualCorrectionsLog.txt")
-myAutoCorrectLibrary := IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
-RemovedHsFile := "..\Data\" IniRead(settingsFile, "Files", "RemovedHsFile", "Data\RemovedHotstrings.txt")
-myAutoCorrectScript := IniRead(settingsFile, "Path", "MyAutoCorrectScript", "AutoCorrect2.ahk")
 SendToHH := IniRead(settingsFile, "MCLogger", "SendToHH", 1)
-runAnalysisHotkey := IniRead(settingsFile, "MCLogger", "RunAnalysisHotkey", "#^+q")
-sneakPeekHotkey := IniRead(settingsFile, "MCLogger", "SneakPeekHotkey", "#+q")
 SaveFulltoClipBrd := IniRead(settingsFile, "MCLogger", "SaveFullToClipboard", 1)
 AgeOfOldSingles := IniRead(settingsFile, "MCLogger", "AgeOfOldSingles", 90)
 KeepReportOpen := IniRead(settingsFile, "MCLogger", "KeepReportOpen", 1)
-WordListFile := "..\Data\" IniRead(settingsFile, "Files", "WordListFile", "GitHubComboList249k.txt")
-LightGreen := "c" IniRead(settingsFile, "Shared", "LightGreen", "b8f3ab")
-DarkGreen := "c" IniRead(settingsFile, "Shared", "DarkGreen", "0d3803")
 
 
 ; Convert string values to integers where needed
@@ -174,7 +177,8 @@ EditThisScript(*) {
 ; This function pops up a tooltip to show: (1) the currently captured key press cache 
 ; and, (2) the list of items that will get appended to the log file at the end of the 
 ; next save interval (or when this script is exited/reloaded). 
-HotKey sneakPeekHotkey, peekToolTip
+If (MCLoggerSneakPeekHotkey != "")
+   HotKey(MCLoggerSneakPeekHotkey, peekToolTip)
 peekToolTip(*) { ; sneak-a-peek at working variables.
    ToolTip(
       'Current typoCache:`n' typoCache
@@ -336,8 +340,10 @@ Appender(*) {
 ; the items with occurrence count and hotstring.
 if (A_Args.Length > 0) ; Check if a command line argument is present.
 	runAnalysis() ; If present, open run analysis immediately. 
-Hotkey(runAnalysisHotkey, runAnalysis)  ; Change hotkey above, if desired. 
 
+If (MCLoggerRunAnalysisHotkey != "")
+   Hotkey(MCLoggerRunAnalysisHotkey, runAnalysis)  ; Change hotkey above, if desired. 
+   
 runAnalysis(*) {
 	AllStrs := FileRead(MCLogFile)   ; ahk file... Know thyself. 
 	oStr := "", iStr := "" 
