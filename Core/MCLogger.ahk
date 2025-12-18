@@ -7,7 +7,7 @@ Persistent
 ; ==============================================================================
 ; Author: Kunkel321
 ; Tool Used: Claude AI
-; Version: 12-13-2025  
+; Version: 12-16-2025  
 ; Get latest version here: https://github.com/kunkel321/AutoCorrect2
 ; A script to run in the background all the time and log your typing
 ; errors and manual corrections, formatting the viable ones into ahk hotstrings,
@@ -31,12 +31,15 @@ Persistent
 ; to the same ManualCorrectionsLog.txt file.
 ; ==============================================================================
 
+#Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. Required.
+
 ;========= LOAD SETTINGS FROM INI ============================================
 settingsFile := "..\Data\acSettings.ini"
+SettingsManager := "..\Tools\SettingsManager.exe"
 
 ; Ensure settings file exists.
 if !FileExist(settingsFile) {
-	MsgBox(settingsFile " was not found.  Please run AutoCorrect2.exe first, to create the file, then try again.`n`nNow exiting")
+	acMsgBox.show(settingsFile " was not found.  Please run AutoCorrect2.exe first, to create the file, then try again.`n`nNow exiting")
    ExitApp
 }
 
@@ -99,7 +102,7 @@ Else { ; Ini file not there, so use these colors instead.
 formColor := "0x" subStr(formColor, -6) ; Make sure the hex value appears as a number, rather than a string. 
 r := (formColor >> 16) & 0xFF, g := (formColor >> 8) & 0xFF, b := formColor & 0xFF
 brightness := (r * 299 + g * 587 + b * 114) / 1000
-progBarGreen := brightness > 128 ? DarkGreen  : LightGreen  ; The color of the radio buttons in the gui form.
+progBarGreen := brightness > 128 ? DarkGreen  : LightGreen  ; The color of the progress bar.
 
 ;--- create systray menu ----
 TraySetIcon("..\Resources\Icons\JustLog.ico") ; A fun homemade "log" icon that Steve made.
@@ -111,8 +114,8 @@ mclMenu.Add("Edit This Script", EditThisScript)
 mclMenu.SetIcon("Edit This Script", "..\Resources\Icons\edit-Brown.ico")
 mclMenu.Add("Open " MCLogFile, (*) => Run(MCLogFile))
 mclMenu.SetIcon("Open " MCLogFile, "..\Resources\Icons\TxtFile-Brown.ico")
-mclMenu.Add("Open " settingsFile, (*) => Run(settingsFile))
-mclMenu.SetIcon("Open " settingsFile, "..\Resources\Icons\TxtFile-Brown.ico")
+mclMenu.Add("Open " SettingsManager, (*) => Run(SettingsManager))
+mclMenu.SetIcon("Open " SettingsManager, "..\Resources\Icons\Settings-blue.ico")
 mclMenu.Add("Analyze Manual Corrections", runAnalysis)
 mclMenu.SetIcon("Analyze Manual Corrections", "..\Resources\Icons\search-Brown.ico")
 mclMenu.Add("Start with Windows", StartUpMCL)
@@ -127,7 +130,7 @@ mclMenu.SetColor("C29A6A") ; #CD853F is "Peru"
 
 ; Make sure AHK editor is assigned.  Use Notepad otherwise.
 If not FileExist(MyAhkEditorPath) {
-	MsgBox("This error means that the variable 'MyAhkEditorPath' has"
+	acMsgBox.show("This error means that the variable 'MyAhkEditorPath' has"
 	"`nnot been assigned a valid path for an editor."
 	"`nTherefore Notepad will be used as a substite.")
 	MyAhkEditorPath := "Notepad.exe"
@@ -135,7 +138,7 @@ If not FileExist(MyAhkEditorPath) {
 
 ; Make sure word list is there. Change name of word list subfolder, if desired. 
 If not FileExist(WordListFile) {
-	MsgBox("This error means that the big list of comparison words at:`n" WordListFile
+	acMsgBox.show("This error means that the big list of comparison words at:`n" WordListFile
 	"`nwas not found.`n`nMust assign a word list file to variable, such as`n"
 	"WordListFile := 'MyWordList.txt'`nfor script to work.`n`nNow exiting.")
 	ExitApp
@@ -147,7 +150,7 @@ wordListArray := strSplit(WordList, "`n") ; Segment variable into array.
 ; file though, because some people might not use that.  If the file exists, it will also
 ; get used for the "existing items" validity check.
 If not FileExist(myAutoCorrectLibrary) {
-	MsgBox("This error means that the exsiting library of hotstrings "
+	acMsgBox.show("This error means that the exsiting library of hotstrings "
 	"`nwas not found.`n`nMust assign a file to variable, such as`n"
 	"myAutoCorrectLibrary := `"HotstringLib.ahk`"`nfor script to work.`n`nNow exiting.")
 	ExitApp
@@ -429,9 +432,19 @@ runAnalysis(*) {
    cl.BackColor := formColor
 	cl.Add('text','w400 wrap','Analysis complete. The most frequent items are shown below. Select an item then right-click to copy, or use buttons below to cull/append.')
    
+   ; Calculate DeltaString color based on form brightness (already calculated at startup, line 101)
+   deltaColor := brightness > 128 ? "191970" : "00FFFF"  ; Dark blue for light background, light cyan for dark background
+   
+   ; Add DeltaString control to show visual comparison of trigger/replacement
+   ; Styling: s15 bold, aligned with list, contrasting blue color, same background as form
+   global DeltaStringCtrl := cl.Add('Text', 'x90 y+10 w300 h25 Background' formColor ' c' deltaColor, '')
+   DeltaStringCtrl.SetFont('s15')
+   cl.SetFont('s12 c' fontColor)
+   
    ; Create ListView with 2 columns: Count and Hotstring (sortable by default)
-   global lv := cl.Add("ListView", "x10 y+8 w400 h550 Grid Background" listColor " vLvSel", ["Count", "Hotstring"])
+   global lv := cl.Add("ListView", "x10 y+10 w400 h500 Grid Background" listColor " vLvSel", ["Count", "Hotstring"])
    lv.OnEvent("ContextMenu", LvContextMenu)
+   lv.OnEvent("ItemSelect", LvItemSelect)
    
    ; Add rows to ListView
    for idx, item in lvReportData {
@@ -442,10 +455,10 @@ runAnalysis(*) {
    lv.ModifyCol(1, 60)  ; Count column
    lv.ModifyCol(2, 330) ; Hotstring column
 
-   cl.SetFont('s12 c' FontColor)
+   cl.SetFont('s10 c' FontColor)
    Global BUchkBox := cl.Add('Checkbox', 'w400 y+8','Make backup of ' MCLogFile ' first')
 	
-   cl.SetFont('s10')
+   cl.SetFont('s11')
    cl.Add('button', 'w200 x10 y+5', 'Cull from Log').OnEvent('Click', CullOnlyFunc)
    cl.Add('button', 'x+10 w190 yp', 'Append').OnEvent('Click', AppendOnlyFunc)
 
@@ -468,6 +481,46 @@ LvContextMenu(GuiCtrlObj, Item, IsRightClick, X, Y) {
    SetTimer(() => ToolTip(,,,5), -2000)
 }
 
+; ListView item select event - generate and display DeltaString
+LvItemSelect(GuiCtrlObj, Item, IsSelected) {
+   if !IsSelected || Item = 0
+      return
+   
+   selectedHotstring := lvReportData[Item].Hotstring
+   
+   ; Parse the hotstring to extract trigger and replacement
+   ; Format is typically: ::trigger::replacement
+   ; But we need to handle various formats
+   triggerText := ""
+   replacementText := ""
+   
+   ; Try to parse the hotstring
+   ; Look for the pattern ::trigger::replacement
+   parts := StrSplit(selectedHotstring, "::")
+   
+   if parts.Length >= 3 {
+      ; Skip any flags or options (first element might be empty or contain options)
+      ; Typical format: ::trigger::replacement or options::trigger::replacement
+      if parts[1] = "" {
+         ; Format: ::trigger::replacement
+         triggerText := parts[2]
+         replacementText := parts[3]
+      } else {
+         ; Format: options::trigger::replacement
+         triggerText := parts[2]
+         replacementText := parts[3]
+      }
+   }
+   
+   ; Generate and display the DeltaString
+   if triggerText != "" && replacementText != "" {
+      deltaString := GenerateDeltaString(triggerText, replacementText)
+      DeltaStringCtrl.Value := deltaString
+   } else {
+      DeltaStringCtrl.Value := ""
+   }
+}
+
 CullOnlyFunc(*) {
    newFileContent := "", selItemName := ""
    global trunkReport
@@ -475,7 +528,7 @@ CullOnlyFunc(*) {
    
    selectedRow := lv.GetNext(0)
    If selectedRow = 0 { ; No ListView item selected. 
-      MsgBox 'Nothing selected.'
+      acMsgBox.show 'Nothing selected.'
       Return   ; Abort function. 
    }
 
@@ -514,7 +567,7 @@ AppendOnlyFunc(*) {
    
    selectedRow := lv.GetNext(0)
    If selectedRow = 0 { ; No ListView item selected. 
-      MsgBox 'Nothing selected.'
+      acMsgBox.show 'Nothing selected.'
       Return   ; Abort function. 
    }
 
@@ -530,7 +583,7 @@ AppendOnlyFunc(*) {
    Else ; Otherwise, just append to bottom. 
    {
       FileAppend("`n" selItemName, myAutoCorrectLibrary)
-      MsgBox("Item appended to library: " selItemName)
+      acMsgBox.show("Item appended to library: " selItemName)
    }
    
    If KeepReportOpen = 1
@@ -541,7 +594,7 @@ AppendOnlyFunc(*) {
    }
 }
 
-; This gets called from the button at the bottom of the radio button gui form.
+; This gets called from the button at the bottom of the report gui form.
 ; There are multiple loops.  The first loop extracts all of the frequency report items that
 ; have a freq of 1.  (I.e. single-occurence items.) The log date is ignored for this purpose. 
 ; The next loop looks at the dates of the log items and extracts only the old ones. 
@@ -549,7 +602,7 @@ AppendOnlyFunc(*) {
 ; The last loop goes through the list of "old singletons" and removes each from the log file.  
 ; The old log file list deleted, and a new one made.  
 RemoveOldFunc(Report,*) {
-   Result := MsgBox( "Pressing OK will immediately remove all logged items that are older than " AgeOfOldSingles " days, and have only one occurence.  There is no undo. But a backup of " MCLogFile " will be made automatically.`n`nContinue?`n`n(Note: The number of days `'" AgeOfOldSingles "`' can be changed near the top of the " A_ScriptName " code.)","Remove Old Singles" , 32+1)
+   Result := acMsgBox.show( "Pressing OK will immediately remove all logged items that are older than " AgeOfOldSingles " days, and have only one occurence.  There is no undo. But a backup of " MCLogFile " will be made automatically.`n`nContinue?`n`n(Note: The number of days `'" AgeOfOldSingles "`' can be changed in the acSettings.ini file, or with the SettingsManager tool.)","Remove Old Singles" , 32+1)
    if (Result = "OK") { ; User pressed OK button.
       cl.Destroy()
       Singletons := "", oldItems := "", oldSingletons := "", oldSinsRemoved := 0
@@ -582,7 +635,7 @@ RemoveOldFunc(Report,*) {
       }
       
       If (oldSingletons = "") {
-         MsgBox  "No single-occurence strings " AgeOfOldSingles " days-old were found in " myLogFileBaseName ". No changes were made, so backup of the log was made either."
+         acMsgBox.show  "No single-occurence strings " AgeOfOldSingles " days-old were found in " myLogFileBaseName ". No changes were made, so backup of the log was made either."
          Return
       }
       Else {
@@ -595,12 +648,12 @@ RemoveOldFunc(Report,*) {
          Sleep 500 ; Just to be safe. 
          FileDelete MCLogFile ; Delete the file so we can remake it.
          FileAppend(origAllStrs, MCLogFile) ; Remake the file with the (now culled) string.
-         MsgBox oldSinsRemoved " old single-occurence strings have been removed from " myLogFileBaseName ". A backup of the log was first made."
+         acMsgBox.show oldSinsRemoved " old single-occurence strings have been removed from " myLogFileBaseName ". A backup of the log was first made."
       }
    }
 }
 
-; This only gets called from the radio button Gui form.  If a radio item is selected 
+; This only gets called from the listview in the report dialog.  If a listview item is selected 
 ; all occurences are removed from the log file, and the new items is appended to 
 ; autocorrect file.  Optionally, the item is sent directly to the HotString Helper 2
 ; form.  (Need 5-4-2024 or newer version of AutoCorrect2).  A backup is made if above 
@@ -612,7 +665,7 @@ CullerAppender(*) {
    
    selectedRow := lv.GetNext(0)
    If selectedRow = 0 { ; No ListView item selected. 
-     MsgBox 'Nothing selected.'
+     acMsgBox.show 'Nothing selected.'
       cl.Show() ; Show gui form again.
       Return   ; Abort function. 
    }
@@ -639,7 +692,7 @@ CullerAppender(*) {
    Else ; Otherwise, just append to bottom. 
    {
       FileAppend("`n" selItemName, myAutoCorrectLibrary) ; Put culled item at bottom of ac file.
-      MsgBox("Item appended to library and culled from log: " selItemName)
+      acMsgBox.show("Item appended to library and culled from log: " selItemName)
    }
 
    If KeepReportOpen = 1 ; Remove list after clicking 'Cull and Append'?
@@ -650,16 +703,62 @@ CullerAppender(*) {
    }
 }
 
+; ==============================================================================
+; GenerateDeltaString()
+; ==============================================================================
+; Generates a visual representation of the differences between trigger and 
+; replacement strings. This helps visualize what parts are common and what 
+; parts constitute the error and fix.
+; 
+; Format: beginning [ typo | fix ] ending
+; ==============================================================================
+GenerateDeltaString(triggerText, replacementText) {
+   beginning := ""
+   typo := ""
+   fix := ""
+   ending := ""
+   
+   triggerLength := StrLen(triggerText)
+   replacementLength := StrLen(replacementText)
+   
+   ; If trigger and replacement are identical
+   if triggerText = replacementText {
+      return "[ " triggerText " ]"
+   }
+   
+   ; Find matching prefix
+   i := 1
+   while i <= triggerLength && i <= replacementLength 
+         && SubStr(triggerText, i, 1) = SubStr(replacementText, i, 1) {
+      beginning .= SubStr(triggerText, i, 1)
+      i++
+   }
+   
+   ; Find matching suffix (working backwards)
+   j := 0
+   while j < triggerLength - i + 1 && j < replacementLength - i + 1 
+         && SubStr(triggerText, triggerLength - j, 1) = SubStr(replacementText, replacementLength - j, 1) {
+      ending := SubStr(triggerText, triggerLength - j, 1) . ending
+      j++
+   }
+   
+   ; Extract the differing middle parts
+   typo := SubStr(triggerText, i, triggerLength - i - j + 1)
+   fix := SubStr(replacementText, i, replacementLength - i - j + 1)
+   
+   return beginning " [ " typo " | " fix " ] " ending
+}
+
 ; This function is only accessed via the systray menu item.  It toggles adding/removing
 ; link to this script in Windows Start up folder. 
 StartUpMCL(*) { ; Start with windows? 
 	if FileExist(A_Startup "\MCLogger.lnk")
 	{	FileDelete(A_Startup "\MCLogger.lnk")
-		MsgBox("Manual Correction Logger will NO LONGER auto start with Windows.",, 4096)
+		acMsgBox.show("Manual Correction Logger will NO LONGER auto start with Windows.",, 4096)
 	}
 	Else 
 	{	FileCreateShortcut(A_WorkingDir "\MCLogger.exe", A_Startup "\MCLogger.lnk")
-		MsgBox("Manual Correction Logger will auto start with Windows.",, 4096)
+		acMsgBox.show("Manual Correction Logger will auto start with Windows.",, 4096)
 	}
    Reload()
 }
