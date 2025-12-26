@@ -25,7 +25,7 @@ LatestZipUrl  := "https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/m
 ZipRootFolderName := "AutoCorrect2-main"
 
 ; Optional: Enable debug logging to file
-EnableDebugLog := 1
+EnableDebugLog := 0
 
 ; Files that will appear in update dialog but unchecked by default
 RarelyUpdated := [
