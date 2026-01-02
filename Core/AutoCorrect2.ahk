@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 1-1-2026
+; Version: 1-2-2026
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -3040,6 +3040,14 @@ class Utils {
             
             Debug("About to call ExamineWords")
             Debug("WordFrequency state before ExamineWords: isLoaded=" WordFrequency.isLoaded)
+
+            ; Ensure form is in normal size when opening Exam Pane
+            ; (Reset any previous "bigger" mode to avoid visual conflicts)
+            if (State.FormBig = 1) {
+                UI.Resize(false)
+                UI.Controls["SizeToggle"].Text := "Make Bigger"
+                State.FormBig := 0
+            }
 
             ; Always close Control Pane and open Exam Pane
             ; This ensures proper state management
