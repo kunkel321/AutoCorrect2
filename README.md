@@ -8,18 +8,13 @@ _Stephen Kunkel (kunkel321)_
 - Then press _Win+H_
 
 # Youtube Screencasts
--(intro) https://www.youtube.com/watch?v=cI6NwprfvpE
+-(intro-setup) https://www.youtube.com/watch?v=cI6NwprfvpE
 
-# Updating to November 15th version.
-- My apologies to anyone that that has been following the updates today.  I've added an Updater tool so folks can "Check for updates" by clicking the button in HotstringHelper's Control Pane.  This is my first attempt at making a script that "reaches out" to a website for updates.  It seems pretty safe though.  Really the only "reaching out" that happens is when the script downloads the latest zip file from github.com.  If folks already use GitHub Desktop to manage new versions, then I'd recommend continuing to do so.  It probably handles diffing, etc. better.
-- More discussion here: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&p=612144#p612144
+# Setup/Update Recommendation
+- For the first-time setup, download the entire AutoCorrect-main.zip from the above <> Code drop button.
+- For subsequent updates, use the Updater.exe tool in the Tools folder
 
-
-# Updating to November 6th version.  
-- You can use your existing HotstringLib.ahk file and log files.  Just be sure to put the log files in the AutoCorrect\Data\ folder and the HotstringLib.ahk file in AutoCorrect2\Core\. Many of the .ahk files now read from a common .ini file.  Because so many of the files have been updated, the rest of the package (other than lib and logs) should probably be replaced.
-
-
-# Contributors.
+# Contributors
 It's worth noting that only one other person -- Robert -- has contributed code _via the GitHub push mechanism_, but many others have made **significant** contributions by other means (usually the AutoHotkey forums).  I'll list them here eventually, but they can also be found in the code comments of the various ahk files in the repository. 
 
 # Hotstring Helper 2 – Quick Sheet
