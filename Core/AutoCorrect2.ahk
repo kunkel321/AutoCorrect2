@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 12-13-2025
+; Version: 1-1-2026
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -510,7 +510,7 @@ IsSkiplistedFocused() {
     #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
 #HotIf
 
-#Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system.
+#Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. -- REQUIRED
 
 ; Initialize configuration
 Config.Init()
@@ -708,6 +708,12 @@ class State {
     ; Dictionary initialized state
     static DictInitialized := 0
     
+    ; DeltaString coloring state (NEW)
+    static DeltaTrimLeft := 0
+    static DeltaTrimRight := 0
+    static DeltaTrimHistory := []      ; Array of {left: n, right: n}
+    static OrigDeltaString := ""       ; The original full deltastring text
+    
     ; Reset state to defaults
     static Reset() {
         this.ExamPaneOpen := 0
@@ -726,6 +732,12 @@ class State {
         this.ReplacementMatches := 0
         
         this.IsBoilerplate := 0
+        
+        ; Reset DeltaString coloring state (NEW)
+        this.DeltaTrimLeft := 0
+        this.DeltaTrimRight := 0
+        this.DeltaTrimHistory := []
+        this.OrigDeltaString := ""
     }
 }
 
@@ -838,14 +850,38 @@ class UI {
         this.MainForm.SetFont("s10")
         
         ; Add left/right trim buttons and delta string
-        this.Controls["LeftTrimButton"] := this.MainForm.AddButton("xm h50 w" (Config.DefaultWidth / 8), ">>")
+        ; All controls (trim buttons and deltastring) use y281 for horizontal alignment
+        this.Controls["LeftTrimButton"] := this.MainForm.AddButton("xm y277 h50 w" (Config.DefaultWidth / 8), ">>")
         
         this.MainForm.SetFont("s14")
+        fontSize := 14  ; Define fontSize for DeltaString monospaced controls
         deltaColor := Config.brightness < 128 ? "00FFFF" : "191970" 
-        this.Controls["DeltaString"] := this.MainForm.AddText("center c" deltaColor " x+1 w" (Config.DefaultWidth * 3 / 4), "")
+        ; Create three overlapping monospaced-font Text controls for DeltaString coloring effect (MODIFIED)
+        deltaStringWidth := Config.DefaultWidth * 3 / 4
+        deltaStringX := (Config.DefaultWidth / 8) + 15  ; Position after LeftTrimButton with margin
+        
+        ; Blue layer (background - full original string)
+        this.Controls["DeltaStringBlue"] := this.MainForm.AddText(
+            "center c" deltaColor " x" deltaStringX " y279 w" deltaStringWidth, "")
+        this.Controls["DeltaStringBlue"].SetFont("s" fontSize, "Consolas")
+        
+        ; Red left layer (trimmed-left chars in red, rest spaces - transparent background)
+        this.Controls["DeltaStringRedLeft"] := this.MainForm.AddText(
+            "center cRed x" deltaStringX " y279 w" deltaStringWidth " +BackgroundTrans", "")
+        this.Controls["DeltaStringRedLeft"].SetFont("s" fontSize, "Consolas")
+        
+        ; Red right layer (spaces then trimmed-right chars in red - transparent background)
+        this.Controls["DeltaStringRedRight"] := this.MainForm.AddText(
+            "center cRed x" deltaStringX " y279 w" deltaStringWidth " +BackgroundTrans", "")
+        this.Controls["DeltaStringRedRight"].SetFont("s" fontSize, "Consolas")
+        
+        ; All three layers respond to clicks (for UpdateDeltaString functionality)
+        this.Controls["DeltaStringBlue"].OnEvent("Click", (*) => UIActions.UpdateDeltaString())
+        this.Controls["DeltaStringRedLeft"].OnEvent("Click", (*) => UIActions.UpdateDeltaString())
+        this.Controls["DeltaStringRedRight"].OnEvent("Click", (*) => UIActions.UpdateDeltaString())
         
         this.MainForm.SetFont("s10")
-        this.Controls["RightTrimButton"] := this.MainForm.AddButton("x+1 h50 w" (Config.DefaultWidth / 8), "<<")
+        this.Controls["RightTrimButton"] := this.MainForm.AddButton("x+1 y277 h50 w" (Config.DefaultWidth / 8), "<<")
         
         ; Add radio buttons for match type
         this.MainForm.SetFont(Config.DefaultFontSize)
@@ -1058,7 +1094,6 @@ class UI {
         ; Exam pane events
         this.Controls["LeftTrimButton"].OnEvent("Click", (*) => UIActions.TrimLeft())
         this.Controls["RightTrimButton"].OnEvent("Click", (*) => UIActions.TrimRight())
-        this.Controls["DeltaString"].OnEvent("Click", (*) => UIActions.UpdateDeltaString())
         
         this.Controls["BeginningRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
         this.Controls["BeginningRadio"].OnEvent("ContextMenu", (*) => UIActions.ClearRadioButtons())
@@ -1133,7 +1168,9 @@ class UI {
     static GetExamPaneControls() {
         return [
             this.Controls["LeftTrimButton"],
-            this.Controls["DeltaString"],
+            this.Controls["DeltaStringBlue"],
+            this.Controls["DeltaStringRedLeft"],
+            this.Controls["DeltaStringRedRight"],
             this.Controls["RightTrimButton"],
             this.Controls["BeginningRadio"],
             this.Controls["MiddleRadio"],
@@ -1240,6 +1277,67 @@ class UIActions {
         
         ; Recalculate and update the delta string
         this.ExamineWords(triggerText, replacementText)
+    }
+    
+    ; Update the three-layer DeltaString display based on current trim counts (NEW)
+    static UpdateDeltaStringDisplay() {
+        if !State.OrigDeltaString {
+            return  ; Nothing to display
+        }
+        
+        deltaStr := State.OrigDeltaString
+        totalLen := StrLen(deltaStr)
+        
+        ; Calculate lengths for each section
+        leftTrimLen := State.DeltaTrimLeft
+        rightTrimLen := State.DeltaTrimRight
+        middleLen := totalLen - leftTrimLen - rightTrimLen
+        
+        ; Boundary check: prevent over-trimming
+        if (middleLen < 0) {
+            leftTrimLen := 0
+            rightTrimLen := 0
+            middleLen := totalLen
+        }
+        
+        ; === Blue Layer (full original string, always visible as background) ===
+        blueText := deltaStr
+        
+        ; === Red Left Layer (left-trimmed chars in red + spaces for alignment) ===
+        redLeftText := ""
+        if (leftTrimLen > 0) {
+            redLeftText := SubStr(deltaStr, 1, leftTrimLen)
+            ; Add spaces for the rest of the string length (monospaced font alignment)
+            Loop (totalLen - leftTrimLen) {
+                redLeftText .= " "
+            }
+        } else {
+            ; All spaces if nothing trimmed from left
+            Loop totalLen {
+                redLeftText .= " "
+            }
+        }
+        
+        ; === Red Right Layer (spaces + right-trimmed chars in red) ===
+        redRightText := ""
+        if (rightTrimLen > 0) {
+            ; Add spaces for the beginning portion
+            Loop (totalLen - rightTrimLen) {
+                redRightText .= " "
+            }
+            ; Add right-trimmed chars in red
+            redRightText .= SubStr(deltaStr, totalLen - rightTrimLen + 1)
+        } else {
+            ; All spaces if nothing trimmed from right
+            Loop totalLen {
+                redRightText .= " "
+            }
+        }
+        
+        ; Update all three controls (with monospaced font, they align perfectly)
+        UI.Controls["DeltaStringBlue"].Value := blueText
+        UI.Controls["DeltaStringRedLeft"].Value := redLeftText
+        UI.Controls["DeltaStringRedRight"].Value := redRightText
     }
     
     ; Shows or hides the control pane controls
@@ -1388,12 +1486,19 @@ class UIActions {
         State.TriggerHistory.Push(UI.Controls["TriggerEdit"].Value)
         State.ReplacementHistory.Push(UI.Controls["ReplacementEdit"].Value)
         
+        ; Track trim counts for undo (NEW)
+        State.DeltaTrimHistory.Push({left: State.DeltaTrimLeft, right: State.DeltaTrimRight})
+        
         ; Remove first character from trigger and replacement
         UI.Controls["TriggerEdit"].Value := SubStr(UI.Controls["TriggerEdit"].Value, 2)
         UI.Controls["ReplacementEdit"].Value := SubStr(UI.Controls["ReplacementEdit"].Value, 2)
         
         ; Update original trigger value to prevent add-a-letter from triggering
         State.TrigNeedle_Orig := UI.Controls["TriggerEdit"].Value
+        
+        ; Increment left trim count and update display (NEW)
+        State.DeltaTrimLeft++
+        UIActions.UpdateDeltaStringDisplay()
         
         UI.Controls["UndoButton"].Enabled := true
         this.FilterWordLists()
@@ -1405,6 +1510,9 @@ class UIActions {
         State.TriggerHistory.Push(UI.Controls["TriggerEdit"].Value)
         State.ReplacementHistory.Push(UI.Controls["ReplacementEdit"].Value)
         
+        ; Track trim counts for undo (NEW)
+        State.DeltaTrimHistory.Push({left: State.DeltaTrimLeft, right: State.DeltaTrimRight})
+        
         ; Remove last character from trigger and replacement
         triggerText := UI.Controls["TriggerEdit"].Value
         replacementText := UI.Controls["ReplacementEdit"].Value
@@ -1414,6 +1522,10 @@ class UIActions {
         
         ; Update original trigger value to prevent add-a-letter from triggering
         State.TrigNeedle_Orig := UI.Controls["TriggerEdit"].Value
+        
+        ; Increment right trim count and update display (NEW)
+        State.DeltaTrimRight++
+        UIActions.UpdateDeltaStringDisplay()
         
         UI.Controls["UndoButton"].Enabled := true
         this.FilterWordLists()
@@ -1427,6 +1539,15 @@ class UIActions {
         else if State.TriggerHistory.Length > 0 && State.ReplacementHistory.Length > 0 {
             UI.Controls["TriggerEdit"].Value := State.TriggerHistory.Pop()
             UI.Controls["ReplacementEdit"].Value := State.ReplacementHistory.Pop()
+            
+            ; Restore trim counts from history (NEW)
+            if State.DeltaTrimHistory.Length > 0 {
+                trimState := State.DeltaTrimHistory.Pop()
+                State.DeltaTrimLeft := trimState.left
+                State.DeltaTrimRight := trimState.right
+                UIActions.UpdateDeltaStringDisplay()
+            }
+            
             this.FilterWordLists()
         }
         else {
@@ -1447,6 +1568,12 @@ class UIActions {
             UI.Controls["UndoButton"].Enabled := false
             State.TriggerHistory := []
             State.ReplacementHistory := []
+            
+            ; Reset DeltaString trim counts (NEW)
+            State.DeltaTrimLeft := 0
+            State.DeltaTrimRight := 0
+            State.DeltaTrimHistory := []
+            UIActions.UpdateDeltaStringDisplay()
             
             this.FilterWordLists()
         }
@@ -1664,7 +1791,7 @@ class UIActions {
         
         ; If trigger and replacement are identical
         if oTrigger = oReplacement {
-            deltaString := "[ " oTrigger " ]"
+            deltaString := "[" oTrigger "]"
         }
         else {
             ; Find matching prefix
@@ -1687,10 +1814,19 @@ class UIActions {
             typo := SubStr(triggerText, i, triggerLength - i - j + 1)
             fix := SubStr(replacementText, i, replacementLength - i - j + 1)
             
-            deltaString := beginning " [ " typo " | " fix " ] " ending
+            deltaString := beginning "[" typo "|" fix "]" ending
         }
         
-        UI.Controls["DeltaString"].Text := deltaString
+        ; Initialize DeltaString coloring (NEW)
+        State.OrigDeltaString := deltaString
+        State.DeltaTrimLeft := 0
+        State.DeltaTrimRight := 0
+        State.DeltaTrimHistory := []
+        
+        ; Update all three DeltaString layers (MODIFIED)
+        UI.Controls["DeltaStringBlue"].Value := deltaString
+        UI.Controls["DeltaStringRedLeft"].Value := ""
+        UI.Controls["DeltaStringRedRight"].Value := ""
         
         ; Filter word lists
         this.FilterWordLists(true)
@@ -3298,14 +3434,14 @@ class HelpSystem {
         
         this.helpTexts["SpellButton"] := "Uses LanguageTool.org's AI to check spelling of the replacement text.  If a suggested correction is found, it will offer to fix the word in the replacement text box.  It will check sentences for grammar mistakes as well.  It works well, but is not perfect.`n`nTip:  If it doesn't correct the grammar of a short phrase, try making the phrase into a complete sentence, and try again. "
         
-        this.helpTexts["LookButton"] := "Looks up selected text in the onboard WordNet dictionary (https://wordnet.princeton.edu/).`n`nRight-click to search the GNU Collaborative International Dictionary of English (GCIDE; https://gcide.gnu.org.ua/) online.`n`n`n`nThe Spell button checks only the text in the replacement edit box, but definitions can be looked up for words in the replacement box or in the Misspells or Fixes Exam Pane lists.  HOWEVER the words must be selected with your mouse first.`n`nNote: It takes several seconds for WordNet to load in the background of AutoCorrect2, which happens automatically each time the script is restarted."
+        this.helpTexts["LookButton"] := "Looks up selected text in the onboard WordNet dictionary (https://wordnet.princeton.edu/).`n`nRight-click to search the GNU Collaborative International Dictionary of English (GCIDE; https://gcide.gnu.org.ua/) online.`n`nThe Spell button checks only the text in the replacement edit box, but definitions can be looked up for words in the replacement box or in the Misspells or Fixes Exam Pane lists.  HOWEVER the words must be selected with your mouse first.`n`t---> Select word.  Press [Look] button.`n`nNote: It takes several seconds for WordNet to load in the background of AutoCorrect2, which happens automatically each time the script is restarted.`n`nIf the `"ChatGptWordLookup.ahk`" file is #Include'd in AutoCorrect2.ahk, then a [Try ChatGPT] button will appear.  This can be useful if the word is not found in WordNet or GCIDE.`n`nAs indicated in the onboard message: `"Please note that the OpenAI service is not free.  Also note, kunkel321 (the author of AutoCorrect2.ahk) does not receive any compensation or benefit from your transactions with OpenAI.  I've only added this integration because I use it, and I thought others might like to as well.`" Please see onboard message for more information."
         
         this.helpTexts["CancelButton"] := "Closes the form without saving changes.`n`nThis will also replace the previous clipboard content.`n`nPressing the Esc key will have the same effect."
         
         ; Exam pane controls
-        this.helpTexts["LeftTrimButton"] := "Removes one character from the beginning of both trigger and replacement.`n`nGood for use with word-end or word-middle AutoCorrect items. More trimming means it will match (fix) more words, but it also increases the risk of confounding misspellings (discussed in User Manual)."
+        this.helpTexts["LeftTrimButton"] := "Removes one character from the beginning of both trigger and replacement.`n`nGood for use with word-end or word-middle AutoCorrect items. More trimming means it will match (fix) more words, but it also increases the risk of confounding misspellings (discussed in User Manual).`n`nWhen characters are trimmed via the [>>][<<] buttons, the corresponding letters in the blue DeltaString are changed to red."
         
-        this.helpTexts["RightTrimButton"] := "Removes one character from the end of both trigger and replacement.`n`nGood for use with word-beginning or word-middle AutoCorrect items. More trimming means it will match (fix) more words, but it also increases the risk of confounding misspellings (discussed in User Manual)."
+        this.helpTexts["RightTrimButton"] := "Removes one character from the end of both trigger and replacement.`n`nGood for use with word-beginning or word-middle AutoCorrect items. More trimming means it will match (fix) more words, but it also increases the risk of confounding misspellings (discussed in User Manual).`n`nWhen characters are trimmed via the [>>][<<] buttons, the corresponding letters in the blue DeltaString are changed to red."
         
         this.helpTexts["BeginningRadio"] := "Sets the AutoCorrect hotstring to match word beginnings (adds * option).`n`nFor example `"app`" matches:`n-app`n-apple`n-application`n`nBut does not match:`n-zapp`n-snapple`n`nRight-clicking any of the three radio buttons sets them all to unchecked."
         
@@ -3313,7 +3449,7 @@ class HelpSystem {
         
         this.helpTexts["EndingRadio"] := "Sets the AutoCorrect hotstring to match word endings (adds ? option).`n`nFor example `"ap`" matches:`n-zap`n-backstrap`n-ASAP`n`nBut does not match:`n-apple`n-sappling`n`nRight-clicking any of the three radio buttons sets them all to unchecked."
         
-        this.helpTexts["UndoButton"] := "Undoes the last trim operation.`n`nShift+Click to reset to original words.`n`nCtrl+Z or Shift+Ctrl+Z also works.`n`nChanges to the radio buttons are not `"remembered`" for undoing--only trims are. "
+        this.helpTexts["UndoButton"] := "Undoes the last trim operation.`n`nShift+Click to reset to original words.`n`nCtrl+Z or Shift+Ctrl+Z also works.`n`nChanges to the radio buttons are not `"remembered`" only trims and text changes are saved for undoing.  When the Win+H hotkey is re-pressed, the undo history is reset.`n`nThe blue/red colorization of the DeltaString is also undone, but if the trigger or replacement boxes were manually edited, the colors will be wrong."
         
         this.helpTexts["TriggerMatchesEdit"] := "Shows words that contain the trigger string based on selected match type.`n`nThese are words that would be erroneously `"mis-corrected`" by this hotstring.  I.e., if you typed the word correctly, the correct spelling would get changed.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-mis-corrected words are high-frequency words.`n`nThe Misspels number is simply the number of words in the list."
         
@@ -3381,7 +3517,7 @@ class HelpSystem {
         focusedControl := showGeneral ? "" : this.GetFocusedControl()
         
         ; Determine if panes are visible by checking if controls are visible
-        examPaneVisible := UI.Controls["DeltaString"].Visible
+        examPaneVisible := UI.Controls["DeltaStringBlue"].Visible
         controlPaneVisible := UI.Controls["ControlPanelLabel"].Visible
         
         ; Determine help text based on focused control
