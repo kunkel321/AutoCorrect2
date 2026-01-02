@@ -7,6 +7,9 @@ _Stephen Kunkel (kunkel321)_
 - Run: AutoCorrect2\Core\AutoCorrect2.exe
 - Then press _Win+H_
 
+# Youtube Screencasts
+-(intro) https://www.youtube.com/watch?v=cI6NwprfvpE
+
 # Updating to November 15th version.
 - My apologies to anyone that that has been following the updates today.  I've added an Updater tool so folks can "Check for updates" by clicking the button in HotstringHelper's Control Pane.  This is my first attempt at making a script that "reaches out" to a website for updates.  It seems pretty safe though.  Really the only "reaching out" that happens is when the script downloads the latest zip file from github.com.  If folks already use GitHub Desktop to manage new versions, then I'd recommend continuing to do so.  It probably handles diffing, etc. better.
 - More discussion here: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&p=612144#p612144
