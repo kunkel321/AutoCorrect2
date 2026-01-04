@@ -9,6 +9,7 @@ _Stephen Kunkel (kunkel321)_
 
 # Youtube Screencasts
 -intro-initial setup 12-30-2025 https://www.youtube.com/watch?v=cI6NwprfvpE
+
 -common settings 1-4-2026 https://www.youtube.com/watch?v=kgi_5iyoDkI
 
 # Setup/Update Recommendation
