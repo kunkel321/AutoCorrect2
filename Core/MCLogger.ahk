@@ -7,7 +7,7 @@ Persistent
 ; ==============================================================================
 ; Author: Kunkel321
 ; Tool Used: Claude AI
-; Version: 12-16-2025  
+; Version: 1-14-2026 
 ; Get latest version here: https://github.com/kunkel321/AutoCorrect2
 ; A script to run in the background all the time and log your typing
 ; errors and manual corrections, formatting the viable ones into ahk hotstrings,
@@ -602,7 +602,7 @@ AppendOnlyFunc(*) {
 ; The last loop goes through the list of "old singletons" and removes each from the log file.  
 ; The old log file list deleted, and a new one made.  
 RemoveOldFunc(Report,*) {
-   Result := acMsgBox.show( "Pressing OK will immediately remove all logged items that are older than " AgeOfOldSingles " days, and have only one occurence.  There is no undo. But a backup of " MCLogFile " will be made automatically.`n`nContinue?`n`n(Note: The number of days `'" AgeOfOldSingles "`' can be changed in the acSettings.ini file, or with the SettingsManager tool.)","Remove Old Singles" , 32+1)
+   Result := acMsgBox.show( "Pressing OK will immediately remove all logged items that are older than " AgeOfOldSingles " days, and have only one occurence.  There is no undo. But a backup of " MCLogFile " will be made automatically.`n`nContinue?`n`n(Note: The number of days `'" AgeOfOldSingles "`' can be changed in the acSettings.ini file, or with the SettingsManager tool.)","Remove Old Singles" , 1)
    if (Result = "OK") { ; User pressed OK button.
       cl.Destroy()
       Singletons := "", oldItems := "", oldSingletons := "", oldSinsRemoved := 0
@@ -650,6 +650,10 @@ RemoveOldFunc(Report,*) {
          FileAppend(origAllStrs, MCLogFile) ; Remake the file with the (now culled) string.
          acMsgBox.show oldSinsRemoved " old single-occurence strings have been removed from " myLogFileBaseName ". A backup of the log was first made."
       }
+   }
+   else { ; User pressed Cancel button
+      ; Report dialog remains open for further action
+      Return
    }
 }
 
