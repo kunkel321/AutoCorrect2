@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 1-2-2026
+; Version: 1-19-2026
 ; Author: kunkel321
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -806,8 +806,9 @@ class UI {
 		this.MainForm.SetFont("s9")
 		
 		; Add size toggle and symbols toggle buttons
-		this.Controls["SizeToggle"] := this.MainForm.AddButton("x+75 yp-5 h8", "Make Bigger")
+		this.Controls["SizeToggle"] := this.MainForm.AddButton("x+40 yp-5 h8", "Make Bigger")
 		this.Controls["SymbolToggle"] := this.MainForm.AddButton("x+5 h8", "Show Symbols")
+		this.Controls["WrapToggle"] := this.MainForm.AddButton("x+5 h8", "Unwrap")
 		
 		; Reset font size
 		this.MainForm.SetFont(Config.DefaultFontSize)
@@ -1075,7 +1076,9 @@ class UI {
         ; Replacement section events
         this.Controls["SizeToggle"].OnEvent("Click", (*) => UIActions.ToggleSize())
         this.Controls["SymbolToggle"].OnEvent("Click", (*) => UIActions.ToggleSymbols())
+        this.Controls["WrapToggle"].OnEvent("Click", (*) => UIActions.ToggleNewlineFormat())
         this.Controls["ReplacementEdit"].OnEvent("Change", (*) => UIActions.FilterWordLists())
+        this.Controls["ReplacementEdit"].OnEvent("Change", (*) => UIActions.UpdateToggleButtonText())
         this.Controls["ReplacementEdit"].OnEvent("Focus", (ctrl, *) => State.CurrentEdit := ctrl)
         
         ; Comment section events
@@ -1389,6 +1392,7 @@ class UIActions {
             UI.Controls["ReplacementEdit"].Value := replaceText
             UI.Controls["ReplacementEdit"].Opt("+Readonly")
             UI.Controls["AppendButton"].Enabled := false
+            UI.Controls["WrapToggle"].Enabled := false
             
             State.SymbolsVisible := 1
         }
@@ -1405,8 +1409,66 @@ class UIActions {
             UI.Controls["ReplacementEdit"].Value := replaceText
             UI.Controls["ReplacementEdit"].Opt("-Readonly")
             UI.Controls["AppendButton"].Enabled := true
+            UI.Controls["WrapToggle"].Enabled := true
             
             State.SymbolsVisible := 0
+        }
+    }
+    
+    ; Update the Unwrap/Wrap button text based on current replacement text
+    static UpdateToggleButtonText() {
+        if !UI.Controls.Has("WrapToggle") {
+            return
+        }
+        
+        replacementText := UI.Controls["ReplacementEdit"].Value
+        buttonControl := UI.Controls["WrapToggle"]
+        
+        if (InStr(replacementText, "`n")) {
+            buttonControl.Text := "Wrap"
+        } else if (InStr(replacementText, "``n")) {
+            buttonControl.Text := "Unwrap"
+        } else {
+            buttonControl.Text := "Unwrap"
+        }
+    }
+    
+    ; Toggle between actual newlines and literal `n representation
+    static ToggleNewlineFormat() {
+        replacementText := UI.Controls["ReplacementEdit"].Value
+        buttonControl := UI.Controls["WrapToggle"]
+        
+        if (InStr(replacementText, "`n")) {
+            ; Has actual newlines, convert to literal `n representation
+            replacementText := StrReplace(replacementText, "`r`n", "``n")  
+            replacementText := StrReplace(replacementText, "`r", "``n")     
+            replacementText := StrReplace(replacementText, "`n", "``n")
+            buttonControl.Text := "Wrap"
+        } 
+        else if (InStr(replacementText, "``n")) {
+            ; Has literal `n, convert to actual newlines
+            replacementText := StrReplace(replacementText, "``n", "`n")
+            buttonControl.Text := "Unwrap"
+        }
+        
+        UI.Controls["ReplacementEdit"].Value := replacementText
+    }
+    
+    ; Initialize button text based on current replacement text content
+    static InitializeToggleButtonText() {
+        if !UI.Controls.Has("WrapToggle") {
+            return
+        }
+        
+        replacementText := UI.Controls["ReplacementEdit"].Value
+        buttonControl := UI.Controls["WrapToggle"]
+        
+        if (InStr(replacementText, "`n")) {
+            buttonControl.Text := "Unwrap"
+        } else if (InStr(replacementText, "``n")) {
+            buttonControl.Text := "Wrap"
+        } else {
+            buttonControl.Text := "Unwrap"
         }
     }
     
@@ -2243,6 +2305,10 @@ class UIActions {
             ; If last char of replacement text is tab or space, include 'RTrim0'.
             openParenth := SubStr(replacementText, -1) = "`t" || SubStr(replacementText, -1) = " " ? "(RTrim0`n" : "(`n"
             
+            ; Build comment for multi-line format
+            if commentInput != ""
+                commentText := " `; " commentInput
+            
             wholeString := ":" options ":" triggerText "::" commentText "`n" openParenth replacementText "`n)"
         }
         else {
@@ -3038,6 +3104,9 @@ class Utils {
             else
                 UI.Controls["MiddleRadio"].Value := 1
             
+            ; Initialize toggle button text based on replacement content
+            UIActions.InitializeToggleButtonText()
+            
             Debug("About to call ExamineWords")
             Debug("WordFrequency state before ExamineWords: isLoaded=" WordFrequency.isLoaded)
 
@@ -3158,6 +3227,9 @@ class Utils {
         
         ; Filter word lists
         UIActions.FilterWordLists()
+        
+        ; Initialize toggle button text based on replacement content
+        UIActions.InitializeToggleButtonText()
     }
 }
 
@@ -3431,6 +3503,8 @@ class HelpSystem {
         this.helpTexts["SizeToggle"] := "This is the toggle button to make the replacement text area larger or smaller.`n`nThis mostly applies to large boilerplate texts, not autocorrects.`n`nThe amount of width/height increase can be customized in the Settings Manager.`n`nIf the Exam Pane or Control Pane is open, this will close it."
         
         this.helpTexts["SymbolToggle"] := "Toggle button to show special characters: spaces, tabs, and line breaks as visible symbols.`n`nThe symbols used can be customized in the code.  (They can't be in the INI file because they are unicode chars.)`n`nTip: Including a space with the Pilcrow or Dot allows more natural text-wrapping in the Replacement box.`n`nThis mostly applies to large boilerplate texts, not autocorrects."
+        
+        this.helpTexts["WrapToggle"] := "Toggle button to convert between actual line breaks and literal ``n characters.`n`nClick Unwrap to convert line breaks into literal ``n characters for single-line hotstring format:`n`t::;sig::John Doe``nAutoHotkey User``n555-2345`n`nLeave wrapped to keep actual line breaks for multi-line Continuation Section format:`n`t::;sig::`n`t(`n`tJohn Doe`n`tAutoHotkey User`n`t555-2345`n`t)`n`nBoth formats produce the same result when the hotstring executes. The Continuation Section format is more `"What you see is what you get,`" but the unwrapped format uses only one line of code in your Hotstring Library and can be sorted without breaking them.  The wrap/unwrap functionality is primarily useful for boilerplate template items. It would not be used with f() AutoCorrect items."
         
         this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the 'HotstringHelper' section of the Setting Manager, and set it to `"Vanilla.`"  Also checkout the Defunctionizer script in the Control Pane."
         
