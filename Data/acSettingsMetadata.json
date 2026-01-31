@@ -1,13 +1,20 @@
 {
+  "Last update": "1-31-2026" 
   "Files.HotstringLibrary": {
     "label": "Hotstring Library",
-    "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.",
+    "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
     "filter": "AHK Files (*.ahk)|*.ahk"
   },
   "Files.NewTemporaryHotstrLib": {
     "label": "New Temporary Hotstring Library",
     "help": "Name of file for the Updater Tool to write to.  Used for comparison and merging, when updating to a newly-released verions of the hotstring library.  Having a file name defined here will allow the Unique String Extrator to instantly run its scan without the need to manually choose the file each time.",
+    "type": "file",
+    "filter": "AHK Files (*.ahk)|*.ahk"
+  },
+  "Files.BoilerplateHotstringLibrary": {
+    "label": "Separate Library For Boilerplate Hotstrings",
+    "help": "If the HotstringHelper.SeparateLibForBoilerplates=1, then radio buttons ()AC ()BP will appear on the HH gui.  When BP is selected, then the Append button will append the new hotstring to this file.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
     "filter": "AHK Files (*.ahk)|*.ahk"
   },
@@ -275,6 +282,15 @@
     "max": 10,
     "default": "2",
     "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.SeparateLibForBoilerplates": {
+    "label": "Append Boilerplate Hotstrings to a Separate Library",
+    "help": "If this is set to true, then radio buttons ()AC ()BP will appear on the HH gui.  When BP is selected, then the Append button will append the new hotstring to the file defined in Files.BoilerplateHotstringLibrary.  If the file is not found, one will be created.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
   },
   "HotstringHelper.MakeFuncByDefault": {
     "label": "Make Function by Default",
