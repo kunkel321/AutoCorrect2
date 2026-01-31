@@ -5,8 +5,9 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 1-19-2026
+; Version: 1-31-2026
 ; Author: kunkel321
+; AI Used: Claude
 ; Thread on AutoHotkey forums:
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub (new versions will be on GitHub)
@@ -30,8 +31,8 @@ SetWorkingDir(A_ScriptDir)
 
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
-#Include "*i ..\Includes\PersonalHotstrings.ahk" ;  -- Optional
-
+#Include "*i ..\Includes\PersonalHotstrings.ahk" ;  -- Optional*
+; *Note:  If the ini key, SeparateLibForBoilerplates=1, then this file is mandatory. 
 
 ; =============== CONFIGURATION ===============
 ; The configuration is now centralized in acSettings.ini
@@ -56,6 +57,7 @@ class Config {
     
     ; General Configuration
     static HotstringLibrary := "HotstringLib.ahk"
+    static BoilerplateHotstringLibrary := "..\Includes\PersonalHotstrings.ahk"
     static NewTemporaryHotstrLib := "HotstringLib (1).ahk"
     static RemovedHsFile := "..\Data\RemovedHotstrings.txt"
     static AutoCorrectsLogFile := "..\Data\AutoCorrectsLog.txt"
@@ -65,6 +67,9 @@ class Config {
     static SettingsManager := "..\Tools\SettingsManager.exe"
     static CODE_ERROR_LOG := 0
     static CODE_DEBUG_LOG := 0
+    
+    ; HotstringHelper Dual Library Support
+    static SeparateLibForBoilerplates := 0
     
     ; Hotkeys
     static HotstringHelperActivationHotkey := "#h"
@@ -210,6 +215,7 @@ class Config {
 HotstringLibrary=HotstringLib.ahk
 ; NewTemporaryHotStrLib is the new version from GitHub. Rename to fit your workflow.
 NewTemporaryHotstrLib=HotstringLib (1).ahk
+BoilerplateHotstringLibrary=PersonalHotstrings.ahk
 RemovedHsFile=RemovedHotstrings.txt
 AutoCorrectsLogFile=AutoCorrectsLog.txt
 ACLogContinuousFile=ACLogContinuous.txt
@@ -264,6 +270,7 @@ BoilerplatePrefix=;
 BoilerplateSuffix=
 FirstLettersToInclude=5
 MinWordLength=2
+SeparateLibForBoilerplates=1
 ; Do you use the f(), or prefer vanilla ahk hotstrings? Check 'Make Function' box by default? (1=yes, 0=no)
 ; Default options for autocorrect entries -- B0X for f() use.  That's B zero X.  Don't use if MakeFuncByDefault=0
 MakeFuncByDefault=1
@@ -374,6 +381,8 @@ keepComments=0
         ; General
         this.CODE_DEBUG_LOG             := this.ReadIni("HotstringHelper", "CODE_DEBUG_LOG", 0)
         this.CODE_ERROR_LOG             := this.ReadIni("HotstringHelper", "CODE_ERROR_LOG", 0)
+        ; Dual Library Support
+        this.SeparateLibForBoilerplates := this.ReadIni("HotstringHelper", "SeparateLibForBoilerplates", 0)
         ; UI
         this.DefaultFontSize            := "s" this.ReadIni("HotstringHelper", "DefaultFontSize", "11")
         this.LargeFontSize              := "s" this.ReadIni("HotstringHelper", "LargeFontSize", "15")
@@ -705,6 +714,9 @@ class State {
     ; Type of content detected
     static IsBoilerplate := 0
     
+    ; Library selection override (empty=auto, "AC"=AutoCorrect, "BP"=Boilerplate)
+    static LibrarySelection := ""
+    
     ; Dictionary initialized state
     static DictInitialized := 0
     
@@ -732,6 +744,9 @@ class State {
         this.ReplacementMatches := 0
         
         this.IsBoilerplate := 0
+        
+        ; Reset library selection override
+        this.LibrarySelection := ""
         
         ; Reset DeltaString coloring state (NEW)
         this.DeltaTrimLeft := 0
@@ -768,6 +783,7 @@ class UI {
         ; Build UI sections
         this._CreateTriggerSection()
         this._CreateReplacementSection()
+        this._CreateLibrarySelectionSection()
         this._CreateCommentSection()
         this._CreateButtonSection()
         this._CreateExamPane()
@@ -820,16 +836,40 @@ class UI {
 		this.Controls["ReplacementEdit"] := this.MainForm.AddEdit(this.ListBackground " +Wrap y+1 xs h100 w" Config.DefaultWidth)
 	}
 		
+	; Create the library selection section (radio buttons for AC/BP)
+	static _CreateLibrarySelectionSection() {
+		; Only create radio buttons if dual library support is enabled
+		if Config.SeparateLibForBoilerplates {
+			; AC radio button - starts at left margin, below replacement box
+			this.Controls["ACRadio"] := this.MainForm.AddRadio("xm y+14 h14", "AC")
+			; BP radio button - positioned below AC radio button
+			this.Controls["BPRadio"] := this.MainForm.AddRadio("xm y+2 h14", "BP")
+		}
+	}
+		
 	; Create the comment section
 	static _CreateCommentSection() {
-		this.Controls["CommentLabel"] := this.MainForm.AddText("xm y182", "Comment")
-		this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x+70 y182", "Make as f() Function")
 		
 		; Set background color for edit controls (same as in other sections)
 		this.ListBackground := Config.ListColor != "" ? "Background" Config.ListColor : ""
-		
         CommentColor := Config.Brightness < 128 ? "00ff22" : "005a17" 
-		this.Controls["CommentEdit"] := this.MainForm.AddEdit(this.ListBackground " c" CommentColor " xs y200 w" Config.DefaultWidth)
+		
+		; Hard-code comment label and editbox position since we now have radio buttons above
+		; This prevents AHK from auto-positioning it relative to radio buttons
+		; Hard-code Y position to ensure alignment
+		if Config.SeparateLibForBoilerplates {
+			; If radio buttons are visible, comment box position and width adjusted
+            this.Controls["CommentLabel"] := this.MainForm.AddText("x60 y182", "Comment")
+            ; Add function checkbox next to comment label
+            this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x+70 y182", "Make as f() Function")
+			this.Controls["CommentEdit"] := this.MainForm.AddEdit(this.ListBackground " c" CommentColor " x60 y200 w" (Config.DefaultWidth - 60))
+		} else {
+            this.Controls["CommentLabel"] := this.MainForm.AddText("xm y182", "Comment")
+            ; Add function checkbox next to comment label
+            this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x+70 y182", "Make as f() Function")
+			; Standard position when radio buttons are hidden
+			this.Controls["CommentEdit"] := this.MainForm.AddEdit(this.ListBackground " c" CommentColor " xs y200 w" Config.DefaultWidth)
+		}
 	}
     
     ; Create the action buttons
@@ -921,6 +961,16 @@ class UI {
             action: (*) => UIActions.OpenHotstringLibrary(),
             icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
         })
+
+        ; Check if PersonalHotstrings file is present, add button.
+        if FileExist(Config.BoilerplateHotstringLibrary) {
+            this.controlButtons.Push({
+                text: " Open Personal Hotstrings File", 
+                action: (*) => Run("..\Includes\PersonalHotstrings.ahk"),
+                icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
+            })
+        }
+        
         
         if (Config.EnableLogging = 1) {
             this.controlButtons.Push({
@@ -1206,9 +1256,30 @@ class UI {
         ; Resize and reposition controls
         this.Controls["TriggerEdit"].Move(, , wFactor - 86)
         this.Controls["ReplacementEdit"].Move(, , wFactor, hFactor + 100)
-        this.Controls["CommentLabel"].Move(, hFactor + 182)
-        this.Controls["CommentEdit"].Move(, hFactor + 200, wFactor)
+        
+        ; Adjust comment label position based on radio button visibility
+        if Config.SeparateLibForBoilerplates {
+            ; If radio buttons exist, comment label is at fixed Y position with hFactor
+            ; Radio buttons are positioned: y+5 from replacement (approx 107), AC at that Y, BP at y+2 below AC
+            ; Approximate positions: AC around Y=112, BP around Y=129
+            ; Comment label should be at Y=182 + hFactor (fixed absolute position)
+            this.Controls["CommentLabel"].Move(, hFactor + 182)
+        } else {
+            ; Without radio buttons, standard positioning
+            this.Controls["CommentLabel"].Move(, hFactor + 182)
+        }
+        
+        this.Controls["CommentEdit"].Move(, hFactor + 200, wFactor - 60)
         this.Controls["FunctionCheck"].Move(, hFactor + 182)
+        
+        ; Move radio buttons if they exist (dual library support)
+        if this.Controls.Has("ACRadio") {
+            ; Radio buttons are positioned relative to replacement box
+            ; AC: y+5 from replacement (which ends at ~107), so around Y=112
+            ; BP: y+2 below AC, so around Y=129
+            this.Controls["ACRadio"].Move(, hFactor + 112)
+            this.Controls["BPRadio"].Move(, hFactor + 129)
+        }
         
         ; Move buttons
         this.Controls["AppendButton"].Move(, hFactor + 234)
@@ -2329,8 +2400,27 @@ class UIActions {
             SetTimer () => ToolTip(), -2000
         }
         else {
+            ; Determine target library based on radio button selection or auto-detection
+            targetLibrary := Config.HotstringLibrary
+            
+            if Config.SeparateLibForBoilerplates {
+                ; Check which radio button is selected
+                if UI.Controls.Has("BPRadio") && UI.Controls["BPRadio"].Value {
+                    ; BP radio button is selected
+                    targetLibrary := Config.BoilerplateHotstringLibrary
+                }
+                else if UI.Controls.Has("ACRadio") && UI.Controls["ACRadio"].Value {
+                    ; AC radio button is selected
+                    targetLibrary := Config.HotstringLibrary
+                }
+                else {
+                    ; No radio button selected, use auto-detection (fallback to AC)
+                    targetLibrary := Config.HotstringLibrary
+                }
+            }
+            
             ; Normal append - add to library file
-            FileAppend("`n" wholeString, Config.HotstringLibrary)
+            FileAppend("`n" wholeString, targetLibrary)
             
             ; Auto-enter replacement if enabled
             if Config.AutoEnterNewEntry = 1
@@ -3161,6 +3251,9 @@ class Utils {
     static HandleNormalStartup(content) {
         ; Reset IsBoilerplate flag
         State.IsBoilerplate := 0
+        
+        ; Reset library selection override
+        State.LibrarySelection := ""
 
         ; Determine if this is boilerplate text or a typo
         if (StrLen(content) - StrLen(StrReplace(content, " ")) > 2) || InStr(content, "`n") {
@@ -3170,6 +3263,12 @@ class Utils {
             
             State.IsBoilerplate := 1
             UI.Controls["FunctionCheck"].Value := 0  ; Don't make multi-line items into functions
+            
+            ; Set BP radio button if dual library support is enabled
+            if Config.SeparateLibForBoilerplates && UI.Controls.Has("BPRadio") {
+                UI.Controls["BPRadio"].Value := 1
+                State.LibrarySelection := "BP"
+            }
             
             ; Also add this line to set the label correctly
             UI.Controls["TriggerLabel"].Text := "Trigger String"
@@ -3207,9 +3306,23 @@ class Utils {
             UI.Controls["BeginningRadio"].Value := 0
             UI.Controls["MiddleRadio"].Value := 0
             UI.Controls["EndingRadio"].Value := 0
+            
+            ; Clear library selection when empty
+            if Config.SeparateLibForBoilerplates && UI.Controls.Has("ACRadio") {
+                UI.Controls["ACRadio"].Value := 0
+                UI.Controls["BPRadio"].Value := 0
+            }
         }
         else {
             ; Likely a typo/autocorrect entry
+            State.IsBoilerplate := 0
+            
+            ; Set AC radio button if dual library support is enabled
+            if Config.SeparateLibForBoilerplates && UI.Controls.Has("ACRadio") {
+                UI.Controls["ACRadio"].Value := 1
+                State.LibrarySelection := "AC"
+            }
+            
             if Config.AutoEnterNewEntry = 1 {
                 State.TargetWindow := WinActive("A")
                 State.OrigTriggerTypo := content
@@ -3507,6 +3620,10 @@ class HelpSystem {
         this.helpTexts["WrapToggle"] := "Toggle button to convert between actual line breaks and literal ``n characters.`n`nClick Unwrap to convert line breaks into literal ``n characters for single-line hotstring format:`n`t::;sig::John Doe``nAutoHotkey User``n555-2345`n`nLeave wrapped to keep actual line breaks for multi-line Continuation Section format:`n`t::;sig::`n`t(`n`tJohn Doe`n`tAutoHotkey User`n`t555-2345`n`t)`n`nBoth formats produce the same result when the hotstring executes. The Continuation Section format is more `"What you see is what you get,`" but the unwrapped format uses only one line of code in your Hotstring Library and can be sorted without breaking them.  The wrap/unwrap functionality is primarily useful for boilerplate template items. It would not be used with f() AutoCorrect items."
         
         this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the 'HotstringHelper' section of the Setting Manager, and set it to `"Vanilla.`"  Also checkout the Defunctionizer script in the Control Pane."
+        
+        this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (HotstringLib.ahk).`n`nThe AC button is automatically selected when you type or select single-word or short phrase typos/corrections.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
+        
+        this.helpTexts["BPRadio"] := "Selects Boilerplate (BP) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the Boilerplate library (PersonalHotstrings.ahk).`n`nThe BP button is automatically selected when you select multiple lines of text or text with multiple spaces, indicating boilerplate template content.`n`nYou can manually switch to the AC radio button if you want to save a boilerplate entry to the AutoCorrect library instead."
         
         this.helpTexts["AppendButton"] := "Adds the current hotstring to your library file and reloads the script.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem. If there is a problem, the user is given the option to append anyway.`n`nShift+Click:`nCopies to clipboard instead.`n`nCtrl+Click:`nAppends without closing or reloading--useful for multiple simultaneous entries.`n`nAlt+Click:`nSends hotstring to Suggester Tool.`n`nPressing Enter will also append the new hotstring and restart the script, but not when the replacement box is focused.  In that case, pressing Enter just types a new line."
         
