@@ -6,6 +6,6 @@
 ; Even if SeparateLibForBoilerplates is true, the items above the "MARK" flag are not scanned.
 ; =========================
 ; Items down here are scanned though.  DO NOT remove the below "MARK" flag if you use this area for your Boilerplate hotstring entries. 
-; MARK: Personal Hotstrings ; Do not remove.
+; MARK: Personal Hotstrings
 
 ::;quick::The five boxing wizards jump quickly and the quick brown fox jumps over the lazy dog, so pack my box with five dozen liquor jugs. 
