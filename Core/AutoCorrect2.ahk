@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 1-31-2026
+; Version: 2-1-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums:
@@ -2595,17 +2595,15 @@ class Validation {
             return
         }
         
-        ; Check for duplicates and conflicts in the hotstring library
+        ; Check for duplicates and conflicts in both hotstring libraries
         try {
-            fileContent := FileRead(Config.HotstringLibrary)
-            
-            ; Determine where autocorrect items start
-            ACitemsStartAt := 1  ; This should be set based on your file structure
+            ; Collect all hotstrings from both libraries
+            combinedContent := this._GetCombinedHotstringContent()
             
             ; Check line by line for conflicts
-            loop parse, fileContent, "`n", "`r" {
+            loop parse, combinedContent, "`n", "`r" {
                 ; Skip non-hotstring lines
-                if A_Index < ACitemsStartAt || SubStr(Trim(A_LoopField, " `t"), 1, 1) != ":" {
+                if SubStr(Trim(A_LoopField, " `t"), 1, 1) != ":" {
                     continue
                 }
                 
@@ -2616,7 +2614,7 @@ class Validation {
                     
                     ; Check for exact duplicate
                     if triggerText = currentTrig && options = currentOpts {
-                        validHotDupes := "`nDuplicate trigger string found at line " A_Index ".`n---> " A_LoopField
+                        validHotDupes := "`nDuplicate trigger string found.`n---> " A_LoopField
                         result.showLookupBox := 1
                         continue
                     }
@@ -2624,28 +2622,28 @@ class Validation {
                     ; Check for word-middle conflicts
                     if (InStr(currentTrig, triggerText) && InStr(options, "*") && InStr(options, "?")) ||
                        (InStr(triggerText, currentTrig) && InStr(currentOpts, "*") && InStr(currentOpts, "?")) {
-                        validHotDupes .= "`nWord-Middle conflict found at line " A_Index ", where one of the strings will be nullified by the other.`n---> " A_LoopField
+                        validHotDupes .= "`nWord-Middle conflict found, where one of the strings will be nullified by the other.`n---> " A_LoopField
                         result.showLookupBox := 1
                         continue
                     }
                     
-					; Check for same word with different match types
-					if currentTrig = triggerText {
-						; Check if one is word-beginning and other is word-ending
-						if (InStr(currentOpts, "*") && !InStr(currentOpts, "?") && 
-							InStr(options, "?") && !InStr(options, "*")) ||
-						(InStr(currentOpts, "?") && !InStr(currentOpts, "*") && 
-							InStr(options, "*") && !InStr(options, "?")) {
-							validHotDupes .= "`nDuplicate trigger found at line " A_Index ", but maybe okay, because one is word-beginning and other is word-ending.`n---> " A_LoopField
-							result.showLookupBox := 1
-							continue
-						}
-					}
+                    ; Check for same word with different match types
+                    if currentTrig = triggerText {
+                        ; Check if one is word-beginning and other is word-ending
+                        if (InStr(currentOpts, "*") && !InStr(currentOpts, "?") && 
+                            InStr(options, "?") && !InStr(options, "*")) ||
+                        (InStr(currentOpts, "?") && !InStr(currentOpts, "*") && 
+                            InStr(options, "*") && !InStr(options, "?")) {
+                            validHotDupes .= "`nDuplicate trigger found, but maybe okay, because one is word-beginning and other is word-ending.`n---> " A_LoopField
+                            result.showLookupBox := 1
+                            continue
+                        }
+                    }
                     
                     ; Check for word-beginning conflicts
                     if (InStr(currentOpts, "*") && currentTrig = SubStr(triggerText, 1, StrLen(currentTrig))) ||
                        (InStr(options, "*") && triggerText = SubStr(currentTrig, 1, StrLen(triggerText))) {
-                        validHotDupes .= "`nWord Beginning conflict found at line " A_Index ", where one of the strings is a subcomponent of the other. Whichever appears last will never be expanded.`n---> " A_LoopField
+                        validHotDupes .= "`nWord Beginning conflict found, where one of the strings is a subcomponent of the other. Whichever appears last will never be expanded.`n---> " A_LoopField
                         result.showLookupBox := 1
                         continue
                     }
@@ -2653,7 +2651,7 @@ class Validation {
                     ; Check for word-ending conflicts
                     if (InStr(currentOpts, "?") && currentTrig = SubStr(triggerText, -StrLen(currentTrig))) ||
                        (InStr(options, "?") && triggerText = SubStr(currentTrig, -StrLen(triggerText))) {
-                        validHotDupes .= "`nWord Ending conflict found at line " A_Index ", where one of the strings is a supercomponent of the other. The longer of the strings should appear before the other, in your code.`n---> " A_LoopField
+                        validHotDupes .= "`nWord Ending conflict found, where one of the strings is a supercomponent of the other. The longer of the strings should appear before the other, in your code.`n---> " A_LoopField
                         result.showLookupBox := 1
                         continue
                     }
@@ -2694,6 +2692,41 @@ class Validation {
             result.validHot := Config.ValidOkMessage
         else
             result.validHot := validHotDupes validHotMisspells
+    }
+    
+    ; Helper method: Collect hotstrings from both libraries
+    static _GetCombinedHotstringContent() {
+        hotstringLibContent := ""
+        boilerplateLibContent := ""
+        
+        ; Read main hotstring library
+        if FileExist(Config.HotstringLibrary) {
+            try {
+                fullHotstringContent := FileRead(Config.HotstringLibrary)
+                
+                ; Extract only the hotstrings after the MARK: No Sort marker
+                if InStr(fullHotstringContent, "; MARK: No Sort") {
+                    markPos := InStr(fullHotstringContent, "; MARK: No Sort")
+                    hotstringLibContent := SubStr(fullHotstringContent, markPos)
+                }
+            }
+        }
+        
+        ; Read boilerplate hotstring library (PersonalHotstrings) only if SeparateLibForBoilerplates is enabled
+        if Config.SeparateLibForBoilerplates = 1 && FileExist(Config.BoilerplateHotstringLibrary) {
+            try {
+                fullBoilerplateContent := FileRead(Config.BoilerplateHotstringLibrary)
+                
+                ; Extract only the hotstrings after the MARK: Personal Hotstrings marker
+                if InStr(fullBoilerplateContent, "; MARK: Personal Hotstrings") {
+                    markPos := InStr(fullBoilerplateContent, "; MARK: Personal Hotstrings")
+                    boilerplateLibContent := SubStr(fullBoilerplateContent, markPos)
+                }
+            }
+        }
+        
+        ; Combine both contents
+        return hotstringLibContent "`n" boilerplateLibContent
     }
 }
 
