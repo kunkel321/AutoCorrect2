@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 2-1-2026 
+; Version: 2-2-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums:
@@ -32,7 +32,7 @@ SetWorkingDir(A_ScriptDir)
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
 #Include "*i ..\Includes\PersonalHotstrings.ahk" ;  -- Optional*
-; *Note:  If the ini key, SeparateLibForBoilerplates=1, then this file is mandatory. 
+; *Note:  If the ini key, SeparateLibForBoilerplates=1, then this file is mandatory.  It will be created if not found. 
 
 ; =============== CONFIGURATION ===============
 ; The configuration is now centralized in acSettings.ini
@@ -270,7 +270,7 @@ BoilerplatePrefix=;
 BoilerplateSuffix=
 FirstLettersToInclude=5
 MinWordLength=2
-SeparateLibForBoilerplates=1
+SeparateLibForBoilerplates=0
 ; Do you use the f(), or prefer vanilla ahk hotstrings? Check 'Make Function' box by default? (1=yes, 0=no)
 ; Default options for autocorrect entries -- B0X for f() use.  That's B zero X.  Don't use if MakeFuncByDefault=0
 MakeFuncByDefault=1
@@ -841,9 +841,9 @@ class UI {
 		; Only create radio buttons if dual library support is enabled
 		if Config.SeparateLibForBoilerplates {
 			; AC radio button - starts at left margin, below replacement box
-			this.Controls["ACRadio"] := this.MainForm.AddRadio("xm y+14 h14", "AC")
+			this.Controls["ACRadio"] := this.MainForm.AddRadio("xm y190 h14", "AC")
 			; BP radio button - positioned below AC radio button
-			this.Controls["BPRadio"] := this.MainForm.AddRadio("xm y+2 h14", "BP")
+			this.Controls["BPRadio"] := this.MainForm.AddRadio("xm y212 h14", "BP")
 		}
 	}
 		
@@ -1277,8 +1277,8 @@ class UI {
             ; Radio buttons are positioned relative to replacement box
             ; AC: y+5 from replacement (which ends at ~107), so around Y=112
             ; BP: y+2 below AC, so around Y=129
-            this.Controls["ACRadio"].Move(, hFactor + 112)
-            this.Controls["BPRadio"].Move(, hFactor + 129)
+            this.Controls["ACRadio"].Move(, hFactor + 190)
+            this.Controls["BPRadio"].Move(, hFactor + 212)
         }
         
         ; Move buttons
@@ -2938,7 +2938,7 @@ class Dictionary {
             if !this.isLoading {
                 this.StartBackgroundLoad()
             }
-            definition := "Dictionary is still loading...`n`nCurrent status: " this.loadingStatus "`n`nYou can still use 'Try GCIDE' or 'Try ChatGPT' while waiting, or close this window and try again in a moment."
+            definition := "Dictionary is still loading...`n`nCurrent status: " this.loadingStatus "`n`nYou can still use 'Try GCIDE' or 'Try ChatGPT' (if ChatGPT module #Include file present) while waiting, or close this window and try again in a moment."
         } else {
             definition := this.LookupWord(word)
         }
