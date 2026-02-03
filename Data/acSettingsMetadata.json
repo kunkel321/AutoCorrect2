@@ -290,7 +290,8 @@
     "options": [
       "0=Disabled",
       "1=Enabled"
-    ]
+    ],
+     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.MakeFuncByDefault": {
     "label": "Make Function by Default",
