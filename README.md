@@ -1,6 +1,8 @@
 # AutoCorrect for v2 Package.
 This started as a version of the 2007 AutoHotkey script, AutoCorrect.ahk, though it has evolved into a package of several interrelated scripts.  It is written in AHK v2 code, and so is called "AutoCorrect2."  Please note that the .exe files are not compiled versions of the same-named .ahk files.  Rather, they are a copies of AutoHotKey.exe that were downloaded from the AutoHotkey site, and renamed, to match the .ahk file.  Keeping the two in the same folder allows the user to run the code "portably," right from the folder.   
 
+Thread on AHK Forum: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
+
 _Stephen Kunkel (kunkel321)_
 
 # Start Here.
