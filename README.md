@@ -22,7 +22,7 @@ _Stephen Kunkel (kunkel321)_
 It's worth noting that only one other person -- Robert -- has contributed code _via the GitHub push mechanism_, but many others have made **significant** contributions by other means (usually the AutoHotkey forums).  I'll list them here eventually, but they can also be found in the code comments of the various ahk files in the repository. 
 
 # Hotstring Helper 2 – Quick Sheet
-![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.jpg)
+![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.png)
 1.	The Options Box.  Hotstring options go here.
 2.	The Hotstring (Trigger string) Box.  Upon pressing the hotkey, this box gets populated with the word on the clipboard.  If many words are on the clipboard, an acronym is generated.  If the Exam Pane is open, adding a letter to the beginning or end of the trigger will cause the same letter to be automatically added to the replacement text.  Shift+Left focuses the Trigger Box.  Ctrl-Up/Down or Ctrl-Mouse Wheel toggles font size.
 3.	If the string in the Trigger Box corresponds to any English words, it will turn red and warn you.  
