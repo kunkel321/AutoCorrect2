@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 2-2-2026 
+; Version: 2-15-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums:
@@ -31,7 +31,7 @@ SetWorkingDir(A_ScriptDir)
 
 ;=============== PERSONAL ITEMS =================
 ; If user has custom hotstrings, they can optionally keep them in a "PersonalHotstrings.ahk" file.
-#Include "*i ..\Includes\PersonalHotstrings.ahk" ;  -- Optional*
+#Include "*i PersonalHotstrings.ahk" ;  -- Optional*
 ; *Note:  If the ini key, SeparateLibForBoilerplates=1, then this file is mandatory.  It will be created if not found. 
 
 ; =============== CONFIGURATION ===============
@@ -57,7 +57,7 @@ class Config {
     
     ; General Configuration
     static HotstringLibrary := "HotstringLib.ahk"
-    static BoilerplateHotstringLibrary := "..\Includes\PersonalHotstrings.ahk"
+    static BoilerplateHotstringLibrary := "PersonalHotstrings.ahk"
     static NewTemporaryHotstrLib := "HotstringLib (1).ahk"
     static RemovedHsFile := "..\Data\RemovedHotstrings.txt"
     static AutoCorrectsLogFile := "..\Data\AutoCorrectsLog.txt"
@@ -966,7 +966,7 @@ class UI {
         if FileExist(Config.BoilerplateHotstringLibrary) {
             this.controlButtons.Push({
                 text: " Open Personal Hotstrings File", 
-                action: (*) => Run("..\Includes\PersonalHotstrings.ahk"),
+                action: (*) => Run("PersonalHotstrings.ahk"),
                 icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
             })
         }
@@ -3803,10 +3803,10 @@ class HelpSystem {
             helpText := this.helpTexts[focusedControl]
         } else {
             helpTitle := "HotString Helper Help"
-            helpText := "This is the Hotstring Helper 2.0 main window.`n`nUse this tool to create and analyze hotstrings for AutoCorrect2. Some of the functionality is for making AutoCorrect items, and some is for making boilerplate template items.`n`nPress F1 while focusing on a specific control (button, box, etc.) for more help and tips.  Press Tab to move between controls or Shift+Tab to move backwards.  This allows you to highlight buttons without actually pressing them.`n`nGet the latest AutoCorrect2 suite from https://github.com/kunkel321/AutoCorrect2`n`nMost of the user configurarion settings are in the Core\acSettings.ini file."
+            helpText := "This is the Hotstring Helper 2.0 main window.`n`nUse this tool to create and analyze hotstrings for AutoCorrect2. Some of the functionality is for making AutoCorrect items, and some is for making boilerplate template items.`n`nPress F1 while focusing on a specific control (button, box, etc.) for more help and tips.  Press Tab to move between controls or Shift+Tab to move backwards.  This allows you to highlight buttons without actually pressing them.`n`nGet the latest AutoCorrect2 suite from https://github.com/kunkel321/AutoCorrect2`n`nMost of the user configurarion settings can be changed with the SettingsManager.exe tool in the Tools\ folder (also accessible in the Control Pane)."
             
             If (examPaneVisible)
-                helpText .= "`n`n------------------`nAt the bottom is the `"Exam Pane.`"`n`nThe Blue text is the Delta String and shows which parts of the trigger /replacement are unique vs. which parts are shared.`n`nFor example:`ncrea[s|t]ion shows:`tcreasion ---> creation.`nt[eh|he] shows:`t`tteh ---> the.`n[sp|ps]ych shows:`tspych ---> psych.`n`n`"Misspells`" shows the number of matches for the trigger string.  These are the words that will get erroneously mis-corrrected.  `"Fixes`" shows the number for the replacement, which is the list of words that will be corrected by the given hotstring.  Our goal, is to have many matches and no misspells.`n`nThe `"Web Frequency`" is expressed in millions, and is the number of total matches on the internet, for the list of words.  The frequency data is derived from the Google Web Trillion Word Corpus (Credit: Racheal Tatman, Kaggle.com).  The word list and CSV file are in the Resources\WordListsForHH\ folder. "
+                helpText .= "`n`n------------------`nAt the bottom is the `"Exam Pane.`"`n`nThe Blue text is the Delta String and shows which parts of the trigger /replacement are unique vs. which parts are shared.`n`nFor example:`ncrea[s|t]ion shows:`tcreasion ---> creation.`nt[eh|he] shows:`t`tteh ---> the.`n[sp|ps]ych shows:`tspych ---> psych.`n`n`"Misspells`" shows the number of matches for the trigger string.  These are the words that will get erroneously mis-corrrected.  `"Fixes`" shows the number for the replacement, which is the list of words that will be corrected by the given hotstring.  Our goal, is to have many matches and no misspells.`n`nThe `"Web Frequency`" is expressed in millions, and is the number of total matches on the internet, for the list of words.  The frequency data is derived from the Google Web Trillion Word Corpus (Credit: Racheal Tatman, Kaggle.com).  The word list and CSV file are in the Data\ folder. "
                 
             If (controlPaneVisible)
                 helpText .= "`n`n------------------`nAt the bottom is the `"Control Panel.`"`n`nIt contains buttons to launch several script-related tools and other things.  Some items are only shown conditionally.  The bottom `'Suggester`' and `'Color Theme`' buttons are only displayed if the corresponding apps are present in the AutoCorrect2 folder.  The log-related buttons are only displayed if logging is enabled in the Core\acSettings.ini file.`n`nThe icons are not compiled.  They are in the Resources\Icons\ folder. Most are from icons8.com"
