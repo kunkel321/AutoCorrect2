@@ -22,7 +22,7 @@ _Stephen Kunkel (kunkel321)_
 -HotstringHelper demo -- Boilerplates 2-16-2026 https://www.youtube.com/watch?v=lN3VxNKxgVk
 
 # Setup/Update Recommendation
-- I don't really do compiled installable "releases," so, for the first-time setup, download the entire AutoCorrect-main.zip from the above <> Code drop button.
+- I don't really do compiled installable "releases," so, for the first-time setup, download the entire AutoCorrect-main.zip from the above [<> Code] drop button.
 - For subsequent updates, use the Updater.exe tool in the Tools folder
 
 # Contributors
