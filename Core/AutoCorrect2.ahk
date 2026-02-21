@@ -5,13 +5,12 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 2-15-2026 
+; Version: 2-19-2026 
 ; Author: kunkel321
 ; AI Used: Claude
-; Thread on AutoHotkey forums:
-; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
-; Project location on GitHub (new versions will be on GitHub)
-; https://github.com/kunkel321/AutoCorrect2
+; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
+; Project location on GitHub: https://github.com/kunkel321/AutoCorrect2 
+; New versions will be on GitHub.  See also 'Tools\Updater.exe' for updates. 
 ; ========================================
 
 ; ============== OPTIONAL INCLUDES ==============
@@ -1155,7 +1154,8 @@ class UI {
         this.Controls["EndingRadio"].OnEvent("Click", (*) => UIActions.FilterWordLists())
         this.Controls["EndingRadio"].OnEvent("ContextMenu", (*) => UIActions.ClearRadioButtons())
         
-        this.Controls["UndoButton"].OnEvent("Click", (*) => UIActions.Undo())
+        this.Controls["UndoButton"].OnEvent("Click", (*) => (GetKeyState("Shift") ? UIActions.RestartFromOriginal() : UIActions.Undo()))
+        this.Controls["UndoButton"].OnEvent("ContextMenu", (*) => UIActions.RestartFromOriginal())
         
         this.Controls["TriggerMatchesEdit"].OnEvent("Focus", (ctrl, *) => State.CurrentEdit := ctrl)
         this.Controls["ReplacementMatchesEdit"].OnEvent("Focus", (ctrl, *) => State.CurrentEdit := ctrl)
@@ -1615,6 +1615,12 @@ class UIActions {
     
     ; Trim one character from the left of trigger and replacement
     static TrimLeft() {
+        ; If this is the first trim, seed the originals so RestartFromOriginal() can reset to them
+        if State.OrigTrigger = "" && State.OrigReplacement = "" {
+            State.OrigTrigger := UI.Controls["TriggerEdit"].Value
+            State.OrigReplacement := UI.Controls["ReplacementEdit"].Value
+        }
+        
         ; Save current state for undo
         State.TriggerHistory.Push(UI.Controls["TriggerEdit"].Value)
         State.ReplacementHistory.Push(UI.Controls["ReplacementEdit"].Value)
@@ -1639,6 +1645,12 @@ class UIActions {
 
     ; Trim one character from the right of trigger and replacement
     static TrimRight() {
+        ; If this is the first trim, seed the originals so RestartFromOriginal() can reset to them
+        if State.OrigTrigger = "" && State.OrigReplacement = "" {
+            State.OrigTrigger := UI.Controls["TriggerEdit"].Value
+            State.OrigReplacement := UI.Controls["ReplacementEdit"].Value
+        }
+        
         ; Save current state for undo
         State.TriggerHistory.Push(UI.Controls["TriggerEdit"].Value)
         State.ReplacementHistory.Push(UI.Controls["ReplacementEdit"].Value)
@@ -1666,10 +1678,7 @@ class UIActions {
     
     ; Undo the last edit operation
     static Undo() {
-        if GetKeyState("Shift") {
-            this.RestartFromOriginal()
-        }
-        else if State.TriggerHistory.Length > 0 && State.ReplacementHistory.Length > 0 {
+        if State.TriggerHistory.Length > 0 && State.ReplacementHistory.Length > 0 {
             UI.Controls["TriggerEdit"].Value := State.TriggerHistory.Pop()
             UI.Controls["ReplacementEdit"].Value := State.ReplacementHistory.Pop()
             
@@ -3227,6 +3236,13 @@ class Utils {
             else
                 UI.Controls["MiddleRadio"].Value := 1
             
+            ; A parsed hotstring is always an AC item — select AC radio if dual library support is enabled
+            if Config.SeparateLibForBoilerplates && UI.Controls.Has("ACRadio") {
+                UI.Controls["ACRadio"].Value := 1
+                State.LibrarySelection := "AC"
+                State.IsBoilerplate := 0
+            }
+            
             ; Initialize toggle button text based on replacement content
             UIActions.InitializeToggleButtonText()
             
@@ -3681,7 +3697,7 @@ class HelpSystem {
         
         this.helpTexts["EndingRadio"] := "Sets the AutoCorrect hotstring to match word endings (adds ? option).`n`nFor example `"ap`" matches:`n-zap`n-backstrap`n-ASAP`n`nBut does not match:`n-apple`n-sappling`n`nRight-clicking any of the three radio buttons sets them all to unchecked."
         
-        this.helpTexts["UndoButton"] := "Undoes the last trim operation.`n`nShift+Click to reset to original words.`n`nCtrl+Z or Shift+Ctrl+Z also works.`n`nChanges to the radio buttons are not `"remembered`" only trims and text changes are saved for undoing.  When the Win+H hotkey is re-pressed, the undo history is reset.`n`nThe blue/red colorization of the DeltaString is also undone, but if the trigger or replacement boxes were manually edited, the colors will be wrong."
+        this.helpTexts["UndoButton"] := "Undoes the last trim operation.`n`nShift+Click (or right-click) to reset to original words.`n`nCtrl+Z or Shift+Ctrl+Z also works.`n`nChanges to the radio buttons are not `"remembered`" only trims and text changes are saved for undoing.  When the Win+H hotkey is re-pressed, the undo history is reset.`n`nThe blue/red colorization of the DeltaString is also undone, but if the trigger or replacement boxes were manually edited, the colors will be wrong."
         
         this.helpTexts["TriggerMatchesEdit"] := "Shows words that contain the trigger string based on selected match type.`n`nThese are words that would be erroneously `"mis-corrected`" by this hotstring.  I.e., if you typed the word correctly, the correct spelling would get changed.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-mis-corrected words are high-frequency words.`n`nThe Misspels number is simply the number of words in the list."
         
