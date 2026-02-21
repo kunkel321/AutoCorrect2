@@ -1,6 +1,6 @@
 # 2-15-2026 update note:  
 - Sorry, I didn't think to put this in the commit notes:  The PersonalHotstrings.ahk file has been moved. The Updater Tool that is bundled with AutoCorrect2 won't recognize this though.  It will only report that there is a "new" file in the \Core\ folder.
-- You (the user) must copy-n-paste any of your personal hotstrings and move them into the new locaton.  Or just delete the new "PersonalHotstrings.ahk" file and move your existing one from \Includes\ to \Core\.
+- You (the user) must copy-n-paste any of your personal hotstrings and move them into the new locaton.  Or just delete the new "PersonalHotstrings.ahk" file and move your existing one from \Includes\ to \Core\\.
 - Let me know if there are any questions. 
 
 # AutoCorrect for v2 Package.
@@ -22,7 +22,7 @@ _Stephen Kunkel (kunkel321)_
 -HotstringHelper demo -- Boilerplates 2-16-2026 https://www.youtube.com/watch?v=lN3VxNKxgVk
 
 # Setup/Update Recommendation
-- For the first-time setup, download the entire AutoCorrect-main.zip from the above <> Code drop button.
+- I don't really do compiled installable "releases," so, for the first-time setup, download the entire AutoCorrect-main.zip from the above <> Code drop button.
 - For subsequent updates, use the Updater.exe tool in the Tools folder
 
 # Contributors
