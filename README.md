@@ -15,11 +15,14 @@ _Stephen Kunkel (kunkel321)_
 - Then press _Win+H_
 
 # Youtube Screencasts
+The quality is not great.  Sorry. 
 -intro-initial setup 12-30-2025 https://www.youtube.com/watch?v=cI6NwprfvpE
 
 -common settings 1-4-2026 https://www.youtube.com/watch?v=kgi_5iyoDkI
 
 -HotstringHelper demo -- Boilerplates 2-16-2026 https://www.youtube.com/watch?v=lN3VxNKxgVk
+
+-HotstringHelper demo -- AutoCorrects 2-22-2026 (42 min. long) youtube.com/watch?v=rrlKCJvl-A4&feature=youtu.be
 
 # Setup/Update Recommendation
 - I don't really do compiled installable "releases," so, for the first-time setup, download the entire AutoCorrect-main.zip from the above [<> Code] drop button.
