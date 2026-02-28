@@ -20,6 +20,8 @@ The quality is not great.  Sorry.
 
 -HotstringHelper demo -- AutoCorrects 2-22-2026 (42 min. long) https://www.youtube.com/watch?v=rrlKCJvl-A4
 
+-f() function overview 2-28-2026 https://www.youtube.com/watch?v=BLhpojuIl-k
+
 # Setup/Update Recommendation
 - I don't really do compiled installable "releases," so, for the first-time setup, download the entire AutoCorrect-main.zip from the above [<> Code] drop button.
 - For subsequent updates, use the Updater.exe tool in the Tools folder
