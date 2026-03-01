@@ -18,9 +18,11 @@ The quality is not great.  Sorry.
 
 -HotstringHelper demo -- Boilerplates 2-16-2026 https://www.youtube.com/watch?v=lN3VxNKxgVk
 
--HotstringHelper demo -- AutoCorrects 2-22-2026 (42 min. long) https://www.youtube.com/watch?v=rrlKCJvl-A4
+-HotstringHelper demo -- AutoCorrects 2-22-2026 (42 min.) https://www.youtube.com/watch?v=rrlKCJvl-A4
 
 -f() function overview 2-28-2026 https://www.youtube.com/watch?v=BLhpojuIl-k
+
+-AutoCorrect Log usage/analysis 3-1-2026 (33 min.) https://www.youtube.com/watch?v=k88hTDbr_U4
 
 # Setup/Update Recommendation
 - I don't really do compiled installable "releases," so, for the first-time setup, download the entire AutoCorrect-main.zip from the above [<> Code] drop button.
