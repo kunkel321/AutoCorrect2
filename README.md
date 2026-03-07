@@ -24,6 +24,8 @@ The quality is not great.  Sorry.
 
 -AutoCorrect Log usage/analysis 3-1-2026 (33 min.) https://www.youtube.com/watch?v=k88hTDbr_U4
 
+-Manual Correction Logger 3-7-2026 https://www.youtube.com/watch?v=PgpJhr5T46k
+
 # Setup/Update Recommendation
 - I don't really do compiled installable "releases," so, for the first-time setup, download the entire AutoCorrect-main.zip from the above [<> Code] drop button.
 - For subsequent updates, use the Updater.exe tool in the Tools folder
