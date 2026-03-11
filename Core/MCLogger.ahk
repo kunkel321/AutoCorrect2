@@ -7,7 +7,7 @@ Persistent
 ; ==============================================================================
 ; Author: Kunkel321
 ; Tool Used: Claude AI
-; Version: 1-14-2026 
+; Version: 3-1-2026 
 ; Get latest version here: https://github.com/kunkel321/AutoCorrect2
 ; A script to run in the background all the time and log your typing
 ; errors and manual corrections, formatting the viable ones into ahk hotstrings,
@@ -23,7 +23,8 @@ Persistent
 ; PLEASE NOTE that MCLogger shares acSettings.ini with several other tools, though
 ; the other tools don't need to be present for MCLogger to work.
 ; See also the WinSysTray context menu for other commands. 
-; Thanks to Mikeyww who helped with the original inputHook code.
+; Thanks to Mikeyww who helped with the original inputHook code and to Just Me, 
+; who wrote the ToolTipOptions class.
 ; ==============================================================================
 ; Related tool:  Users of MS Word VBA may be interested in the code here
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
@@ -39,7 +40,7 @@ SettingsManager := "..\Tools\SettingsManager.exe"
 
 ; Ensure settings file exists.
 if !FileExist(settingsFile) {
-	acMsgBox.show(settingsFile " was not found.  Please run AutoCorrect2.exe first, to create the file, then try again.`n`nNow exiting")
+	acMsgBox.show(settingsFile " was not found.  You probably need to get`nit from github.com/kunkel321/autocorrect2`n`nNow exiting")
    ExitApp
 }
 
