@@ -1,4 +1,4 @@
-/*
+﻿/*
 =====================================================
         AUTO CORRECTION LOG STATISTICS
 =====================================================
@@ -7,7 +7,7 @@ This app is designed for inclusion in the AutoCorrect2 Suite at
 https://github.com/kunkel321/AutoCorrect2
 Author: kunkel321
 Tool used: Claude AI
-Version: 11-23-2025 
+Version: 2-26-2026 
 
 PURPOSE:
 This tool analyzes AutoCorrect log data and generates interactive HTML charts
@@ -70,7 +70,7 @@ class ACLogStatistics {
             ; IniRead() retrieves values with fallback defaults
             config := {
                 ScriptFiles: {
-                    ACLog: "..\Data\" IniRead(settingsFile, "Files", "AutoCorrectsLogFile", "AutoCorrectsLog.txt")
+                    ACLog: "..\Data\" IniRead(settingsFile, "Files", "ACLogContinuousFile", "ACLogContinuous.txt")
                 }
             }
             
