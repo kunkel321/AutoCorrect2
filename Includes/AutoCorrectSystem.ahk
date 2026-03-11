@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 11-25-2025
+; Version: 2-3-2026
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -544,7 +544,7 @@ StringAndFixReport(caller := "Button") {
             thisMessage := ( 
             'The ' Config.HotstringLibrary ' component of`n'
             Config.ScriptName ' contains the following '
-            '`n Autocorrect hotstring stats.'
+            '`nhotstring stats as of ' A_MMMM ' ' A_DD ', ' A_YYYY '.'
             '`n================================'
             '`n    Regular Autocorrects:`t' numberFormat(regulars)
             '`n    Word Beginnings:`t`t' numberFormat(begins)
@@ -558,7 +558,7 @@ StringAndFixReport(caller := "Button") {
         }
         catch Error as err {
             thisMessage := "Could not read hotstring library`n" err.Message
-            LogError("StringAndFixReport: " err.Message)
+            LogError("StringAndFixReport: " err.Message) ; LogError function is in AutoCorrect2.ahk
         }
         
         buttPos := "x90"
