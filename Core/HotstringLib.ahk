@@ -148,6 +148,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 
 ; ==============================================
 ; MARK: Main List 
+
 :B0X*:Buddist::f("Buddhist") ; Fixes 3 words 
 :B0X*:Feburary::f("February") ; Fixes 1 word 
 :B0X*:Hatian::f("Haitian") ; Fixes 2 words 
@@ -1915,6 +1916,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:seguoy::f("segue") ; Web Freq 0.32 | Fixes 4 words 
 :B0X*:seinor::f("senior") ; Web Freq 68.56 | Fixes 5 words 
 :B0X*:selett::f("select") ; Web Freq 338.92 | Fixes 32 words 
+:B0X*:semect::f("semest") ; Web Freq 18.13 | Fixes 14 words 
 :B0X*:senari::f("scenari") ; Web Freq 16.36 | Fixes 4 words 
 :B0X*:senc::f("sens") ; Web Freq 135.64 | Fixes 131 words 
 :B0X*:sentan::f("senten") ; Web Freq 26.59 | Fixes 14 words 
@@ -1991,6 +1993,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*:somwhere::f("somewhere") ; Web Freq 14.34 | Fixes 2 words 
 :B0X*:soon there after::f("soon thereafter") ; Fixes 1 word
 :B0X*:sooner then::f("sooner than") ; Fixes 1 word
+:B0X*:soory::f("sorry") ; Web Freq 35.60 | Fixes 2 words 
 :B0X*:sophmor::f("sophomor") ; Web Freq 3.68 | Fixes 4 words 
 :B0X*:sorceror::f("sorcerer") ; Web Freq 1.28 | Fixes 2 words 
 :B0X*:sorround::f("surround") ; Web Freq 33.67 | Fixes 6 words 
@@ -3950,6 +3953,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:melei::f("melie") ; Web Freq 0.21 | Fixes 11 words 
 :B0X*?:memmo::f("memo") ; Web Freq 223.70 | Fixes 80 words 
 :B0X*?:memt::f("ment") ; Web Freq 5076.30 | Fixes 2167 words 
+:B0X*?:memver::f("member") ; Web Freq 663.43 | Fixes 40 words 
 :B0X*?:menat::f("menta") ; Web Freq 428.86 | Fixes 434 words, but misspells catechumenate (convert being taught the principles of Christianity by a catechist)
 :B0X*?:metalic::f("metallic") ; Web Freq 7.25 | Fixes 15 words 
 :B0X*?:metero::f("meteoro") ; Web Freq 4.49 | Fixes 25 words 
@@ -4244,6 +4248,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:peapl::f("peopl") ; Web Freq 491.50 | Fixes 54 words 
 :B0X*?:pefor::f("perfor") ; Web Freq 250.27 | Fixes 51 words 
 :B0X*?:peice::f("piece") ; Web Freq 82.05 | Fixes 78 words 
+:B0X*?:peion::f("ption") ; Web Freq 748.53 | Fixes 231 words 
 :B0X*?:peiti::f("petiti") ; Web Freq 103.54 | Fixes 46 words 
 :B0X*?:pelase::f("please") ; Web Freq 394.69 | Fixes 18 words, but misspells erysipelases (A type of streptococcal infection)
 :B0X*?:pendece::f("pendence") ; Web Freq 35.43 | Fixes 16 words 
@@ -4650,6 +4655,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?:semming::f("seeming") ; Web Freq 4.70 | Fixes 6 words 
 :B0X*?:semmo::f("semo") ; Web Freq 0.10 | Fixes 14 words 
 :B0X*?:semmp::f("semp") ; Web Freq 0.70 | Fixes 35 words 
+:B0X*?:senden::f("senten") ; Web Freq 26.75 | Fixes 28 words 
 :B0X*?:senqu::f("sequ") ; Web Freq 116.29 | Fixes 114 words 
 :B0X*?:sensativ::f("sensitiv") ; Web Freq 31.87 | Fixes 40 words 
 :B0X*?:sentive::f("sentative") ; Web Freq 53.22 | Fixes 18 words 
@@ -5066,9 +5072,13 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?C:ajh::f("ah") ; Web Freq 507.78 | Fixes 1009 words 
 :B0X*?C:aof::f("oaf") ; Web Freq 3.48 | Fixes 18 words 
 :B0X*?C:aox::f("oax") ; Web Freq 5.07 | Fixes 18 words 
-:B0X*?C:asr::f("ase") ; Web Freq 2185.80 | Fixes 1081 words, but misspells Basra (An oil city in Iraq)
+:B0X*?C:asrb::f("aseb") ; Web Freq 36.31 | Fixes 19 words 
+:B0X*?C:asrd::f("ased") ; Web Freq 422.68 | Fixes 86 words 
+:B0X*?C:asrl::f("asel") ; Web Freq 14.22 | Fixes 51 words 
+:B0X*?C:asrr::f("aser") ; Web Freq 52.40 | Fixes 87 words 
 :B0X*?C:atgh::f("ath") ; Web Freq 1065.98 | Fixes 1531 words 
 :B0X*?C:balen::f("balan") ; Web Freq 106.38 | Fixes 49 words,  Case-sensitive to not misspell Balenciaga (Spanish fashion designer)
+:B0X*?C:basr::f("base") ; Web Freq 524.02 | Fixes 102 words Case-sensitive to not misspell Basra.
 :B0X*?C:beht::f("beth") ; Web Freq 11.28 | Fixes 35 words 
 :B0X*?C:beng::f("being") ; Web Freq 250.31 | Fixes 12 words, Case-sensitive to not misspell, Bengali.
 :B0X*?C:bnad::f("band") ; Web Freq 184.81 | Fixes 219 words 
@@ -5078,6 +5088,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?C:brod::f("broad") ; Web Freq 138.67 | Fixes 67 words, but misspells brodiaea (a type of plant)
 :B0X*?C:busn::f("busin") ; Web Freq 691.64 | Fixes 24 words 
 :B0X*?C:caht::f("chat") ; Web Freq 100.13 | Fixes 97 words 
+:B0X*?C:casr::f("case") ; Web Freq 348.08 | Fixes 135 words 
 :B0X*?C:ccxa::f("cca") ; Web Freq 56.65 | Fixes 186 words 
 :B0X*?C:cihs::f("chis") ; Web Freq 26.81 | Fixes 197 words 
 :B0X*?C:cinf::f("cing") ; Web Freq 314.62 | Fixes 369 words 
@@ -5141,6 +5152,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?C:doev::f("dove") ; Web Freq 9.13 | Fixes 33 words 
 :B0X*?C:doimg::f("doing") ; Web Freq 82.43 | Fixes 24 words 
 :B0X*?C:dokr::f("dork") ; Web Freq 0.99 | Fixes 9 words 
+:B0X*?C:easr::f("ease") ; Web Freq 978.61 | Fixes 203 words 
 :B0X*?C:ecj::f("ech") ; Web Freq 793.90 | Fixes 755 words 
 :B0X*?C:eckk::f("eck") ; Web Freq 466.11 | Fixes 443 words 
 :B0X*?C:ecxa::f("eca") ; Web Freq 443.42 | Fixes 614 words 
@@ -5186,6 +5198,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?C:gsit::f("gist") ; Web Freq 416.95 | Fixes 697 words 
 :B0X*?C:gtyh::f("gth") ; Web Freq 133.34 | Fixes 43 words 
 :B0X*?C:gubl::f("guabl") ; Web Freq 2.14 | Fixes 8 words 
+:B0X*?C:hasr::f("hase") ; Web Freq 204.47 | Fixes 74 words 
 :B0X*?C:hcih::f("hich") ; Web Freq 813.92 | Fixes 19 words 
 :B0X*?C:hgad::f("had") ; Web Freq 552.63 | Fixes 225 words 
 :B0X*?C:hgal::f("hal") ; Web Freq 645.11 | Fixes 1246 words 
@@ -5227,6 +5240,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?C:jhy::f("hy") ; Web Freq 882.14 | Fixes 3583 words 
 :B0X*?C:juct::f("junct") ; Web Freq 26.65 | Fixes 64 words 
 :B0X*?C:kjh::f("kh") ; Web Freq 20.96 | Fixes 349 words 
+:B0X*?C:lasr::f("lase") ; Web Freq 43.25 | Fixes 64 words 
 :B0X*?C:leht::f("leth") ; Web Freq 5.40 | Fixes 69 words 
 :B0X*?C:leza::f("liza") ; Web Freq 72.44 | Fixes 508 words 
 :B0X*?C:lht::f("lth") ; Web Freq 634.40 | Fixes 96 words 
@@ -5325,6 +5339,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?C:raer::f("rear") ; Web Freq 35.86 | Fixes 98 words 
 :B0X*?C:rafic::f("rific") ; Web Freq 36.89 | Fixes 95 words, but misspells ultrafiche (Simlar to Microfiche storage media)
 :B0X*?C:rafy::f("raft") ; Web Freq 151.94 | Fixes 195 words 
+:B0X*?C:rasr::f("rase") ; Web Freq 33.26 | Fixes 143 words 
 :B0X*?C:rcj::f("rch") ; Web Freq 2680.53 | Fixes 946 words 
 :B0X*?C:rcxa::f("rca") ; Web Freq 45.42 | Fixes 339 words 
 :B0X*?C:reht::f("reth") ; Web Freq 7.93 | Fixes 82 words 
@@ -5445,10 +5460,13 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*?C:zyne::f("zine") ; Web Freq 147.57 | Fixes 145 words 
 :B0X*?C:zyng::f("zing") ; Web Freq 115.88 | Fixes 1090 words 
 :B0X*?C:zzyn::f("zzin") ; Web Freq 2.55 | Fixes 36 words 
+:B0X*C:Philipi::f("Philippi") ; Web Freq 0.04 | Fixes 7 words 
 :B0X*C:aquit::f("acquit") ; Web Freq 1.08 | Fixes 10 words, Case-sensitive to not misspell Aquitaine (A region of southwestern France between Bordeaux and the Pyrenees)
 :B0X*C:bnut::f("but") ; Web Freq 1161.84 | Fixes 193 words 
+:B0X*C:bve::f("be") ; Web Freq 9666.58 | Fixes 2409 words 
 :B0X*C:carmel::f("caramel") ; Web Freq 1.66 | Fixes 12 words, Case-sensitive to not misspell Carmelite (Roman Catholic friar)
 :B0X*C:coce::f("code") ; Web Freq 300.33 | Fixes 59 words 
+:B0X*C:ehr::f("her") ; Web Freq 1860.35 | Fixes 309 words, Case sensitive to not misspell Ehrenberg (a Russian novelist) or Ehrlich (a German scientist)
 :B0X*C:english::f("English") ; Web Freq 344.84 | Fixes 12 words 
 :B0X*C:ganes::f("games") ; Web Freq 306.04 | Fixes 12 words Case-sensitive to protect Ganesh.
 :B0X*C:hca::f("cha") ; Web Freq 1815.16 | Fixes 1047 words 
@@ -5457,14 +5475,19 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X*C:i ::f("I ") ; Web Freq 245.70 | Fixes 1 word 
 :B0X*C:ime::f("imme") ; Web Freq 70.87 | Fixes 49 words, Case-sensitive to not misspell IMEI (International Mobile Equipment Identity)
 :B0X*C:lias::f("liais") ; Web Freq 6.27 | Fixes 6 words, Case-sensitive to not misspell Lias (One of the Jurrasic periods.)
+:B0X*C:milis::f("millis") ; Web Freq 1.27 | Fixes 2 words 
+:B0X*C:nto::f("not") ; Web Freq 3283.22 | Fixes 143 words 
+:B0X*C:otu::f("out") ; Web Freq 1193.91 | Fixes 1507 words, case-sensitive to not misspell Otus (A genus of Strigidae, I.e. a bird)
 :B0X*C:ragne::f("range") ; Web Freq 163.05 | Fixes 11 words 
 :B0X*C:thst::f("that") ; Web Freq 3403.21 | Fixes 17 words 
 :B0X*C:uber::f("über") ; Fixes 1 word
 :B0X*C:unter::f("under") ; Web Freq 591.65 | Fixes 769 words 
 :B0X*C:wich::f("which") ; Web Freq 813.75 | Fixes 3 words, Case-sensitive to not misspell Wichita (City in KA, USA)
+:B0X*C:wsa::f("was") ; Web Freq 1584.04 | Fixes 141 words 
 :B0X*C:yoru::f("your") ; Web Freq 2136.38 | Fixes 5 words, Case sensitive to not misspell Yoruba (A Nigerian language)
 :B0X*C?:carrer::f("career") ; Web Freq 118.68 | Fixes 11 words, Case-sensitive to not misspell Carrere (A famous architect)
 :B0X*C?:daed::f("dead") ; Web Freq 75.62 | Fixes 63 words, Case-sensitive to not misspell Daedal ([Greek mythology] an Athenian inventor who built the labyrinth of Minos)
+:B0X*C?:exx::f("ess") ; Web Freq 5035.18 | Fixes 12010 words 
 :B0X:Marine Core::f("Marine Corps") ; Fixes 1 word
 :B0X:Parri::f("Patti") ; Fixes 1 word
 :B0X:Rachal::f("Rachel") ; Fixes 1 word 
@@ -5955,6 +5978,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:rain supreme::f("reign supreme") ; Fixes 1 word
 :B0X:rap up::f("wrap up") ; Fixes 1 word
 :B0X:rapped up::f("wrapped up") ; Fixes 1 word
+:B0X:readly::f("really") ; Web Freq 162.03 | Fixes 1 word ; will it break "ready"?
 :B0X:recal::f("recall") ; Web Freq 12.12 | Fixes 1 word 
 :B0X:reel estate::f("real estate") ; Fixes 1 word
 :B0X:reigned in::f("reined in") ; Fixes 1 word
@@ -6006,6 +6030,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:soar defeat::f("sore defeat") ; Fixes 1 word
 :B0X:some how::f("somehow") ; Fixes 1 word
 :B0X:some one::f("someone") ; Fixes 1 word
+:B0X:somewne::f("someone") ; Web Freq 76.21 | Fixes 1 word 
 :B0X:sow and sow::f("so and so") ; Fixes 1 word
 :B0X:spece::f("space") ; Web Freq 121.51 | Fixes 1 word 
 :B0X:spreaded::f("spread") ; Web Freq 24.52 | Fixes 1 word 
@@ -6287,6 +6312,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X:with on of::f("with one of") ; Fixes 1 word
 :B0X:with who::f("with whom") ; Fixes 1 word
 :B0X:witha::f("with a") ; Fixes 1 word
+:B0X:withher::f("whether") ; Web Freq 105.01 | Fixes 1 word 
 :B0X:withing::f("within") ; Web Freq 261.39 | Fixes 1 word 
 :B0X:without further ado::f("without further adieu") ; Fixes 1 word 
 :B0X:won way::f("one way") ; Fixes 1 word
@@ -6619,6 +6645,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?:quater::f("quarter") ; Web Freq 36.45 | Fixes 4 words 
 :B0X?:quaters::f("quarters") ; Web Freq 18.82 | Fixes 4 words 
 :B0X?:querd::f("quered") ; Web Freq 1.76 | Fixes 6 words 
+:B0X?:quetes::f("quotes") ; Web Freq 48.53 | Fixes 6 words 
 :B0X?:raed::f("read") ; Web Freq 543.13 | Fixes 47 words
 :B0X?:ragge::f("range") ; Web Freq 232.55 | Fixes 18 words 
 :B0X?:rarry::f("rary") ; Web Freq 245.00 | Fixes 33 words 
@@ -6675,6 +6702,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?:tiome::f("time") ; Web Freq 983.96 | Fixes 62 words 
 :B0X?:tionar::f("tionary") ; Web Freq 63.94 | Fixes 82 words 
 :B0X?:tlied::f("tled") ; Web Freq 50.90 | Fixes 83 words 
+:B0X?:tolk::f("told") ; Web Freq 58.86 | Fixes 6 words 
 :B0X?:topry::f("tory") ; Web Freq 814.46 | Fixes 372 words 
 :B0X?:tority::f("torily") ; Web Freq 1.49 | Fixes 28 words 
 :B0X?:traing::f("traying") ; Web Freq 0.97 | Fixes 5 words 
@@ -6684,8 +6712,10 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?:uarly::f("ularly") ; Web Freq 57.76 | Fixes 69 words 
 :B0X?:ularily::f("ularly") ; Web Freq 57.76 | Fixes 69 words 
 :B0X?:ultimely::f("ultimately") ; Web Freq 10.61 | Fixes 2 words 
+:B0X?:ultsd::f("ulted") ; Web Freq 16.39 | Fixes 16 words 
 :B0X?:uonly::f("ually") ; Web Freq 256.15 | Fixes 74 words 
 :B0X?:urchs::f("urches") ; Web Freq 13.54 | Fixes 6 words 
+:B0X?:usess::f("users") ; Web Freq 154.53 | Fixes 33 words 
 :B0X?:usionally::f("usionary") ; Web Freq 0.43 | Fixes 6 words 
 :B0X?:usla::f("usal") ; Web Freq 8.69 | Fixes 26 words, but misspells Gusla (Serbian/Croatian musical instrument)
 :B0X?:uslas::f("usals") ; Web Freq 0.21 | Fixes 15 words 
@@ -6720,6 +6750,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:anim::f("anism") ; Web Freq 27.58 | Fixes 140 words, But misspells minyanim (The quorum required by Jewish law to be present for public worship)
 :B0X?C:arey::f("ary") ; Web Freq 1233.80 | Fixes 554 words 
 :B0X?C:arys::f("aries") ; Web Freq 112.69 | Fixes 251 words 
+:B0X?C:asrs::f("ases") ; Web Freq 288.32 | Fixes 385 words 
 :B0X?C:atn::f("ant") ; Web Freq 1283.01 | Fixes 652 words 
 :B0X?C:ayd::f("ady") ; Web Freq 241.64 | Fixes 33 words 
 :B0X?C:ayt::f("ay") ; Web Freq 4804.39 | Fixes 429 words, but misspells bayt (House or Home in Arabic or Hebrew)
@@ -6758,9 +6789,11 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:hfull::f("hful") ; Web Freq 9.83 | Fixes 33 words 
 :B0X?C:hge::f("he") ; Web Freq 25255.31 | Fixes 230 words 
 :B0X?C:hsa::f("has") ; Web Freq 1048.47 | Fixes 102 words 
+:B0X?C:hsi::f("his") ; Web Freq 3889.80 | Fixes 75 words, Case-sensitive to not misspell Hsian (a city in China)
 :B0X?C:hte::f("the") ; Web Freq 23145.07 | Fixes 66 words 
 :B0X?C:hthe::f("h the") ; Fixes 1 word
 :B0X?C:ialy::f("ially") ; Web Freq 140.38 | Fixes 254 words, but misspells bialy (Flat crusty-bottomed onion roll)
+:B0X?C:icm::f("ism") ; Web Freq 227.38 | Fixes 1424 words 
 :B0X?C:icms::f("isms") ; Web Freq 25.02 | Fixes 1086 words 
 :B0X?C:idty::f("dity") ; Web Freq 38.35 | Fixes 77 words 
 :B0X?C:ign::f("ing") ; Web Freq 16351.89 Fixes 11384 words, but misspells a bunch (which are nullified above)
@@ -6779,10 +6812,12 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:kcer::f("cker") ; Web Freq 91.34 | Fixes 152 words 
 :B0X?C:kcs::f("cks") ; Web Freq 393.02 | Fixes 735 words 
 :B0X?C:kcy::f("cky") ; Web Freq 40.62 | Fixes 88 words 
+:B0X?C:kn::f("nk") ; Web Freq 1013.62 | Fixes 221 words 
 :B0X?C:kng::f("king") ; Web Freq 1462.92 | Fixes 798 words 
 :B0X?C:kthe::f("k the") ; Fixes 1 word
 :B0X?C:laly::f("ally") ; Web Freq 1138.41 | Fixes 2640 words 
 :B0X?C:litn::f("lith") ; Web Freq 1.07 | Fixes 39 words 
+:B0X?C:lonly::f("lonely") ; Web Freq 7.57 | Fixes 2 words 
 :B0X?C:lsit::f("list") ; Web Freq 556.23 | Fixes 325 words 
 :B0X?C:lthe::f("l the") ; Fixes 1 word
 :B0X?C:lwats::f("lways") ; Web Freq 130.69 | Fixes 9 words 
@@ -6794,6 +6829,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:nig::f("ing") ; Web Freq 16351.89 | Fixes 15263 words, but misspells pfennig (100 pfennigs formerly equaled 1 Deutsche Mark in Germany)
 :B0X?C:nsly::f("nsely") ; Web Freq 3.08 | Fixes 7 words 
 :B0X?C:nsof::f("ns of") ; Fixes 1 word
+:B0X?C:nsur::f("nsure") ; Web Freq 70.22 | Fixes 11 words 
 :B0X?C:ntay::f("ntary") ; Web Freq 87.74 | Fixes 39 words 
 :B0X?C:nyed::f("nied") ; Web Freq 19.95 | Fixes 26 words 
 :B0X?C:nys::f("nies") ; Web Freq 147.41 | Fixes 249 words, but misspells Erinys (an ancient Greek goddess of vengeance)
@@ -6802,6 +6838,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:omst::f("most") ; Web Freq 490.12 | Fixes 47 words 
 :B0X?C:onw::f("one") ; Web Freq 2118.27 | Fixes 460 words 
 :B0X?C:ooes::f("oos") ; Web Freq 10.07 | Fixes 96 words 
+:B0X?C:otu::f("out") ; Web Freq 2371.05 | Fixes 156 words, but misspells motu proprio (Legal term for 'of one's own accord')
 :B0X?C:pich::f("pitch") ; Web Freq 9.80 | Fixes 4 words 
 :B0X?C:ppyl::f("pply") ; Web Freq 150.15 | Fixes 11 words 
 :B0X?C:pthe::f("p the") ; Fixes 1 word
@@ -6822,6 +6859,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:t eh::f("the") ; Web Freq 23145.07 | Fixes 66 words 
 :B0X?C:teh::f("the") ; Web Freq 23145.07 | Fixes 66 words 
 :B0X?C:theh::f("the") ; Web Freq 23145.07 | Fixes 66 words 
+:B0X?C:thh::f("th") ; Web Freq 6389.48 | Fixes 556 words 
 :B0X?C:thn::f("then") ; Web Freq 378.71 | Fixes 15 words 
 :B0X?C:thne::f("then") ; Web Freq 378.71 | Fixes 15 words 
 :B0X?C:thw::f("the") ; Web Freq 23145.07 | Fixes 66 words 
@@ -6837,6 +6875,7 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:verd::f("vered") ; Web Freq 94.85 | Fixes 49 words (A dark green impure marble)
 :B0X?C:vly::f("vely") ; Web Freq 141.26 | Fixes 566 words 
 :B0X?C:vys::f("vies") ; Web Freq 194.03 | Fixes 39 words 
+:B0X?C:wass::f("was") ; Web Freq 1484.21 | Fixes 25 words 
 :B0X?C:wasy::f("ways") ; Web Freq 224.93 | Fixes 150 words 
 :B0X?C:weas::f("was") ; Web Freq 1484.21 | Fixes 25 words 
 :B0X?C:witn::f("with") ; Web Freq 3185.45 | Fixes 8 words 
@@ -6847,14 +6886,6 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0X?C:xys::f("xies") ; Web Freq 5.90 | Fixes 39 words 
 :B0X?C:ywat::f("yway") ; Web Freq 25.17 | Fixes 8 words 
 :B0X?C:zys::f("zies") ; Web Freq 0.33 | Fixes 21 words 
-:B0XC*:Philipi::f("Philippi") ; Web Freq 0.04 | Fixes 7 words 
-:B0XC*:bve::f("be") ; Web Freq 9666.58 | Fixes 2409 words 
-:B0XC*:ehr::f("her") ; Web Freq 1860.35 | Fixes 309 words, Case sensitive to not misspell Ehrenberg (a Russian novelist) or Ehrlich (a German scientist)
-:B0XC*:milis::f("millis") ; Web Freq 1.27 | Fixes 2 words 
-:B0XC*:nto::f("not") ; Web Freq 3283.22 | Fixes 143 words 
-:B0XC*:otu::f("out") ; Web Freq 1193.91 | Fixes 1507 words, case-sensitive to not misspell Otus (A genus of Strigidae, I.e. a bird)
-:B0XC*:wsa::f("was") ; Web Freq 1584.04 | Fixes 141 words 
-:B0XC*?:exx::f("ess") ; Web Freq 5035.18 | Fixes 12010 words 
 :B0XC:ASS::f("ADD") ; Web Freq 387.23 | Fixes 2 words, Case-sensitive to fix acronym, but not word.
 :B0XC:Danial::f("Daniel") ; Fixes 1 word 
 :B0XC:Im::f("I'm") ; Fixes 1 word
@@ -6890,14 +6921,6 @@ ACitemsStartAt := A_LineNumber + 3 ; hh2 validity checks will skip lines until i
 :B0XC:whan::f("when") ; Web Freq 650.62 | Fixes 1 word 
 :B0XC:whi::f("who") ; Web Freq 630.93 | Fixes 2 words 
 :B0XC:wou::f("you") ; Web Freq 2996.18 | Fixes 1 word 
-:B0XC?:hsi::f("his") ; Web Freq 3889.80 | Fixes 75 words, Case-sensitive to not misspell Hsian (a city in China)
-:B0XC?:icm::f("ism") ; Web Freq 227.38 | Fixes 1424 words 
-:B0XC?:kn::f("nk") ; Web Freq 1013.62 | Fixes 221 words 
-:B0XC?:lonly::f("lonely") ; Web Freq 7.57 | Fixes 2 words 
-:B0XC?:nsur::f("nsure") ; Web Freq 70.22 | Fixes 11 words 
-:B0XC?:otu::f("out") ; Web Freq 2371.05 | Fixes 156 words, but misspells motu proprio (Legal term for 'of one's own accord')
-:B0XC?:thh::f("th") ; Web Freq 6389.48 | Fixes 556 words 
-:B0XC?:wass::f("was") ; Web Freq 1484.21 | Fixes 25 words 
 
 ;==========================================================
 ; Experimental: Turn off option (Z).  Turning it off allows a single char press 
@@ -7288,4 +7311,5 @@ ACitemsEndAt := A_LineNumber - 3 ; hh2 validity checks will skip lines after her
 ;-------------------------------------------------------------------------------
 ; Anything below this point was added to the script by the user via the Win+H hotkey.
 ;-------------------------------------------------------------------------------
+
 
