@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-11-2026
+; Version: 3-14-2026 B
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
