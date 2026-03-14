@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-14-2026
+; Version: 3-11-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -187,6 +187,7 @@ class Config {
         ; [Files] Section
         this.HotstringLibrary           := this.ReadIni("Files", "HotstringLibrary", "HotstringLib.ahk")
         this.NewTemporaryHotstrLib      := this.ReadIni("Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
+        this.BoilerplateHotstringLibrary := this.ReadIni("Files", "BoilerplateHotstringLibrary", "PersonalHotstrings.ahk")
         this.RemovedHsFile              := "..\Data\" this.ReadIni("Files", "RemovedHsFile", "..\Data\RemovedHotstrings.txt")
         this.AutoCorrectsLogFile        := "..\Data\" this.ReadIni("Files", "AutoCorrectsLogFile", "..\Data\AutoCorrectsLog.txt")
         this.ACLogContinuousFile        := "..\Data\" this.ReadIni("Files", "ACLogContinuousFile", "..\Data\ACLogContinuous.txt")
@@ -219,6 +220,8 @@ class Config {
         this.CODE_ERROR_LOG             := this.ReadIni("HotstringHelper", "CODE_ERROR_LOG", 0)
         ; Dual Library Support
         this.SeparateLibForBoilerplates := this.ReadIni("HotstringHelper", "SeparateLibForBoilerplates", 0)
+        this.EnableDragTools            := this.ReadIni("HotstringHelper", "EnableDragTools", 1)
+        this.EnableMoveResizeTools      := this.ReadIni("HotstringHelper", "EnableMoveResizeTools", 1)
         this.BeepOnStartup              := this.ReadIni("HotstringHelper", "BeepOnStartup", 1)
         this.BeepOnFunctionCheck        := this.ReadIni("HotstringHelper", "BeepOnFunctionCheck", 1)
         ; UI
