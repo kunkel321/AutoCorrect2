@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 2-26-2026 
+; Version: 3-14-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -71,6 +71,8 @@ class Config {
     
     ; HotstringHelper Dual Library Support
     static SeparateLibForBoilerplates := 0
+    static BeepOnStartup := 1
+    static BeepOnFunctionCheck := 1
     
     ; Hotkeys
     static HotstringHelperActivationHotkey := "#h"
@@ -217,6 +219,8 @@ class Config {
         this.CODE_ERROR_LOG             := this.ReadIni("HotstringHelper", "CODE_ERROR_LOG", 0)
         ; Dual Library Support
         this.SeparateLibForBoilerplates := this.ReadIni("HotstringHelper", "SeparateLibForBoilerplates", 0)
+        this.BeepOnStartup              := this.ReadIni("HotstringHelper", "BeepOnStartup", 1)
+        this.BeepOnFunctionCheck        := this.ReadIni("HotstringHelper", "BeepOnFunctionCheck", 1)
         ; UI
         this.DefaultFontSize            := "s" this.ReadIni("HotstringHelper", "DefaultFontSize", "11")
         this.LargeFontSize              := "s" this.ReadIni("HotstringHelper", "LargeFontSize", "15")
@@ -498,8 +502,10 @@ UpTime(*) { ; Uptime -- time since Windows restart
 SetupTrayMenu()
 
 ; Startup announcement
-SoundBeep(900, 200)
-SoundBeep(1100, 150)
+if Config.BeepOnStartup {
+    SoundBeep(900, 200)
+    SoundBeep(1100, 150)
+}
 
 ; Initialize BackspaceContextLogger after startup is complete
 SetTimer(() => BackspaceContextLogger.Start(), 1000)  ; Start after 1 second delay
@@ -1424,12 +1430,14 @@ class UIActions {
         if UI.Controls["FunctionCheck"].Value = 1 {
             options := UI.Controls["OptionsEdit"].Text
             UI.Controls["OptionsEdit"].Text := "B0X" StrReplace(StrReplace(options, "B0", ""), "X", "")
-            SoundBeep(700, 200)
+            if Config.BeepOnFunctionCheck
+                SoundBeep(700, 200)
         }
         else {
             options := UI.Controls["OptionsEdit"].Text
             UI.Controls["OptionsEdit"].Text := StrReplace(StrReplace(options, "B0", ""), "X", "")
-            SoundBeep(900, 200)
+            if Config.BeepOnFunctionCheck
+                SoundBeep(900, 200)
         }
     }
     
@@ -1747,7 +1755,6 @@ class UIActions {
         Debug("At top of ExamineWords() method")
         if State.FormBig {
             UI.Controls["SizeToggle"].Text := "Make Bigger"
-            SoundBeep(200, 100)
             this.ToggleSize()
         }
         UI.MainForm.Show("AutoSize yCenter")
@@ -1813,7 +1820,6 @@ class UIActions {
             
             if State.FormBig {
                 UI.Controls["SizeToggle"].Text := "Make Bigger"
-                SoundBeep(200, 100)
                 this.ToggleSize()
             }
             
@@ -2265,13 +2271,13 @@ class UIActions {
             ; Normal append - add to library file
             FileAppend("`n" wholeString, targetLibrary)
             
-            ; Auto-enter replacement if enabled
-            if Config.AutoEnterNewEntry = 1
-                this.AutoEnterNewReplacement()
-                
             ; Reload script unless Ctrl is held
-            if !GetKeyState("Ctrl")
+            if !GetKeyState("Ctrl") {
+                ; Auto-enter replacement if enabled
+                if Config.AutoEnterNewEntry = 1
+                    this.AutoEnterNewReplacement()
                 Reload()
+            }
         }
     }
     
@@ -3491,7 +3497,7 @@ class HelpSystem {
         
         this.helpTexts["TriggerEdit"] := "This is the Trigger string edit box.`n`nThe text entered here is what will be watched-for and will trigger the hotstring replacement.`n`nFor AutoCorrect entries, this will usually be a misspelled word or word-part.  Or it might be a short phrase with a grammar error.`n`nFor boilerplate template entries, this will be an easy to remember acronym or short string. When multiple lines of text, or more than three words, are selected, and the hotkey is pressed, an acronym is auto-generated from the first letter of the first words. Try it with this paragraph :) Optionally assign a default prefix character in the variables near the top of the code.`n`nWhen making single-word AutoCorrect entries, the number of potential misspellings will be shown in red above the editbox.`n`nPressing Shift+Left jumps to trigger box and moves cursor to home position."
         
-        this.helpTexts["ReplacementEdit"] := "This is the Replacement edit box.`n`nThe text entered here will replace the trigger text when the hotstring is activated.`n`nFor AutoCorrect items, this will be a corrected spelling or perhaps a short phrase with corrected grammar, but for boilerplate template items, this will be the actual boilerplate text.`n`nNote: When pressing the 'Spell' button, the string in the Replacement box gets looked-up.   It does not have to be selected first.  The 'Look' button expects to find selected text though."
+        this.helpTexts["ReplacementEdit"] := "This is the Replacement edit box.`n`nThe text entered here will replace the trigger text when the hotstring is activated.`n`nFor AutoCorrect items, this will be a corrected spelling or perhaps a short phrase with corrected grammar, but for boilerplate template items, this will be the actual boilerplate text.`n`nNote: When pressing the 'Spell' button, the string in the Replacement box gets looked-up.   It does not have to be selected first.  The 'Look' button expects to find selected text though.`n`nPressing Shift+Right jumps to replacement box and moves cursor to end position."
         
         this.helpTexts["CommentEdit"] := "This is the Comment edit box.`n`nComments are added to the hotstring as in-line AHK comments. They are useful for documenting what the hotstring does.`n`nFor AutoCorrect items: Web-Frequency totals and Potential Fixes are (optionally) automatically added to the comments.`n`nAuto comments also include a flag for potential misspellings.  If there are fewer than four words, the words are listed.  If more, the number of words is given. Tip: To prevent this flag from being added, delete any words from the Misspells box just before appending."
         
@@ -3502,7 +3508,7 @@ class HelpSystem {
         
         this.helpTexts["WrapToggle"] := "Toggle button to convert between actual line breaks and literal ``n characters.`n`nClick Unwrap to convert line breaks into literal ``n characters for single-line hotstring format:`n`t::;sig::John Doe``nAutoHotkey User``n555-2345`n`nLeave wrapped to keep actual line breaks for multi-line Continuation Section format:`n`t::;sig::`n`t(`n`tJohn Doe`n`tAutoHotkey User`n`t555-2345`n`t)`n`nBoth formats produce the same result when the hotstring executes. The Continuation Section format is more `"What you see is what you get,`" but the unwrapped format uses only one line of code in your Hotstring Library and can be sorted without breaking them.  The wrap/unwrap functionality is primarily useful for boilerplate template items. It would not be used with f() AutoCorrect items."
         
-        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the 'HotstringHelper' section of the Setting Manager, and set it to `"Vanilla.`"  Also checkout the Defunctionizer script in the Control Pane."
+        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above. (Unless it's a multi-line item.)`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the 'HotstringHelper' section of the Setting Manager, and set it to `"Vanilla.`"`n`nAlso checkout the Defunctionizer script in the Control Pane."
         
         this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (HotstringLib.ahk).`n`nThe AC button is automatically selected when you type or select single-word or short phrase typos/corrections.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
         
@@ -3512,9 +3518,9 @@ class HelpSystem {
         
         this.helpTexts["CheckButton"] := "Validates the hotstring without adding it to your library.`n`nThere is a `'Look up`' button in the Validation report.  Select the hotstring from the report and click button to go to string in library in default editor using Ctrl+F.  If line number is selected, Ctrl+G will be used to goto line number.`n`nDuring validation, several things are checked for, but mostly the trigger is compared to existing library items, checking for conflicts.  Please see User Manual for further discussion.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem."
         
-        this.helpTexts["ExamButton"] := "Opens the Exam Pane to analyze the trigger and replacement which is useful for creating multi-match autocorrect entries.`n`nRight-click to access the Secret Control Panel.`n`nIf pane is open, button text will change to `"Done`"."
+        this.helpTexts["ExamButton"] := "Opens the Exam Pane to analyze the trigger and replacement which is useful for creating multi-match autocorrect entries.`n`nRight-click to access the Secret Control Panel.`n`nIf pane is open, button text will change to `"Done`".`n`nIf the replacement edit box is in big mode, it will be put into small mode."
         
-        this.helpTexts["SpellButton"] := "Uses LanguageTool.org's AI to check spelling of the replacement text.  If a suggested correction is found, it will offer to fix the word in the replacement text box.  It will check sentences for grammar mistakes as well.  It works well, but is not perfect.`n`nTip:  If it doesn't correct the grammar of a short phrase, try making the phrase into a complete sentence, and try again. "
+        this.helpTexts["SpellButton"] := "Uses LanguageTool.org's AI to check spelling of the replacement text.  If a suggested correction is found, it will offer to fix the word in the replacement text box.  It will check sentences for grammar mistakes as well.  It works well, but is not perfect.`n`nTip:  If it doesn't correct the grammar of a short phrase, try making the phrase into a complete sentence, and try again.`n`nNote: Your text is sent to LanguageTools.org for this, so it takes a couple of seconds."
         
         this.helpTexts["LookButton"] := "Looks up selected text in the onboard WordNet dictionary (https://wordnet.princeton.edu/).`n`nRight-click to search the GNU Collaborative International Dictionary of English (GCIDE; https://gcide.gnu.org.ua/) online.`n`nThe Spell button checks only the text in the replacement edit box, but definitions can be looked up for words in the replacement box or in the Misspells or Fixes Exam Pane lists.  HOWEVER the words must be selected with your mouse first.`n`t---> Select word.  Press [Look] button.`n`nNote: It takes several seconds for WordNet to load in the background of AutoCorrect2, which happens automatically each time the script is restarted.`n`nIf the `"ChatGptWordLookup.ahk`" file is #Include'd in AutoCorrect2.ahk, then a [Try ChatGPT] button will appear.  This can be useful if the word is not found in WordNet or GCIDE.`n`nAs indicated in the onboard message: `"Please note that the OpenAI service is not free.  Also note, kunkel321 (the author of AutoCorrect2.ahk) does not receive any compensation or benefit from your transactions with OpenAI.  I've only added this integration because I use it, and I thought others might like to as well.`" Please see onboard message for more information."
         
@@ -3543,7 +3549,7 @@ class HelpSystem {
                     this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located.`n`nTip:  When adopting a newer version of the HotstringLib.ahk file from https://github.com/kunkel321/AutoCorrect2 it is recommended to use the UniqueStringExtracter tool.  This will allow you to not lose any custom hotstrings that you have, yourself, added.  Also, you'll see any hotstrings that you've manually removed from my working library."
                     
                 case " Open AutoCorrection Log":
-                    this.helpTexts["ControlButton_ACLog"] := "Opens the " config.AutoCorrectsLogFile " file.`n`nThis log contains a record of all autocorrections made using the f`(`) function, including whether a correction was backspaced, thus indicating a likely mis-application of the item.`n`nThe date of each logged item is present and separated from the item with a hyphen.`n`n<< = Backspace was pressed within one second.`n-- = Backspace not pressed within one second.`n`nNote: The script can't detect exactly WHAT you backspaced, only that the BS was pressed within one second.  There is, however, a Backspace Context Log that tries to help with this.`n`nThe AC Log file is analyzed by ACLogAnalyer.  Manually handling the log file is usually not needed.  The reading and writing from it is all automated. `n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the AutoCorrectSystem.ahk file, and change Global EnableLogging := 1 to 0."
+                    this.helpTexts["ControlButton_ACLog"] := "Opens the " config.AutoCorrectsLogFile " file.`n`nThis log contains a record of all autocorrections made using the f`(`) function, including whether a correction was backspaced, thus indicating a likely mis-application of the item.`n`nThe date of each logged item is present and separated from the item with a hyphen.`n`n<< = Backspace was pressed within one second.`n-- = Backspace not pressed within one second.`n`nNote: The script can't detect exactly WHAT you backspaced, only that the BS was pressed within one second.  There is, however, a Backspace Context Log that tries to help with figuring this out.`n`nThe AC Log file is analyzed by ACLogAnalyer.  Manually handling the log file is usually not needed.  The reading and writing from it is all automated. `n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the Config Setting Manager tool and in the ACSystem section, EnableLogging := 1 to 0."
                     
                 case " Analyze AutoCorrection Log !^+Q":
                     this.helpTexts["ControlButton_ACAnalyze"] := "Runs the AutoCorrection Log Analyzer tool.`n`nThis tool analyzes your autocorrection log to identify problematic autocorrect items that you frequently backspace after triggering.`n`nThe hotkey Alt+Ctrl+Shift+Q can also be used to launch this tool.`n`nThe most-frequent errant hotstrings are returned as radio buttons in a report.`n`nSeveral actions can be taken on an item."
