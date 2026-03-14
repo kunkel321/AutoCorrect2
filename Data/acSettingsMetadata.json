@@ -1,6 +1,6 @@
 {
-  "Last update": "1-31-2026" 
   "Files.HotstringLibrary": {
+
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -293,6 +293,15 @@
     ],
      "restart": "..\\Core\\AutoCorrect2.exe"
   },
+  "HotstringHelper.BeepOnStartup": {
+    "label": "AutoCorrect2 Startup Announcement",
+    "help": "Should there be a double-beep to indicate that the application has been restarted/reloaded?\n\nRecommended:  Yes.",
+    "type": "boolean",
+    "options": [
+      "0=Silent startup",
+      "1=Beep on startup"
+    ]
+  },
   "HotstringHelper.MakeFuncByDefault": {
     "label": "Make Function by Default",
     "help": "If enabled, new AutoCorrect entries will use the f() function wrapper by default (allows logging and context capture). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Make as f() function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in and f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
@@ -302,6 +311,16 @@
       "1=Use f() function by default"
     ],
     "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.BeepOnFunctionCheck": {
+    "label": "Beep On Function Checkbox Toggle",
+    "help": "Should there be an audible beep when '[ ] Make as f() function' checkbox is checked/unchecked?",
+    "type": "boolean",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+    "options": [
+      "0=Silent",
+      "1=Beep"
+    ]
   },
   "HotstringHelper.DefaultAutoCorrectOpts": {
     "label": "Default AutoCorrect Options",
