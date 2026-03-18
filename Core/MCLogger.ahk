@@ -7,7 +7,7 @@ Persistent
 ; ==============================================================================
 ; Author: Kunkel321
 ; Tool Used: Claude AI
-; Version: 3-1-2026 
+; Version: 3-17-2026 
 ; Get latest version here: https://github.com/kunkel321/AutoCorrect2
 ; A script to run in the background all the time and log your typing
 ; errors and manual corrections, formatting the viable ones into ahk hotstrings,
@@ -217,13 +217,14 @@ tih.OnChar  := tih_Char
 tih.OnKeyUp := tih_EndChar
 tih.KeyOpt('{BS}{Space}', '+N')
 tih.Start
-RegEx := "(?<trig>[A-Za-z\. ]{3,})(?<back>[<]+)(?<repl>[A-Za-z\.]+)[ \~]+"
+RegEx := "(?<trig>[A-Za-z\.' ]{3,})(?<back>[<]+)(?<repl>[A-Za-z\.']+)[ \~]+"
 ; regex is watching for pattern ...<.~
 
 ; This function filters-out non-letter characters.  
+; Allow period (for end of sentence) and apostrophe (for contractions) though.
 tih_Char(tih, char) {
 	Global typoCache
-	if (RegExMatch(char, "[A-Za-z\. ]")) { ; Only use letters. 
+	if (RegExMatch(char, "[A-Za-z\.' ]")) { ; Only use letters. 
 		typoCache .= char
    }
 }
@@ -258,7 +259,7 @@ tih_EndChar(tih, vk, sc) {
 
 		trigRealWord := 0, replRealWord := 0 ; Declare variables so code will work.
 		for item in wordListArray { ; The list of dictionary words, via above text file lookup. 
-			If trim(item, "`n`r ") = newTrig
+			If trim(item, "`n`r ") = newTrig 
 				trigRealWord := 1
 			If trim(item, "`n`r ") = newRepl
 				replRealWord := 1
@@ -580,7 +581,7 @@ AppendOnlyFunc(*) {
 
    ; Append to autocorrect library
    If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
-      Run myACFileBaseName ".exe /script " myAutoCorrectScript " " selItemName
+      Run myACFileBaseName '.exe /script ' myAutoCorrectScript ' "' selItemName '"'
    Else ; Otherwise, just append to bottom. 
    {
       FileAppend("`n" selItemName, myAutoCorrectLibrary)
@@ -693,7 +694,7 @@ CullerAppender(*) {
    
    ; Always append to library (since this is "Cull and Append")
    If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
-      Run myACFileBaseName ".exe /script " myAutoCorrectScript " " selItemName
+      Run myACFileBaseName '.exe /script ' myAutoCorrectScript ' "' selItemName '"'
    Else ; Otherwise, just append to bottom. 
    {
       FileAppend("`n" selItemName, myAutoCorrectLibrary) ; Put culled item at bottom of ac file.
