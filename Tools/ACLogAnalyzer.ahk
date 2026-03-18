@@ -1,7 +1,7 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated: 11-29-2025 
+                Updated: 3-17-2026 
 =====================================================
 
 Determines frequency of items in AutoCorrects Log file, then reports the analysis
@@ -563,7 +563,7 @@ class ACLogAnalyzer {
                 return
             }
             
-            Run(myACFileBaseName ".exe /script " this.Config.ScriptFiles.ACScript " " workingItem)
+            Run(myACFileBaseName '.exe /script ' this.Config.ScriptFiles.ACScript ' "' workingItem '"')
             this.ACAGui.Show()
         } catch Error as err {
             LogError("Error sending to HH: " err.Message)
@@ -758,7 +758,8 @@ class ACLogAnalyzer {
             
             for scriptLine in StrSplit(thisFileContents, "`n") {
                 if (scriptLine != "") {
-                    if (!InStr(itemToCull, SubStr(scriptLine, 15)))
+                    logSuffix := RTrim(SubStr(scriptLine, 15))   ; strip trailing space/CR
+                    if (!InStr(logSuffix, itemToCull))
                         newFileContents .= scriptLine "`n"
                 }
             }
