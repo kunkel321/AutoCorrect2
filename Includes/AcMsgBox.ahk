@@ -1,7 +1,7 @@
 ; ============================================================
 ; AcMsgBox - Custom Message Box with GUI Styling
 ; Intended for use with AutoCorrect2 apps.
-; Version 11-20-2025 
+; Version 3-17-2026
 ; ============================================================
 ; Replacement for standard MsgBox() with custom GUI styling
 ; 
@@ -86,7 +86,7 @@
 ; customResult := AcMsgBox.Show("What would you like to do?", "Custom Actions", ["Restart", "Exit", "Cancel"])
 ; AcMsgBox.show("You chose " customResult)
 
-; Custom buttons with icon - pass object with icon and buttons
+; ; Custom buttons with icon - pass object with icon and buttons
 ; customWithIcon := AcMsgBox.Show("What would you like to do?", "Custom Actions", {icon: "icon?", buttons: ["Restart", "Exit", "Cancel"]})
 ; AcMsgBox.show("You chose " customWithIcon)
 
@@ -200,16 +200,17 @@ class AcMsgBox {
             }
         }
         
+        editOpts := " ReadOnly -VScroll -E0x200 Background" BackgroundColor
         if (iconExists) {
             if (constrainWidth)
-                textCtrl := msgGui.Add("Text", "x70 y10 w520", Text)
+                textCtrl := msgGui.Add("Edit", "x70 y10 w520" editOpts, Text)
             else
-                textCtrl := msgGui.Add("Text", "x70 y10", Text)
+                textCtrl := msgGui.Add("Edit", "x70 y10" editOpts, Text)
         } else {
             if (constrainWidth)
-                textCtrl := msgGui.Add("Text", "x18 y10 w562", Text)
+                textCtrl := msgGui.Add("Edit", "x18 y10 w562" editOpts, Text)
             else
-                textCtrl := msgGui.Add("Text", "x18 y10", Text)
+                textCtrl := msgGui.Add("Edit", "x18 y10" editOpts, Text)
         }
         
         ; Add buttons with placeholder Y position (will be repositioned after show)
