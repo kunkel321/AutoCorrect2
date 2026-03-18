@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-14-2026 B
+; Version: 3-14-2026 8:30am
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -2393,16 +2393,18 @@ class Validation {
                 optionTips .= " ;  a block text assignment to var
                 (
                 Common options. From AHK docs
-                * - ending char not needed
-                ? - trigger inside other words
-                C - case-sensitive
+                   * - ending char not needed
+                   ? - trigger inside other words
+                   C - case-sensitive
+                --used with f function--
+                   B0 - no backspacing (leave trigger)
+                   X - execute code
                 --don't use below with f function--
-                B0 - no backspacing (leave trigger)
-                SI - send input mode
-                SE - send event mode
-                Kn - set key delay (n is a digit)
-                O - omit end char
-                R - raw dog it
+                   SI - send input mode
+                   SE - send event mode
+                   Kn - set key delay (n is a digit)
+                   O - omit end char
+                   R - raw dog it
                 )"
                 
                 result.validOpts := "Invalid Hotstring Options found.`n---> " remainingOptions "`n" optionTips
@@ -3000,6 +3002,7 @@ class Utils {
         ; Check if the call comes from command line
         global A_Args
         if A_Args.Length > 0 {
+            ;MsgBox("Args: " A_Args[1])
             ; Ensure frequency data is loaded synchronously before processing the argument
             WordFrequency.LoadSync()
             
