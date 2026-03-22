@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-14-2026 8:30am
+; Version: 3-22-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -392,6 +392,9 @@ SetupTrayMenu() {
     
     acMenu.Add("Reload Script", (*) => Reload())
     acMenu.SetIcon("Reload Script", "..\Resources\Icons\repeat-Blue.ico")
+
+    acMenu.Add("Open Settings Manager", (*) => Run(Config.SettingsManager))
+    acMenu.SetIcon("Open Settings Manager", "..\Resources\Icons\Settings-blue.ico")
     
     acMenu.Add("List Lines Debug", (*) => ListLines())
     acMenu.SetIcon("List Lines Debug", "..\Resources\Icons\ListLines-Blue.ico")
@@ -2127,8 +2130,11 @@ class UIActions {
 		
 		; Add lookup button if needed
 		if messageItems[4] = 1 {
+			; Determine which file to open: AC = HotstringLibrary, BP = BoilerplateHotstringLibrary
+			lookupSource := (messageItems.Length >= 5) ? messageItems[5] : "AC"
+			lookupFile := (lookupSource = "BP") ? Config.BoilerplateHotstringLibrary : Config.HotstringLibrary
 			lookupButton := this.ValidityDialog.Add("Button", "x+12", "Look Up")
-			lookupButton.OnEvent("Click", (*) => Utils.ProcessSelectedText((text) => Utils.LookupSelectedText(text, triggerEditBox)))
+			lookupButton.OnEvent("Click", (*) => Utils.ProcessSelectedText((text) => Utils.LookupSelectedText(text, triggerEditBox, lookupFile)))
 			triggerEditBox.OnEvent("Focus", (*) => State.CurrentEdit := triggerEditBox)
 		}
 		
@@ -2374,6 +2380,7 @@ class Validation {
             validHot: "",
             validRep: "",
             showLookupBox: 0,
+            lookupSource: "AC",   ; "AC" or "BP" — which file the last conflict came from
             combinedMsg: ""
         }
         
@@ -2429,7 +2436,7 @@ class Validation {
         }
         
         ; Combine all validation messages
-        result.combinedMsg := "OPTIONS BOX `n" result.validOpts "*|*HOTSTRING BOX `n" result.validHot "*|*REPLACEMENT BOX `n" result.validRep "*|*" result.showLookupBox
+        result.combinedMsg := "OPTIONS BOX `n" result.validOpts "*|*HOTSTRING BOX `n" result.validHot "*|*REPLACEMENT BOX `n" result.validRep "*|*" result.showLookupBox "*|*" result.lookupSource
         
         return result
     }
@@ -2449,35 +2456,45 @@ class Validation {
             return
         }
         
-        ; Check for duplicates and conflicts in both hotstring libraries
+        ; Check for duplicates and conflicts in the hotstring library/libraries.
+        ; _GetCombinedHotstringContent returns an array of {line, lineNum, source} objects
+        ; so that each conflict can report its REAL file line number and which file it came from.
         try {
-            ; Collect all hotstrings from both libraries
-            combinedContent := this._GetCombinedHotstringContent()
-            
-            ; Check line by line for conflicts
-            loop parse, combinedContent, "`n", "`r" {
-                ; Skip non-hotstring lines
-                if SubStr(Trim(A_LoopField, " `t"), 1, 1) != ":" {
-                    continue
-                }
-                
+            entries := this._GetCombinedHotstringContent()
+            separateLibs := Config.SeparateLibForBoilerplates = 1
+
+            for entry in entries {
+                currentLine := entry.line
+                currentLineNum := entry.lineNum
+                currentSource := entry.source   ; "AC" or "BP"
+
+                ; Build the location tag shown in conflict messages.
+                ; When only one library is active, omit the AC/BP prefix to keep
+                ; messages identical to the pre-dual-library format.
+                if separateLibs
+                    locTag := "[" currentSource " line " currentLineNum "]"
+                else
+                    locTag := "[line " currentLineNum "]"
+
                 ; Look for hotstring definition
-                if RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &match) {
+                if RegExMatch(currentLine, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &match) {
                     currentOpts := match.Opts
                     currentTrig := match.Trig
                     
                     ; Check for exact duplicate
                     if triggerText = currentTrig && options = currentOpts {
-                        validHotDupes := "`nDuplicate trigger string found.`n---> " A_LoopField
+                        validHotDupes := "`nDuplicate trigger string found " locTag ".`n---> " currentLine
                         result.showLookupBox := 1
+                        result.lookupSource := currentSource
                         continue
                     }
                     
                     ; Check for word-middle conflicts
                     if (InStr(currentTrig, triggerText) && InStr(options, "*") && InStr(options, "?")) ||
                        (InStr(triggerText, currentTrig) && InStr(currentOpts, "*") && InStr(currentOpts, "?")) {
-                        validHotDupes .= "`nWord-Middle conflict found, where one of the strings will be nullified by the other.`n---> " A_LoopField
+                        validHotDupes .= "`nWord-Middle conflict found " locTag ", where one of the strings will be nullified by the other.`n---> " currentLine
                         result.showLookupBox := 1
+                        result.lookupSource := currentSource
                         continue
                     }
                     
@@ -2488,8 +2505,9 @@ class Validation {
                             InStr(options, "?") && !InStr(options, "*")) ||
                         (InStr(currentOpts, "?") && !InStr(currentOpts, "*") && 
                             InStr(options, "*") && !InStr(options, "?")) {
-                            validHotDupes .= "`nDuplicate trigger found, but maybe okay, because one is word-beginning and other is word-ending.`n---> " A_LoopField
+                            validHotDupes .= "`nDuplicate trigger found " locTag ", but maybe okay, because one is word-beginning and other is word-ending.`n---> " currentLine
                             result.showLookupBox := 1
+                            result.lookupSource := currentSource
                             continue
                         }
                     }
@@ -2497,16 +2515,18 @@ class Validation {
                     ; Check for word-beginning conflicts
                     if (InStr(currentOpts, "*") && currentTrig = SubStr(triggerText, 1, StrLen(currentTrig))) ||
                        (InStr(options, "*") && triggerText = SubStr(currentTrig, 1, StrLen(triggerText))) {
-                        validHotDupes .= "`nWord Beginning conflict found, where one of the strings is a subcomponent of the other. Whichever appears last will never be expanded.`n---> " A_LoopField
+                        validHotDupes .= "`nWord Beginning conflict found " locTag ", where one of the strings is a subcomponent of the other. Whichever appears last will never be expanded.`n---> " currentLine
                         result.showLookupBox := 1
+                        result.lookupSource := currentSource
                         continue
                     }
                     
                     ; Check for word-ending conflicts
                     if (InStr(currentOpts, "?") && currentTrig = SubStr(triggerText, -StrLen(currentTrig))) ||
                        (InStr(options, "?") && triggerText = SubStr(currentTrig, -StrLen(triggerText))) {
-                        validHotDupes .= "`nWord Ending conflict found, where one of the strings is a supercomponent of the other. The longer of the strings should appear before the other, in your code.`n---> " A_LoopField
+                        validHotDupes .= "`nWord Ending conflict found " locTag ", where one of the strings is a supercomponent of the other. The longer of the strings should appear before the other, in your code.`n---> " currentLine
                         result.showLookupBox := 1
+                        result.lookupSource := currentSource
                         continue
                     }
                 }
@@ -2548,39 +2568,63 @@ class Validation {
             result.validHot := validHotDupes validHotMisspells
     }
     
-    ; Helper method: Collect hotstrings from both libraries
+    ; Helper method: Collect hotstrings from both libraries.
+    ; Returns an array of objects: { line, lineNum, source }
+    ;   line    - the raw hotstring line text
+    ;   lineNum - the REAL line number in the source file (for Ctrl+G navigation)
+    ;   source  - "AC" for HotstringLibrary, "BP" for BoilerplateHotstringLibrary
     static _GetCombinedHotstringContent() {
-        hotstringLibContent := ""
-        boilerplateLibContent := ""
-        
-        ; Read main hotstring library
+        entries := []
+
+        ; --- Read main hotstring library (AC) ---
         if FileExist(Config.HotstringLibrary) {
             try {
-                fullHotstringContent := FileRead(Config.HotstringLibrary)
-                
-                ; Extract only the hotstrings after the MARK: No Sort marker
-                if InStr(fullHotstringContent, "; MARK: No Sort") {
-                    markPos := InStr(fullHotstringContent, "; MARK: No Sort")
-                    hotstringLibContent := SubStr(fullHotstringContent, markPos)
+                fullContent := FileRead(Config.HotstringLibrary)
+                scanning := false
+                loop parse, fullContent, "`n", "`r" {
+                    if !scanning {
+                        if InStr(A_LoopField, "; MARK: No Sort")
+                            scanning := true
+                        continue   ; skip everything before (and including) the MARK line
+                    }
+                    if SubStr(Trim(A_LoopField, " `t"), 1, 1) = ":"
+                        entries.Push({ line: A_LoopField, lineNum: A_Index, source: "AC" })
+                }
+                ; Fallback: if MARK was never found, re-scan from line 1
+                if !scanning {
+                    loop parse, fullContent, "`n", "`r" {
+                        if SubStr(Trim(A_LoopField, " `t"), 1, 1) = ":"
+                            entries.Push({ line: A_LoopField, lineNum: A_Index, source: "AC" })
+                    }
                 }
             }
         }
-        
-        ; Read boilerplate hotstring library (PersonalHotstrings) only if SeparateLibForBoilerplates is enabled
+
+        ; --- Read boilerplate library (BP) only when SeparateLibForBoilerplates is on ---
         if Config.SeparateLibForBoilerplates = 1 && FileExist(Config.BoilerplateHotstringLibrary) {
             try {
-                fullBoilerplateContent := FileRead(Config.BoilerplateHotstringLibrary)
-                
-                ; Extract only the hotstrings after the MARK: Personal Hotstrings marker
-                if InStr(fullBoilerplateContent, "; MARK: Personal Hotstrings") {
-                    markPos := InStr(fullBoilerplateContent, "; MARK: Personal Hotstrings")
-                    boilerplateLibContent := SubStr(fullBoilerplateContent, markPos)
+                fullContent := FileRead(Config.BoilerplateHotstringLibrary)
+                scanning := false
+                loop parse, fullContent, "`n", "`r" {
+                    if !scanning {
+                        if InStr(A_LoopField, "; MARK: Personal Hotstrings")
+                            scanning := true
+                        continue
+                    }
+                    if SubStr(Trim(A_LoopField, " `t"), 1, 1) = ":"
+                        entries.Push({ line: A_LoopField, lineNum: A_Index, source: "BP" })
+                }
+                ; Fallback: if MARK was never found, re-scan from line 1
+                if !scanning {
+                    loop parse, fullContent, "`n", "`r" {
+                        if SubStr(Trim(A_LoopField, " `t"), 1, 1) = ":"
+                            entries.Push({ line: A_LoopField, lineNum: A_Index, source: "BP" })
+                    }
                 }
             }
         }
-        
-        ; Combine both contents
-        return hotstringLibContent "`n" boilerplateLibContent
+
+        return entries
     }
 }
 
@@ -2970,14 +3014,18 @@ class Utils {
     }
 
     ; Look up selected text in editor
-    static LookupSelectedText(text, editControl) {
-        if !WinExist(Config.HotstringLibrary) {
-            Run(Config.EditorPath " " Config.HotstringLibrary)
-            while !WinExist(Config.HotstringLibrary)
+    static LookupSelectedText(text, editControl, targetFile := "") {
+        ; Default to the main hotstring library if no file specified
+        if targetFile = ""
+            targetFile := Config.HotstringLibrary
+
+        if !WinExist(targetFile) {
+            Run(Config.EditorPath " " targetFile)
+            while !WinExist(targetFile)
                 Sleep(50)
         }
         
-        WinActivate(Config.HotstringLibrary)
+        WinActivate(targetFile)
         Sleep(300)
         
         if RegExMatch(text, "^\d{2,}")
