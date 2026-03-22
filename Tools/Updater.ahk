@@ -298,8 +298,8 @@ try {
             AcMsgBox.Show("No updates available. You have the latest version!", "AutoCorrect2 Updater")
             ExitApp
         }
-    }
-    
+    } else {
+
     LogDebug("Update available! Proceeding with file comparison...")
     
     UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Connecting to GitHub...", 20)
@@ -456,6 +456,8 @@ try {
     progressGui.Destroy()
     ; Show GUI with checkboxes
     ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir, latestInfo, fontSize, formColor, fontColor, listColor)
+
+    } ; end else (SHA mismatch - new updates available)
 
 } catch Error as e {
     LogDebug("ERROR: " e.Message)
