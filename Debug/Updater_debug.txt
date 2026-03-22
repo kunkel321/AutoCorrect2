@@ -1,0 +1,63 @@
+[2026-03-22 07:59:18] === Update Started ===
+[2026-03-22 07:59:18] Script Directory: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2\Tools
+[2026-03-22 07:59:18] HotstringLib name: HotstringLib (1).ahk
+[2026-03-22 07:59:18] Checking GitHub API for latest commit...
+[2026-03-22 07:59:18] GitHub API response received, parsing JSON...
+[2026-03-22 07:59:18] Response length: 3898
+[2026-03-22 07:59:18] First 500 chars: [{"sha":"2b4adb744c805e43e6feb3c0a3f742185b016c12","node_id":"C_kwDOLty75doAKDJiNGFkYjc0NGM4MDVlNDNlNmZlYjNjMGEzZjc0MjE4NWIwMTZjMTI","commit":{"author":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-03-22T14:58:53Z"},"committer":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-03-22T14:58:53Z"},"message":"Updater.ahk and new exe versions\n\n-The Updater.ahk tool has been updated to handle error of self-update imposibility.\n-The Update.ahk code can update 
+[2026-03-22 07:59:18] shaPos: 3
+[2026-03-22 07:59:18] First quote after sha: 9
+[2026-03-22 07:59:18] End quote: 50
+[2026-03-22 07:59:18] datePos: 208
+[2026-03-22 07:59:18] colonPos: 214
+[2026-03-22 07:59:18] Quote after colon: 215
+[2026-03-22 07:59:18] End quote: 236
+[2026-03-22 07:59:18] Extracted SHA: 2b4adb744c805e43e6feb3c0a3f742185b016c12
+[2026-03-22 07:59:18] Extracted date: 2026-03-22T14:58:53Z
+[2026-03-22 07:59:18] Latest commit: SHA=2b4adb744c805e43e6feb3c0a3f742185b016c12, Date=2026-03-22T14:58:53Z
+[2026-03-22 07:59:19] LastUpdateCheck.ini not found - first run or data file missing
+[2026-03-22 07:59:19] Update available! Proceeding with file comparison...
+[2026-03-22 07:59:19] Install Dir: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2
+[2026-03-22 07:59:19] Temp Dir: C:\Users\steve\AppData\Local\Temp\AutoCorrect2_Update
+[2026-03-22 07:59:19] Cleaning temp directory...
+[2026-03-22 07:59:19] Temp directory created.
+[2026-03-22 07:59:19] Downloading from: https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/main.zip
+[2026-03-22 07:59:23] Download completed.
+[2026-03-22 07:59:23] Starting zip extraction...
+[2026-03-22 07:59:34] Zip extraction completed.
+[2026-03-22 07:59:34] Source root directory found.
+[2026-03-22 07:59:34] Building rarely-updated map...
+[2026-03-22 07:59:34] Rarely updated (offer unchecked): c:\users\steve\onedrive\documents\github\autocorrect2\data\acsettings.ini
+[2026-03-22 07:59:34] Rarely updated (offer unchecked): c:\users\steve\onedrive\documents\github\autocorrect2\data\autocorrectslog.txt
+[2026-03-22 07:59:34] Rarely updated (offer unchecked): c:\users\steve\onedrive\documents\github\autocorrect2\data\manualcorrectionslog.txt
+[2026-03-22 07:59:34] Rarely updated (offer unchecked): c:\users\steve\onedrive\documents\github\autocorrect2\data\errcontextlog.txt
+[2026-03-22 07:59:34] Scanning for updated and new files...
+[2026-03-22 07:59:34] Updated file found: desktop.ini (size: 184 ? 178)
+[2026-03-22 07:59:34] Updated file found: README.md (size: 7410 ? 7338)
+[2026-03-22 07:59:34] Found HotstringLib.ahk in GitHub
+[2026-03-22 07:59:34] HotstringLib.ahk (HotstringLib (1).ahk) is new/missing
+[2026-03-22 07:59:34] Updated file found: Core\PersonalHotstrings.ahk (size: 721 ? 710)
+[2026-03-22 07:59:34] Updated file found: Data\colorThemeSettings.ini (size: 2213 ? 2101)
+[2026-03-22 07:59:34] Updated file found: Data\GitHubComboList249k.txt (size: 2758518 ? 2509438)
+[2026-03-22 07:59:34] Rarely-updated file found (unchecked by default): Data\ManualCorrectionsLog.txt
+[2026-03-22 07:59:34] Updated file found: Data\RemovedHotstrings.txt (size: 3947 ? 3945)
+[2026-03-22 07:59:34] Updated file found: Data\unigram_freq_list_filtered_88k.csv (size: 1521828 ? 1432912)
+[2026-03-22 07:59:35] Updated file found: Resources\Dictionary\WordNet-3.0\word list readme.txt (size: 920 ? 913)
+[2026-03-22 07:59:35] Updated file found: Resources\Dictionary\WordNet-3.0\WordNet Legal Cite.txt (size: 1290 ? 1271)
+[2026-03-22 07:59:35] Updated file found: Resources\Icons\Icon Sources (size: 126 ? 125)
+[2026-03-22 07:59:35] Updated file found: Tools\ExtractPotentialMisspellings.ahk (size: 8210 ? 7997)
+[2026-03-22 07:59:35] Updated file found: Tools\UniqueStringExtractor.ahk (size: 5518 ? 5357)
+[2026-03-22 07:59:35] Updated file found: Tools\Updater.ahk (size: 31917 ? 31154 [flagged as in-use])
+[2026-03-22 07:59:35] Found 13 updated files, 1 rarely-updated files, 0 new files, and HotstringLib update: yes
+[2026-03-22 08:00:17] Starting file copy...
+[2026-03-22 08:00:17] lvUpdated: exists
+[2026-03-22 08:00:17] lvNew: null
+[2026-03-22 08:00:17] lvHotstringLib: exists
+[2026-03-22 08:00:17] Processing updated files...
+[2026-03-22 08:00:17] Found checked row: 13
+[2026-03-22 08:00:17] Copying (updated): Tools\Updater.ahk
+[2026-03-22 08:00:17] Updated: Tools\Updater.ahk
+[2026-03-22 08:00:17] Processing HotstringLib...
+[2026-03-22 08:00:17] HotstringLib update skipped by user
+[2026-03-22 08:00:17] Stored update check info: SHA=2b4adb744c805e43e6feb3c0a3f742185b016c12, Date=2026-03-22T14:58:53Z
+[2026-03-22 08:00:17] === Update Completed Successfully ===

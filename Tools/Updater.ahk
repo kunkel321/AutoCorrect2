@@ -8,7 +8,7 @@
 AutoCorrect2 Updater Tool
 Author: kunkel321
 Tool Used: Claude
-Version: 3-22-2026 
+Version: 3-22-2026 B
 Intended to use with AutoCorrect2 repo. Run the script, and it will download a temporary copy of the repository, then look for files that have been updated.  The script makes this faster by saving a 'LastUpdateCheck.ini' file in the Core\ folder.  Then it checks the github commits page, and compares to the ini date.  If a newer version is found, only then is the zip downloaded and opened.  The script will then offer to replace the old files with the newer versions.  The files listed below as "RarelyUpdated" will be unchecked by default.  The user must check them to update them.  Any new files will be listed in a separate dialog.  
 
 HotstringLib.ahk is a special case and never gets over-written by default. Instead, a copy called  "HotstringLib (1).ahk" is saved to the Core\ folder.  The user must then use the UniueStringExtracter to compare that file with their own.  If the user NEVER customizes their HotstringLib.ahk file, and only wants to adopt the newer version, they can select the radio button to *Overwrite* their existing lib file.  The font is made red to ensure that the user sees what they are doing. 
@@ -405,8 +405,8 @@ try {
                     rarelyUpdatedFiles.Push({path: destPath, relPath: relPath, srcPath: srcFile})
                     LogDebug("Rarely-updated file found (unchecked by default): " relPath)
                 } else {
-                    SplitPath(destPath, , , , &nameNoExt)
-                    isInUse := (StrLower(nameNoExt) = "updater")
+                    SplitPath(destPath, , , &ext, &nameNoExt)
+                    isInUse := (StrLower(nameNoExt) = "updater") and (StrLower(ext) = "exe")
                     updatedFiles.Push({path: destPath, relPath: relPath, srcPath: srcFile, isInUse: isInUse})
                     LogDebug("Updated file found: " relPath " (size: " destSize " → " srcSize (isInUse ? " [flagged as in-use]" : "") ")")
                 }
