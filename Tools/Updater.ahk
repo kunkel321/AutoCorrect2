@@ -8,7 +8,7 @@
 AutoCorrect2 Updater Tool
 Author: kunkel321
 Tool Used: Claude
-Version: 3-22-2026 
+Version: 3-22-2026 D
 Intended to use with AutoCorrect2 repo. Run the script, and it will download a temporary copy of the repository, then look for files that have been updated.  The script makes this faster by saving a 'LastUpdateCheck.ini' file in the Core\ folder.  Then it checks the github commits page, and compares to the ini date.  If a newer version is found, only then is the zip downloaded and opened.  The script will then offer to replace the old files with the newer versions.  The files listed below as "RarelyUpdated" will be unchecked by default.  The user must check them to update them.  Any new files will be listed in a separate dialog.  
 
 HotstringLib.ahk is a special case and never gets over-written by default. Instead, a copy called  "HotstringLib (1).ahk" is saved to the Core\ folder.  The user must then use the UniueStringExtracter to compare that file with their own.  If the user NEVER customizes their HotstringLib.ahk file, and only wants to adopt the newer version, they can select the radio button to *Overwrite* their existing lib file.  The font is made red to ensure that the user sees what they are doing. 
@@ -148,8 +148,7 @@ CheckGitHubForUpdates() {
 
 GetLastUpdateCheckInfo() {
     ; Reads the stored update check info from Data\LastUpdateCheck.ini
-    ; Returns a Map with {sha, date, pendingFiles} or empty Map if file doesn't exist
-    ; pendingFiles is an Array of relPath strings skipped by the user on the last run
+    ; Returns a Map with {sha, date} or empty Map if file doesn't exist
     checkFile := A_ScriptDir "\..\Data\LastUpdateCheck.ini"
     
     if !FileExist(checkFile) {
@@ -166,7 +165,7 @@ GetLastUpdateCheckInfo() {
             return Map()
         }
         
-        ; Read pipe-delimited pending files list (may be empty)
+        ; Read pipe-delimited pending files list (empty string if key absent)
         pendingRaw := IniRead(checkFile, "UpdateCheck", "PendingFiles", "")
         pendingFiles := []
         if pendingRaw != "" {
@@ -174,7 +173,7 @@ GetLastUpdateCheckInfo() {
                 if Trim(item) != ""
                     pendingFiles.Push(Trim(item))
         }
-        
+
         LogDebug("Last update check: SHA=" lastSha ", Date=" lastDate ", Pending=" pendingFiles.Length " file(s)")
         result := Map()
         result["sha"] := lastSha
@@ -190,7 +189,7 @@ GetLastUpdateCheckInfo() {
 
 StoreUpdateCheckInfo(sha, date, pendingFiles := "") {
     ; Stores the latest commit info to Data\LastUpdateCheck.ini
-    ; pendingFiles: Array of relPaths the user skipped, or "" to clear the pending list
+    ; pendingFiles: Array of relPaths the user skipped, or "" to clear the list
     checkFile := A_ScriptDir "\..\Data\LastUpdateCheck.ini"
     checkDir := A_ScriptDir "\..\Data"
     
@@ -203,8 +202,8 @@ StoreUpdateCheckInfo(sha, date, pendingFiles := "") {
         IniWrite(sha, checkFile, "UpdateCheck", "LastCommitHash")
         IniWrite(date, checkFile, "UpdateCheck", "LastCommitDate")
         IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), checkFile, "UpdateCheck", "LastCheckTime")
-        
-        ; Write pipe-delimited list of any files the user chose not to update
+
+        ; Write pipe-delimited list of files the user chose not to update
         pendingStr := ""
         if Type(pendingFiles) = "Array" {
             for item in pendingFiles
@@ -286,21 +285,19 @@ try {
     }
     
     if lastSha != "" and lastSha = latestInfo["sha"] {
-        ; SHA matches — but check if the user left pending files from a previous run
-        pendingFromLast := []
-        try { pendingFromLast := lastCheckInfo["pendingFiles"] }
-        
+        ; SHA matches - but check if the user left pending files from a previous run
+        pendingFromLast := lastCheckInfo.Has("pendingFiles") ? lastCheckInfo["pendingFiles"] : []
+
         if pendingFromLast.Length > 0 {
-            LogDebug("SHA matches but " pendingFromLast.Length " pending file(s) from last run — showing pending dialog")
+            LogDebug("SHA matches but " pendingFromLast.Length " pending file(s) from last run - showing pending dialog")
             progressGui.Destroy()
             ShowPendingGui(pendingFromLast, lastCheckInfo, fontSize, formColor, fontColor, listColor)
-            return
+        } else {
+            LogDebug("No updates available - commit hash matches, no pending files")
+            progressGui.Destroy()
+            AcMsgBox.Show("No updates available. You have the latest version!", "AutoCorrect2 Updater")
+            ExitApp
         }
-        
-        LogDebug("No updates available - commit hash matches, no pending files")
-        progressGui.Destroy()
-        AcMsgBox.Show("No updates available. You have the latest version!", "AutoCorrect2 Updater")
-        ExitApp
     }
     
     LogDebug("Update available! Proceeding with file comparison...")
@@ -458,17 +455,37 @@ try {
     ; Close progress GUI and show update selection GUI
     progressGui.Destroy()
     ; Show GUI with checkboxes
-    ShowPendingGui(pendingFiles, lastCheckInfo, fontSize, formColor, fontColor, listColor) {
-    ; Shows a dialog listing files that were skipped in a previous update run.
-    ; The user can update them now, clear the pending list without updating, or cancel.
+    ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir, latestInfo, fontSize, formColor, fontColor, listColor)
+
+} catch Error as e {
+    LogDebug("ERROR: " e.Message)
+    try progressGui.Destroy()  ; Try to close if it exists
+    
+    ; Provide user-friendly error messages
+    errorMsg := "Update failed"
+    if InStr(e.Message, "internet connection") or InStr(e.Message, "Failed to download") {
+        errorMsg := "Unable to connect to GitHub. Please check your internet connection and try again."
+    } else if InStr(e.Message, "not found in extracted zip") {
+        errorMsg := "The downloaded file appears to be corrupted or incomplete. Please try again."
+    } else {
+        errorMsg := e.Message
+    }
+    
+    AcMsgBox.Show(errorMsg, "AutoCorrect2 Updater")
+    ExitApp
+}
+
+ShowPendingGui(pendingFiles, lastCheckInfo, fontSize, formColor, fontColor, listColor) {
+    ; Shows a dialog listing files skipped in a previous update run.
+    ; User can update them now, clear the list, or cancel.
     pendingGui := Gui()
-    pendingGui.Title := "AutoCorrect2 Updater — Pending Files"
+    pendingGui.Title := "AutoCorrect2 Updater - Pending Files"
     pendingGui.Opt("+AlwaysOnTop")
     pendingGui.BackColor := formColor
     pendingGui.SetFont("s" fontSize " " fontColor)
 
     pendingGui.Add("Text", "w700 cBlue", "These files were skipped during your last update (" pendingFiles.Length " item(s)):")
-    pendingGui.Add("Text", "w700", "Check items you want to update now, then click Update.")
+    pendingGui.Add("Text", "w700", "Check the items you want to update now, then click Update.")
 
     lv := pendingGui.Add("ListView", "w700 r10 Checked -Multi +Background" listColor " y+5", ["Filename", "Path"])
     for relPath in pendingFiles {
@@ -482,20 +499,19 @@ try {
     loop lv.GetCount()
         lv.Modify(A_Index, "+Check")
 
-    pendingGui.Add("Button", "w100 y+8", "Update").OnEvent("Click", (*) => ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, formColor, fontColor))
-    pendingGui.Add("Button", "x+10 w130", "Clear && Dismiss").OnEvent("Click", (*) => ClearPendingAndExit(lastCheckInfo, pendingGui))
+    pendingGui.Add("Button", "w100 y+8", "Update").OnEvent("Click", ApplyPendingUpdate.Bind(lv, pendingFiles, lastCheckInfo, pendingGui))
+    pendingGui.Add("Button", "x+10 w130", "Clear && Dismiss").OnEvent("Click", ClearPendingAndExit.Bind(lastCheckInfo, pendingGui))
     pendingGui.Add("Button", "x+10 w100", "Cancel").OnEvent("Click", (*) => ExitApp())
 
     pendingGui.Show()
 }
 
-ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, formColor, fontColor) {
-    ; Copies the pending files that the user has checked.
-    ; pendingFiles contains relPaths — we need to resolve srcPath from the temp extract dir.
+ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, *) {
+    ; Copies whichever pending files the user has checked.
+    ; Resolves srcPath from the still-present temp extract folder.
     SplitPath(A_ScriptDir, , &parentDir)
-    installDir  := parentDir
-    extractDir  := A_Temp "\AutoCorrect2_Update\extracted"
-    srcRoot     := extractDir "\" ZipRootFolderName
+    installDir := parentDir
+    srcRoot    := A_Temp "\AutoCorrect2_Update\extracted\" ZipRootFolderName
 
     if !DirExist(srcRoot) {
         AcMsgBox.Show(
@@ -505,11 +521,10 @@ ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, formColor, fontC
         ExitApp
     }
 
-    skippedNow  := []
-    updatedNow  := []
-    stillPending := []  ; rows the user left unchecked
+    skippedNow   := []
+    stillPending := []
 
-    ; Build checked-row set
+    ; Build set of checked rows
     checkedSet := Map()
     rowNum := 0
     loop {
@@ -525,7 +540,7 @@ ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, formColor, fontC
             srcFile  := srcRoot "\" relPath
             destPath := installDir "\" relPath
             if !FileExist(srcFile) {
-                LogDebug("Pending src not found: " srcFile)
+                LogDebug("Pending src not found in temp: " srcFile)
                 skippedNow.Push(relPath)
                 continue
             }
@@ -534,7 +549,6 @@ ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, formColor, fontC
                 skippedNow.Push(relPath)
                 LogDebug("Pending copy failed (locked): " relPath)
             } else {
-                updatedNow.Push(relPath)
                 LogDebug("Pending updated: " relPath)
             }
         } else {
@@ -542,23 +556,22 @@ ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, formColor, fontC
         }
     }
 
-    ; Persist remaining pending list (unchecked + newly locked)
+    ; Remaining pending = user-unchecked rows + anything that failed to copy
     remainingPending := []
     for f in stillPending
         remainingPending.Push(f)
     for f in skippedNow
         remainingPending.Push(f)
 
-    if Type(lastCheckInfo) = "Map" and lastCheckInfo.Has("sha") {
+    if Type(lastCheckInfo) = "Map" and lastCheckInfo.Has("sha")
         StoreUpdateCheckInfo(lastCheckInfo["sha"], lastCheckInfo["date"], remainingPending)
-    }
 
     pendingGui.Hide()
 
     if skippedNow.Length > 0 {
         skippedList := ""
         for f in skippedNow
-            skippedList .= "  • " f "`n"
+            skippedList .= "  - " f "`n"
         AcMsgBox.Show(
             "Update applied.`n`n"
             "The following file(s) could not be updated (still in use):`n`n"
@@ -576,34 +589,13 @@ ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, formColor, fontC
     ExitApp
 }
 
-ClearPendingAndExit(lastCheckInfo, pendingGui) {
-    ; Clears the pending list without copying any files, then exits.
-    if Type(lastCheckInfo) = "Map" and lastCheckInfo.Has("sha") {
+ClearPendingAndExit(lastCheckInfo, pendingGui, *) {
+    ; Clears the pending list without copying any files.
+    if Type(lastCheckInfo) = "Map" and lastCheckInfo.Has("sha")
         StoreUpdateCheckInfo(lastCheckInfo["sha"], lastCheckInfo["date"], [])
-        LogDebug("Pending list cleared by user.")
-    }
+    LogDebug("Pending list cleared by user.")
     pendingGui.Hide()
     AcMsgBox.Show("Pending update list cleared. The Updater will not remind you about these files again.", "AutoCorrect2 Updater")
-    ExitApp
-}
-
-ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir, latestInfo, fontSize, formColor, fontColor, listColor)
-
-} catch Error as e {
-    LogDebug("ERROR: " e.Message)
-    try progressGui.Destroy()  ; Try to close if it exists
-    
-    ; Provide user-friendly error messages
-    errorMsg := "Update failed"
-    if InStr(e.Message, "internet connection") or InStr(e.Message, "Failed to download") {
-        errorMsg := "Unable to connect to GitHub. Please check your internet connection and try again."
-    } else if InStr(e.Message, "not found in extracted zip") {
-        errorMsg := "The downloaded file appears to be corrupted or incomplete. Please try again."
-    } else {
-        errorMsg := e.Message
-    }
-    
-    AcMsgBox.Show(errorMsg, "AutoCorrect2 Updater")
     ExitApp
 }
 
@@ -646,14 +638,13 @@ ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, ho
         for item in allUpdatedFiles {
             displayName := SubStr(item.data.relPath, InStr(item.data.relPath, "\") + 1)
             if item.data.HasOwnProp("isInUse") and item.data.isInUse
-                displayName .= "  [in use — cannot self-update]"
-            ; Uncheck if rarely-updated OR if the file is flagged as in-use
+                displayName .= "  [in use - cannot self-update]"
+            ; Uncheck if rarely-updated OR flagged as in-use
             shouldCheck := item.shouldCheck and !(item.data.HasOwnProp("isInUse") and item.data.isInUse)
-            if shouldCheck {
+            if shouldCheck
                 lvUpdated.Add("Check", displayName, item.data.relPath)
-            } else {
+            else
                 lvUpdated.Add("", displayName, item.data.relPath)
-            }
         }
         
         lvUpdated.ModifyCol(1, 200)
@@ -760,10 +751,8 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
     
     ; Get the form values to check which HotstringLib mode was selected
     formValues := updateGui.Submit(0)  ; Submit without destroying the GUI
-    
-    skippedFiles := []  ; Collect any files that couldn't be copied (e.g. locked/in-use)
 
-    ; Copy checked files from combined updated files list
+    skippedFiles := []  ; Files that failed to copy due to being locked/in-use
     if lvUpdated != "" {
         LogDebug("Processing updated files...")
         rowNum := 0
@@ -781,24 +770,20 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
                 file := updatedFiles[rowNum]
                 LogDebug("Copying (updated): " file.relPath)
                 result := CopyFileWithDirCreation(file.srcPath, file.path)
-                if result.skipped {
+                if result.skipped
                     skippedFiles.Push(file.relPath)
-                    LogDebug("Skipped (locked): " file.relPath)
-                } else {
+                else
                     LogDebug("Updated: " file.relPath)
-                }
             } else {
                 rarelyIndex := rowNum - updatedFiles.Length
                 if rarelyIndex <= rarelyUpdatedFiles.Length {
                     file := rarelyUpdatedFiles[rarelyIndex]
                     LogDebug("Copying (rarely updated): " file.relPath)
                     result := CopyFileWithDirCreation(file.srcPath, file.path)
-                    if result.skipped {
+                    if result.skipped
                         skippedFiles.Push(file.relPath)
-                        LogDebug("Skipped (locked): " file.relPath)
-                    } else {
+                    else
                         LogDebug("Updated: " file.relPath)
-                    }
                 }
             }
         }
@@ -818,12 +803,10 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
                 file := newFiles[rowNum]
                 LogDebug("Copying: " file.relPath)
                 result := CopyFileWithDirCreation(file.srcPath, file.path)
-                if result.skipped {
+                if result.skipped
                     skippedFiles.Push(file.relPath)
-                    LogDebug("Skipped (locked): " file.relPath)
-                } else {
+                else
                     LogDebug("Added: " file.relPath)
-                }
             }
         }
     }
@@ -876,21 +859,10 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
         }
     }
 
-    ; --- Collect files that were unchecked by the user (intentionally skipped) ---
-    ; These are tracked separately from skippedFiles (which are locked/in-use errors).
-    ; We walk every row in lvUpdated and lvNew and record any that are NOT checked.
+    ; Store the latest update check info, including any files the user left unchecked
+    ; Walk every row in each ListView - unchecked rows become the new pending list
     uncheckedFiles := []
     if lvUpdated != "" {
-        totalRows := lvUpdated.GetCount()
-        loop totalRows {
-            rowN := A_Index
-            ; GetNext with "C" returns checked rows — if a row isn't in that set, it's unchecked
-            ; Build a checked-row map first
-        }
-        ; Simpler: iterate all rows, check state via GetNext offset trick — 
-        ; actually easiest to just check each row individually using Modify state.
-        ; AHK v2 ListView: use LVM_GETITEMSTATE via SendMessage for check state.
-        ; Cleanest: rebuild from GetNext "C" into a set, then anything not in set is unchecked.
         checkedSet := Map()
         rowNum := 0
         loop {
@@ -899,8 +871,6 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
                 break
             checkedSet[rowNum] := true
         }
-        ; Now walk allUpdatedFiles by index — but we don't have allUpdatedFiles here.
-        ; Instead use the ListView text (col 2 = relPath) for any unchecked row.
         loop lvUpdated.GetCount() {
             if !checkedSet.Has(A_Index) {
                 relPath := lvUpdated.GetText(A_Index, 2)
@@ -926,13 +896,12 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
             }
         }
     }
-    ; Also add any lock-skipped files to pending (they weren't updated either)
+    ; Also add any lock-skipped files - they weren't updated either
     for f in skippedFiles
         uncheckedFiles.Push(f)
 
-    LogDebug("Unchecked/pending files after this update: " uncheckedFiles.Length)
+    LogDebug("Pending files after this update: " uncheckedFiles.Length)
 
-    ; Store the latest update check info, including any pending files
     if Type(latestInfo) = "Map" {
         StoreUpdateCheckInfo(latestInfo["sha"], latestInfo["date"], uncheckedFiles)
     }
@@ -940,10 +909,9 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
     updateGui.Hide()
 
     if skippedFiles.Length > 0 {
-        ; Build list of locked file names for the message
         skippedList := ""
         for f in skippedFiles
-            skippedList .= "  • " f "`n"
+            skippedList .= "  - " f "`n"
         LogDebug("=== Update Completed With Locked Files ===")
         AcMsgBox.Show(
             "AutoCorrect2 has been updated.`n`n"
@@ -952,10 +920,10 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
             "These have been saved to your pending list. Run the Updater again after closing the app to finish.",
             "AutoCorrect2 Updater")
     } else if uncheckedFiles.Length > 0 {
-        LogDebug("=== Update Completed — " uncheckedFiles.Length " file(s) left pending ===")
+        LogDebug("=== Update Completed - " uncheckedFiles.Length " file(s) left pending ===")
         AcMsgBox.Show(
             "AutoCorrect2 has been partially updated.`n`n"
-            "Some files you unchecked have been saved to your pending list.`n"
+            "Files you unchecked have been saved to your pending list.`n"
             "Run the Updater again to review and update them, or clear the pending list.",
             "AutoCorrect2 Updater")
     } else {
@@ -966,7 +934,7 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
 }
 
 CopyFileWithDirCreation(srcFile, destPath) {
-    SplitPath(destPath, , &outDir, , &fileName)
+    SplitPath(destPath, &fileName, &outDir)
     if !DirExist(outDir)
         DirCreate(outDir)
     try {
