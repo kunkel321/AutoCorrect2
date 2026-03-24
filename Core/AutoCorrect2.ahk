@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-22-2026 
+; Version: 3-23-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -2403,15 +2403,15 @@ class Validation {
                    * - ending char not needed
                    ? - trigger inside other words
                    C - case-sensitive
-                --used with f function--
+                --used with f() function--
                    B0 - no backspacing (leave trigger)
                    X - execute code
-                --don't use below with f function--
+                --below are moot with f() function--
                    SI - send input mode
                    SE - send event mode
                    Kn - set key delay (n is a digit)
                    O - omit end char
-                   R - raw dog it
+                   R - send raw text
                 )"
                 
                 result.validOpts := "Invalid Hotstring Options found.`n---> " remainingOptions "`n" optionTips
@@ -2435,6 +2435,31 @@ class Validation {
             result.validRep := Config.ValidOkMessage
         }
         
+        ; Check for mismatch between f() function checkbox state and options/replacement
+        ; Only applies to single-line AC items (not boilerplate, not multiline)
+        if State.IsBoilerplate = 0 && !InStr(replacementText, "`n") {
+            isFuncCall   := SubStr(LTrim(replacementText), 1, 2) = 'f("'
+            hasB0X       := InStr(options, "B0") || InStr(options, "X")
+            checkboxOn   := UI.Controls["FunctionCheck"].Value = 1
+            mismatchMsg  := ""
+
+            if checkboxOn && !isFuncCall && !hasB0X {
+                ; Checkbox on but replacement is not yet an f() call — fine, will be wrapped on Append.
+                ; No warning needed.
+            } else if !checkboxOn && isFuncCall && !hasB0X {
+                mismatchMsg := "Replacement looks like an f() call but B0X options are missing.`nEither add B0X to options, or check the 'Make as f() Function' box."
+            } else if !checkboxOn && !isFuncCall && hasB0X {
+                mismatchMsg := "Options contain B0 or X but the replacement is not an f() call.`nEither remove B0/X from options, or check the 'Make as f() Function' box."
+            } else if !checkboxOn && isFuncCall && hasB0X {
+                mismatchMsg := "Replacement is an f() call with B0X options but the 'Make as f() Function' checkbox is unchecked.`nConsider checking the box so future edits stay consistent."
+            }
+
+            if mismatchMsg != "" && result.validOpts = Config.ValidOkMessage
+                result.validOpts := mismatchMsg
+            else if mismatchMsg != ""
+                result.validOpts .= "`n" mismatchMsg
+        }
+
         ; Combine all validation messages
         result.combinedMsg := "OPTIONS BOX `n" result.validOpts "*|*HOTSTRING BOX `n" result.validHot "*|*REPLACEMENT BOX `n" result.validRep "*|*" result.showLookupBox "*|*" result.lookupSource
         
@@ -2463,6 +2488,10 @@ class Validation {
             entries := this._GetCombinedHotstringContent()
             separateLibs := Config.SeparateLibForBoilerplates = 1
 
+            ; Strip B0 and X from proposed options before comparisons —
+            ; these are f() function mechanics only, not conflict-relevant.
+            propOpts := StrReplace(StrReplace(options, "B0", ""), "X", "")
+
             for entry in entries {
                 currentLine := entry.line
                 currentLineNum := entry.lineNum
@@ -2477,20 +2506,20 @@ class Validation {
                     locTag := "[line " currentLineNum "]"
 
                 ; Look for hotstring definition
-                if RegExMatch(currentLine, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &match) {
-                    currentOpts := match.Opts
-                    currentTrig := match.Trig
+                if RegExMatch(currentLine, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)", &match) {
+                    currentOpts := StrReplace(StrReplace(Trim(match.Opts), "B0", ""), "X", "")
+                    currentTrig := Trim(match.Trig)
                     
-                    ; Check for exact duplicate
-                    if triggerText = currentTrig && options = currentOpts {
+                    ; Check 1: Exact duplicate (same trigger, same firing options)
+                    if triggerText = currentTrig && propOpts = currentOpts {
                         validHotDupes := "`nDuplicate trigger string found " locTag ".`n---> " currentLine
                         result.showLookupBox := 1
                         result.lookupSource := currentSource
                         continue
                     }
                     
-                    ; Check for word-middle conflicts
-                    if (InStr(currentTrig, triggerText) && InStr(options, "*") && InStr(options, "?")) ||
+                    ; Check 2: Word-middle conflicts (*?)
+                    if (InStr(currentTrig, triggerText) && InStr(propOpts, "*") && InStr(propOpts, "?")) ||
                        (InStr(triggerText, currentTrig) && InStr(currentOpts, "*") && InStr(currentOpts, "?")) {
                         validHotDupes .= "`nWord-Middle conflict found " locTag ", where one of the strings will be nullified by the other.`n---> " currentLine
                         result.showLookupBox := 1
@@ -2498,32 +2527,35 @@ class Validation {
                         continue
                     }
                     
-                    ; Check for same word with different match types
+                    ; Check 3: Same trigger, different firing options
                     if currentTrig = triggerText {
-                        ; Check if one is word-beginning and other is word-ending
-                        if (InStr(currentOpts, "*") && !InStr(currentOpts, "?") && 
-                            InStr(options, "?") && !InStr(options, "*")) ||
-                        (InStr(currentOpts, "?") && !InStr(currentOpts, "*") && 
-                            InStr(options, "*") && !InStr(options, "?")) {
+                        if (InStr(currentOpts, "*") && !InStr(currentOpts, "?") &&
+                            InStr(propOpts, "?") && !InStr(propOpts, "*")) ||
+                        (InStr(currentOpts, "?") && !InStr(currentOpts, "*") &&
+                            InStr(propOpts, "*") && !InStr(propOpts, "?")) {
+                            ; One is word-beginning, other is word-ending -- may be intentional
                             validHotDupes .= "`nDuplicate trigger found " locTag ", but maybe okay, because one is word-beginning and other is word-ending.`n---> " currentLine
-                            result.showLookupBox := 1
-                            result.lookupSource := currentSource
-                            continue
+                        } else {
+                            ; Same trigger, any other options difference -- functional duplicate
+                            validHotDupes .= "`nDuplicate trigger string found (different options) " locTag ".`n---> " currentLine
                         }
+                        result.showLookupBox := 1
+                        result.lookupSource := currentSource
+                        continue
                     }
                     
-                    ; Check for word-beginning conflicts
+                    ; Check 4: Word-beginning conflicts (*)
                     if (InStr(currentOpts, "*") && currentTrig = SubStr(triggerText, 1, StrLen(currentTrig))) ||
-                       (InStr(options, "*") && triggerText = SubStr(currentTrig, 1, StrLen(triggerText))) {
+                       (InStr(propOpts, "*") && triggerText = SubStr(currentTrig, 1, StrLen(triggerText))) {
                         validHotDupes .= "`nWord Beginning conflict found " locTag ", where one of the strings is a subcomponent of the other. Whichever appears last will never be expanded.`n---> " currentLine
                         result.showLookupBox := 1
                         result.lookupSource := currentSource
                         continue
                     }
                     
-                    ; Check for word-ending conflicts
-                    if (InStr(currentOpts, "?") && currentTrig = SubStr(triggerText, -StrLen(currentTrig))) ||
-                       (InStr(options, "?") && triggerText = SubStr(currentTrig, -StrLen(triggerText))) {
+                    ; Check 5: Word-ending conflicts (?) -- length guard prevents false match on equal-length triggers
+                    if (InStr(currentOpts, "?") && StrLen(currentTrig) < StrLen(triggerText) && currentTrig = SubStr(triggerText, -StrLen(currentTrig))) ||
+                       (InStr(propOpts,    "?") && StrLen(triggerText) < StrLen(currentTrig)  && triggerText = SubStr(currentTrig, -StrLen(triggerText))) {
                         validHotDupes .= "`nWord Ending conflict found " locTag ", where one of the strings is a supercomponent of the other. The longer of the strings should appear before the other, in your code.`n---> " currentLine
                         result.showLookupBox := 1
                         result.lookupSource := currentSource
@@ -2537,8 +2569,9 @@ class Validation {
                 removedContent := FileRead(Config.RemovedHsFile)
                 
                 loop parse, removedContent, "`n", "`r" {
-                    if RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &match) {
-                        if triggerText = match.Trig && options = match.Opts {
+                    if RegExMatch(A_LoopField, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)", &match) {
+                        removedOpts := StrReplace(StrReplace(Trim(match.Opts), "B0", ""), "X", "")
+                        if triggerText = Trim(match.Trig) && propOpts = removedOpts {
                             validHotDupes .= "`nWarning: A duplicate trigger string was previously removed.`n----> " A_LoopField
                             continue
                         }
@@ -3547,7 +3580,7 @@ class HelpSystem {
     ; Initialize help texts for all controls
     static Init() {
         ; Main edit controls
-        this.helpTexts["OptionsEdit"] := "This is the Options edit box.`nOptions control how the hotstring behaves.`n`nCommon options:`n--------------------------`n* = no end character needed`n? = trigger inside other words`nC = case sensitive`nB0 = don't backspace the trigger`nX = Execute code instead of typing.`n`nDon't use below with f() function:`n--------------------------`nSI = send input mode`nSE = send event mode`nKn = set key delay (n is a digit)`nO = omit end char`nR = send as raw"
+        this.helpTexts["OptionsEdit"] := "This is the Options edit box.`nOptions control how the hotstring behaves.`n`nCommon options:`n--------------------------`n* = no end character needed`n? = trigger inside other words`nC = case sensitive`n`nRequired for f() function calls:`n--------------------------`nB0 = don't backspace the trigger`nX = Execute code instead of typing.`n`nDon't use below with f() function:`n--------------------------`nSI = send input mode`nSE = send event mode`nKn = set key delay (n is a digit)`nO = omit end char`nR = send as raw`nUsing them won't cause an error, but the f() won't do anything with them.  If you need to use these advanced hotstring options, consider Descolada's _HS() function, here:`nhttps://www.autohotkey.com/boards/viewtopic.php?f=83&t=122865`nBe advised, however, that the _HS() function does not support autocorrection logging, as the f() function does.  "
         
         this.helpTexts["TriggerEdit"] := "This is the Trigger string edit box.`n`nThe text entered here is what will be watched-for and will trigger the hotstring replacement.`n`nFor AutoCorrect entries, this will usually be a misspelled word or word-part.  Or it might be a short phrase with a grammar error.`n`nFor boilerplate template entries, this will be an easy to remember acronym or short string. When multiple lines of text, or more than three words, are selected, and the hotkey is pressed, an acronym is auto-generated from the first letter of the first words. Try it with this paragraph :) Optionally assign a default prefix character in the variables near the top of the code.`n`nWhen making single-word AutoCorrect entries, the number of potential misspellings will be shown in red above the editbox.`n`nPressing Shift+Left jumps to trigger box and moves cursor to home position."
         
@@ -3564,17 +3597,17 @@ class HelpSystem {
         
         this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above. (Unless it's a multi-line item.)`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the 'HotstringHelper' section of the Setting Manager, and set it to `"Vanilla.`"`n`nAlso checkout the Defunctionizer script in the Control Pane."
         
-        this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (HotstringLib.ahk).`n`nThe AC button is automatically selected when you type or select single-word or short phrase typos/corrections.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
+        this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (HotstringLib.ahk).`n`nThe AC button is automatically pre-selected when you select three or fewer words, on one line, and press Win+H.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
         
-        this.helpTexts["BPRadio"] := "Selects Boilerplate (BP) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the Boilerplate library (PersonalHotstrings.ahk).`n`nThe BP button is automatically selected when you select multiple lines of text or text with multiple spaces, indicating boilerplate template content.`n`nYou can manually switch to the AC radio button if you want to save a boilerplate entry to the AutoCorrect library instead."
+        this.helpTexts["BPRadio"] := "Selects Boilerplate (BP) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the Boilerplate library (PersonalHotstrings.ahk).`n`nThe BP button is automatically pre-selected when you select multiple lines of text or text with more than three words (indicating boilerplate template content), and press Win+H.`n`nYou can manually switch to the AC radio button if you want to save a boilerplate entry to the AutoCorrect library instead."
         
         this.helpTexts["AppendButton"] := "Adds the current hotstring to your library file and reloads the script.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem. If there is a problem, the user is given the option to append anyway.`n`nShift+Click:`nCopies to clipboard instead.`n`nCtrl+Click:`nAppends without closing or reloading--useful for multiple simultaneous entries.`n`nAlt+Click:`nSends hotstring to Suggester Tool.`n`nPressing Enter will also append the new hotstring and restart the script, but not when the replacement box is focused.  In that case, pressing Enter just types a new line."
         
         this.helpTexts["CheckButton"] := "Validates the hotstring without adding it to your library.`n`nThere is a `'Look up`' button in the Validation report.  Select the hotstring from the report and click button to go to string in library in default editor using Ctrl+F.  If line number is selected, Ctrl+G will be used to goto line number.`n`nDuring validation, several things are checked for, but mostly the trigger is compared to existing library items, checking for conflicts.  Please see User Manual for further discussion.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem."
         
-        this.helpTexts["ExamButton"] := "Opens the Exam Pane to analyze the trigger and replacement which is useful for creating multi-match autocorrect entries.`n`nRight-click to access the Secret Control Panel.`n`nIf pane is open, button text will change to `"Done`".`n`nIf the replacement edit box is in big mode, it will be put into small mode."
+        this.helpTexts["ExamButton"] := "Opens the Exam Pane to analyze the trigger and replacement which is useful for creating multi-match autocorrect entries.`n`nRight-click to access the Secret Control Panel.`n`nIf pane is open, button text will change to `"Done`".`n`nIf the replacement edit box is in big mode, it will be put into small mode before the pane is opened."
         
-        this.helpTexts["SpellButton"] := "Uses LanguageTool.org's AI to check spelling of the replacement text.  If a suggested correction is found, it will offer to fix the word in the replacement text box.  It will check sentences for grammar mistakes as well.  It works well, but is not perfect.`n`nTip:  If it doesn't correct the grammar of a short phrase, try making the phrase into a complete sentence, and try again.`n`nNote: Your text is sent to LanguageTools.org for this, so it takes a couple of seconds."
+        this.helpTexts["SpellButton"] := "Uses the free LanguageTool.org's AI to check spelling of the replacement text.  If a suggested correction is found, it will offer to fix the word in the replacement text box.  It will check sentences for grammar mistakes as well.  It works well, but is not perfect.`n`nTip:  If it doesn't correct the grammar of a short phrase, try temporarily making the phrase into a complete sentence, and try again.`n`nIt is okay to select only a part of the text.  If no text is selected, the entire contents of the replacement box will be checked.`n`nNote: Your text is sent to LanguageTools.org for this, so it takes a couple of seconds."
         
         this.helpTexts["LookButton"] := "Looks up selected text in the onboard WordNet dictionary (https://wordnet.princeton.edu/).`n`nRight-click to search the GNU Collaborative International Dictionary of English (GCIDE; https://gcide.gnu.org.ua/) online.`n`nThe Spell button checks only the text in the replacement edit box, but definitions can be looked up for words in the replacement box or in the Misspells or Fixes Exam Pane lists.  HOWEVER the words must be selected with your mouse first.`n`t---> Select word.  Press [Look] button.`n`nNote: It takes several seconds for WordNet to load in the background of AutoCorrect2, which happens automatically each time the script is restarted.`n`nIf the `"ChatGptWordLookup.ahk`" file is #Include'd in AutoCorrect2.ahk, then a [Try ChatGPT] button will appear.  This can be useful if the word is not found in WordNet or GCIDE.`n`nAs indicated in the onboard message: `"Please note that the OpenAI service is not free.  Also note, kunkel321 (the author of AutoCorrect2.ahk) does not receive any compensation or benefit from your transactions with OpenAI.  I've only added this integration because I use it, and I thought others might like to as well.`" Please see onboard message for more information."
         
