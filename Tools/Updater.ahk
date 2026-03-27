@@ -8,8 +8,8 @@
 AutoCorrect2 Updater Tool
 Author: kunkel321
 Tool Used: Claude
-Version: 3-22-2026 D
-Intended to use with AutoCorrect2 repo. Run the script, and it will download a temporary copy of the repository, then look for files that have been updated.  The script makes this faster by saving a 'LastUpdateCheck.ini' file in the Core\ folder.  Then it checks the github commits page, and compares to the ini date.  If a newer version is found, only then is the zip downloaded and opened.  The script will then offer to replace the old files with the newer versions.  The files listed below as "RarelyUpdated" will be unchecked by default.  The user must check them to update them.  Any new files will be listed in a separate dialog.  
+Version: 3-27-2026
+Intended to use with AutoCorrect2 repo. Run the script, and it will download a temporary copy of the repository, then look for files that have been updated.  The script makes this faster by saving a 'LastUpdateCheck.ini' file in the Core\ folder.  Then it checks the github commits page, and compares to the ini date.  If a newer version is found, only then is the zip downloaded and opened.  The script will then offer to replace the old files with the newer versions.  The files listed below as "RarelyUpdatedFolders" will be unchecked by default.  Any file inside those folders (e.g. all Data\ files) will be unchecked.  The user must check them to update them.  Any new files will be listed in a separate dialog.  
 
 HotstringLib.ahk is a special case and never gets over-written by default. Instead, a copy called  "HotstringLib (1).ahk" is saved to the Core\ folder.  The user must then use the UniueStringExtracter to compare that file with their own.  If the user NEVER customizes their HotstringLib.ahk file, and only wants to adopt the newer version, they can select the radio button to *Overwrite* their existing lib file.  The font is made red to ensure that the user sees what they are doing. 
 */
@@ -27,13 +27,8 @@ ZipRootFolderName := "AutoCorrect2-main"
 ; Optional: Enable debug logging to file
 EnableDebugLog := 1
 
-; Files that will appear in update dialog but unchecked by default
-RarelyUpdated := [
-    "Data\acSettings.ini",
-    "Data\AutoCorrectsLog.txt",
-    "Data\ManualCorrectionsLog.txt",
-    "Data\ErrContextLog.txt"
-]
+; Folders whose files will appear in update dialog but unchecked by default
+RarelyUpdatedFolders := ["Data\"]
 ; -----------------------------------------------------------------------
 
 ; Setup debug logging
@@ -354,16 +349,8 @@ try {
         throw Error("Expected root folder '" ZipRootFolderName "' not found in extracted zip.")
     LogDebug("Source root directory found.")
 
-    ; --- Build rarely-updated map for categorizing file changes ---
+    ; --- Analyze changes ---
     UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Analyzing changes...", 100)
-    LogDebug("Building rarely-updated map...")
-    rarelyUpdatedMap := Map()
-    
-    for rel in RarelyUpdated {
-        full := NormalizePath(installDir "\" rel)
-        rarelyUpdatedMap[full] := true
-        LogDebug("Rarely updated (offer unchecked): " full)
-    }
 
     ; --- Scan for updated and new files ---
     LogDebug("Scanning for updated and new files...")
@@ -383,7 +370,6 @@ try {
         ; Compute relative path from srcRoot
         relPath := SubStr(srcFile, StrLen(srcRoot) + 2)
         destPath := installDir "\" relPath
-        normalizedDest := NormalizePath(destPath)
 
         ; Special handling for HotstringLib.ahk
         if (relPath = "Core\HotstringLib.ahk") {
@@ -429,7 +415,7 @@ try {
             ; Only consider updated if BOTH timestamp is newer AND file size changed
             if (srcTime > destTime) and (srcSize != destSize) {
                 ; Check if this is a rarely-updated file
-                if rarelyUpdatedMap.Has(normalizedDest) {
+                if IsRarelyUpdated(relPath, RarelyUpdatedFolders) {
                     rarelyUpdatedFiles.Push({path: destPath, relPath: relPath, srcPath: srcFile})
                     LogDebug("Rarely-updated file found (unchecked by default): " relPath)
                 } else {
@@ -946,6 +932,13 @@ CopyFileWithDirCreation(srcFile, destPath) {
         LogDebug("FileCopy failed for '" fileName "': " e.Message)
         return {skipped: true, file: fileName, reason: "File may be in use or locked."}
     }
+}
+
+IsRarelyUpdated(relPath, folders) {
+    for folder in folders
+        if SubStr(relPath, 1, StrLen(folder)) = folder
+            return true
+    return false
 }
 
 NormalizePath(path) {
