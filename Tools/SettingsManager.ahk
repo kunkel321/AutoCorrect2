@@ -3,7 +3,7 @@
 
 ; ============================================================================
 ; Settings Manager - Standalone GUI for editing INI configuration files
-; Version: 11-22-2025
+; Version: 3-29-2026
 ; 
 ; A dedicated GUI application for viewing and editing INI settings with
 ; metadata-driven features: type-specific editing, auto-generation, validation,
@@ -1309,9 +1309,22 @@ LoadMetadata(filePath) {
                     
                     ; Parse the value
                     if (SubStr(valueStr, 1, 1) = '"') {
-                        ; String value: extract between quotes
+                        ; String value: extract between quotes, skipping escaped quotes (\")
                         valueStr := SubStr(valueStr, 2)
-                        endQuote := InStr(valueStr, '"')
+                        endQuote := 0
+                        searchPos := 1
+                        Loop {
+                            foundPos := InStr(valueStr, '"', , searchPos)
+                            if (foundPos = 0)
+                                break
+                            ; Check if this quote is escaped (preceded by backslash)
+                            if (foundPos > 1 && SubStr(valueStr, foundPos - 1, 1) = "\") {
+                                searchPos := foundPos + 1  ; Skip past this escaped quote
+                                continue
+                            }
+                            endQuote := foundPos
+                            break
+                        }
                         if (endQuote > 0) {
                             value := SubStr(valueStr, 1, endQuote - 1)
                             ; Process JSON escape sequences
