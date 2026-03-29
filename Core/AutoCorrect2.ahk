@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-23-2026 
+; Version: 3-29-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -20,9 +20,10 @@ SetWorkingDir(A_ScriptDir)
 ; The "*i" prevents an error if the file doesn't exist.
 #Include "*i ..\Includes\DateTool.ahk"              ;  Calendar tool with holidays -- Optional
 #Include "*i ..\Includes\PrinterTool.ahk"           ;  Shows list of installed printers -- Optional 
-#Include "*i ..\Includes\HotstringQuickLookup.ahk"  ;  Get usage stats for selected hotstring --Optional
 #Include "*i ..\Includes\ChatGptWordLookup.ahk"     ;  ChatGPT-based word definitions -- Optional
 
+#HotIf Config.EnableHotStrQuickLookup ;  So users can permanently disable HQL via acSettings.ini
+#Include "*i ..\Includes\HotstringQuickLookup.ahk"  ;  Get usage stats for selected hotstring --Optional
 #HotIf Config.EnableDragTools ;  So users can permanently disable DragTools via acSettings.ini
     #Include "*i ..\Includes\DragTools.ahk"      ;  Mouse right-click/drags trigger things   -- Optional 
 #HotIf Config.EnableMoveResizeTools 
@@ -78,11 +79,10 @@ class Config {
     static HotstringHelperActivationHotkey := "#h"
     static AutoCorrect2EditThisScriptHk := "^+e"
     static SystemUpTimeHk := "!+u"
-    static MCLoggerRunAnalysisHotkey := "#^+q"
-    static MCLoggerSneakPeekHotkey := "#+q"
     static ACLogAnalyzerHk := "!^+q"
 
     ; Includes
+    static EnableHotStrQuickLookup := 1
     static EnableDragTools := 1
     static EnableMoveResizeTools := 1
     
@@ -210,8 +210,6 @@ class Config {
         this.HotstringHelperActivationHotkey := this.ReadIni("Hotkeys", "HotstringHelperActivationHotkey", "#h")
         this.AutoCorrect2EditThisScriptHk := this.ReadIni("Hotkeys", "AutoCorrect2EditThisScriptHk", "^+e")
         this.SystemUpTimeHk := this.ReadIni("Hotkeys", "SystemUpTimeHk", "!+u")
-        this.MCLoggerRunAnalysisHotkey := this.ReadIni("Hotkeys", "MCLoggerRunAnalysisHotkey", "#^+q")
-        this.MCLoggerSneakPeekHotkey := this.ReadIni("Hotkeys", "MCLoggerSneakPeekHotkey", "#+q")
         this.ACLogAnalyzerHk := this.ReadIni("Hotkeys", "ACLogAnalyzerHk", "#+q")
         
         ; [HotstringHelper] Section   
@@ -220,6 +218,7 @@ class Config {
         this.CODE_ERROR_LOG             := this.ReadIni("HotstringHelper", "CODE_ERROR_LOG", 0)
         ; Dual Library Support
         this.SeparateLibForBoilerplates := this.ReadIni("HotstringHelper", "SeparateLibForBoilerplates", 0)
+        this.EnableHotStrQuickLookup    := this.ReadIni("HotstringHelper", "EnableHotStrQuickLookup", 1)
         this.EnableDragTools            := this.ReadIni("HotstringHelper", "EnableDragTools", 1)
         this.EnableMoveResizeTools      := this.ReadIni("HotstringHelper", "EnableMoveResizeTools", 1)
         this.BeepOnStartup              := this.ReadIni("HotstringHelper", "BeepOnStartup", 1)
