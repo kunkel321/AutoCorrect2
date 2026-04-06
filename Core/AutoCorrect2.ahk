@@ -109,7 +109,7 @@ class Config {
     
     ; Word Lists
     static WordListFile := "..\Data\GitHubComboList249k.txt"
-    static FrequencyListFile := "..\Data\unigram_freq_list_filtered_88k.csv"
+    static FrequencyListFile := "..\Data\unigram_freq_list_filtered_89k.csv"
     
     ; Editor
     static DefaultEditor := "Notepad.exe"
@@ -193,7 +193,7 @@ class Config {
         this.ACLogContinuousFile        := "..\Data\" this.ReadIni("Files", "ACLogContinuousFile", "..\Data\ACLogContinuous.txt")
         this.ErrContextLog              := "..\Data\" this.ReadIni("Files", "ErrContextLog", "..\Data\ErrContextLog.txt")
         this.WordListFile               := "..\Data\" this.ReadIni("Files", "WordListFile", "GitHubComboList249k.txt")
-        this.FrequencyListFile          := "..\Data\" this.ReadIni("Files", "FrequencyListFile", "unigram_freq_list_filtered_88k.csv")
+        this.FrequencyListFile          := "..\Data\" this.ReadIni("Files", "FrequencyListFile", "unigram_freq_list_filtered_89k.csv")
         this.ACLogAnalyzer              := "..\Tools\" this.ReadIni("Files", "ACLogAnalyzer", "ACLogAnalyzer.exe")
         this.SettingsManager            := "..\Tools\" this.ReadIni("Files", "SettingsManager", "SettingsManager.exe")
 
@@ -3390,6 +3390,10 @@ class WordFrequency {
                     }
                     
                     ; Convert frequency to number
+                    if !IsNumber(freqStr) {
+                        skippedLines++
+                        continue
+                    }
                     freq := Number(freqStr)
                     if (freq = 0 && freqStr != "0") {
                         skippedLines++

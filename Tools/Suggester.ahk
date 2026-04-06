@@ -32,7 +32,7 @@ class Config {
         ACScript: "..\Core\AutoCorrect2.ahk",
         HSLibrary: "..\Core\HotstringLib.ahk",
         WordListFile: "..\Data\GitHubComboList249k.txt",
-        FreqDataFile: "..\Data\unigram_freq_list_filtered_88k.csv" 
+        FreqDataFile: "..\Data\unigram_freq_list_filtered_89k.csv" 
     }
     
     ; Behavior options
