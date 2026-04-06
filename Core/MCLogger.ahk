@@ -161,8 +161,8 @@ If FileExist(RemovedHsFile)
    AcFileContents .= "`n" Fileread(RemovedHsFile)
 ;msgbox "AcFileContents:`n`n" AcFileContents
 
-#HotIf WinActive("MCLogger.ahk") ; Allow "window-specific" hotkey action.
-$^s:: ; hide 
+#HotIf WinActive("MCLogger.ahk") ; MCLogger-specific
+$^s:: ; Save and reload MCLogger script. ; hide 
 SaveAndReload(*) { ; Save, but also reload script in RAM.
    Send "^s"
    sleep 500
@@ -197,12 +197,12 @@ peekToolTip(*) { ; sneak-a-peek at working variables.
 ; string of keypresses.  If the user uses the arrows to go back in a word, or 
 ; clicks in it, that string will be broken... So we need to "start over" the 
 ; keypress watching.  
-~Esc::  ; hide
-~LButton:: 					; User clicked somewhere, ; hide
-~Up::	   					; Or moved the cursor, so... ; hide
-~Down::						; Clear cache to start over.  ; hide
-~Left:: ; hide
-~Right:: ; hide
+~Esc::      ; MCLogger code ; hide
+~LButton::  ; User clicked somewhere, ; hide
+~Up::	      ; Or moved the cursor, so... ; hide
+~Down::	   ; Clear cache to start over  ; hide
+~Left::     ; To avoid having unrelated text  ; hide
+~Right::    ; processes as a single word.  ; hide
 {	Global typoCache := "" 
    ToolTip(,,,7)        ; Remove (only) 'sneak peek' tooltip, if showing. 
    ToolTip(,,,8)        ; Right-click notificiation.

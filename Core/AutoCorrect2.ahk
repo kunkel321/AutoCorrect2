@@ -23,11 +23,11 @@ SetWorkingDir(A_ScriptDir)
 #Include "*i ..\Includes\ChatGptWordLookup.ahk"     ;  ChatGPT-based word definitions -- Optional
 
 #HotIf Config.EnableHotStrQuickLookup ;  So users can permanently disable HQL via acSettings.ini
-#Include "*i ..\Includes\HotstringQuickLookup.ahk"  ;  Get usage stats for selected hotstring --Optional
+    #Include "*i ..\Includes\HotstringQuickLookup.ahk"  ;  Get usage stats for selected hotstring --Optional
 #HotIf Config.EnableDragTools ;  So users can permanently disable DragTools via acSettings.ini
-    #Include "*i ..\Includes\DragTools.ahk"      ;  Mouse right-click/drags trigger things   -- Optional 
-#HotIf Config.EnableMoveResizeTools 
-    #Include "*i ..\Includes\MoveResizeTools.ahk"      ;  Alt+Ctrl left/right mouse drag on Window   -- Optional 
+    #Include "*i ..\Includes\DragTools.ahk" ;  Mouse right-click/drags trigger things   -- Optional 
+#HotIf Config.EnableMoveResizeTools ; So users can permanently disable Move and Resize Tools via acSettings.ini
+    #Include "*i ..\Includes\MoveResizeTools.ahk" ;  Alt+Ctrl left/right mouse drag on Window   -- Optional 
 #HotIf 
 ; There are required includes defined below the class Config code.
 
@@ -3557,7 +3557,7 @@ RunACLogAnalyzer(*) {
 }
 
 ;===============================================================================
-#HotIf WinActive(Config.ScriptName) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" ) ; If this file is open and active.
+#HotIf WinActive(Config.ScriptName) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" ) ; AC2, etc, open in editor
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.  ; hide
 {
 	Send("^s") ; Save me.
@@ -3568,7 +3568,7 @@ RunACLogAnalyzer(*) {
 }
 
 #HotIf WinActive(Config.HHWindowTitle) ; Only if hh2 window is active.
-F1::HelpSystem.ShowHelp() ; Show help for whatever window control is focused. ; hide
+F1::HelpSystem.ShowHelp() ; Show help for current HH control. ; hide
 
 #HotIf
 
@@ -3583,7 +3583,7 @@ class HelpSystem {
         
         this.helpTexts["TriggerEdit"] := "This is the Trigger string edit box.`n`nThe text entered here is what will be watched-for and will trigger the hotstring replacement.`n`nFor AutoCorrect entries, this will usually be a misspelled word or word-part.  Or it might be a short phrase with a grammar error.`n`nFor boilerplate template entries, this will be an easy to remember acronym or short string. When multiple lines of text, or more than three words, are selected, and the hotkey is pressed, an acronym is auto-generated from the first letter of the first words. Try it with this paragraph :) Optionally assign a default prefix character in the variables near the top of the code.`n`nWhen making single-word AutoCorrect entries, the number of potential misspellings will be shown in red above the editbox.`n`nPressing Shift+Left jumps to trigger box and moves cursor to home position."
         
-        this.helpTexts["ReplacementEdit"] := "This is the Replacement edit box.`n`nThe text entered here will replace the trigger text when the hotstring is activated.`n`nFor AutoCorrect items, this will be a corrected spelling or perhaps a short phrase with corrected grammar, but for boilerplate template items, this will be the actual boilerplate text.`n`nNote: When pressing the 'Spell' button, the string in the Replacement box gets looked-up.   It does not have to be selected first.  The 'Look' button expects to find selected text though.`n`nPressing Shift+Right jumps to replacement box and moves cursor to end position."
+        this.helpTexts["ReplacementEdit"] := "This is the Replacement edit box.`n`nThe text entered here will replace the trigger text when the hotstring is activated.`n`nFor AutoCorrect items, this will be a corrected spelling or perhaps a short phrase with corrected grammar, but for boilerplate template items, this will be the actual boilerplate text.`n`nNote: When pressing the 'Spell' button, the string in the Replacement box gets looked-up.   It does not have to be selected first, though you can select a sub-portion of the content if desired.  The 'Look' button expects to find selected text though.`n`nPressing Shift+Right jumps to replacement box and moves cursor to end position."
         
         this.helpTexts["CommentEdit"] := "This is the Comment edit box.`n`nComments are added to the hotstring as in-line AHK comments. They are useful for documenting what the hotstring does.`n`nFor AutoCorrect items: Web-Frequency totals and Potential Fixes are (optionally) automatically added to the comments.`n`nAuto comments also include a flag for potential misspellings.  If there are fewer than four words, the words are listed.  If more, the number of words is given. Tip: To prevent this flag from being added, delete any words from the Misspells box just before appending."
         
@@ -3594,7 +3594,7 @@ class HelpSystem {
         
         this.helpTexts["WrapToggle"] := "Toggle button to convert between actual line breaks and literal ``n characters.`n`nClick Unwrap to convert line breaks into literal ``n characters for single-line hotstring format:`n`t::;sig::John Doe``nAutoHotkey User``n555-2345`n`nLeave wrapped to keep actual line breaks for multi-line Continuation Section format:`n`t::;sig::`n`t(`n`tJohn Doe`n`tAutoHotkey User`n`t555-2345`n`t)`n`nBoth formats produce the same result when the hotstring executes. The Continuation Section format is more `"What you see is what you get,`" but the unwrapped format uses only one line of code in your Hotstring Library and can be sorted without breaking them.  The wrap/unwrap functionality is primarily useful for boilerplate template items. It would not be used with f() AutoCorrect items."
         
-        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above. (Unless it's a multi-line item.)`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the 'HotstringHelper' section of the Setting Manager, and set it to `"Vanilla.`"`n`nAlso checkout the Defunctionizer script in the Control Pane."
+        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above. (Unless it's a multi-line item.)`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the 'HotstringHelper' section of the Setting Manager, and set it to `"Vanilla.`" Amd also checkout the Defunctionizer script in the Control Pane."
         
         this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (HotstringLib.ahk).`n`nThe AC button is automatically pre-selected when you select three or fewer words, on one line, and press Win+H.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
         
