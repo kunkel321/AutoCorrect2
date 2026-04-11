@@ -88,7 +88,7 @@
     "label": "File Manager Path",
     "help": "Enter the full path to your preferred file manager app exe. If blank, or path is not found, Windows Explorer will be used.\nExamples:\n   C:\\Program Files\\XYplorer\\XYplorer.exe\n   C:\\Program Files\\GPSoftware\\Directory Opus\\dopus.exe\n   C:\\Program Files\\zabkat\\xplorer2_ult\\xplorer2_64.exe",
     "type": "text",
-    "filter": "Executables (*.exe)|*.exe"
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "Hotkeys.HotstringHelperActivationHotkey": {
     "label": "HotstringHelper Activation Hotkey",
