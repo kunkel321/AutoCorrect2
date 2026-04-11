@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 3-29-2026 
+; Version: 4-11-2026  
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -67,6 +67,7 @@ class Config {
     static ErrContextLog := "..\Data\ErrContextLog.txt"
     static ACLogAnalyzer := "..\Tools\ACLogAnalyzer.exe"
     static SettingsManager := "..\Tools\SettingsManager.exe"
+    static FileManager := ""
     static CODE_ERROR_LOG := 0
     static CODE_DEBUG_LOG := 0
     
@@ -196,6 +197,7 @@ class Config {
         this.FrequencyListFile          := "..\Data\" this.ReadIni("Files", "FrequencyListFile", "unigram_freq_list_filtered_89k.csv")
         this.ACLogAnalyzer              := "..\Tools\" this.ReadIni("Files", "ACLogAnalyzer", "ACLogAnalyzer.exe")
         this.SettingsManager            := "..\Tools\" this.ReadIni("Files", "SettingsManager", "SettingsManager.exe")
+        this.FileManager                := this.ReadIni("Files", "FileManagerPath", "")
 
         ; [Shared] Section
         ; Editor
@@ -792,7 +794,7 @@ class UI {
     static _CreateControlPane() {
         Debug("In UI class, at top of _CreateControlPane()")
         ; Configuration for control panel buttons
-        this.Controls["ControlPanelLabel"] := this.MainForm.AddText("center c" this.DeltaColor " ym+270 h25 xm w" Config.DefaultWidth, "Secret Control Panel!")
+        this.Controls["ControlPanelLabel"] := this.MainForm.AddText("center c" this.DeltaColor " ym+265 h22 xm w" Config.DefaultWidth, "Secret Control Panel!")
         
         this.MainForm.SetFont("s10")
         
@@ -872,6 +874,15 @@ class UI {
             action: (*) => Run(Config.SettingsManager),
             icon: A_ScriptDir "\..\Resources\Icons\settings-Blue.ico"
         })
+                
+        ; Check if tool is present, add button.
+        if FileExist("..\Tools\AC2HotkeyRef.exe") {
+            this.controlButtons.Push({
+                text: " Hotkey Reference Tool", 
+                action: (*) => Run("..\Tools\AC2HotkeyRef.exe"),
+                icon: A_ScriptDir "\..\Resources\Icons\blue-questionmark.ico"
+            })
+        }
         
         ; Check if Suggester tool is present, add button.
         if FileExist("..\Tools\Suggester.exe") {
@@ -927,6 +938,16 @@ class UI {
             })
         }
 
+        ; Open containing foler
+        SplitPath(A_ScriptDir,, &parentDir)
+        if (Config.FileManager = "" || !FileExist(Config.FileManager))
+            fm := "explorer.exe"
+            this.controlButtons.Push({
+                text: " Go to AutoCorrect2 Folder",
+                action: (*) => Run("`"" Config.FileManager "`" `"" parentDir "`""),
+                icon: A_ScriptDir "\..\Resources\Icons\open-file-Blue.ico"
+        })
+
         ; Open github in web browser
         this.controlButtons.Push({
             text: " Go to GitHub Repository", 
@@ -947,7 +968,8 @@ class UI {
         this.Controls["ControlButtons"] := []
         
         for buttonConfig in this.controlButtons {
-            button := this.MainForm.AddButton("y+2 h25 xm w" Config.DefaultWidth, buttonConfig.text)
+            ; Control Button size and spacing set with "y+2 h24" here.
+            button := this.MainForm.AddButton("y+2 h24 xm w" Config.DefaultWidth, buttonConfig.text)
             button.OnEvent("click", buttonConfig.action)
             
             if buttonConfig.icon
