@@ -1,0 +1,11 @@
+Debug: Apr-11 11:43:35: ======[SCRIPT START]======
+Debug: Apr-11 11:43:36: In UI class, at top of _CreateExamPane()
+Debug: Apr-11 11:43:36: In UI class, at top of _CreateControlPane()
+Debug: Apr-11 11:43:36: Successfully registered activation hotkey after delay: #h
+Debug: Apr-11 11:43:36: Starting to load word frequency data
+Debug: Apr-11 11:43:36: Reading word frequency CSV file: ..\Data\unigram_freq_list_filtered_89k.csv
+Debug: Apr-11 11:43:37: FilterWordLists called, isLoaded=0, isLoading=1
+Debug: Apr-11 11:43:41: FilterWordLists called, isLoaded=0, isLoading=1
+Debug: Apr-11 11:43:43: FilterWordLists called, isLoaded=0, isLoading=1
+Debug: Apr-11 11:43:50: FilterWordLists called, isLoaded=0, isLoading=1
+Debug: Apr-11 11:55:24: FilterWordLists called, isLoaded=0, isLoading=1

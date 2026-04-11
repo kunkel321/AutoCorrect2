@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 4-11-2026  
+; Version: 4-11-2026 12:15pm
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -938,14 +938,16 @@ class UI {
             })
         }
 
-        ; Open containing foler
+        ; Open containing folder
         SplitPath(A_ScriptDir,, &parentDir)
         if (Config.FileManager = "" || !FileExist(Config.FileManager))
             fm := "explorer.exe"
-            this.controlButtons.Push({
-                text: " Go to AutoCorrect2 Folder",
-                action: (*) => Run("`"" Config.FileManager "`" `"" parentDir "`""),
-                icon: A_ScriptDir "\..\Resources\Icons\open-file-Blue.ico"
+        else
+            fm := Config.FileManager
+        this.controlButtons.Push({
+            text: " Go to AutoCorrect2 Folder",
+            action: (*) => Run("`"" fm "`" `"" parentDir "`""),
+            icon: A_ScriptDir "\..\Resources\Icons\open-file-Blue.ico"
         })
 
         ; Open github in web browser
@@ -3699,6 +3701,12 @@ class HelpSystem {
                 case " Defunctionize Hotstrings":
                     this.helpTexts["ControlButton_Defunctionizer"] := "This is for users who do not want their AutoCorrect items embedded in the f() function calls. The `"Defunctionizer`" tool removes them."
 
+                case " Hotkey Reference Tool":
+                    this.helpTexts["ControlButton_HotkeyRef"] := "Launches the AC2 Hotkey Reference tool.`n`nThis tool scans your running AutoHotkey scripts and displays all defined hotkeys in a filterable, sortable ListView.`n`nColumns show the Hotkey, its Action/description, the Context it applies in, and which Script it came from.`n`nYou can filter the list by typing in the search box, and export the full list to a printable HTML file.`n`nThe tool reads hotkey definitions from the running scripts and from acSettings.ini.`n`nThere are several user config options and a list of files to skip in the Tools\AC2HotkeyRef.ahk file."
+
+                case " Go to AutoCorrect2 Folder":
+                    this.helpTexts["ControlButton_OpenFolder"] := "Opens the AutoCorrect2 root folder in your preferred file manager.`n`nBy default, Windows Explorer is used as the fallback.`n`nTo use a different file manager (XYplorer, Directory Opus, xplorer², etc.), set the full path to its executable in the [Files] section of acSettings.ini:`n  FileManagerPath=C:\Program Files\XYplorer\XYplorer.exe`nTip: Just use the Settings Manager tool.`nIf the path is left blank, or the specified exe is not found, Windows Explorer will be used automatically."
+
                 case " Go to GitHub Repository":
                     this.helpTexts["ControlButton_GitHub"] := "Opens the GitHub repository for this tool, in your default web browswer."
                     
@@ -3759,6 +3767,10 @@ class HelpSystem {
                         helpTitle := "Help for 'Defunctionizer Tool' button"
                     case "Theme":
                         helpTitle := "Help for 'Change Color Theme' button"
+                    case "HotkeyRef":
+                        helpTitle := "Help for 'Hotkey Reference Tool' button"
+                    case "OpenFolder":
+                        helpTitle := "Help for 'Go to AutoCorrect2 Folder' button"
                     case "GitHub":
                         helpTitle := "Help for 'Go to GitHub Repository' button"
                     default:
@@ -3852,6 +3864,10 @@ class HelpSystem {
                             return "ControlButton_UniqueStringExtractor"
                         else if InStr(buttonText, "Defunctionize Hotstrings")
                             return "ControlButton_Defunctionizer"
+                        else if InStr(buttonText, "Hotkey Reference Tool")
+                            return "ControlButton_HotkeyRef"
+                        else if InStr(buttonText, "Go to AutoCorrect2 Folder")
+                            return "ControlButton_OpenFolder"
                         else if InStr(buttonText, "Go to GitHub Repository")
                             return "ControlButton_GitHub"
                         else if InStr(buttonText, "Change Color Theme")

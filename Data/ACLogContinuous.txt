@@ -1,0 +1,5 @@
+===== CONTINUOUS AUTO CORRECTION LOG =======
+Intended for use with kunkel321's 'AutoCorrect for v2' package.  Log of all autocorrects sent via f(unction).  YYYY-MM-DD date format. ‘<<’ indicates that Backspace was pressed right after, ‘--’ indicates that it was not.  The ACLogStatistics tool reads from this.  Items are NEVER CULLED from this file.  This will allow an accurate measure of BS-to-Kept ratios over time.
+=======================================
+
+2026-04-11 -- :*?:igth::ight
