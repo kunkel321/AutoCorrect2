@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-
+    "verion_date_for_this_json_file": "4-11-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -84,6 +84,12 @@
     "type": "file",
     "filter": "Executables (*.exe)|*.exe"
   },
+  "Files.FileManagerPath": {
+    "label": "File Manager Path",
+    "help": "Enter the full path to your preferred file manager app exe. If blank, or path is not found, Windows Explorer will be used.\nExamples:\n   C:\\Program Files\\XYplorer\\XYplorer.exe\n   C:\\Program Files\\GPSoftware\\Directory Opus\\dopus.exe\n   C:\\Program Files\\zabkat\\xplorer2_ult\\xplorer2_64.exe",
+    "type": "text",
+    "filter": "Executables (*.exe)|*.exe"
+  },
   "Hotkeys.HotstringHelperActivationHotkey": {
     "label": "HotstringHelper Activation Hotkey",
     "help": "Define the hotkey combination to open HotstringHelper. Examples: #h (Win+H), ^+h (Ctrl+Shift+H), F12",
@@ -123,6 +129,12 @@
     "label": "ACLog Analyzer Hotkey",
     "help": "The ACLogAnalyzer tool doesn't always run in the background, so this hotkey assignment is actually in the AutoCorrect2.ahk code.  This will initial an analysis of the AutoCorrections Log.",
     "type": "hotkey"
+  },
+  "Hotkeys.AC2HotkeyRefHotkey": {
+    "label": "AC2HotkeyReference Hotkey",
+    "help": "This is the hotkey for the Hotkey \"Cheatsheet\" application.  By default the dialog is shown at startup, but this can be disabled in the ahk code of the app.",
+    "type": "hotkey",
+    "restart": "..\\Tools\\AC2HotkeyRef.exe"
   },
   "Shared.DefaultEditor": {
     "label": "Default Editor",
@@ -326,7 +338,7 @@
     "label": "Beep On Function Checkbox Toggle",
     "help": "Should there be an audible beep when '[ ] Make as f() function' checkbox is checked/unchecked?",
     "type": "boolean",
-    "restart": "..\\Core\\AutoCorrect2.exe"
+    "restart": "..\\Core\\AutoCorrect2.exe",
     "options": [
       "0=Silent",
       "1=Beep"
