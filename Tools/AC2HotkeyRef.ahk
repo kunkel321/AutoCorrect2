@@ -5,7 +5,7 @@
 Title:      AutoCorrect2 Hotkey Reference
 Author:     Kunkel321
 Tool Used:  Claude AI
-Version:    4-3-2026
+Version:    4-18-2026
 
 Purpose:    Cheatsheet ListView of all hotkeys defined across the
 AutoCorrect2 suite.  Sources:
@@ -28,10 +28,11 @@ Columns: Hotkey | Action | Context (#HotIf) | Source
 * Hotkey column shows Friendly names "Ctrl+Alt+D" or raw AHK symbols "^!d".
 * Action column shows any code or comments on the same line as the hotkey.
 * Context column shows the WinActive() condition for hotkeys wrapped in
-    #HotIf directives.  If an inline comment is found on the #HotIf line,
-    that is used as the label; otherwise the WinActive() argument is shown.
-    A bare "#HotIf" (context reset) correctly clears context for subsequent
-    hotkeys, even when it has a trailing comment.
+    #HotIf directives OR runtime HotIfWinActive calls.  If an inline comment
+    is found on the #HotIf / HotIfWinActive line, that is used as the label;
+    otherwise the WinActive() / HotIfWinActive argument is shown.
+    A bare "#HotIf" or HotIfWinActive "" (context reset) correctly clears
+    context for subsequent hotkeys, even when it has a trailing comment.
     Only the first WinActive() argument is shown on multi-condition lines.
     Config.Var names have "Config." stripped for readability.
 * Source column shows the .ahk filename the hotkey lives in.
@@ -47,14 +48,18 @@ Columns: Hotkey | Action | Context (#HotIf) | Source
 * "Export Cheatsheet" button generates an HTML table of the current filtered 
     view and opens it in the default browser (printable as PDF via Ctrl+P).
 * GUI is resizable; ListView columns redistribute proportionally.
-* Double-click or Enter sends the selected hotkey.  Note: context-specific 
-    hotkeys only work in their target window, and some hotkeys have no effect 
-    at all when sent from the hotkey reference tool itself.
+* Double-click or Enter sends the selected hotkey.  The tool closes, then
+    waits up to 5 s for the previously active window to regain focus before
+    sending the key — so you can look up a hotkey while working in Notepad
+    and it will be delivered there automatically.  Context-specific hotkeys
+    only work in their target window.
 * This tool's activation hotkey is read from acSettings.ini:
     Hotkeys.AC2HotkeyRefHotkey (default: !+k)
 * Tip: Press Tab to jump to the list, then use arrow keys to navigate,
     or type (or press down arrow) in the filter box to narrow results.
 * Tip: See also User Options and IgnoreList, below.
+* Note: If tool is called while another app is active, tool will attempt to 
+    wait until previous window is open before sending hotkey.
 *******************************************************************************/ 
 
 ; ---------- User options -----------------------------------------------------
@@ -166,7 +171,7 @@ GetScriptNames(ac2Root, ignoreList, scanAll := 0) {
 
 ; ==============================================================================
 ; FUNCTION: GetHotkeys
-; Parse .ahk files for hotkey lines.  Track #HotIf context.
+; Parse .ahk files for hotkey lines.  Track #HotIf and HotIfWinActive context.
 ; Returns array of pipe-delimited strings:
 ;   hotkey | action | context | source
 ; ==============================================================================
@@ -193,6 +198,25 @@ GetHotkeys(scriptNames) {
                     currentHotIf := Trim(RegExReplace(ctx, "^Config\.", ""))
                 } else
                     currentHotIf := ""  ; non-WinActive condition, treat as global
+            }
+
+            ; Track runtime HotIfWinActive context (used by class-based scripts).
+            ; HotIfWinActive ""  or  HotIfWinActive  (bare) clears context.
+            ; Inline comment is used as label; otherwise the argument string is shown.
+            ;   e.g.  HotIfWinActive "ahk_id " this.Hwnd ; Hotstring Helper
+            ;         -> currentHotIf := "Hotstring Helper"
+            if RegExMatch(line, "i)^HotIfWinActive\b") {
+                ; Bare call or empty-string argument -> clear context
+                if RegExMatch(line, 'i)^HotIfWinActive\s*(`"`")?(\s*(;.*)?)?$')
+                    currentHotIf := ""
+                ; Inline comment present -> use it as the label
+                else if RegExMatch(line, ";\s*(.+)$", &cm)
+                    currentHotIf := Trim(cm[1])
+                ; No comment -> grab the first quoted argument as the label
+                else if RegExMatch(line, 'HotIfWinActive\s+`"([^`"]+)`"', &hm)
+                    currentHotIf := Trim(hm[1])
+                else
+                    currentHotIf := ""  ; unrecognised form, treat as global
             }
 
             ; Hotkey line detection (same rules as HotKeyTool, but we keep
@@ -433,8 +457,9 @@ for m in modFilters
 ; ==============================================================================
 ; GUI
 ; ==============================================================================
-GuiReady := 0
-myRef    := CreateGui()
+GuiReady    := 0
+prevWinHwnd := 0   ; HWND of window active before this tool was shown
+myRef       := CreateGui()
 
 SoundBeep 900, 200
 SoundBeep 1100, 200
@@ -594,11 +619,13 @@ OnGuiSize(g) {
 
 ; ---------- Show / toggle GUI ------------------------------------------------
 ShowRef() {
-    global showHidden
+    global showHidden, prevWinHwnd
     if WinActive(guiTitle) {
         myRef.Hide()
         return
     }
+    ; Remember which window was active so RunHotkey can return focus to it.
+    prevWinHwnd := WinExist("A")
     if !StickyFilter {
         myRef.hkFilter.Text := ""
         UpdateList(myRef.hkList, hotkeys, myRef.StatBar, "", showHidden)
@@ -645,6 +672,7 @@ UpdateList(hkList, hotkeys, StatBar, filter, showHidden := 0) {
 
 ; ---------- Send hotkey to previously active window --------------------------
 RunHotkey(hkList, g) {
+    global prevWinHwnd
     g.Hide()
     selectedRow := hkList.GetNext(0, "F")
     if (selectedRow <= 0)
@@ -653,7 +681,13 @@ RunHotkey(hkList, g) {
     ; Wrap word-like key names in braces e.g. Space -> {Space}
     if RegExMatch(thisKey, "i).*?[a-z]{2,}")
         thisKey := RegExReplace(thisKey, "i)(.*?)([a-z]{2,})", "$1{$2}")
-    SendInput thisKey
+    ; Wait up to 5 s for the previous window to become active, then send.
+    ; WinWaitActive returns the HWND on success, 0 on timeout (v2 style).
+    if (prevWinHwnd && WinExist("ahk_id " prevWinHwnd)) {
+        if WinWaitActive("ahk_id " prevWinHwnd,, 5)
+            SendInput thisKey
+    } else
+        SendInput thisKey   ; fallback: no saved window, send immediately
 }
 
 ; ---------- Export visible hotkeys to HTML table and open in browser ----------
