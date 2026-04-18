@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "4-11-2026",
+    "verion_date_for_this_json_file": "4-18-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -44,7 +44,7 @@
   },
   "Files.ACLogAnalyzer": {
     "label": "ACLogAnalyzer Executable",
-    "help": "Path to the Autocorrection Log Analyzer.exe executable for analyzing autocorrection logs.  A related key is ACSystem.BeepOnCorrection.",
+    "help": "The Autocorrection Log Analyzer.exe executable for analyzing autocorrection logs.  A related key is ACSystem.BeepOnCorrection.",
     "type": "file",
     "filter": "Executables (*.exe)|*.exe"
   },
@@ -62,19 +62,19 @@
   },
   "Files.MCLoggerPath": {
     "label": "MCLogger Executable",
-    "help": "Path to the Manual-Correction Logger executable for analyzing frequent manual corrections.",
+    "help": "The Manual-Correction Logger executable for analyzing frequent manual corrections.",
     "type": "file",
     "filter": "Executables (*.exe)|*.exe"
   },
   "Files.MCLogFile": {
     "label": "Manual Corrections Log",
-    "help": "Text file where MCLogger logs manual corrections made by the user.",
+    "help": "Text file where the MCLogger tool logs the manual corrections identified by the user's typing.",
     "type": "file",
     "filter": "Text Files (*.txt)|*.txt"
   },
   "Files.AutoCorrect2Script": {
     "label": "AutoCorrect2 Script",
-    "help": "Path to the main AutoCorrect2.ahk script file.",
+    "help": "The main AutoCorrect2.ahk script file.",
     "type": "file",
     "filter": "AHK Files (*.ahk)|*.ahk"
   },
@@ -313,7 +313,7 @@
       "0=Disabled",
       "1=Enabled"
     ],
-     "restart": "..\\Core\\AutoCorrect2.exe"
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.BeepOnStartup": {
     "label": "AutoCorrect2 Startup Announcement",
@@ -428,14 +428,14 @@
   },
   "ACSystem.AppSkiplist": {
     "label": "App Skiplist",
-    "help": "Comma-separated list of executable names where AutoCorrect should NOT run.\n\nDo not include spaces after commas.\nThis:\tRoblox.exe,PipeWalker.exe\nNot this:\tRoblox.exe, PipeWalker.exe",
+    "help": "Comma-separated list of executable names where AutoCorrect should NOT run.\nDo not include spaces after commas.\nThis:\tRoblox.exe,PipeWalker.exe\nNot this:\tRoblox.exe, PipeWalker.exe\nNOTE: This list is checked every time an AutoCorrect happens.  If there are hundreds of items, it could cause performance issues.",
     "type": "text",
     "default": "",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.WinSkiplist": {
     "label": "Window Skiplist",
-    "help": "Comma-separated list window titles where AutoCorrect should NOT run.\n\nDo not include spaces after commas.\nThis:\tFirst Window,Second Window\nNot this:\tFirst Window, Second Window",
+    "help": "Comma-separated list window titles where AutoCorrect should NOT run.\nDo not include spaces after commas.\nThis:\tFirst Window,Second Window\nNot this:\tFirst Window, Second Window\nNOTE: This list is checked every time an AutoCorrect happens.  If there are hundreds of items, it could cause performance issues.",
     "type": "text",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
@@ -589,5 +589,152 @@
       "0=Remove comments",
       "1=Keep comments"
     ]
+  },
+  "ControlButtons.OpenLibrary": {
+    "label": "Open Hotstring Library",
+    "help": "This is the setting for the \"Open Hotstring Library\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.PersonalHotstrings": {
+    "label": "Open Personal Hotstrings File",
+    "help": "This is the setting for the \"Open Personal Hotstrings File\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.ACLog": {
+    "label": "Open AutoCorrection Log",
+    "help": "This is the setting for the \"Open AutoCorrection Log\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\nNote: (1) The specifics of what the button does is hard-coded in AutoCorrect2.ahk and (2) if AC logging is globally disabled, then AC-related Control Buttons will always be hidden.",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.ACAnalyze": {
+    "label": "Analyze AutoCorrection Log !^+Q",
+    "help": "This is the setting for the \"Analyze AutoCorrection Log !^+Q\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\nNote: (1) The specifics of what the button does is hard-coded in AutoCorrect2.ahk and (2) if AC logging is globally disabled, then AC-related Control Buttons will always be hidden.",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.BSLog": {
+    "label": "Open Backspace Context Log",
+    "help": "This is the setting for the \"Open Backspace Context Log\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\nNote: (1) The specifics of what the button does is hard-coded in AutoCorrect2.ahk and (2) if AC logging is globally disabled, then AC-related Control Buttons will always be hidden.",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.RemovedHS": {
+    "label": "Open Removed HotStrings List",
+    "help": "This is the setting for the \"Open Removed HotStrings List\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.MCLog": {
+    "label": "Open Manual Correction Log",
+    "help": "This is the setting for the \"Open Manual Correction Log\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.MCLogContinuous": {
+    "label": "Open AutoCorrection Continuous Log",
+    "help": "This is the setting for the \"Open AutoCorrection Continuous Log\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\nNote: (1) The specifics of what the button does is hard-coded in AutoCorrect2.ahk and (2) if AC logging is globally disabled, then AC-related Control Buttons will always be hidden.",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.MCAnalyze": {
+    "label": "Analyze Manual Correction Log #^+Q",
+    "help": "This is the setting for the \"Analyze Manual Correction Log #^+Q\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.Report": {
+    "label": "Report HotStrings and Potential Fixes",
+    "help": "This is the setting for the \"Report HotStrings and Potential Fixes\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.SettingsMan": {
+    "label": "Configuration Settings Manager",
+    "help": "This is the setting for the \"Configuration Settings Manager\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.HotkeyRef": {
+    "label": "Hotkey Reference Tool",
+    "help": "This is the setting for the \"Hotkey Reference Tool\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.Suggester": {
+    "label": "Hotstring Suggester Tool",
+    "help": "This is the setting for the \"Hotstring Suggester Tool\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.ExtractMisspellings": {
+    "label": "Extract Potential Misspellings",
+    "help": "This is the setting for the \"Extract Potential Misspellings\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.ConflictLocator": {
+    "label": "Conflicting String Locator Tool",
+    "help": "This is the setting for the \"Conflicting String Locator Tool\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.Updater": {
+    "label": "Check GitHub for Updates",
+    "help": "This is the setting for the \"Check GitHub for Updates\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.UniqueStringExtractor": {
+    "label": "Compare Two Versions of HotstringLib",
+    "help": "This is the setting for the \"Compare Two Versions of HotstringLib\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.Defunctionizer": {
+    "label": "Defunctionize Hotstrings",
+    "help": "This is the setting for the \"Defunctionize Hotstrings\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.OpenFolder": {
+    "label": "Go to AutoCorrect2 Folder",
+    "help": "This is the setting for the \"Go to AutoCorrect2 Folder\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.GitHub": {
+    "label": "Go to GitHub Repository",
+    "help": "This is the setting for the \"Go to GitHub Repository\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.Theme": {
+    "label": "Change Color Theme",
+    "help": "This is the setting for the \"Change Color Theme\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
   }
 }
