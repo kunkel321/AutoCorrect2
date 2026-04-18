@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 2-3-2026
+; Version: 4-18-2026 
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -57,7 +57,6 @@ f(replace := "") {
     ; Rarify: Only remove and replace rightmost necessary chars.  
     trigArr := StrSplit(trigger)
     replArr := StrSplit(replace)
-    endCh := StrLen(endchar)
     ignorLen := 0
     
     ; Find matching left substring to optimize replacement
@@ -323,9 +322,13 @@ class BackspaceContextLogger {
                                 }
                             }
                             
-                            ; Set timeout to log after 8 seconds even if not enough words
+                            ; Set timeout to log even if not enough following words arrive.
+                            ; Honors Config.FollowingWordTimeout (in seconds); falls back to 8s if misconfigured.
+                            timeoutSec := Config.FollowingWordTimeout
+                            if (!IsNumber(timeoutSec) || timeoutSec <= 0)
+                                timeoutSec := 8
                             this.timeoutTimer := ObjBindMethod(this, "LogContent")
-                            SetTimer(this.timeoutTimer, -8000)
+                            SetTimer(this.timeoutTimer, -Integer(timeoutSec * 1000))
                         }
                     }
                 }
@@ -487,12 +490,11 @@ class InputBuffer {
 !+F3::StringAndFixReport("lastTrigger")  ; Alt+Shift+F3: Show last used trigger
 ^F3::StringAndFixReport()                ; Ctrl+F3: Show statistics report
 
-global caller := ""
 StringAndFixReport(caller := "Button") {
     ; Handle different cases based on caller parameter
     if (caller = "lastTrigger") {
         if (Config.EnableLogging = 0) {
-            thisMessage := "*Logging is currently disabled*`nEnable logging by setting`nConfig.EnableLogging := 1`nin AutoCorrectSystem.ahk"
+            thisMessage := "*Logging is currently disabled*`nEnable logging by setting`nEnableLogging=1`nin the [ACSystem] section of acSettings.ini`n(or via the Settings Manager tool)."
         } else {
             thisMessage := "Last logged trigger:`n`n" lastTrigger
         }
@@ -608,13 +610,13 @@ fix_consecutive_caps() {
 			char2 := Chr(A_Index + 64)
 			; Create hotstring for every possible combination of two letter capital letters.
             ;If (char1 char2 != "CO")
-			Hotstring(":*?CXB0Z:" char1 char2, fix.Bind(char1, char2))
+			Hotstring(":*?CXB0:" char1 char2, fix.Bind(char1, char2))
 		}
 	}
 	HotIf
 	; Third letter is checked using InputHook.
 	fix(char1, char2, *) {
-		;ih := InputHook("V I101 L1")
+		; ih := InputHook("V I101 L1")
 		ih := InputHook("V I101 L1 T.3")
 		ih.OnEnd := OnEnd
 		ih.Start()

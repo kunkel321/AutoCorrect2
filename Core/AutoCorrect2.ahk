@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 4-11-2026 12:15pm
+; Version: 4-18-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -68,6 +68,7 @@ class Config {
     static ACLogAnalyzer := "..\Tools\ACLogAnalyzer.exe"
     static SettingsManager := "..\Tools\SettingsManager.exe"
     static FileManager := ""
+    static ControlButtonCfg := Map()  ; Populated by LoadSettings() from [ControlButtons] ini section.
     static CODE_ERROR_LOG := 0
     static CODE_DEBUG_LOG := 0
     
@@ -186,13 +187,17 @@ class Config {
             return
         
         ; [Files] Section
+        ; NOTE: The INI stores bare filenames; the "..\Data\" or "..\Tools\" prefix is
+        ; added in code below. Fallback defaults here must therefore also be bare
+        ; filenames — not full relative paths — or we'd double the prefix when the
+        ; INI key is missing (e.g. "..\Data\..\Data\RemovedHotstrings.txt").
         this.HotstringLibrary           := this.ReadIni("Files", "HotstringLibrary", "HotstringLib.ahk")
         this.NewTemporaryHotstrLib      := this.ReadIni("Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
         this.BoilerplateHotstringLibrary := this.ReadIni("Files", "BoilerplateHotstringLibrary", "PersonalHotstrings.ahk")
-        this.RemovedHsFile              := "..\Data\" this.ReadIni("Files", "RemovedHsFile", "..\Data\RemovedHotstrings.txt")
-        this.AutoCorrectsLogFile        := "..\Data\" this.ReadIni("Files", "AutoCorrectsLogFile", "..\Data\AutoCorrectsLog.txt")
-        this.ACLogContinuousFile        := "..\Data\" this.ReadIni("Files", "ACLogContinuousFile", "..\Data\ACLogContinuous.txt")
-        this.ErrContextLog              := "..\Data\" this.ReadIni("Files", "ErrContextLog", "..\Data\ErrContextLog.txt")
+        this.RemovedHsFile              := "..\Data\" this.ReadIni("Files", "RemovedHsFile", "RemovedHotstrings.txt")
+        this.AutoCorrectsLogFile        := "..\Data\" this.ReadIni("Files", "AutoCorrectsLogFile", "AutoCorrectsLog.txt")
+        this.ACLogContinuousFile        := "..\Data\" this.ReadIni("Files", "ACLogContinuousFile", "ACLogContinuous.txt")
+        this.ErrContextLog              := "..\Data\" this.ReadIni("Files", "ErrContextLog", "ErrContextLog.txt")
         this.WordListFile               := "..\Data\" this.ReadIni("Files", "WordListFile", "GitHubComboList249k.txt")
         this.FrequencyListFile          := "..\Data\" this.ReadIni("Files", "FrequencyListFile", "unigram_freq_list_filtered_89k.csv")
         this.ACLogAnalyzer              := "..\Tools\" this.ReadIni("Files", "ACLogAnalyzer", "ACLogAnalyzer.exe")
@@ -247,7 +252,7 @@ class Config {
         ; [ACSystem] Section
         ; AutoCorrectSystem
         this.EnableLogging              := this.ReadIni("ACSystem", "EnableLogging", 1)
-        this.BeepOnAutoCorrection       := this.ReadIni("ACSystem", "BeepOnAutoCorrection", 1)
+        this.BeepOnAutoCorrection       := this.ReadIni("ACSystem", "BeepOnCorrection", 1)
         this.BeepOnContextLog           := this.ReadIni("ACSystem", "BeepOnContextLog", 1)
         this.PrecedingWordCount         := this.ReadIni("ACSystem", "PrecedingWordCount", 6)
         this.FollowingWordCount         := this.ReadIni("ACSystem", "FollowingWordCount", 4)
@@ -259,6 +264,23 @@ class Config {
         this.WinSkiplist                := StrSplit(WinSkiplistString, ",")
         this.BeepOnCapFix               := this.ReadIni("ACSystem", "BeepOnCapFix", 1)
         this.CapFixTwoLetterWords       := this.ReadIni("ACSystem", "CapFixTwoLetterWords", 1)
+
+        ; [ControlButtons] Section
+        ; Read entire section in one call; parse into a Map of {show, close} objects.
+        ; Format per key:  ButtonName=1,close  or  ButtonName=0,stay  (second token optional).
+        ; If section or key is absent the button defaults to shown/stay (forward-compatible).
+        this.ControlButtonCfg := Map()
+        sectionText := ""
+        try sectionText := IniRead(this.SettingsFile, "ControlButtons")
+        for line in StrSplit(sectionText, "`n", "`r") {
+            if !RegExMatch(line, "^([^=;][^=]*)=(.*)$", &m)
+                continue
+            name  := Trim(m[1])
+            parts := StrSplit(m[2], ",")
+            show  := (Trim(parts[1]) = "1")
+            doClose := (parts.Length > 1 && Trim(parts[2]) ~= "i)^close$")
+            this.ControlButtonCfg[name] := {show: show, close: doClose}
+        }
     }
 
     ; ============================================================
@@ -446,6 +468,15 @@ EditThisScript(*) {	; Open AutoCorrect2 script in VSCode
 		Run Config.EditorPath " " Config.ScriptName
 	Catch
 		acMsgBox.show 'cannot run ' Config.ScriptName
+}
+
+; Helper for control panel button actions. Using Func.Bind() passes 'action' and
+; 'doClose' by value at creation time, avoiding the AHK v2 closure-by-reference
+; problem that would otherwise cause all buttons to call the last iteration's action.
+_ControlBtnAction(action, doClose, *) {
+    action.Call()
+    if doClose
+        UI.MainForm.Hide()
 }
 
 OpenHotstringLibrary(*) {
@@ -722,7 +753,7 @@ class UI {
     static _CreateButtonSection() {
         buttonWidth := (Config.DefaultWidth / 6) - 4
         
-        this.Controls["AppendButton"] := this.MainForm.AddButton("xm y234 w" buttonWidth, "&Append")
+        this.Controls["AppendButton"] := this.MainForm.AddButton("xm y234 w" buttonWidth, "Append")
         this.Controls["CheckButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "Chec&k")
         this.Controls["ExamButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "E&xam")
         this.Controls["SpellButton"] := this.MainForm.AddButton("x+5 y234 w" buttonWidth, "Spell")
@@ -803,6 +834,7 @@ class UI {
         
         ; Add always-present buttons first
         this.controlButtons.Push({
+            name: "OpenLibrary",
             text: " Open HotString Library", 
             action: (*) => UIActions.OpenHotstringLibrary(),
             icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
@@ -811,6 +843,7 @@ class UI {
         ; Check if PersonalHotstrings file is present, add button.
         if FileExist(Config.BoilerplateHotstringLibrary) {
             this.controlButtons.Push({
+                name: "PersonalHotstrings",
                 text: " Open Personal Hotstrings File", 
                 action: (*) => Run("PersonalHotstrings.ahk"),
                 icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
@@ -820,30 +853,35 @@ class UI {
         
         if (Config.EnableLogging = 1) {
             this.controlButtons.Push({
+                name: "ACLog",
                 text: " Open AutoCorrection Log", 
                 action: (*) => Run(Config.AutoCorrectsLogFile),
                 icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
+                name: "ACAnalyze",
                 text: " Analyze AutoCorrection Log !^+Q", 
                 action: (*) => Run(Config.AcLogAnalyzer),
                 icon: A_ScriptDir "\..\Resources\Icons\AcAnalysis.ico"
             })
             
-            ; this.controlButtons.Push({
-            ;     text: " Open AutoCorrection Continuous Log", 
-            ;     action: (*) => Run(Config.ACLogContinuousFile),
-            ;     icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
-            ; })
+            this.controlButtons.Push({
+                name: "MCLogContinuous",
+                text: " Open AutoCorrection Continuous Log", 
+                action: (*) => Run(Config.ACLogContinuousFile),
+                icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
+            })
             
             this.controlButtons.Push({
+                name: "BSLog",
                 text: " Open Backspace Context Log", 
                 action: (*) => Run(Config.ErrContextLog),
                 icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
+                name: "RemovedHS",
                 text: " Open Removed HotStrings List", 
                 action: (*) => Run(Config.RemovedHsFile),
                 icon: A_ScriptDir "\..\Resources\Icons\missing-Blue.ico"
@@ -852,24 +890,28 @@ class UI {
         
         ; Add remaining buttons regardless of logging status
         this.controlButtons.Push({
+            name: "MCLog",
             text: " Open Manual Correction Log", 
             action: (*) => Run("..\Data\ManualCorrectionsLog.txt"),
             icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
         })
         
         this.controlButtons.Push({
+            name: "MCAnalyze",
             text: " Analyze Manual Correction Log #^+Q", 
             action: (*) => Run("MCLogger.exe /script MCLogger.ahk analyze"),
             icon: A_ScriptDir "\..\Resources\Icons\JustLog.ico"
         })
         
         this.controlButtons.Push({
+            name: "Report",
             text:  "Report HotStrings and Potential Fixes", 
             action: (*) => StringAndFixReport(),
             icon: A_ScriptDir "\..\Resources\Icons\report-Blue.ico"
         })
         
         this.controlButtons.Push({
+            name: "SettingsMan",
             text: " Configuration Settings Manager", 
             action: (*) => Run(Config.SettingsManager),
             icon: A_ScriptDir "\..\Resources\Icons\settings-Blue.ico"
@@ -878,6 +920,7 @@ class UI {
         ; Check if tool is present, add button.
         if FileExist("..\Tools\AC2HotkeyRef.exe") {
             this.controlButtons.Push({
+                name: "HotkeyRef",
                 text: " Hotkey Reference Tool", 
                 action: (*) => Run("..\Tools\AC2HotkeyRef.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\blue-questionmark.ico"
@@ -887,6 +930,7 @@ class UI {
         ; Check if Suggester tool is present, add button.
         if FileExist("..\Tools\Suggester.exe") {
             this.controlButtons.Push({
+                name: "Suggester",
                 text: " Hotstring Suggester Tool", 
                 action: (*) => Run("..\Tools\Suggester.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\lightbulb-Blue.ico"
@@ -896,6 +940,7 @@ class UI {
         ; Check if tool is present, add button.
         if FileExist("..\Tools\ExtractPotentialMisspellings.exe") {
             this.controlButtons.Push({
+                name: "ExtractMisspellings",
                 text: " Extract Potential Misspellings", 
                 action: (*) => Run("..\Tools\ExtractPotentialMisspellings.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\tweezers-Blue.ico"
@@ -905,6 +950,7 @@ class UI {
         ; Check if tool is present, add button.
         if FileExist("..\Tools\ConflictingStringLocator.exe") {
             this.controlButtons.Push({
+                name: "ConflictLocator",
                 text: " Conflicting String Locator Tool", 
                 action: (*) => Run("..\Tools\ConflictingStringLocator.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\conflict-Blue.ico"
@@ -914,6 +960,7 @@ class UI {
         ; Check if tool is present, add button.
         if FileExist("..\Tools\Updater.exe") {
             this.controlButtons.Push({
+                name: "Updater",
                 text: " Check GitHub for Updates", 
                 action: (*) => Run("..\Tools\Updater.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\update-Blue.ico"
@@ -923,6 +970,7 @@ class UI {
         ; Check if tool is present, add button.
         if FileExist("..\Tools\UniqueStringExtractor.exe") {
             this.controlButtons.Push({
+                name: "UniqueStringExtractor",
                 text: " Compare Two Versions of HotstringLib", 
                 action: (*) => Run("..\Tools\UniqueStringExtractor.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\diff-files-Blue.ico"
@@ -932,6 +980,7 @@ class UI {
         ; Check if tool is present, add button.
         if FileExist("..\Tools\Defunctionizer.exe") {
             this.controlButtons.Push({
+                name: "Defunctionizer",
                 text: " Defunctionize Hotstrings", 
                 action: (*) => Run("..\Tools\Defunctionizer.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\function-Blue.ico"
@@ -945,6 +994,7 @@ class UI {
         else
             fm := Config.FileManager
         this.controlButtons.Push({
+            name: "OpenFolder",
             text: " Go to AutoCorrect2 Folder",
             action: (*) => Run("`"" fm "`" `"" parentDir "`""),
             icon: A_ScriptDir "\..\Resources\Icons\open-file-Blue.ico"
@@ -952,6 +1002,7 @@ class UI {
 
         ; Open github in web browser
         this.controlButtons.Push({
+            name: "GitHub",
             text: " Go to GitHub Repository", 
             action: (*) => Run("https://github.com/kunkel321/AutoCorrect2"),
             icon: A_ScriptDir "\..\Resources\Icons\github-Blue.ico"
@@ -960,19 +1011,35 @@ class UI {
         ; Check if color theme settings exist, add theme button if they do
         if FileExist("..\Data\colorThemeSettings.ini") {
             this.controlButtons.Push({
+                name: "Theme",
                 text: " Change Color Theme", 
                 action: (*) => Run("..\Tools\ColorThemeInt.exe /script ..\Tools\ColorThemeInt.ahk analyz"),
                 icon: A_ScriptDir "\..\Resources\Icons\color-Blue.ico"
             })
         }
         
-        ; Create all buttons based on configuration
+        ; Create all buttons based on configuration.
+        ; Each entry in this.controlButtons has a 'name' key that maps to [ControlButtons] in the ini.
+        ; If the name is absent from the ini, the button is shown with stay-open behavior (safe default).
         this.Controls["ControlButtons"] := []
         
         for buttonConfig in this.controlButtons {
+            ; Check visibility: absent from ini → show by default.
+            cfg := Config.ControlButtonCfg.Get(buttonConfig.name, {show: true, close: false})
+            if !cfg.show
+                continue
+
+            ; Wrap action: if close=true, hide MainForm after running the action.
+            ; Fat-arrow lambdas in AHK v2 close over variables by REFERENCE, so all
+            ; loop iterations would share the same variable and end up calling the last
+            ; one. Using Func.Bind() passes action and doClose BY VALUE at creation time.
+            action  := buttonConfig.action
+            doClose := cfg.close
+            wrappedAction := _ControlBtnAction.Bind(action, doClose)
+
             ; Control Button size and spacing set with "y+2 h24" here.
             button := this.MainForm.AddButton("y+2 h24 xm w" Config.DefaultWidth, buttonConfig.text)
-            button.OnEvent("click", buttonConfig.action)
+            button.OnEvent("click", wrappedAction)
             
             if buttonConfig.icon
                 try this._SetButtonIcon(button, buttonConfig.icon)
@@ -1036,25 +1103,30 @@ class UI {
 	; Set up hotkeys specific to the HotString Helper form
 	static SetupFormHotkeys() {
 		; These hotkeys only apply when the form is active
-        HotIfWinActive "ahk_id " this.MainForm.Hwnd
+        HotIfWinActive "ahk_id " this.MainForm.Hwnd ; Hotstring Helper
 		
-		; Enter key behavior
+		; Enter::  ; Press key / Type / Append ; Hide
 		Hotkey "$Enter", (*) => this.EnterKeyHandler()
 		
-		; Shift+Left - Go to start of trigger
+		; +Left:: ; Jump to Trigger edit box ; Hide
 		Hotkey "+Left", (*) => this.ShiftLeftHandler()
 
-		; Shift+Right - Go to end of replacement
+		; +Right:: ; Jump to Replacement edit box ; Hide
 		Hotkey "+Right", (*) => this.ShiftRightHandler()
 		
-		; Escape - Hide form
+		; Esc:: ; Hide HH form ; Hide
 		Hotkey "Esc", (*) => UIActions.OnCancelButtonClick()
 		
-		; Undo operations
+		; ^z:: ; Undo trim ; Hide
+		; ^+z:: ; Undo all trims (reset) ; Hide
 		Hotkey "^z", (*) => UIActions.Undo()
 		Hotkey "^+z", (*) => UIActions.RestartFromOriginal()
 		
 		; Font size adjustment
+        ; ^Up:: ; Bigger font ; Hide
+        ; ^WheelUp:: ; Bigger font ; Hide
+        ; ^Down:: ; Smaller font ; Hide
+        ; ^WheelDown:: ; Smaller font ; Hide
 		Hotkey "^Up", (*) => UIActions.SetLargeFont()
 		Hotkey "^WheelUp", (*) => UIActions.SetLargeFont()
 		Hotkey "^Down", (*) => UIActions.SetNormalFont()
@@ -1066,12 +1138,73 @@ class UI {
 
 	; Handler for Enter key
 	static EnterKeyHandler() {
-		if this.Controls["SymbolToggle"].Text = "Hide Symbols"
-			return
-		else if this.Controls["ReplacementEdit"].Focused
+		if this.Controls["ReplacementEdit"].Focused {
+			if this.Controls["SymbolToggle"].Text = "Hide Symbols"
+				return
 			Send("{Enter}")
-		else
+		} else {
+			; Orthodox Windows behavior: if a button is focused, activate that button.
+			; Otherwise fall back to the default action (Append).
+			try {
+				focusedHwnd := ControlGetFocus("ahk_id " this.MainForm.Hwnd)
+			} catch {
+				UIActions.OnAppendButtonClick()
+				return
+			}
+			; Check for checkbox (FunctionCheck) — toggle via its handler (updates options box and beeps)
+			if this.Controls.Has("FunctionCheck") && this.Controls["FunctionCheck"].Hwnd = focusedHwnd {
+				this.Controls["FunctionCheck"].Value := !this.Controls["FunctionCheck"].Value
+				UIActions.FormAsFunction()
+				return
+			}
+			; Check for AC/BP radios — selecting one just sets its value (group handles the other)
+			if this.Controls.Has("ACRadio") && this.Controls["ACRadio"].Hwnd = focusedHwnd {
+				this.Controls["ACRadio"].Value := 1
+				return
+			}
+			if this.Controls.Has("BPRadio") && this.Controls["BPRadio"].Hwnd = focusedHwnd {
+				this.Controls["BPRadio"].Value := 1
+				return
+			}
+			; Check for Beg/Mid/End radios — selecting one also updates options box via FilterWordLists()
+			if this.Controls.Has("BeginningRadio") && this.Controls["BeginningRadio"].Hwnd = focusedHwnd {
+				this.Controls["BeginningRadio"].Value := 1
+				UIActions.FilterWordLists()
+				return
+			}
+			if this.Controls.Has("MiddleRadio") && this.Controls["MiddleRadio"].Hwnd = focusedHwnd {
+				this.Controls["MiddleRadio"].Value := 1
+				UIActions.FilterWordLists()
+				return
+			}
+			if this.Controls.Has("EndingRadio") && this.Controls["EndingRadio"].Hwnd = focusedHwnd {
+				this.Controls["EndingRadio"].Value := 1
+				UIActions.FilterWordLists()
+				return
+			}
+			static buttonActions := Map(
+				"AppendButton",    () => UIActions.OnAppendButtonClick(),
+				"CheckButton",     () => UIActions.OnCheckButtonClick(),
+				"ExamButton",      () => UIActions.OnExamButtonClick(),
+				"SpellButton",     () => UIActions.OnSpellButtonClick(),
+				"LookButton",      () => UIActions.OnLookButtonClick(),
+				"CancelButton",    () => UIActions.OnCancelButtonClick(),
+				"UndoButton",      () => UIActions.Undo(),
+				"LeftTrimButton",  () => UIActions.TrimLeft(),
+				"RightTrimButton", () => UIActions.TrimRight(),
+				"HelpButton",      () => HelpSystem.ShowHelp(true),
+				"SizeToggle",      () => UIActions.ToggleSize(),
+				"SymbolToggle",    () => UIActions.ToggleSymbols(),
+				"WrapToggle",      () => UIActions.ToggleNewlineFormat()
+			)
+			for btnName, action in buttonActions {
+				if this.Controls.Has(btnName) && this.Controls[btnName].Hwnd = focusedHwnd {
+					action()
+					return
+				}
+			}
 			UIActions.OnAppendButtonClick()
+		}
 	}
 
 	; Handler for Shift+Left combo
@@ -1126,17 +1259,9 @@ class UI {
         this.Controls["TriggerEdit"].Move(, , wFactor - 86)
         this.Controls["ReplacementEdit"].Move(, , wFactor, hFactor + 100)
         
-        ; Adjust comment label position based on radio button visibility
-        if Config.SeparateLibForBoilerplates {
-            ; If radio buttons exist, comment label is at fixed Y position with hFactor
-            ; Radio buttons are positioned: y+5 from replacement (approx 107), AC at that Y, BP at y+2 below AC
-            ; Approximate positions: AC around Y=112, BP around Y=129
-            ; Comment label should be at Y=182 + hFactor (fixed absolute position)
-            this.Controls["CommentLabel"].Move(, hFactor + 182)
-        } else {
-            ; Without radio buttons, standard positioning
-            this.Controls["CommentLabel"].Move(, hFactor + 182)
-        }
+        ; Comment label Y position is the same with or without radio buttons (x differs
+        ; but is set once at control creation, not here). Keep this as a single line.
+        this.Controls["CommentLabel"].Move(, hFactor + 182)
         
         this.Controls["CommentEdit"].Move(, hFactor + 200, wFactor - 60)
         this.Controls["FunctionCheck"].Move(, hFactor + 182)
@@ -1364,13 +1489,12 @@ class UIActions {
         replacementText := UI.Controls["ReplacementEdit"].Value
         buttonControl := UI.Controls["WrapToggle"]
         
-        if (InStr(replacementText, "`n")) {
+        ; Has actual newlines  => button offers "Wrap" (convert to `n)
+        ; No actual newlines   => button offers "Unwrap" (convert `n back to newlines, or no-op)
+        if (InStr(replacementText, "`n"))
             buttonControl.Text := "Wrap"
-        } else if (InStr(replacementText, "``n")) {
+        else
             buttonControl.Text := "Unwrap"
-        } else {
-            buttonControl.Text := "Unwrap"
-        }
     }
     
     ; Toggle between actual newlines and literal `n representation
@@ -1633,55 +1757,106 @@ class UIActions {
             }
         }
         
-        ; Process trigger matches
-        triggerMatches := 0
+        ; --- Single-pass wordlist filter -------------------------------------
+        ; Historical note: this function used to read Config.WordListFile TWICE
+        ; (once for trigger, once for replacement) with ~500K GUI property reads
+        ; per call. The loop below reads the file once and caches all GUI/state
+        ; reads as plain locals, which is dramatically faster on the 249k list.
+        ; The matching logic is unchanged and must stay bit-for-bit identical
+        ; to the old two-loop version.
+        ;
+        ; Cache everything we'll need inside the tight loop so the GUI isn't
+        ; probed 249k times per pass.
+        isMiddle    := UI.Controls["MiddleRadio"].Value = 1
+        isEnding    := UI.Controls["EndingRadio"].Value = 1
+        isBeginning := UI.Controls["BeginningRadio"].Value = 1
+        trigLen     := StrLen(triggerText)
+        replLen     := StrLen(replacementText)
+        
+        triggerMatches      := 0
         triggerFilteredList := ""
+        replacementMatches      := 0
+        replacementFilteredList := ""
         
         if FileExist(Config.WordListFile) {
             Loop Read, Config.WordListFile {
-                if InStr(A_LoopReadLine, triggerText) {
-                    if UI.Controls["MiddleRadio"].Value = 1 {
-                        triggerFilteredList .= A_LoopReadLine '`n'
+                line := A_LoopReadLine
+                
+                ; ---- Trigger side ----
+                ; Cheap InStr gate first (same as original); only do the
+                ; position-specific checks when the substring is present.
+                if InStr(line, triggerText) {
+                    if isMiddle {
+                        triggerFilteredList .= line '`n'
                         triggerMatches++
                     }
-                    else if UI.Controls["EndingRadio"].Value = 1 {
-                        if InStr(SubStr(A_LoopReadLine, -StrLen(triggerText)), triggerText) {
-                            triggerFilteredList .= A_LoopReadLine '`n'
+                    else if isEnding {
+                        if InStr(SubStr(line, -trigLen), triggerText) {
+                            triggerFilteredList .= line '`n'
                             triggerMatches++
                         }
                     }
-                    else if UI.Controls["BeginningRadio"].Value = 1 {
-                        if InStr(SubStr(A_LoopReadLine, 1, StrLen(triggerText)), triggerText) {
-                            triggerFilteredList .= A_LoopReadLine '`n'
+                    else if isBeginning {
+                        if InStr(SubStr(line, 1, trigLen), triggerText) {
+                            triggerFilteredList .= line '`n'
                             triggerMatches++
                         }
                     }
                     else {
-                        if A_LoopReadLine = triggerText {
+                        ; Whole-word comparison (no wildcards)
+                        if line = triggerText {
                             triggerFilteredList := triggerText
                             triggerMatches++
+                        }
+                    }
+                }
+                
+                ; ---- Replacement side ----
+                if InStr(line, replacementText) {
+                    if isMiddle {
+                        replacementFilteredList .= line '`n'
+                        replacementMatches++
+                    }
+                    else if isEnding {
+                        if InStr(SubStr(line, -replLen), replacementText) {
+                            replacementFilteredList .= line '`n'
+                            replacementMatches++
+                        }
+                    }
+                    else if isBeginning {
+                        if InStr(SubStr(line, 1, replLen), replacementText) {
+                            replacementFilteredList .= line '`n'
+                            replacementMatches++
+                        }
+                    }
+                    else {
+                        if line = replacementText {
+                            replacementFilteredList := replacementText
+                            replacementMatches++
                         }
                     }
                 }
             }
         }
         else {
-            triggerFilteredList := "Comparison`nword list`nnot found"
+            triggerFilteredList     := "Comparison`nword list`nnot found"
+            replacementFilteredList := "Comparison`nword list`nnot found"
         }
+        ; --- End single-pass filter ------------------------------------------
         
         ; Update options based on radio selection
-        if UI.Controls["MiddleRadio"].Value = 1 {
+        if isMiddle {
             if !InStr(options, "*")
                 options := options "*"
             if !InStr(options, "?")
                 options := options "?"
         }
-        else if UI.Controls["EndingRadio"].Value = 1 {
+        else if isEnding {
             if !InStr(options, "?")
                 options := options "?"
             options := StrReplace(options, "*")
         }
-        else if UI.Controls["BeginningRadio"].Value = 1 {
+        else if isBeginning {
             if !InStr(options, "*")
                 options := options "*"
             options := StrReplace(options, "?")
@@ -1710,42 +1885,7 @@ class UIActions {
             UI.Controls["TriggerLabel"].SetFont(Config.FontColor)
         }
         
-        ; Process replacement matches
-        replacementMatches := 0
-        replacementFilteredList := ""
-        
-        if FileExist(Config.WordListFile) {
-            Loop Read, Config.WordListFile {
-                if InStr(A_LoopReadLine, replacementText) {
-                    if UI.Controls["MiddleRadio"].Value = 1 {
-                        replacementFilteredList .= A_LoopReadLine '`n'
-                        replacementMatches++
-                    }
-                    else if UI.Controls["EndingRadio"].Value = 1 {
-                        if InStr(SubStr(A_LoopReadLine, -StrLen(replacementText)), replacementText) {
-                            replacementFilteredList .= A_LoopReadLine '`n'
-                            replacementMatches++
-                        }
-                    }
-                    else if UI.Controls["BeginningRadio"].Value = 1 {
-                        if InStr(SubStr(A_LoopReadLine, 1, StrLen(replacementText)), replacementText) {
-                            replacementFilteredList .= A_LoopReadLine '`n'
-                            replacementMatches++
-                        }
-                    }
-                    else {
-                        if A_LoopReadLine = replacementText {
-                            replacementFilteredList := replacementText
-                            replacementMatches++
-                        }
-                    }
-                }
-            }
-        }
-        else {
-            replacementFilteredList := "Comparison`nword list`nnot found"
-        }
-        
+        ; Update replacement matches display
         UI.Controls["ReplacementMatchesEdit"].Value := replacementFilteredList
         UI.Controls["ReplacementMatchLabel"].Text := "Fixes [" replacementMatches "]"
         
@@ -1960,22 +2100,21 @@ class UIActions {
     
 	; Handler for the Check button
 	static OnCheckButtonClick() {
-		static validityDialog := 0  
-		
-		if WinExist("Validity Report") {
-			; If dialog is already open, close it
-			if IsObject(validityDialog)
-				this.validityDialog.Destroy()
+		; If a Validity Report dialog is already open from a previous Check click,
+		; close it (toggle behavior). Use the class-level this.ValidityDialog so the
+		; reference matches what ShowValidityDialog stores.
+		if WinExist("Validity Report") && IsObject(this.ValidityDialog) {
+			try this.ValidityDialog.Destroy()
+			return
 		}
-		else {
-			; Validate the hotstring and show results
-			options := UI.Controls["OptionsEdit"].Text
-			triggerText := UI.Controls["TriggerEdit"].Text
-			replacementText := UI.Controls["ReplacementEdit"].Text
-			
-			result := Validation.ValidateHotstring(options, triggerText, replacementText)
-			this.ShowValidityDialog(result.combinedMsg, false)
-		}
+
+		; Validate the hotstring and show results
+		options := UI.Controls["OptionsEdit"].Text
+		triggerText := UI.Controls["TriggerEdit"].Text
+		replacementText := UI.Controls["ReplacementEdit"].Text
+
+		result := Validation.ValidateHotstring(options, triggerText, replacementText)
+		this.ShowValidityDialog(result.combinedMsg, false)
 	}
     
 
@@ -2072,11 +2211,9 @@ class UIActions {
 
     ; Open the hotstring library in the editor
     static OpenHotstringLibrary() {
-        if WinActive(Config.HHWindowTitle) {
-            UI.MainForm.Hide()
-            A_Clipboard := State.ClipboardOld
-        }
-        
+        ; Note: hiding the HH GUI and restoring the clipboard are NOT done here.
+        ; Hiding is handled by the button's close/stay config in [ControlButtons] ini section.
+        ; Clipboard restore only applies to the normal "select word → fix it" workflow, not here.
         try {
             Run(Config.EditorPath " " Config.HotstringLibrary)
         }
@@ -2300,16 +2437,69 @@ class UIActions {
                 }
             }
             
-            ; Normal append - add to library file
+            ; Append to library file
             FileAppend("`n" wholeString, targetLibrary)
             
-            ; Reload script unless Ctrl is held
-            if !GetKeyState("Ctrl") {
-                ; Auto-enter replacement if enabled
+            ; Both normal and Ctrl+Click register the hotstring live (no restart needed).
+            ; Normal click: also runs AutoEnterNewReplacement and hides the form.
+            ; Ctrl+Click: stays open for adding multiple entries in succession.
+            ; Use SetTimer so RegisterHotstringLive runs on its own thread,
+            ; independent of any blocking in AutoEnterNewReplacement (e.g. WinWaitActive).
+            ;
+            ; IMPORTANT: Capture isFuncStyle NOW (at append time), not inside
+            ; RegisterHotstringLive. Because the timer fires asynchronously, by the
+            ; time RegisterHotstringLive runs the user may have clicked "Make as f()
+            ; Function" or the form state may have otherwise shifted. Passing these
+            ; values explicitly guarantees the live-registered hotstring matches
+            ; what was written to the library file.
+            optsCopy  := options
+            trigCopy  := triggerText
+            replCopy  := replacementText
+            isFuncStyle := (UI.Controls["FunctionCheck"].Value = 1
+                            && State.IsBoilerplate = 0
+                            && !InStr(replacementText, "`n"))
+            SetTimer(() => UIActions.RegisterHotstringLive(optsCopy, trigCopy, replCopy, isFuncStyle), -1)
+            
+            if GetKeyState("Ctrl") {
+                ; Stay open for next entry
+                ToolTip("Added: " wholeString)
+                SetTimer(() => ToolTip(), -2500)
+            }
+            else {
+                ; Auto-enter replacement if enabled, then close
                 if Config.AutoEnterNewEntry = 1
                     this.AutoEnterNewReplacement()
-                Reload()
+                else
+                    UI.MainForm.Hide()
             }
+        }
+    }
+
+    ; Register a newly-appended hotstring live using AHK's Hotstring() function,
+    ; without requiring a script restart. Called by normal (non-Ctrl) Append click.
+    ; isFuncStyle is passed in from AppendHotstring (captured at append time) rather
+    ; than re-read from UI state here, because this method runs on a deferred timer
+    ; and the UI could have changed between the append and the registration.
+    static RegisterHotstringLive(options, triggerText, replacementText, isFuncStyle) {
+        ; Determine the effective options string as built by AppendHotstring.
+        ; Function-style entries use B0X; multi-line and plain entries strip those.
+        isMultiLine  := InStr(replacementText, "`n")
+
+        if isFuncStyle {
+            effectiveOpts := "B0X" StrReplace(StrReplace(options, "B0", ""), "X", "")
+            ; Use a factory function so replacementText is captured by value, not by reference.
+            Hotstring(":" effectiveOpts ":" triggerText, _MakeFuncHS(replacementText))
+        }
+        else if isMultiLine {
+            ; Multi-line hotstrings can't be registered live via Hotstring() --
+            ; the replacement would need to be a continuation section, which
+            ; isn't supported at runtime. Fall back to a silent reload instead.
+            Reload()
+        }
+        else {
+            ; Plain single-line hotstring -- pass replacement string directly.
+            effectiveOpts := StrReplace(options, "X", "")
+            Hotstring(":" effectiveOpts ":" triggerText, replacementText)
         }
     }
     
@@ -2704,12 +2894,10 @@ class Dictionary {
     static loadingStatus := ""
     static WORDNET_PATH := "..\Resources\Dictionary\WordNet-3.0\dict\"
     
-    ; Temporary references for optional ChatGPT module
-    static _DefinitionGui := ""
-    static _DefinitionWord := ""
-    static _DefinitionEdit := ""
-    
-    ; Optional callback after Dictionary GUI is created
+    ; Optional callback after Dictionary GUI is created (used by ChatGptWordLookup module).
+    ; (Earlier _DefinitionGui / _DefinitionWord / _DefinitionEdit static properties
+    ;  have been removed — they were relics of a polling-timer approach that was
+    ;  replaced by this callback. They were only ever written to, never read.)
     static _PostShowCallback := ""
     
     ; Start loading dictionary in background
@@ -2912,11 +3100,6 @@ class Dictionary {
         closeBtn := dictGui.AddButton("x10 y+10", "Close")
         dictGui.AddButton("x+8", "Copy Text").OnEvent("Click", (*) => A_Clipboard := definition)
         dictGui.AddButton("x+8", "Try GCIDE").OnEvent("Click", (*) => Run("https://gcide.gnu.org.ua/?q=" word "&define=Define&strategy=."))
-        
-        ; Store references for optional ChatGPT module to add its button post-hoc
-        this._DefinitionGui := dictGui
-        this._DefinitionWord := word
-        this._DefinitionEdit := defEdit
         
         ; Setup events
         closeBtn.OnEvent("Click", (*) => dictGui.Destroy())
@@ -3352,7 +3535,10 @@ class WordFrequency {
     static isLoaded := false
     static isLoading := false
     static EXPECTED_WORD_COUNT := 88916
-    static DATA_FILE := Config.FrequencyListFile
+    ; NOTE: DATA_FILE removed — it used to be initialized at class-parse time via
+    ; Config.FrequencyListFile, but class statics are evaluated BEFORE Config.Init()
+    ; runs, so any INI customization was silently ignored. We now read
+    ; Config.FrequencyListFile directly in LoadWordFrequencies() instead.
     
     ; Initialize word frequency data
     static Initialize() {
@@ -3370,7 +3556,7 @@ class WordFrequency {
             ; Clear existing data
             this.wordFreqMap.Clear()
             
-            filePath := this.DATA_FILE
+            filePath := Config.FrequencyListFile
             Debug("Reading word frequency CSV file: " filePath)
             
             ; Process the file directly from disk, one line at a time
@@ -3585,7 +3771,10 @@ RunACLogAnalyzer(*) {
 }
 
 ;===============================================================================
-#HotIf WinActive(Config.ScriptName) || WinActive(Config.HotstringLibrary) || WinActive("AutoCorrectSystem.ahk" ) ; AC2, etc, open in editor
+#HotIf WinActive(Config.ScriptName) ; AC2, etc, open in editor
+|| WinActive(Config.HotstringLibrary) 
+|| WinActive("AutoCorrectSystem.ahk" ) 
+|| WinActive("acSettings.ini" ) 
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.  ; hide
 {
 	Send("^s") ; Save me.
@@ -3628,7 +3817,7 @@ class HelpSystem {
         
         this.helpTexts["BPRadio"] := "Selects Boilerplate (BP) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the Boilerplate library (PersonalHotstrings.ahk).`n`nThe BP button is automatically pre-selected when you select multiple lines of text or text with more than three words (indicating boilerplate template content), and press Win+H.`n`nYou can manually switch to the AC radio button if you want to save a boilerplate entry to the AutoCorrect library instead."
         
-        this.helpTexts["AppendButton"] := "Adds the current hotstring to your library file and reloads the script.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem. If there is a problem, the user is given the option to append anyway.`n`nShift+Click:`nCopies to clipboard instead.`n`nCtrl+Click:`nAppends without closing or reloading--useful for multiple simultaneous entries.`n`nAlt+Click:`nSends hotstring to Suggester Tool.`n`nPressing Enter will also append the new hotstring and restart the script, but not when the replacement box is focused.  In that case, pressing Enter just types a new line."
+        this.helpTexts["AppendButton"] := "Adds the current hotstring to your library file and makes it immediately active--without restarting the script.`n`nThe new hotstring is registered live via AHK's Hotstring() function, so it works right away. The next time AutoCorrect2 restarts, it will load normally from the library file.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem. If there is a problem, the user is given the option to append anyway.`n`nShift+Click:`nCopies to clipboard instead.`n`nCtrl+Click:`nAppends and registers live, but keeps the form open--useful for adding multiple entries in succession without closing HH.`n`nAlt+Click:`nSends hotstring to Suggester Tool.`n`nPressing Enter will also append the new hotstring (live, no restart), but not when the replacement box is focused.  In that case, pressing Enter just types a new line."
         
         this.helpTexts["CheckButton"] := "Validates the hotstring without adding it to your library.`n`nThere is a `'Look up`' button in the Validation report.  Select the hotstring from the report and click button to go to string in library in default editor using Ctrl+F.  If line number is selected, Ctrl+G will be used to goto line number.`n`nDuring validation, several things are checked for, but mostly the trigger is compared to existing library items, checking for conflicts.  Please see User Manual for further discussion.`n`nNote that a validation is also done when clicking Append, though the Validation Report is only shown if there is a problem."
         
@@ -3880,6 +4069,14 @@ class HelpSystem {
         }
         return ""
     }
+}
+
+; Factory function for RegisterHotstringLive.
+; Creates a hotstring callback that genuinely closes over the replacement string by value.
+; A standalone function (not a method) is required so that 'r' is a true local,
+; ensuring the lambda captures the correct value even on the first post-restart call.
+_MakeFuncHS(r) {
+    return (*) => f(r)
 }
 
 ; In UI.Init() function, add after UI._SetupEventHandlers():
