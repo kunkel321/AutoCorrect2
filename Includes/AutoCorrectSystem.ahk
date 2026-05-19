@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 4-18-2026 
+; Version: 5-18-2026 
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -42,46 +42,56 @@ Global lastTrigger := "No triggers logged yet." ; Tracks the last used trigger
 ;===============================================================================
 ; The main autocorrection logger f() function
 ; This function is called by all the f-style hotstrings in the library
+; "replace" param is mandatory.  Log and paste are optional. 
 ;===============================================================================
-f(replace := "") {
+f(replace := "", log := 1, paste := 0) {
     static HSInputBuffer := InputBuffer()
     HSInputBuffer.Start()
-    
+
     trigger := A_ThisHotkey
     endchar := A_EndChar
-    Global lastTrigger := StrReplace(trigger, "B0X", "") "::" replace ; Set 'lastTrigger' before removing options and colons.
-    
-    trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1) ; Use everything to right of 2nd colon. 
-    TrigLen := StrLen(trigger) + StrLen(endchar) ; Determine number of backspaces needed.
-    
-    ; Rarify: Only remove and replace rightmost necessary chars.  
-    trigArr := StrSplit(trigger)
-    replArr := StrSplit(replace)
-    ignorLen := 0
-    
-    ; Find matching left substring to optimize replacement
-    Loop Min(trigArr.Length, replArr.Length) {
-        If (trigArr[A_Index] == replArr[A_Index]) ; The double equal (==) makes it case-sensitive. 
-            ignorLen++
-        else 
-            break
+    Global lastTrigger := StrReplace(trigger, "B0X", "") "::" replace
+
+    trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1)
+    TrigLen := StrLen(trigger) + StrLen(endchar)
+
+    If paste {
+        SendInput("{BS " TrigLen "}")
+        clipSaved := ClipboardAll()
+        A_Clipboard := replace
+        if ClipWait(0.5)  {
+            Send "^v"
+            Sleep 150
+        }
+        A_Clipboard := clipSaved
+    } Else {
+        ; Rarify: Only remove and replace rightmost necessary chars.
+        trigArr := StrSplit(trigger)
+        replArr := StrSplit(replace)
+        ignorLen := 0
+
+        Loop Min(trigArr.Length, replArr.Length) {
+            If (trigArr[A_Index] == replArr[A_Index])
+                ignorLen++
+            else
+                break
+        }
+
+        replace := SubStr(replace, (ignorLen+1))
+        replace := StrReplace(replace, "'", "`'")
+        endchar := StrReplace(endchar, "!", "{!}")
+        SendInput("{BS " (TrigLen - ignorLen) "}" replace endchar)
     }
-    
-    replace := SubStr(replace, (ignorLen+1))
-    replace := StrReplace(replace, "'", "`'")
-    endchar := StrReplace(endchar, "!", "{!}")
-    SendInput("{BS " (TrigLen - ignorLen) "}" replace endchar) ; Type replacement and endchar. 
-    
+
     HSInputBuffer.Stop()
+
     If (Config.BeepOnAutoCorrection = 1)
-        SoundBeep(900, 60) ; Notification of replacement.
-        
-    ; Only set up logging if it's enabled
-    if (Config.EnableLogging = 1) {
+        SoundBeep(900, 60)
+
+    if (log && Config.EnableLogging = 1) {
         SetTimer(keepText.bind(LastTrigger), -1)
-        ; For onBsLogger function.
-        Global IsRecent := 1 ; Set IsRecent, then change back in 1 second.
-        setTimer (*) => IsRecent := 0, -1000 ; run only once, in 1 second.
+        Global IsRecent := 1
+        setTimer (*) => IsRecent := 0, -(Config.BackspaceWindow)
     }
 }
 
@@ -92,7 +102,7 @@ f(replace := "") {
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
 keepText(KeepForLog, *) {       
     KeepForLog := StrReplace(KeepForLog, "`n", "``n") ; Fixes triggers spanning two lines.
-    global lih := InputHook("B V I1 E T1", "{Backspace}") ; "logger input hook." T is time-out. T1 = 1 second.
+    global lih := InputHook("B V I1 E T" (Config.BackspaceWindow / 1000), "{Backspace}") ; "logger input hook." T is time-out. BackspaceWindow is in ms (e.g. 500 = 0.5s).
     lih.Start()
     lih.Wait()
     
@@ -496,7 +506,7 @@ StringAndFixReport(caller := "Button") {
         if (Config.EnableLogging = 0) {
             thisMessage := "*Logging is currently disabled*`nEnable logging by setting`nEnableLogging=1`nin the [ACSystem] section of acSettings.ini`n(or via the Settings Manager tool)."
         } else {
-            thisMessage := "Last logged trigger:`n`n" lastTrigger
+            thisMessage := "Last Hotstring:`n`n" lastTrigger
         }
         buttPos := ""
         windowTitle := "Last Triggered Hotstring"
