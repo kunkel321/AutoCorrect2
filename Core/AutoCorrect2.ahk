@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 4-18-2026
+; Version: 5-19-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -105,7 +105,8 @@ class Config {
     
     ; AutoCorrect Options
     static DefaultAutoCorrectOpts := "B0X"
-    static MakeFuncByDefault := 1
+    static MakeAcFuncByDefault := 1
+    static MakeBpFuncByDefault := 1
     static AutoCommentWithFreqAndStats := 1
     static AutoEnterNewEntry := 1
     
@@ -132,6 +133,7 @@ class Config {
     ; AutoCorrect System Settings
     static EnableLogging := 1
     static BeepOnAutoCorrection := 1
+    static BackspaceWindow := 1000
     static CapFixTwoLetterWords := 1
     static PrecedingWordCount := 6
     static FollowingWordCount := 4
@@ -245,7 +247,8 @@ class Config {
         this.MinWordLength              := this.ReadIni("HotstringHelper", "MinWordLength", 2)
         ; AutoCorrect
         this.DefaultAutoCorrectOpts     := this.ReadIni("HotstringHelper", "DefaultAutoCorrectOpts", "B0X")
-        this.MakeFuncByDefault          := this.ReadIni("HotstringHelper", "MakeFuncByDefault", 1)
+        this.MakeAcFuncByDefault        := this.ReadIni("HotstringHelper", "MakeAcFuncByDefault", 1)
+        this.MakeBpFuncByDefault        := this.ReadIni("HotstringHelper", "MakeBpFuncByDefault", 1)
         this.AutoCommentWithFreqAndStats := this.ReadIni("HotstringHelper", "AutoCommentWithFreqAndStats", 1)
         this.AutoEnterNewEntry          := this.ReadIni("HotstringHelper", "AutoEnterNewEntry", 1)
 
@@ -253,6 +256,7 @@ class Config {
         ; AutoCorrectSystem
         this.EnableLogging              := this.ReadIni("ACSystem", "EnableLogging", 1)
         this.BeepOnAutoCorrection       := this.ReadIni("ACSystem", "BeepOnCorrection", 1)
+        this.BackspaceWindow            := this.ReadIni("ACSystem", "BackspaceWindow", 1000)
         this.BeepOnContextLog           := this.ReadIni("ACSystem", "BeepOnContextLog", 1)
         this.PrecedingWordCount         := this.ReadIni("ACSystem", "PrecedingWordCount", 6)
         this.FollowingWordCount         := this.ReadIni("ACSystem", "FollowingWordCount", 4)
@@ -737,13 +741,15 @@ class UI {
 		if Config.SeparateLibForBoilerplates {
 			; If radio buttons are visible, comment box position and width adjusted
             this.Controls["CommentLabel"] := this.MainForm.AddText("x60 y182", "Comment")
-            ; Add function checkbox next to comment label
-            this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x+70 y182", "Make as f() Function")
-			this.Controls["CommentEdit"] := this.MainForm.AddEdit(this.ListBackground " c" CommentColor " x60 y200 w" (Config.DefaultWidth - 60))
+            this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x178 y182", "Function")
+            this.Controls["LogCheck"]      := this.MainForm.AddCheckbox("x+8 y182",  "Log")
+            this.Controls["PasteCheck"]    := this.MainForm.AddCheckbox("x+8 y182",  "Paste")
+			this.Controls["CommentEdit"] := this.MainForm.AddEdit(this.ListBackground " c" CommentColor " x60 y200 w320")
 		} else {
             this.Controls["CommentLabel"] := this.MainForm.AddText("xm y182", "Comment")
-            ; Add function checkbox next to comment label
-            this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x+70 y182", "Make as f() Function")
+            this.Controls["FunctionCheck"] := this.MainForm.AddCheckbox("x178 y182", "Function")
+            this.Controls["LogCheck"]      := this.MainForm.AddCheckbox("x+8 y182",  "Log")
+            this.Controls["PasteCheck"]    := this.MainForm.AddCheckbox("x+8 y182",  "Paste")
 			; Standard position when radio buttons are hidden
 			this.Controls["CommentEdit"] := this.MainForm.AddEdit(this.ListBackground " c" CommentColor " xs y200 w" Config.DefaultWidth)
 		}
@@ -1066,8 +1072,10 @@ class UI {
         this.Controls["ReplacementEdit"].OnEvent("Change", (*) => UIActions.UpdateToggleButtonText())
         this.Controls["ReplacementEdit"].OnEvent("Focus", (ctrl, *) => State.CurrentEdit := ctrl)
         
-        ; Comment section events
-        this.Controls["FunctionCheck"].OnEvent("Click", (*) => UIActions.FormAsFunction())
+        ; Comment section events — checkbox interdependencies
+        this.Controls["FunctionCheck"].OnEvent("Click", (*) => UIActions.OnFunctionCheckClick())
+        this.Controls["PasteCheck"].OnEvent("Click",    (*) => UIActions.OnPasteLogCheckClick())
+        this.Controls["LogCheck"].OnEvent("Click",      (*) => UIActions.OnPasteLogCheckClick())
         
         ; Button section events
         this.Controls["AppendButton"].OnEvent("Click", (*) => UIActions.OnAppendButtonClick())
@@ -1154,7 +1162,18 @@ class UI {
 			; Check for checkbox (FunctionCheck) — toggle via its handler (updates options box and beeps)
 			if this.Controls.Has("FunctionCheck") && this.Controls["FunctionCheck"].Hwnd = focusedHwnd {
 				this.Controls["FunctionCheck"].Value := !this.Controls["FunctionCheck"].Value
-				UIActions.FormAsFunction()
+				UIActions.OnFunctionCheckClick()
+				return
+			}
+			; Check for PasteCheck and LogCheck — toggle via shared handler
+			if this.Controls.Has("PasteCheck") && this.Controls["PasteCheck"].Hwnd = focusedHwnd {
+				this.Controls["PasteCheck"].Value := !this.Controls["PasteCheck"].Value
+				UIActions.OnPasteLogCheckClick()
+				return
+			}
+			if this.Controls.Has("LogCheck") && this.Controls["LogCheck"].Hwnd = focusedHwnd {
+				this.Controls["LogCheck"].Value := !this.Controls["LogCheck"].Value
+				UIActions.OnPasteLogCheckClick()
 				return
 			}
 			; Check for AC/BP radios — selecting one just sets its value (group handles the other)
@@ -1265,6 +1284,8 @@ class UI {
         
         this.Controls["CommentEdit"].Move(, hFactor + 200, wFactor - 60)
         this.Controls["FunctionCheck"].Move(, hFactor + 182)
+        this.Controls["PasteCheck"].Move(,    hFactor + 182)
+        this.Controls["LogCheck"].Move(,      hFactor + 182)
         
         ; Move radio buttons if they exist (dual library support)
         if this.Controls.Has("ACRadio") {
@@ -1591,6 +1612,25 @@ class UIActions {
             UI.Controls["OptionsEdit"].Text := StrReplace(StrReplace(options, "B0", ""), "X", "")
             if Config.BeepOnFunctionCheck
                 SoundBeep(900, 200)
+        }
+    }
+
+    ; Handle Function checkbox click — if unchecked, clear Paste and Log too
+    static OnFunctionCheckClick() {
+        if UI.Controls["FunctionCheck"].Value = 0 {
+            UI.Controls["PasteCheck"].Value := 0
+            UI.Controls["LogCheck"].Value   := 0
+        }
+        this.FormAsFunction()
+    }
+
+    ; Handle Paste or Log checkbox click — if either checked, ensure Function is checked too
+    static OnPasteLogCheckClick() {
+        if UI.Controls["PasteCheck"].Value = 1 || UI.Controls["LogCheck"].Value = 1 {
+            if UI.Controls["FunctionCheck"].Value = 0 {
+                UI.Controls["FunctionCheck"].Value := 1
+                this.FormAsFunction()
+            }
         }
     }
     
@@ -2249,10 +2289,17 @@ class UIActions {
 		titleText := this.ValidityDialog.Add("Text", "", "For proposed new item:")
 		titleText.Focus()
 		
-		; Display the proposed hotstring
+		; Display the proposed hotstring.  If it is short and single-line, auto-size
+		; (no explicit w/h) so the dialog isn't unnecessarily wide.  If it is long or
+		; multiline, use a fixed-height scrollable Edit so buttons are never pushed off-screen.
 		this.ValidityDialog.SetFont(Config.LargeFontSize)
-		proposedHS := ":" UI.Controls["OptionsEdit"].Text ":" UI.Controls["TriggerEdit"].Text "::" UI.Controls["ReplacementEdit"].Text
-		this.ValidityDialog.Add("Text", (StrLen(proposedHS) > 90 ? "w600 " : "") "xs yp+22", proposedHS)
+		replacementText := UI.Controls["ReplacementEdit"].Text
+		proposedHS := ":" UI.Controls["OptionsEdit"].Text ":" UI.Controls["TriggerEdit"].Text "::" replacementText
+		proposedIsLong := (StrLen(proposedHS) > 140) || InStr(proposedHS, "`n")
+		if proposedIsLong
+			this.ValidityDialog.Add("Edit", "xs yp+22 w600 h64 ReadOnly -E0x200 Background" Config.FormColor, proposedHS)
+		else
+			this.ValidityDialog.Add("Edit", "xs yp+22 ReadOnly -E0x200 Background" Config.FormColor, proposedHS)
 		
 		; If not append option, add section header
 		this.ValidityDialog.SetFont("s11")
@@ -2273,19 +2320,17 @@ class UIActions {
 		triggerEditBox := this.ValidityDialog.Add("Edit", (StrLen(messageItems[2]) > 104 ? " w600 " : " ") (InStr(messageItems[2], Config.ValidOkMessage) ? Config.ValidityDialogGreen : Config.ValidityDialogRed) editSharedSettings, messageItems[2])
 		this.ValidityDialog.Add("Edit", (StrLen(messageItems[3]) > 104 ? " w600 " : " ") (InStr(messageItems[3], Config.ValidOkMessage) ? Config.ValidityDialogGreen : Config.ValidityDialogRed) editSharedSettings, messageItems[3])
 		
-		; Add buttons
+		; Add buttons — created left-to-right so arrow key navigation matches visual order.
+		; appendButton is only created when needed (a hidden control still occupies tab order).
 		this.ValidityDialog.SetFont("s11 " Config.FontColor)
 		
-		if appendOption
-			this.ValidityDialog.Add("Text", "", "==============================`nAppend HotString Anyway?")
-			
-		appendButton := this.ValidityDialog.Add("Button",, "Append Anyway")
-		appendButton.OnEvent("Click", (*) => (this.AppendHotstring(UI.Controls["OptionsEdit"].Text, UI.Controls["TriggerEdit"].Text, UI.Controls["ReplacementEdit"].Text), this.ValidityDialog.Destroy()))
-		
-		if !appendOption
-			appendButton.Visible := false
-			
-		closeButton := this.ValidityDialog.Add("Button", "x+5 Default", "Close")
+		if appendOption {
+			appendButton := this.ValidityDialog.Add("Button",, "Append Anyway")
+			appendButton.OnEvent("Click", (*) => (this.AppendHotstring(UI.Controls["OptionsEdit"].Text, UI.Controls["TriggerEdit"].Text, UI.Controls["ReplacementEdit"].Text), this.ValidityDialog.Destroy()))
+			closeButton := this.ValidityDialog.Add("Button", "x+5 Default", "Close")
+		} else {
+			closeButton := this.ValidityDialog.Add("Button", "Default", "Close")
+		}
 		closeButton.OnEvent("Click", (*) => this.ValidityDialog.Destroy())
 		
 		; Add lookup button if needed
@@ -2298,10 +2343,12 @@ class UIActions {
 			triggerEditBox.OnEvent("Focus", (*) => State.CurrentEdit := triggerEditBox)
 		}
 		
-		; Show dialog centered
+		; Show dialog centered, then explicitly focus closeButton so Windows correctly
+		; tracks the default-button state for arrow key navigation from the start.
 		this.ValidityDialog.Show("yCenter x" (A_ScreenWidth / 2))
 		WinSetAlwaysontop(1, "A")
 		this.ValidityDialog.OnEvent("Escape", (*) => this.ValidityDialog.Destroy())
+		closeButton.Focus()
 	}
 		
     ; Construct and append hotstring to library
@@ -2313,8 +2360,9 @@ class UIActions {
         ; Get comment text from form
         commentInput := UI.Controls["CommentEdit"].Text
 
-        ; Generate auto-comment about fixes and misspellings if enabled
-        if Config.AutoCommentWithFreqAndStats = 1 {
+        ; Generate auto-comment about fixes and misspellings if enabled and this is an AC item
+        isBpItem := Config.SeparateLibForBoilerplates && UI.Controls.Has("BPRadio") && UI.Controls["BPRadio"].Value = 1
+        if Config.AutoCommentWithFreqAndStats = 1 && !isBpItem {
             ; Ensure word frequency data is loaded
             if !WordFrequency.isLoaded {
                 WordFrequency.Initialize()
@@ -2373,23 +2421,44 @@ class UIActions {
         }
         
         ; Add function part if needed. Combine the parts into a single- or multi-line hotstring.
-        if UI.Controls["FunctionCheck"].Value = 1 && State.IsBoilerplate = 0 && !InStr(replacementText, "`n") {
-            ; Function format
+        if UI.Controls["FunctionCheck"].Value = 1 {
+            ; Function format — supports both single-line and multiline (paste path)
+            pasteVal := UI.Controls["PasteCheck"].Value
+            logVal   := UI.Controls["LogCheck"].Value
+
+            ; Build extra params string — omit trailing defaults to keep output tidy
+            ; Param order: f(replace, log, paste) — log=1 and paste=0 are defaults
+            if (logVal = 1 && pasteVal = 0)
+                extraParams := ""           ; f(r) — both defaults, omit
+            else if (logVal = 0 && pasteVal = 0)
+                extraParams := ", 0"        ; f(r, 0) — ShortBP: log=0, paste stays default
+            else if (logVal = 0 && pasteVal = 1)
+                extraParams := ", 0, 1"     ; f(r, 0, 1) — LongBP: log=0, paste=1
+            else
+                extraParams := ", 1, 1"     ; f(r, 1, 1) — unusual but valid
+
             options := "B0X" StrReplace(StrReplace(options, "B0", ""), "X", "")
-            
+
             if commentInput != "" || autoComment != "" {
                 commentText := " `; " autoComment commentInput
-                commentText := StrReplace(commentText, "words ,", "words,") ; <--- removes erroneous space
-                commentText := StrReplace(commentText, "word ,", "word,") ; <--- removes erroneous space
-                commentText := StrReplace(commentText, "word .", "word.") ; <--- removes erroneous space
-                commentText := StrReplace(commentText, "words .", "words.") ; <--- removes erroneous space
-                commentText := StrReplace(commentText, "(). (", "(") ; <--- removes erroneous parenths
+                commentText := StrReplace(commentText, "words ,", "words,")
+                commentText := StrReplace(commentText, "word ,",  "word,")
+                commentText := StrReplace(commentText, "word .",  "word.")
+                commentText := StrReplace(commentText, "words .", "words.")
+                commentText := StrReplace(commentText, "(). (",   "(")
             }
-                
-            wholeString := ":" options ":" triggerText "::f(`"" replacementText "`")" commentText
+
+            if InStr(replacementText, "`n") {
+                ; Multiline paste — use continuation section inside the f() call
+                openParenth := SubStr(replacementText, -1) = "`t" || SubStr(replacementText, -1) = " " ? "(RTrim0`n" : "(`n"
+                wholeString := ":" options ":" triggerText "::f(`"`n" openParenth replacementText "`n)`"" extraParams ")" commentText
+            } else {
+                ; Single-line function call
+                wholeString := ":" options ":" triggerText "::f(`"" replacementText "`"" extraParams ")" commentText
+            }
         }
         else if InStr(replacementText, "`n") {
-            ; Multi-line format
+            ; Multi-line format, no function wrapper
             options := StrReplace(StrReplace(options, "B0", ""), "X", "")
             ; If last char of replacement text is tab or space, include 'RTrim0'.
             openParenth := SubStr(replacementText, -1) = "`t" || SubStr(replacementText, -1) = " " ? "(RTrim0`n" : "(`n"
@@ -2455,10 +2524,10 @@ class UIActions {
             optsCopy  := options
             trigCopy  := triggerText
             replCopy  := replacementText
-            isFuncStyle := (UI.Controls["FunctionCheck"].Value = 1
-                            && State.IsBoilerplate = 0
-                            && !InStr(replacementText, "`n"))
-            SetTimer(() => UIActions.RegisterHotstringLive(optsCopy, trigCopy, replCopy, isFuncStyle), -1)
+            isFuncStyle := (UI.Controls["FunctionCheck"].Value = 1)
+            pasteCapture := UI.Controls["PasteCheck"].Value
+            logCapture   := UI.Controls["LogCheck"].Value
+            SetTimer(() => UIActions.RegisterHotstringLive(optsCopy, trigCopy, replCopy, isFuncStyle, logCapture, pasteCapture), -1)
             
             if GetKeyState("Ctrl") {
                 ; Stay open for next entry
@@ -2480,15 +2549,20 @@ class UIActions {
     ; isFuncStyle is passed in from AppendHotstring (captured at append time) rather
     ; than re-read from UI state here, because this method runs on a deferred timer
     ; and the UI could have changed between the append and the registration.
-    static RegisterHotstringLive(options, triggerText, replacementText, isFuncStyle) {
+    static RegisterHotstringLive(options, triggerText, replacementText, isFuncStyle, logVal := 1, pasteVal := 0) {
         ; Determine the effective options string as built by AppendHotstring.
         ; Function-style entries use B0X; multi-line and plain entries strip those.
         isMultiLine  := InStr(replacementText, "`n")
 
-        if isFuncStyle {
+        if isFuncStyle && isMultiLine {
+            ; Multiline f() hotstrings can't be registered live via Hotstring() —
+            ; the replacement would need a continuation section at runtime. Reload instead.
+            Reload()
+        }
+        else if isFuncStyle {
             effectiveOpts := "B0X" StrReplace(StrReplace(options, "B0", ""), "X", "")
             ; Use a factory function so replacementText is captured by value, not by reference.
-            Hotstring(":" effectiveOpts ":" triggerText, _MakeFuncHS(replacementText))
+            Hotstring(":" effectiveOpts ":" triggerText, _MakeFuncHS(replacementText, logVal, pasteVal))
         }
         else if isMultiLine {
             ; Multi-line hotstrings can't be registered live via Hotstring() --
@@ -3278,6 +3352,102 @@ class Utils {
             editControl.Focus()
     }
     
+    ; Joins an array of strings with a separator (AHK v2 has no built-in StrJoin)
+    static StrJoin(arr, sep) {
+        out := ""
+        for i, v in arr
+            out .= (i > 1 ? sep : "") . v
+        return out
+    }
+
+    ; Pre-processes clipboard text before hsRegex is applied.
+    ; Collapses multi-line continuation-section hotstrings into a single line
+    ; so the main hsRegex can parse them.  Handles two forms:
+    ;
+    ;   Non-f() :   :opts:trig::          (line 1 ends with ::, optional comment)
+    ;               (                     (line 2 is opener, optional modifiers)
+    ;               content lines
+    ;               )                     (closer: first line whose first non-space char is ))
+    ;
+    ;   f() wrap:   :opts:trig::f("       (line 1 ends with f(", optional comment)
+    ;               (                     (line 2 is opener, optional modifiers)
+    ;               content lines
+    ;               )",params)            (closer: first line whose first non-space char is ))
+    ;
+    ; Comments only appear on line 1, never on the closer line.
+    ; Single-line text or unrecognized forms are returned unchanged.
+    static NormalizeFCallText(text) {
+        lines := StrSplit(text, "`n", "`r")
+
+        ; Need at least 3 lines (header + opener + closer) to be multiline
+        if (lines.Length < 3)
+            return text
+
+        firstLine := Trim(lines[1], " `t`r")
+
+        ; Detect which form: f() wrapper or plain hotstring
+        isFCall := RegExMatch(firstLine, '^:[^:]*:[^:]+::f\("(\h*;.*)?$')
+        isPlain := (!isFCall && RegExMatch(firstLine, '^:[^:]*:[^:]+::(\h*;.*)?$'))
+
+        if (!isFCall && !isPlain)
+            return text   ; Not a recognizable multiline opener — return as-is
+
+        ; Line 2 must be the continuation-section opener ( with optional modifiers
+        openerLine := Trim(lines[2], " `t`r")
+        if !RegExMatch(openerLine, '^\((?:RTrim0?|LTrim0?|Join\S*|C|P\d+|\s)*\s*$')
+            return text   ; Line 2 is not a ( opener — bail out
+
+        ; Collect content lines until the closer.
+        ; The closer is the first line whose first non-space character is )
+        ; Comments only appear on line 1, never on the closer line.
+        innerLines  := []
+        closerRest  := ""   ; everything after the ) on the closer line
+        foundCloser := false
+
+        Loop lines.Length - 2 {
+            i := A_Index + 2
+            rawLine := RTrim(lines[i], "`r")   ; strip CR; preserve inner whitespace
+
+            ; Any line starting with ) is the closer — never content
+            if RegExMatch(rawLine, '^\s*\)([\s\S]*)$', &m) {
+                closerRest  := m[1]   ; e.g. ",0,1)  for f() or empty for plain
+                foundCloser := true
+                break
+            }
+
+            innerLines.Push(rawLine)
+        }
+
+        if !foundCloser
+            return text   ; Malformed — bail out safely
+
+        repl := Utils.StrJoin(innerLines, "`n")
+
+        ; Extract any trailing comment from line 1, being careful not to mistake
+        ; a semicolon in the trigger (e.g. :B0X:;rrrr::) for a comment delimiter.
+        ; A comment must follow the final ::  with optional whitespace before the ;
+        ; For f() form:  :opts:trig::f("  — comment would be after f("
+        ; For plain form: :opts:trig::    — comment would be after ::
+        ; Strategy: find the position of the last :: then look for \h+; after it.
+        lastDColonPos := 0
+        p := 1
+        while RegExMatch(firstLine, '::', &dm, p) {
+            lastDColonPos := dm.Pos
+            p := dm.Pos + 2
+        }
+        afterDColon := SubStr(firstLine, lastDColonPos + 2)   ; text after the last ::
+        comm      := RegExMatch(afterDColon, '\h+(;.*)$', &mc) ? mc[1] : ""
+        cleanFirst := comm ? SubStr(firstLine, 1, StrLen(firstLine) - StrLen(comm) - 1) : firstLine
+
+        if isFCall
+            ; Reassemble: :opts:trig::f("content",0,1) ; comment
+            ; closerRest starts with " which closes the f(" opening quote
+            return cleanFirst . repl . closerRest . (comm ? " " comm : "")
+        else
+            ; Plain form: :opts:trig::content  (with literal `n in repl)
+            return cleanFirst . repl . (comm ? " " comm : "")
+    }
+
     ; Initialize the application by checking clipboard content
     static CheckClipboard() {
         ; Save old clipboard content
@@ -3298,7 +3468,8 @@ class Utils {
         }
         else {
             ; Check if Suggester Tool or MCLogger are active and clipboard contains a hotstring
-            hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
+            ; Jim regex by AndyNBody
+            hsRegex := '(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\("(?<Repl>[^"]*)"(?:\h*,\h*(?<Log>[01]))?(?:\h*,\h*(?<Paste>[01]))?\)|(?<Repl>[\s\S]+?)(?=\h+;|\z))?(?<Comm>\h+;.+)?$'
             clipContent := Trim(A_Clipboard, " `t`n`r")
 
             ; Check if systray is currently active
@@ -3320,15 +3491,21 @@ class Utils {
 
         ; Check for hotstring pattern in clipboard
         clipContent := Trim(A_Clipboard, " `t`n`r")
+        ; Normalize multiline f() continuation sections to a single line before regex.
+        clipContent := Utils.NormalizeFCallText(clipContent)
         ; Regexes based on those from AndyNBody.
-        hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comm>\h+;.+)?$"
+        ; Updated regex: replacement delimited by quotes (allows parens inside replacement),
+        ; plus optional <Log> and <Paste> param captures.
+        hsRegex := '(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\("(?<Repl>[^"]*)"(?:\h*,\h*(?<Log>[01]))?(?:\h*,\h*(?<Paste>[01]))?\)|(?<Repl>[\s\S]+?)(?=\h+;|\z))?(?<Comm>\h+;.+)?$'
         comRegEx := "i);\h*(?<Freq>WEB\h+FREQ\h+\d+\.\d+)?[\h,|]*(?<Fix>\bFIXES\h*\d+\h*WORDS?\b)?[\h,|]*(?<mCom>.*)$"
         
         ; If clipboard contains a hotstring, parse it
         if RegExMatch(clipContent, hsRegex, &hotstr) {
             UI.Controls["TriggerEdit"].Text := hotstr.Trig
             UI.Controls["OptionsEdit"].Value := hotstr.Opts
-            UI.Controls["FunctionCheck"].Value := Config.MakeFuncByDefault
+            UI.Controls["FunctionCheck"].Value := Config.MakeAcFuncByDefault
+            UI.Controls["PasteCheck"].Value    := 0
+            UI.Controls["LogCheck"].Value      := Config.MakeAcFuncByDefault  ; log if function
             
             Sleep(200)  ; prevents intermittent error
             
@@ -3336,7 +3513,18 @@ class Utils {
             State.TrigNeedle_Orig := hotstr.Trig
             
             hotstr.Repl := Trim(hotstr.Repl, '"')
+            ; Normalize LF-only newlines to CRLF so the Edit control displays them correctly.
+            ; (NormalizeFCallText joins with `n; the Edit control needs `r`n to show line breaks.)
+            hotstr.Repl := StrReplace(hotstr.Repl, "`r`n", "`n")   ; avoid doubling if already CRLF
+            hotstr.Repl := StrReplace(hotstr.Repl, "`n", "`r`n")
             UI.Controls["ReplacementEdit"].Text := hotstr.Repl
+
+            ; Populate Log/Paste checkboxes from captured f() params if present.
+            ; f() defaults: log=1, paste=0 — only override when explicitly captured.
+            if (hotstr.Log != "")
+                UI.Controls["LogCheck"].Value := Integer(hotstr.Log)
+            if (hotstr.Paste != "")
+                UI.Controls["PasteCheck"].Value := Integer(hotstr.Paste)
             
             ; Process the comment to extract only the manual part
             if (hotstr.Comm) {
@@ -3369,11 +3557,22 @@ class Utils {
             else
                 UI.Controls["MiddleRadio"].Value := 1
             
-            ; A parsed hotstring is always an AC item — select AC radio if dual library support is enabled
+            ; Determine AC vs BP using the same heuristic as HandleNormalStartup:
+            ; more than 2 spaces (3+ words) or a newline in the replacement = boilerplate.
+            parsedIsBoilerplate := (StrLen(hotstr.Repl) - StrLen(StrReplace(hotstr.Repl, " ")) > 2)
+                                 || InStr(hotstr.Repl, "`n")
             if Config.SeparateLibForBoilerplates && UI.Controls.Has("ACRadio") {
-                UI.Controls["ACRadio"].Value := 1
-                State.LibrarySelection := "AC"
-                State.IsBoilerplate := 0
+                if parsedIsBoilerplate {
+                    UI.Controls["BPRadio"].Value := 1
+                    State.LibrarySelection := "BP"
+                    State.IsBoilerplate    := 1
+                } else {
+                    UI.Controls["ACRadio"].Value := 1
+                    State.LibrarySelection := "AC"
+                    State.IsBoilerplate    := 0
+                }
+            } else {
+                State.IsBoilerplate := parsedIsBoilerplate ? 1 : 0
             }
             
             ; Initialize toggle button text based on replacement content
@@ -3444,7 +3643,9 @@ class Utils {
             UI.Controls["ReplacementEdit"].Value := content
             
             State.IsBoilerplate := 1
-            UI.Controls["FunctionCheck"].Value := 0  ; Don't make multi-line items into functions
+            UI.Controls["FunctionCheck"].Value := Config.MakeBpFuncByDefault
+            UI.Controls["PasteCheck"].Value    := 0
+            UI.Controls["LogCheck"].Value      := 0
             
             ; Set BP radio button if dual library support is enabled
             if Config.SeparateLibForBoilerplates && UI.Controls.Has("BPRadio") {
@@ -3494,6 +3695,9 @@ class Utils {
                 UI.Controls["ACRadio"].Value := 0
                 UI.Controls["BPRadio"].Value := 0
             }
+            UI.Controls["FunctionCheck"].Value := 0
+            UI.Controls["PasteCheck"].Value    := 0
+            UI.Controls["LogCheck"].Value      := 0
         }
         else {
             ; Likely a typo/autocorrect entry
@@ -3513,7 +3717,9 @@ class Utils {
             UI.Controls["TriggerEdit"].Value := Trim(StrLower(content))
             UI.Controls["ReplacementEdit"].Value := Trim(StrLower(content))
             UI.Controls["OptionsEdit"].Text := Config.DefaultAutoCorrectOpts
-            UI.Controls["FunctionCheck"].Value := Config.MakeFuncByDefault
+            UI.Controls["FunctionCheck"].Value := Config.MakeAcFuncByDefault
+            UI.Controls["PasteCheck"].Value    := 0
+            UI.Controls["LogCheck"].Value      := Config.MakeAcFuncByDefault
         }
         
         ; Ensure replacement field is editable
@@ -3811,7 +4017,7 @@ class HelpSystem {
         
         this.helpTexts["WrapToggle"] := "Toggle button to convert between actual line breaks and literal ``n characters.`n`nClick Unwrap to convert line breaks into literal ``n characters for single-line hotstring format:`n`t::;sig::John Doe``nAutoHotkey User``n555-2345`n`nLeave wrapped to keep actual line breaks for multi-line Continuation Section format:`n`t::;sig::`n`t(`n`tJohn Doe`n`tAutoHotkey User`n`t555-2345`n`t)`n`nBoth formats produce the same result when the hotstring executes. The Continuation Section format is more `"What you see is what you get,`" but the unwrapped format uses only one line of code in your Hotstring Library and can be sorted without breaking them.  The wrap/unwrap functionality is primarily useful for boilerplate template items. It would not be used with f() AutoCorrect items."
         
-        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nMulti-line `"Coninuation section`" style hotstrings are never wrapped in function calls.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above. (Unless it's a multi-line item.)`n`nTip: If you never want the function calls, search for 'MakeFuncByDefault := 1' in the 'HotstringHelper' section of the Setting Manager, and set it to `"Vanilla.`" Amd also checkout the Defunctionizer script in the Control Pane."
+        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above.`n`nThe `"Paste`" and `"Log`" checkboxes require Function to be enabled. Unchecking Function will also uncheck both.`n`nTip: If you never want function calls by default, set `"MakeAcFuncByDefault`" and/or `"MakeBpFuncByDefault`" to 0 in the `"HotstringHelper`" section of the Settings Manager. Also checkout the Defunctionizer script in the Control Pane."
         
         this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (HotstringLib.ahk).`n`nThe AC button is automatically pre-selected when you select three or fewer words, on one line, and press Win+H.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
         
@@ -4075,8 +4281,15 @@ class HelpSystem {
 ; Creates a hotstring callback that genuinely closes over the replacement string by value.
 ; A standalone function (not a method) is required so that 'r' is a true local,
 ; ensuring the lambda captures the correct value even on the first post-restart call.
-_MakeFuncHS(r) {
-    return (*) => f(r)
+_MakeFuncHS(r, l := 1, p := 0) {
+    if (l = 1 && p = 0)
+        return (*) => f(r)
+    else if (l = 0 && p = 0)
+        return (*) => f(r, 0)
+    else if (l = 0 && p = 1)
+        return (*) => f(r, 0, 1)
+    else
+        return (*) => f(r, 1, 1)
 }
 
 ; In UI.Init() function, add after UI._SetupEventHandlers():
