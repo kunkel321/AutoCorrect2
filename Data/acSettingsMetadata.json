@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "4-18-2026",
+    "verion_date_for_this_json_file": "5-19-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -307,7 +307,7 @@
   },
   "HotstringHelper.SeparateLibForBoilerplates": {
     "label": "Append Boilerplate Hotstrings to a Separate Library",
-    "help": "If this is set to true, then radio buttons ()AC ()BP will appear on the HH gui.  When BP is selected, then the Append button will append the new hotstring to the file defined in Files.BoilerplateHotstringLibrary.  If the file is not found, one will be created.",
+    "help": "If this is set to true, then radio buttons ()AC ()BP will appear on the HH gui, just above the Append Button.  When BP is selected, then the Append button will append the new hotstring to the file defined in Files.BoilerplateHotstringLibrary.  If the file is not found, one will be created.",
     "type": "boolean",
     "options": [
       "0=Disabled",
@@ -324,9 +324,19 @@
       "1=Beep on startup"
     ]
   },
-  "HotstringHelper.MakeFuncByDefault": {
-    "label": "Make Function by Default",
-    "help": "If enabled, new AutoCorrect entries will use the f() function wrapper by default (allows logging and context capture). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Make as f() function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in and f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
+  "HotstringHelper.MakeAcFuncByDefault": {
+    "label": "Make AC Function By Default",
+    "help": "If enabled, new AutoCorrect entries will use the f() function wrapper by default (allows logging and context capture). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in and f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
+    "type": "boolean",
+    "options": [
+      "0=Unchecked by default'",
+      "1=Use f() function by default"
+    ],
+  "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.MakeBpFuncByDefault": {
+    "label": "Make BP Function By Default",
+    "help": "If enabled, new BoilerPlate entries in the PersonalHotstrings.ahk file will use the f() function wrapper by default (allows inputBuffering and option to paste the test). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in and f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
     "type": "boolean",
     "options": [
       "0=Unchecked by default'",
@@ -390,6 +400,14 @@
       "0=Silent",
       "1=Beep"
     ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.BackspaceWindow": {
+    "label": "Backspace Timeout Window",
+    "help": "When an autocorrection is make via the f() function, if the user presses Backspace, within this number of millisecons, the autocorrection gets flagged as errant in the autocorrection log.  Use a smaller number if you type fast and make a lot of errors.  (See user manual for more discussion.)",
+    "type": "integer",
+    "min": 100,
+    "max": 3000,
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.BeepOnContextLog": {
