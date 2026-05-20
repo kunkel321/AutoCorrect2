@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-19-2026
+; Version: 5-20-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -1962,8 +1962,9 @@ class UIActions {
     ; Examine the words - analyze the differences between trigger and replacement
     static ExamineWords(triggerText, replacementText) {
         Debug("At top of ExamineWords() method")
-        if State.FormBig {
-            UI.Controls["SizeToggle"].Text := "Make Bigger"
+        ; Use button text as authoritative source (State.FormBig can desync from it).
+        ; Do NOT pre-set button text before calling ToggleSize — ToggleSize reads it to decide direction.
+        if UI.Controls["SizeToggle"].Text = "Make Smaller" {
             this.ToggleSize()
         }
         UI.MainForm.Show("AutoSize yCenter")
@@ -2055,9 +2056,9 @@ class UIActions {
             ; Both panes closed: open exam pane
             UI.Controls["ExamButton"].Text := "Done"
             
-            if State.FormBig {
-                this.ToggleSize()
-                UI.Controls["SizeToggle"].Text := "Make Bigger"
+            ; Use button text as authoritative source (State.FormBig can desync)
+            if UI.Controls["SizeToggle"].Text = "Make Smaller" {
+                this.ToggleSize()  ; ToggleSize reads+sets button text itself
             }
             
             State.OrigTrigger := UI.Controls["TriggerEdit"].Text
@@ -3425,7 +3426,7 @@ class Utils {
 
         ; Extract any trailing comment from line 1, being careful not to mistake
         ; a semicolon in the trigger (e.g. :B0X:;rrrr::) for a comment delimiter.
-        ; A comment must follow the final ::  with optional whitespace before the ;
+        ; A comment must follow the final ::  with required whitespace before the ;
         ; For f() form:  :opts:trig::f("  — comment would be after f("
         ; For plain form: :opts:trig::    — comment would be after ::
         ; Strategy: find the position of the last :: then look for \h+; after it.
@@ -3578,30 +3579,36 @@ class Utils {
             ; Initialize toggle button text based on replacement content
             UIActions.InitializeToggleButtonText()
             
-            Debug("About to call ExamineWords")
-            Debug("WordFrequency state before ExamineWords: isLoaded=" WordFrequency.isLoaded)
-
-            ; Ensure form is in normal size when opening Exam Pane
-            ; (Reset any previous "bigger" mode to avoid visual conflicts)
-            if (State.FormBig = 1) {
-                UI.Resize(false)
-                UI.Controls["SizeToggle"].Text := "Make Bigger"
-                State.FormBig := 0
-            }
-
-            ; Always close Control Pane and open Exam Pane
-            ; This ensures proper state management
+            ; Always close the Control Pane first (applies to both AC and BP)
             UIActions.ShowHideControlPane(false)
             State.ControlPaneOpen := 0
-            
-            UI.Controls["ExamButton"].Text := "Done"
-            UIActions.ShowHideExamPane(true)
 
-            Debug("just before UIActions.ExamineWords()")
-            UIActions.ExamineWords(hotstr.Trig, hotstr.Repl)
-            Debug("just after UIActions.ExamineWords()")
+            if parsedIsBoilerplate {
+                ; BP item: close Exam Pane if open, then grow form if not already big.
+                ; Use button text as authoritative source — State.FormBig can desync from it.
+                if (State.ExamPaneOpen = 1) {
+                    UIActions.ShowHideExamPane(false)
+                    UI.Controls["ExamButton"].Text := "Exam"
+                    State.ExamPaneOpen := 0
+                }
+                if UI.Controls["SizeToggle"].Text = "Make Bigger" {
+                    UIActions.ToggleSize()
+                }
+            } else {
+                ; AC item: shrink form if big, then open Exam Pane.
+                ; Use button text as authoritative source — State.FormBig can desync from it.
+                if UI.Controls["SizeToggle"].Text = "Make Smaller" {
+                    UIActions.ToggleSize()
+                }
+                UI.Controls["ExamButton"].Text := "Done"
+                UIActions.ShowHideExamPane(true)
 
-            State.ExamPaneOpen := 1
+                Debug("just before UIActions.ExamineWords()")
+                UIActions.ExamineWords(hotstr.Trig, hotstr.Repl)
+                Debug("just after UIActions.ExamineWords()")
+
+                State.ExamPaneOpen := 1
+            }
             
             ; Reset history for add-a-letter feature
             State.TriggerHistory := []
@@ -3966,7 +3973,11 @@ LogError(message) {
 }
 Debug(message) {
     if (Config.CODE_DEBUG_LOG) {
-        FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\ac2_error_debug_log.txt")
+        try {
+            FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Debug\ac2_error_debug_log.txt")
+        } catch {
+            ; File briefly locked by another instance or external viewer — silently skip
+        }
     }
 }
 
