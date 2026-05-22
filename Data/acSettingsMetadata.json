@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "5-19-2026",
+    "verion_date_for_this_json_file": "5-22-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -102,6 +102,20 @@
     "help": "Hotkey for opening the AutoCorrect2.ahk script in your editor.  If you are going to use this feature, I recommend setting a preferred ahk editor in Shared/DefaultEditor.",
     "type": "hotkey",
     "default": "^+e",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "Hotkeys.LastTriggerHk": {
+    "label": "Last Hotstrings Triggered",
+    "help": "Shows a popup of the last three f()-wrapped hotstrings that have been triggered since the AutoCorrect2 script was restarted.  Cache resets on script restart.  Even if logging is disabled, the cache will still carry the last three hotstrings.",
+    "type": "hotkey",
+    "default": "!F3",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "Hotkeys.StringReportHk": {
+    "label": "System Up Time",
+    "help": "Shows a \"Report\" of the current number of hotstrings in the HotstringsLib.ahk file, and the total number of \"potential fixes.\"",
+    "type": "hotkey",
+    "default": "!+u",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "Hotkeys.SystemUpTimeHk": {
@@ -332,7 +346,7 @@
       "0=Unchecked by default'",
       "1=Use f() function by default"
     ],
-  "restart": "..\\Core\\AutoCorrect2.exe"
+    "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.MakeBpFuncByDefault": {
     "label": "Make BP Function By Default",
@@ -380,6 +394,45 @@
       "0=Disabled",
       "1=Auto-type"
     ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.AutoOpenExamPane": {
+    "label": "Auto-Open Exam Pane",
+    "help": "If enabled, the Exam Pane automatically opens when an existing AutoCorrect hotstring is captured and loaded into HotstringHelper. Disable if you prefer to open the Exam Pane manually via the Exam button.\n\nOnly applies to AutoCorrect (AC) items \u2014 Boilerplate (BP) items never open the Exam Pane.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Auto-Open"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+    
+  },
+  "HotstringHelper.AutoBigReplBox": {
+    "label": "Auto Big Replacement Box",
+    "help": "If enabled, the replacement edit box automatically switches to big-mode when the loaded text is large enough to need it (based on AutoBigLineLimit and AutoBigCharLimit). If the text fits comfortably in small mode, the box stays small.\n\nApplies both when capturing an existing BP hotstring and when selecting text for a new BP hotstring via Win+H.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Auto-Big"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.AutoBigLineLimit": {
+    "label": "Auto Big Line Limit",
+    "help": "When AutoBigReplBox=1, if the replacement text has more than this many lines, the replacement box switches to big-mode automatically.\n\nDefault: 5",
+    "type": "integer",
+    "min": 2,
+    "max": 10,
+    "default": "5",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.AutoBigCharLimit": {
+    "label": "Auto Big Char Limit",
+    "help": "When AutoBigReplBox=1, if any single line in the replacement text is longer than this many characters, the replacement box switches to big-mode automatically.\n\nDefault: 40",
+    "type": "integer",
+    "min": 10,
+    "max": 120,
+    "default": "40",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "ACSystem.EnableLogging": {
