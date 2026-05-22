@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 5-18-2026 
+; Version: 5-22-2026 
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -37,7 +37,8 @@ If Config.EnableLogging {
 
 ;================== Variable Declarations ======================================
 Global IsRecent := 0  ; Flag to track if a hot string was recently triggered
-Global lastTrigger := "No triggers logged yet." ; Tracks the last used trigger
+Global lastTrigger := ""  ; Tracks the last used trigger (see recentTriggers for display)
+Global recentTriggers := []                      ; Rolling cache of last 3 triggers (not saved to INI)
 
 ;===============================================================================
 ; The main autocorrection logger f() function
@@ -52,6 +53,12 @@ f(replace := "", log := 1, paste := 0) {
     endchar := A_EndChar
     Global lastTrigger := StrReplace(trigger, "B0X", "") "::" replace
 
+    ; Maintain rolling cache of last 3 triggers (resets on script restart; not saved to INI)
+    Global recentTriggers
+    recentTriggers.Push(lastTrigger)
+    if (recentTriggers.Length > 3)
+        recentTriggers.RemoveAt(1)
+
     trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1)
     TrigLen := StrLen(trigger) + StrLen(endchar)
 
@@ -60,7 +67,7 @@ f(replace := "", log := 1, paste := 0) {
         clipSaved := ClipboardAll()
         A_Clipboard := replace
         if ClipWait(0.5)  {
-            Send "^v"
+            Send "^v" ; Where the magic happens...
             Sleep 150
         }
         A_Clipboard := clipSaved
@@ -497,17 +504,55 @@ class InputBuffer {
 ; - "lastTrigger": Shows the last used trigger
 ;===============================================================================
 
-!+F3::StringAndFixReport("lastTrigger")  ; Alt+Shift+F3: Show last used trigger
-^F3::StringAndFixReport()                ; Ctrl+F3: Show statistics report
+Hotkey(Config.LastTriggerHk, (*) => StringAndFixReport("lastTrigger"))  ; Default: Alt+F3
+Hotkey(Config.StringReportHk, (*) => StringAndFixReport())              ; Default: Ctrl+F3
 
 StringAndFixReport(caller := "Button") {
     ; Handle different cases based on caller parameter
     if (caller = "lastTrigger") {
-        if (Config.EnableLogging = 0) {
-            thisMessage := "*Logging is currently disabled*`nEnable logging by setting`nEnableLogging=1`nin the [ACSystem] section of acSettings.ini`n(or via the Settings Manager tool)."
+        Global recentTriggers
+        if (recentTriggers.Length = 0) {
+            thisMessage := "No f-wrapped hotstrings triggered yet this session."
         } else {
-            thisMessage := "Last Hotstring:`n`n" lastTrigger
+            ; Build numbered list of recent triggers, newest last (most recent at bottom)
+            ; Truncate each entry: max 100 chars on first line, max 10 lines total
+            TruncateTrigger(entry) {
+                lines := StrSplit(entry, "`n")
+                totalLines := lines.Length
+                firstLine := lines[1]
+
+                ; Truncate the first line if over 100 chars
+                truncatedFirst := (StrLen(firstLine) > 100) ? SubStr(firstLine, 1, 100) "…" : firstLine
+
+                ; Build display: up to 10 lines
+                if (totalLines <= 1) {
+                    return truncatedFirst
+                }
+                displayLines := [truncatedFirst]
+                shownLines := Min(totalLines, 10)
+                Loop shownLines - 1  ; already added line 1 above
+                    displayLines.Push("        " lines[A_Index + 1])
+                result := ""
+                for i, ln in displayLines
+                    result .= (i = 1 ? "" : "`n") ln
+                if (totalLines > 10)
+                    result .= "`n        […+" (totalLines - 10) " more lines]"
+                return result
+            }
+
+            ; Show oldest → newest so the most recent is at the bottom
+            thisMessage := "Recent Hotstrings:`n"
+            Loop recentTriggers.Length {
+                i := A_Index
+                ; Display number counts down from oldest: 3, 2, 1  (1 = most recent)
+                displayNum := recentTriggers.Length - i + 1
+                entry := recentTriggers[i]
+                thisMessage .= "`n" displayNum ".  " TruncateTrigger(entry)
+            }
         }
+        ; Append logging-disabled notice as a footnote, not as a replacement
+        if (Config.EnableLogging = 0)
+            thisMessage .= "`n`n*(Logging is currently disabled — trigger cache is still active.)*"
         buttPos := ""
         windowTitle := "Last Triggered Hotstring"
     }
