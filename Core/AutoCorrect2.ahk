@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-20-2026
+; Version: 5-22-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -80,6 +80,8 @@ class Config {
     ; Hotkeys
     static HotstringHelperActivationHotkey := "#h"
     static AutoCorrect2EditThisScriptHk := "^+e"
+    static LastTriggerHk := "!F3"
+    static StringReportHk := "^F3"
     static SystemUpTimeHk := "!+u"
     static ACLogAnalyzerHk := "!^+q"
 
@@ -109,6 +111,10 @@ class Config {
     static MakeBpFuncByDefault := 1
     static AutoCommentWithFreqAndStats := 1
     static AutoEnterNewEntry := 1
+    static AutoOpenExamPane := 1
+    static AutoBigReplBox := 1
+    static AutoBigLineLimit := 5
+    static AutoBigCharLimit := 40
     
     ; Word Lists
     static WordListFile := "..\Data\GitHubComboList249k.txt"
@@ -218,6 +224,8 @@ class Config {
         ; [Hotkeys] Section
         this.HotstringHelperActivationHotkey := this.ReadIni("Hotkeys", "HotstringHelperActivationHotkey", "#h")
         this.AutoCorrect2EditThisScriptHk := this.ReadIni("Hotkeys", "AutoCorrect2EditThisScriptHk", "^+e")
+        this.LastTriggerHk := this.ReadIni("Hotkeys", "LastTriggerHk", "!F3")
+        this.StringReportHk := this.ReadIni("Hotkeys", "StringReportHk", "^F3")
         this.SystemUpTimeHk := this.ReadIni("Hotkeys", "SystemUpTimeHk", "!+u")
         this.ACLogAnalyzerHk := this.ReadIni("Hotkeys", "ACLogAnalyzerHk", "#+q")
         
@@ -251,6 +259,10 @@ class Config {
         this.MakeBpFuncByDefault        := this.ReadIni("HotstringHelper", "MakeBpFuncByDefault", 1)
         this.AutoCommentWithFreqAndStats := this.ReadIni("HotstringHelper", "AutoCommentWithFreqAndStats", 1)
         this.AutoEnterNewEntry          := this.ReadIni("HotstringHelper", "AutoEnterNewEntry", 1)
+        this.AutoOpenExamPane           := this.ReadIni("HotstringHelper", "AutoOpenExamPane", 1)
+        this.AutoBigReplBox             := this.ReadIni("HotstringHelper", "AutoBigReplBox", 1)
+        this.AutoBigLineLimit           := this.ReadIni("HotstringHelper", "AutoBigLineLimit", 5)
+        this.AutoBigCharLimit           := this.ReadIni("HotstringHelper", "AutoBigCharLimit", 40)
 
         ; [ACSystem] Section
         ; AutoCorrectSystem
@@ -3449,6 +3461,20 @@ class Utils {
             return cleanFirst . repl . (comm ? " " comm : "")
     }
 
+    ; Returns true if the replacement text is large enough to warrant big-mode.
+    ; Checks line count against Config.AutoBigLineLimit and longest line length
+    ; against Config.AutoBigCharLimit.  Both thresholds are user-configurable in INI.
+    static ReplNeedsBigMode(replText) {
+        lines := StrSplit(replText, "`n")
+        if lines.Length > Config.AutoBigLineLimit
+            return true
+        for line in lines {
+            if StrLen(line) > Config.AutoBigCharLimit
+                return true
+        }
+        return false
+    }
+
     ; Initialize the application by checking clipboard content
     static CheckClipboard() {
         ; Save old clipboard content
@@ -3584,30 +3610,32 @@ class Utils {
             State.ControlPaneOpen := 0
 
             if parsedIsBoilerplate {
-                ; BP item: close Exam Pane if open, then grow form if not already big.
-                ; Use button text as authoritative source — State.FormBig can desync from it.
+                ; BP item: close Exam Pane if open, then grow form only if text warrants it.
                 if (State.ExamPaneOpen = 1) {
                     UIActions.ShowHideExamPane(false)
                     UI.Controls["ExamButton"].Text := "Exam"
                     State.ExamPaneOpen := 0
                 }
-                if UI.Controls["SizeToggle"].Text = "Make Bigger" {
+                needsBig := Config.AutoBigReplBox && Utils.ReplNeedsBigMode(hotstr.Repl)
+                if needsBig && UI.Controls["SizeToggle"].Text = "Make Bigger"
                     UIActions.ToggleSize()
-                }
+                else if !needsBig && UI.Controls["SizeToggle"].Text = "Make Smaller"
+                    UIActions.ToggleSize()
             } else {
-                ; AC item: shrink form if big, then open Exam Pane.
+                ; AC item: shrink form if big, then open Exam Pane (if enabled).
                 ; Use button text as authoritative source — State.FormBig can desync from it.
-                if UI.Controls["SizeToggle"].Text = "Make Smaller" {
+                if UI.Controls["SizeToggle"].Text = "Make Smaller"
                     UIActions.ToggleSize()
+                if Config.AutoOpenExamPane {
+                    UI.Controls["ExamButton"].Text := "Done"
+                    UIActions.ShowHideExamPane(true)
+
+                    Debug("just before UIActions.ExamineWords()")
+                    UIActions.ExamineWords(hotstr.Trig, hotstr.Repl)
+                    Debug("just after UIActions.ExamineWords()")
+
+                    State.ExamPaneOpen := 1
                 }
-                UI.Controls["ExamButton"].Text := "Done"
-                UIActions.ShowHideExamPane(true)
-
-                Debug("just before UIActions.ExamineWords()")
-                UIActions.ExamineWords(hotstr.Trig, hotstr.Repl)
-                Debug("just after UIActions.ExamineWords()")
-
-                State.ExamPaneOpen := 1
             }
             
             ; Reset history for add-a-letter feature
@@ -3738,6 +3766,19 @@ class Utils {
         
         ; Initialize toggle button text based on replacement content
         UIActions.InitializeToggleButtonText()
+
+        ; Smart size: auto big-mode for BP if text warrants it, shrink for AC/empty.
+        if Config.AutoBigReplBox && State.IsBoilerplate {
+            needsBig := Utils.ReplNeedsBigMode(UI.Controls["ReplacementEdit"].Text)
+            if needsBig && UI.Controls["SizeToggle"].Text = "Make Bigger"
+                UIActions.ToggleSize()
+            else if !needsBig && UI.Controls["SizeToggle"].Text = "Make Smaller"
+                UIActions.ToggleSize()
+        } else {
+            ; AC or empty: ensure small mode
+            if UI.Controls["SizeToggle"].Text = "Make Smaller"
+                UIActions.ToggleSize()
+        }
     }
 }
 
