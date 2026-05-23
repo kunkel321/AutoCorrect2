@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-22-2026
+; Version: 5-23-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -2463,8 +2463,9 @@ class UIActions {
 
             if InStr(replacementText, "`n") {
                 ; Multiline paste — use continuation section inside the f() call
+                ; Comment goes on the trigger line (after f(") for visual consistency with other formats
                 openParenth := SubStr(replacementText, -1) = "`t" || SubStr(replacementText, -1) = " " ? "(RTrim0`n" : "(`n"
-                wholeString := ":" options ":" triggerText "::f(`"`n" openParenth replacementText "`n)`"" extraParams ")" commentText
+                wholeString := ":" options ":" triggerText "::f(`"" commentText "`n" openParenth replacementText "`n)`"" extraParams ")"
             } else {
                 ; Single-line function call
                 wholeString := ":" options ":" triggerText "::f(`"" replacementText "`"" extraParams ")" commentText
