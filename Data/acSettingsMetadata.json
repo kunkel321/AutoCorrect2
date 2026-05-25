@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "5-22-2026",
+    "verion_date_for_this_json_file": "5-25-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -254,6 +254,15 @@
     "default": "366",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
+  "HotstringHelper.WidthSizeIncrease": {
+    "label": "Width Increase",
+    "help": "Additional width (pixels) added to the window when 'Make Bigger' button is pressed to make the 'Replacement' edit box bigger.",
+    "type": "integer",
+    "min": 0,
+    "max": 600,
+    "default": "400",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
   "HotstringHelper.HeightSizeIncrease": {
     "label": "Height Increase",
     "help": "Additional height (pixels) added to the window when 'Make Bigger' button is pressed to make the 'Replacement' edit box bigger.",
@@ -263,13 +272,13 @@
     "default": "300",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
-  "HotstringHelper.WidthSizeIncrease": {
-    "label": "Width Increase",
-    "help": "Additional width (pixels) added to the window when 'Make Bigger' button is pressed to make the 'Replacement' edit box bigger.",
+  "HotstringHelper.ExamPaneListHeight": {
+    "label": "Exam Pane List Height",
+    "help": "This sets the height of the \"Misspells\" and \"Fixes\" edit boxes that appear at the bottom of the Exam Pane.",
     "type": "integer",
-    "min": 0,
+    "min": 100,
     "max": 600,
-    "default": "400",
+    "default": "350",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.InitialFocusTarget": {
