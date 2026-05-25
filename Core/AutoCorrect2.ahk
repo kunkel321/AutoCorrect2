@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-23-2026
+; Version: 5-25-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -95,6 +95,7 @@ class Config {
     static LargeFontSize := "s15"
     static DefaultWidth := 366
     static HeightSizeIncrease := 300
+    static ExamPaneListHeight := 200
     static WidthSizeIncrease := 400
     static InitialFocusTarget := "auto"
 
@@ -245,6 +246,7 @@ class Config {
         this.LargeFontSize              := "s" this.ReadIni("HotstringHelper", "LargeFontSize", "15")
         this.DefaultWidth               := this.ReadIni("HotstringHelper", "DefaultWidth", 366)
         this.HeightSizeIncrease         := this.ReadIni("HotstringHelper", "HeightSizeIncrease", 300)
+        this.ExamPaneListHeight         := this.ReadIni("HotstringHelper", "ExamPaneListHeight", 200)
         this.WidthSizeIncrease          := this.ReadIni("HotstringHelper", "WidthSizeIncrease", 400)
         this.InitialFocusTarget         := this.ReadIni("HotstringHelper", "InitialFocusTarget", "auto")
         ; BoilerPlate
@@ -835,8 +837,8 @@ class UI {
         this.Controls["TriggerMatchLabel"] := this.MainForm.AddText("center y+-2 h25 xm w" Config.DefaultWidth / 2, "Misspells [0]")
         this.Controls["ReplacementMatchLabel"] := this.MainForm.AddText("center h25 x+5 w" Config.DefaultWidth / 2, "Fixes [0]")
         
-        this.Controls["TriggerMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " y+0 xm h" Config.HeightSizeIncrease " w" Config.DefaultWidth / 2)
-        this.Controls["ReplacementMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " x+5 h" Config.HeightSizeIncrease " w" Config.DefaultWidth / 2)
+        this.Controls["TriggerMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " y+0 xm h" Config.ExamPaneListHeight " w" Config.DefaultWidth / 2)
+        this.Controls["ReplacementMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " x+5 h" Config.ExamPaneListHeight " w" Config.DefaultWidth / 2)
     }
         
     ; Create the control pane (initially hidden)
@@ -4071,6 +4073,10 @@ class HelpSystem {
         this.helpTexts["WrapToggle"] := "Toggle button to convert between actual line breaks and literal ``n characters.`n`nClick Unwrap to convert line breaks into literal ``n characters for single-line hotstring format:`n`t::;sig::John Doe``nAutoHotkey User``n555-2345`n`nLeave wrapped to keep actual line breaks for multi-line Continuation Section format:`n`t::;sig::`n`t(`n`tJohn Doe`n`tAutoHotkey User`n`t555-2345`n`t)`n`nBoth formats produce the same result when the hotstring executes. The Continuation Section format is more `"What you see is what you get,`" but the unwrapped format uses only one line of code in your Hotstring Library and can be sorted without breaking them.  The wrap/unwrap functionality is primarily useful for boilerplate template items. It would not be used with f() AutoCorrect items."
         
         this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above.`n`nThe `"Paste`" and `"Log`" checkboxes require Function to be enabled. Unchecking Function will also uncheck both.`n`nTip: If you never want function calls by default, set `"MakeAcFuncByDefault`" and/or `"MakeBpFuncByDefault`" to 0 in the `"HotstringHelper`" section of the Settings Manager. Also checkout the Defunctionizer script in the Control Pane."
+        
+        this.helpTexts["LogCheck"] := "When checked, the f() function will log this hotstring's usage to the AutoCorrections log file each time it fires.`n`nLogging is useful for tracking which hotstrings are actively correcting your typos, and for feeding the ACLogAnalyzer and related statistics tools.`n`nThis checkbox is on by default for AutoCorrect items and off by default for boilerplate items, since boilerplate expansions are typically intentional and less useful to track.`n`nRequires the `"Function`" checkbox to be enabled. Checking this box will auto-enable Function if it is currently off, and unchecking the Function box will uncheck log and paste.`n`nLogging can be globally disabled via `"EnableLogging`" in the `"ACSystem`" section of the Settings Manager, which overrides this per-hotstring setting.`n`nNote: Log and Paste are (optional) second and third parameters of the f() function.  Log=Yes and Paste=No are the defaults, so when this is the case, the hotstring function call is created without those parameters."
+        
+        this.helpTexts["PasteCheck"] := "When checked, the f() function will send the replacement text via clipboard paste instead of simulated keystrokes.`n`nThis is useful for large boilerplate entries where keystroke-based sending can be slow or unreliable, especially with special characters or long multi-line text.`n`nFor short AutoCorrect entries, leave this unchecked — paste mode adds a small delay and is unnecessary for brief replacements.`n`nRequires the `"Function`" checkbox to be enabled. Checking this box will auto-enable Function if it is currently off, and unchecking the Function box will uncheck log and paste.`n`nNote: Log and Paste are (optional) second and third parameters of the f() function.  Log=Yes and Paste=No are the defaults, so when this is the case, the hotstring function call is created without those parameters."
         
         this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (HotstringLib.ahk).`n`nThe AC button is automatically pre-selected when you select three or fewer words, on one line, and press Win+H.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
         
