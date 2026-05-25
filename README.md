@@ -43,28 +43,29 @@ It's worth noting that only one other person -- Robert -- has contributed code _
 6.	The Show Symbols toggle button makes the Replacement Box read only and shows characters for new  lines, tabs, and spaces.
 7.	Unwrap multi-line boilerplate text into one line, with “`n” characters.
 8.	The Replacement Box.  For autocorrects, this will likely be a single word.   For boilerplate templates, it might be a whole paragraph. 
-9.	The Make Function checkbox instructs hh2 to create the autocorrect item with the auto-logging function syntax, such as :B0X*:automasion::f("automation") 
-Note that boilerplate items are never created with function calls. 
-10.	Selector for appending string to AutoCorrect (AC) or Boilerplate (BP) library.  (If neither selected, default is AC.)
-11.	The Comments Box.  Text entered here is added to the new hotstring as an inline comment. 
-12.	The Append Button combines the content of the boxes into a hotstring and (after doing a validity check) appends it to the Hotstring Library, then restarts the AutoCorrect script.  Pressing Enter does this too, but only if the replacement box is not active.  The Append Button has no effect when in Show Symbols mode.  
+9.	The Make Function checkbox instructs HH to create the hotstring with the f() function syntax, such as :B0X*:automasion::f("automation") 
+10.	The Log checkbox uses a second parameter in the f() function if the item is restricted from logging. (Useful for short boilerplate items.)
+11.	The Paste checkbox uses a third parameter in the f() to evoke pasting the replacement, rather than typing it. (Useful for long boilerplate items, such as paragraphs.)
+12.	Selector for appending string to AutoCorrect (AC) or Boilerplate (BP) library.  (If neither selected, default is AC.)
+13.	The Comments Box.  Text entered here is added to the new hotstring as an inline comment. 
+14.	The Append Button combines the content of the boxes into a hotstring and (after doing a validity check) appends it to the Hotstring Library, then restarts the AutoCorrect script.  Pressing Enter does this too, but only if the replacement box is not active.  The Append Button has no effect when in Show Symbols mode.  
 Shift-Click sends the hotstring to the clipboard, rather than appending it.  
 Ctrl-Click appends the hotstring, but does not restart the script.  
 Alt-Click sends the hotstring to the Suggester Tool for analysis.
-13.	The Check Button does a validity check but does not append the item.  Mostly this consists of ensuring that the new hotstring doesn’t conflict with any existing ones. 
-14.	The Exam Button opens the Exam Pane (as seen in the image).  When the Pane is open, the button shows “Done.”   Right-Click, or Shift-Click will open a Control Panel (not shown), which has several links to other tools. 
-15.	The Spell Button sends the content of the Replacement Box to LanguageTool.org’s API (free) and returns spelling and/or grammar suggestions.  
-16.	If a word from the Replacement, Misspells, or Fixes box is selected, the Look Button will search the on-board WordNet dictionary for a definition.  Right-click uses the online GCIDE dictionary.  If no definition is found, optionally look up the word in ChatGPT (not free).
-17.	Cancel hides the hh2 form and puts the previous content of the clipboard back.  Esc does the same thing. 
+15.	The Check Button does a validity check but does not append the item.  Mostly this consists of ensuring that the new hotstring doesn’t conflict with any existing ones. 
+16.	The Exam Button opens the Exam Pane (as seen in the image).  When the Pane is open, the button shows “Done.”   Right-Click, or Shift-Click will open a Control Panel (not shown), which has several links to other tools. 
+17.	The Spell Button sends the content of the Replacement Box to LanguageTool.org’s API (free) and returns spelling and/or grammar suggestions.  
+18.	If a word from the Replacement, Misspells, or Fixes box is selected, the Look Button will search the on-board WordNet dictionary for a definition.  Right-click uses the online GCIDE dictionary.  If no definition is found, optionally look up the word in ChatGPT (not free).
+19.	Cancel hides the HH form and puts the previous content of the clipboard back.  Esc does the same thing. 
 (Note that the following items are part of the Exam Pane and are only for refining autocorrect entries.  They are not useful for boilerplate template hotstrings.)
-18.	The tall Left-Trim Button simultaneously trims a single letter from the  beginning of the trigger string and the replacement string.
-19.	The Delta String shows which parts of the autocorrect entry get changed, and which parts can safely be trimmed.  As letters are trimmed, the trimmed letter turn red.  Click to reset.
-20.	The tall Right-Trim Button trims a letter from the ends.
-21.	The Radio Buttons set the hotstring as a word-beginning, word-ending, or word-middle item.  The Options Box is automatically updated to match.  Right-Click any item to unselect all of them.
-22.	The wide Undo button will undo the trims.  Ctrl-z also does.  Shift-Click or Shift-Ctrl-z will undo all trims, resetting the originally-captured trigger and replacement.  
-23.	Web Frequencies are the sum of the number of times the words in the Misspells or Fixes lists occur on the internet.  This helps to see if the words are common English words or if they are obscure.  The Fixes [] and Misspells [] just shows the number of items in each list.
-24.	The Misspells Box lists all of the English words that correspond to the text string in the Trigger Box and hence would be misspelled from the use of the autocorrection item as it is.  
-25.	The Fixes Box is a list of the words that can potentially be fixed by the current autocorrect item.   Trimming, or changing the radios, will change the number of Misspells and Fixes.  
+20.	The tall Left-Trim Button simultaneously trims a single letter from the  beginning of the trigger string and the replacement string.
+21.	The Delta String shows which parts of the autocorrect entry get changed, and which parts can safely be trimmed.  As letters are trimmed, the trimmed letter turn red.  Click to reset.
+22.	The tall Right-Trim Button trims a letter from the ends.
+23.	The Radio Buttons set the hotstring as a word-beginning, word-ending, or word-middle item.  The Options Box is automatically updated to match.  Right-Click any item to unselect all of them.
+24.	The wide Undo button will undo the trims.  Ctrl-z also does.  Shift-Click or Shift-Ctrl-z will undo all trims, resetting the originally-captured trigger and replacement.  
+25.	Web Frequencies are the sum of the number of times the words in the Misspells or Fixes lists occur on the internet.  This helps to see if the words are common English words or if they are obscure.  The Fixes [] and Misspells [] just shows the number of items in each list.
+26.	The Misspells Box lists all of the English words that correspond to the text string in the Trigger Box and hence would be misspelled from the use of the autocorrection item as it is.  
+27.	The Fixes Box is a list of the words that can potentially be fixed by the current autocorrect item.   Trimming, or changing the radios, will change the number of Misspells and Fixes.   
 
 Please see the User Manual for more information. https://github.com/kunkel321/AutoCorrect2/tree/main/Documentation
 
