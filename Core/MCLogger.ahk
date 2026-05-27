@@ -7,7 +7,7 @@ Persistent
 ; ==============================================================================
 ; Author: Kunkel321
 ; Tool Used: Claude AI
-; Version: 3-17-2026 
+; Version: 5-27-2026 
 ; Get latest version here: https://github.com/kunkel321/AutoCorrect2
 ; A script to run in the background all the time and log your typing
 ; errors and manual corrections, formatting the viable ones into ahk hotstrings,
@@ -35,8 +35,8 @@ Persistent
 #Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. Required.
 
 ;========= LOAD SETTINGS FROM INI ============================================
-settingsFile := "..\Data\acSettings.ini"
-SettingsManager := "..\Tools\SettingsManager.exe"
+settingsFile := "..\Data\acSettings.ini" ; Required
+SettingsManager := "..\Tools\SettingsManager.exe" ; Optional (appears on systray menu)
 
 ; Ensure settings file exists.
 if !FileExist(settingsFile) {
@@ -106,28 +106,50 @@ brightness := (r * 299 + g * 587 + b * 114) / 1000
 progBarGreen := brightness > 128 ? DarkGreen  : LightGreen  ; The color of the progress bar.
 
 ;--- create systray menu ----
-TraySetIcon("..\Resources\Icons\JustLog.ico") ; A fun homemade "log" icon that Steve made.
+mclAppIcon := "..\Resources\Icons\JustLog.ico"
+TraySetIcon(mclAppIcon) ; A fun homemade "log" icon that Steve made.
+appName := StrReplace(A_ScriptName, ".ahk") ; Assign the name of this file as "appName".
 mclMenu := A_TrayMenu ; Tells script to use this when right-click system tray icon.
 mclMenu.Delete ; Removes all of the defalt memu items, so we can add our own. 
+mclMenu.Add(appName, (*) => False) ; Shows name of app at top of menu.
+mclMenu.SetIcon(appName, mclAppIcon) 
 mclMenu.Add("Log and Reload Script", (*) => Reload())
 mclMenu.SetIcon("Log and Reload Script", "..\Resources\Icons\data_backup-Brown.ico")
 mclMenu.Add("Edit This Script", EditThisScript)
 mclMenu.SetIcon("Edit This Script", "..\Resources\Icons\edit-Brown.ico")
 mclMenu.Add("Open " MCLogFile, (*) => Run(MCLogFile))
 mclMenu.SetIcon("Open " MCLogFile, "..\Resources\Icons\TxtFile-Brown.ico")
-mclMenu.Add("Open " SettingsManager, (*) => Run(SettingsManager))
-mclMenu.SetIcon("Open " SettingsManager, "..\Resources\Icons\Settings-blue.ico")
+If FileExist(SettingsManager) { ; Only add to menu if SM found.
+   mclMenu.Add("Open " SettingsManager, (*) => Run(SettingsManager))
+   mclMenu.SetIcon("Open " SettingsManager, "..\Resources\Icons\Settings-blue.ico")
+}
 mclMenu.Add("Analyze Manual Corrections", runAnalysis)
 mclMenu.SetIcon("Analyze Manual Corrections", "..\Resources\Icons\search-Brown.ico")
 mclMenu.Add("Start with Windows", StartUpMCL)
-if FileExist(A_Startup "\MCLogger.lnk")
+if FileExist(A_Startup "\" appName ".lnk")
    mclMenu.Check("Start with Windows")
 mclMenu.Add("List Lines Debug", (*) => ListLines())
 mclMenu.SetIcon("List Lines Debug", "..\Resources\Icons\ListLines-Brown.ico")
 mclMenu.Add("Exit Script", (*) => ExitApp())
 mclMenu.SetIcon("Exit Script", "..\Resources\Icons\exit-Brown.ico")
 mclMenu.SetColor("C29A6A") ; #CD853F is "Peru"
+mclMenu.Default := appName ; Make default so it will be blank.
 ;---- end of menu creation --- 
+
+; This function is only accessed via the systray menu item.  It toggles adding/removing
+; link to this script in Windows Start up folder. 
+StartUpMCL(*) { ; Start with windows? 
+	if FileExist(A_Startup "\" appName ".lnk") {
+      FileDelete(A_Startup "\" appName ".lnk")
+		acMsgBox.show("Manual Correction Logger will NO LONGER auto start with Windows.",, 4096)
+	}
+	Else {	
+      FileCreateShortcut(A_WorkingDir "\" appName ".exe", A_Startup "\" appName ".lnk"
+      , A_WorkingDir, "", "", A_ScriptDir "\" mclAppIcon) ; Change icon if needed.
+		acMsgBox.show("Manual Correction Logger will auto start with Windows.",, 4096)
+	}
+   Reload()
+}
 
 ; Make sure AHK editor is assigned.  Use Notepad otherwise.
 If not FileExist(MyAhkEditorPath) {
@@ -184,11 +206,15 @@ EditThisScript(*) {
 If (MCLoggerSneakPeekHotkey != "")
    HotKey(MCLoggerSneakPeekHotkey, peekToolTip)
 peekToolTip(*) { ; sneak-a-peek at working variables.
-   ToolTip(
+   peekVar :=
+   (
       'Current typoCache:`n' typoCache
       '`n============================'
       '`nCurrent Saved up Text:`n' savedUpText
+   )
+   ToolTip(peekVar "`n(also saved to clipboard)"
       ,,,7)
+   A_Clipboard := peekVar
 }
 
 ; These are not "window-specific".  They will clear the cache of "watched" 
@@ -205,7 +231,6 @@ peekToolTip(*) { ; sneak-a-peek at working variables.
 ~Right::    ; processes as a single word.  ; hide
 {	Global typoCache := "" 
    ToolTip(,,,7)        ; Remove (only) 'sneak peek' tooltip, if showing. 
-   ToolTip(,,,8)        ; Right-click notificiation.
 }
 
 soundBeep(1600, 75) 
@@ -217,14 +242,16 @@ tih.OnChar  := tih_Char
 tih.OnKeyUp := tih_EndChar
 tih.KeyOpt('{BS}{Space}', '+N')
 tih.Start
-RegEx := "(?<trig>[A-Za-z\.' ]{3,})(?<back>[<]+)(?<repl>[A-Za-z\.']+)[ \~]+"
+RegEx := "(?<trig>[A-Za-z\.']{3,})(?<midspace>~?)(?<back>[<]+)(?<repl>[A-Za-z\.']+)[ \~]+"
 ; regex is watching for pattern ...<.~
+; midspace captures an optional ~ between the trigger and backspaces (Pattern B: space typed before correcting)
 
 ; This function filters-out non-letter characters.  
 ; Allow period (for end of sentence) and apostrophe (for contractions) though.
+; Note: space is intentionally excluded — Space is routed through tih_EndChar as vk=32.
 tih_Char(tih, char) {
 	Global typoCache
-	if (RegExMatch(char, "[A-Za-z\.' ]")) { ; Only use letters. 
+	if (RegExMatch(char, "[A-Za-z\.']+")) { ; Only use letters, period, apostrophe.
 		typoCache .= char
    }
 }
@@ -232,75 +259,136 @@ tih_Char(tih, char) {
 CoordMode 'ToolTip', 'Screen'
 CoordMode 'Caret', 'Screen'
 
-; When Backspace or Space is pressed, this function is called. 
-; The function uses logic to exprapolate an entire hotstring trigger and replacement
-; from the parts of each that were typed.   The hotstring is checked to make sure
-; it matches the format ::misspelling::actual word.  The potential hotstring is
-; shown in a tooltip, and appended with a datestamp, then added to the "Saved up Text"
-; variable to be logged at the end of the next interval. 
+; When Backspace or Space is pressed, this function is called.
+; Two correction patterns are recognized:
+;   Pattern A (classic):  word<<<repl~   (corrected before hitting Space)
+;   Pattern B (new):      word~<<<repl~  (Space typed first, then backspaced and corrected)
+; On a non-matching Space the cache is NOT cleared, allowing Pattern B to accumulate.
+; A length cap prevents the cache from growing unbounded during normal typing.
+; Once a match is found, the trigger and replacement are extrapolated, validity-checked,
+; and (if valid) appended with a datestamp to the "Saved up Text" variable for logging.
 tih_EndChar(tih, vk, sc) {
-	Global typoCache .= vk = 8? '<' : '~' 		; use '<' for Backspace, '~' for Space
-	If RegExMatch(typoCache, RegEx, &out) 	   ; watch for pattern ...<.~
-   {	trigLen := strLen(out.trig) 			   ; number of chars in trigger
-		BsLen := strLen(out.back) 				   ; number of chars in BS...  
-		replLen := strLen(out.repl) 			   ; number of chars in replacement
-		If (replLen > BsLen) { ; replacement longer than number of BSs, so part of trigger missing.
-			LastPartRepl := subStr(out.repl,'-' replLen-BsLen)
-			newTrig := out.trig LastPartRepl 
-		}
-		Else { ; replacement same length as number of BSs, so entire trigger was entered.
-			newTrig := out.trig
-		}
-      newTrig := trim(newTrig, " .")
-		; first part of replacement str will always be missing, so add first part of trig str. 
-		FirstPartTrig := subStr(out.trig, 1, trigLen-BsLen)
-		newRepl := FirstPartTrig out.repl
-      newRepl := trim(newRepl, " .")
+   Global typoCache .= vk = 8 ? '<' : '~'   ; '<' for Backspace, '~' for Space
 
-		trigRealWord := 0, replRealWord := 0 ; Declare variables so code will work.
-		for item in wordListArray { ; The list of dictionary words, via above text file lookup. 
-			If trim(item, "`n`r ") = newTrig 
-				trigRealWord := 1
-			If trim(item, "`n`r ") = newRepl
-				replRealWord := 1
-		}
+   ; Length cap: if cache grows too long without a match, keep only the last 60 chars.
+   ; This prevents runaway growth during normal typing with many spaces.
+   if StrLen(typoCache) > 120
+      typoCache := SubStr(typoCache, -59)   ; keep last 60 chars
 
-      global duplicateFound := 0
-      Loop Parse, AcFileContents, "`n", "`r"  ; Compares trigger to existing AC library and Removed items list. 
-      { 	If (SubStr(trim(A_LoopField, " `t"), 1,1) != ":") and (SubStr(A_LoopField, 1,7) != "Removed")
-            continue ; Will skip non-hotstring lines, so the regex isn't used as much.
-         If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]+)*:(?P<Trig>[^:]+)", &loo)  ; loo is "current loopfield"
-         {	If InStr(newTrig, loo.Trig) and InStr(loo.Opts, "?") and InStr(loo.Opts, "*") ; Word middle match
-            || (newTrig == loo.Trig) { ; or Exact match  
-               global duplicateFound := 1
-               ; SoundBeep 1800, 200 ; temporary for debuggin
-               ; SoundBeep 2200, 200 ; temporary for debuggin
-               Break
-            }
+   If !RegExMatch(typoCache, RegEx, &out)   ; watch for pattern ...<.~
+      return  ; No match yet — leave cache intact so Pattern B can accumulate.
+
+   ; ---- A match was found.  Determine which pattern. ----
+   ; If midspace captured a ~ it is Pattern B: the user hit Space after finishing the typo,
+   ; then backspaced into the word.  That BS consumed the space rather than a typed letter,
+   ; so subtract 1 from the effective backspace count used in reconstruction.
+   rawTrig        := out.trig
+   cleanTrig      := rawTrig                          ; trig group no longer swallows the mid-space
+   spacesBs       := (out.midspace = "~") ? 1 : 0    ; 1 = Pattern B (space before BSs), 0 = Pattern A
+   trigLen        := StrLen(cleanTrig)
+   BsLen          := StrLen(out.back)
+   replLen        := StrLen(out.repl)
+   effectiveBsLen := BsLen - spacesBs                ; BSs that actually deleted typed letters
+
+   if (spacesBs > 0) {
+      ; Pattern B: the full trigger word was definitely typed (user pressed Space after it),
+      ; so newTrig is always cleanTrig — no reconstruction needed.
+      newTrig       := cleanTrig
+      ; newRepl reconstruction uses effectiveBsLen instead of raw BsLen.
+      FirstPartTrig := SubStr(cleanTrig, 1, trigLen - effectiveBsLen)
+      newRepl       := FirstPartTrig . out.repl
+   }
+   else {
+      ; Pattern A: classic behavior, unchanged.
+      if (replLen > BsLen) { ; Replacement longer than BSs — part of trigger is hiding in repl.
+         LastPartRepl := SubStr(out.repl, '-' (replLen - BsLen))
+         newTrig := rawTrig . LastPartRepl
+      }
+      else { ; BSs >= repl length — entire trigger was typed before backspacing began.
+         newTrig := rawTrig
+      }
+      FirstPartTrig := SubStr(rawTrig, 1, trigLen - BsLen)
+      newRepl       := FirstPartTrig . out.repl
+   }
+
+   newTrig := Trim(newTrig, " .")
+   newRepl := Trim(newRepl, " .")
+
+   ; Sanity check: bail out if reconstruction produced something degenerate.
+   if (newTrig = "" || newRepl = "" || newTrig = newRepl || effectiveBsLen < 1) {
+      typoCache := ""
+      return
+   }
+
+   trigRealWord := 0, replRealWord := 0   ; Initialize before the loop.
+   for item in wordListArray {            ; The list of dictionary words, via above text file lookup.
+      If Trim(item, "`n`r ") = newTrig
+         trigRealWord := 1
+      If Trim(item, "`n`r ") = newRepl
+         replRealWord := 1
+   }
+
+   ; Compares trigger to existing AC library and Removed items list.
+   ; Checks four conflict types mirroring HotstringHelper's ValidateTriggerString:
+   ;   1. Exact duplicate
+   ;   2. Word-middle conflict  (existing entry has both * and ?)
+   ;   3. Word-ending conflict  (existing entry has ? only — trigger fires inside words)
+   ;   4. Word-beginning conflict (existing entry has * only — trigger fires without end char)
+   global duplicateFound := 0
+   Loop Parse, AcFileContents, "`n", "`r" {
+      If (SubStr(Trim(A_LoopField, " `t"), 1, 1) != ":") and (SubStr(A_LoopField, 1, 7) != "Removed")
+         continue   ; Skip non-hotstring lines so the regex isn't used as much.
+      If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)", &loo) {
+         libOpts := loo.Opts
+         libTrig := Trim(loo.Trig)
+
+         ; Check 1: Exact match
+         if newTrig = libTrig {
+            global duplicateFound := 1
+            Break
          }
-         Else ; not a regex match, so go to next loop.
-            continue 
-      }		
-
-      ;msgbox newTrig ' and ' newRepl '`n`ndupefound? ' duplicateFound
-		If (trigRealWord = 0) and (replRealWord = 1) and (duplicateFound = 0) { ; Ensure replacement is a word, and trigger is not. 
-			newHs := A_YYYY "-" A_MM "-" A_DD " -- ::" newTrig "::" newRepl 
-         lastSavedHS := subStr(savedUpText, 1, inStr(savedUpText, '`n'))
-         If not inStr(lastSavedHS, newTrig) ; Don't save duplicate of one just saved.
-         {  keepText(newHs) ; All validity criteria met, so save for appending.
-            If (showEachHotString = 1) {
-               If CaretGetPos(&mcx, &mcy)
-                  ToolTip "::" newTrig "::" newRepl, mcx-15, mcy-100, 6 ; <--- LOCATION of tooltip is set here.
-               Else 
-                  ToolTip "::" newTrig "::" newRepl, (A_ScreenWidth/2), 10, 6
-            }
-            If (beepEachHotString = 1)
-               soundBeep(1200, 200)       ; announcement of capture.	
+         ; Check 2: Word-middle conflict — existing entry fires anywhere inside a word (*?)
+         if InStr(libOpts, "*") and InStr(libOpts, "?")
+            and InStr(newTrig, libTrig) {
+            global duplicateFound := 1
+            Break
          }
-		}
-		typoCache := ""               ; Clear var to start over. 
-		setTimer ClearToolTip, -2000  ; Clear tooltip after 2 sec.
-	}
+         ; Check 3: Word-ending conflict — existing entry has ? (fires inside words)
+         ; libTrig must be shorter and a suffix of newTrig.
+         if InStr(libOpts, "?") and !InStr(libOpts, "*")
+            and StrLen(libTrig) < StrLen(newTrig)
+            and (SubStr(newTrig, -StrLen(libTrig)) = libTrig) {
+            global duplicateFound := 1
+            Break
+         }
+         ; Check 4: Word-beginning conflict — existing entry has * (fires without end char)
+         ; libTrig must be shorter and a prefix of newTrig.
+         if InStr(libOpts, "*") and !InStr(libOpts, "?")
+            and StrLen(libTrig) < StrLen(newTrig)
+            and (SubStr(newTrig, 1, StrLen(libTrig)) = libTrig) {
+            global duplicateFound := 1
+            Break
+         }
+      }
+   }
+
+   If (trigRealWord = 0) and (replRealWord = 1) and (duplicateFound = 0) { ; Ensure replacement is a word, and trigger is not.
+      newHs := A_YYYY "-" A_MM "-" A_DD " -- ::" newTrig "::" newRepl
+      lastSavedHS := SubStr(savedUpText, 1, InStr(savedUpText, '`n'))
+      If not InStr(lastSavedHS, newTrig)   ; Don't save duplicate of one just saved.
+      {  keepText(newHs)                   ; All validity criteria met, so save for appending.
+         If (showEachHotString = 1) {
+            If CaretGetPos(&mcx, &mcy)
+               ToolTip "::" newTrig "::" newRepl, mcx-15, mcy-100, 6   ; <--- LOCATION of tooltip is set here.
+            Else
+               ToolTip "::" newTrig "::" newRepl, (A_ScreenWidth/2), 10, 6
+         }
+         If (beepEachHotString = 1)
+            soundBeep(1600, 120)   ; announcement of capture.
+      }
+   }
+   typoCache := ""               ; Clear var to start over.
+   setTimer ClearToolTip, -2000  ; Clear tooltip after 2 sec.
 }
 
 ClearToolTip(*) { 
@@ -314,7 +402,6 @@ saveIntervalMinutes := saveIntervalMinutes*60*1000 ; convert to miliseconds.
 ; So don't run timer when script starts.  Run it when logging starts. 
 keepText(newHs) {
    global savedUpText .= strLower(newHs) '`n'
-   newHs := ''
    global intervalCounter := 0  	; Reset the counter since we're adding new text
    If logIsRunning = 0  			; only start the timer it it is not already running.
       setTimer Appender, saveIntervalMinutes  	; call function every X minutes.
@@ -334,8 +421,6 @@ Appender(*) {
          global logIsRunning := 0  	; Indicate that the timer is no longer running
       global intervalCounter := 0 ; Reset the counter for safety
    }
-	;soundBeep 800, 800 ; <----------------------------------- Announcement to ensure the log is logging.  Remove later. 
-	;soundBeep 600, 800
 }
 
 ; This gets called from the hotkey, the menu item, or command line switch.  
@@ -351,7 +436,6 @@ If (MCLoggerRunAnalysisHotkey != "")
    
 runAnalysis(*) {
 	AllStrs := FileRead(MCLogFile)   ; ahk file... Know thyself. 
-	oStr := "", iStr := "" 
    Global Report := "", origAllStrs := AllStrs
 
 	TotalLines := StrSplit(AllStrs, "`n").Length ; Determines number of lines for Prog Bar range.
@@ -398,7 +482,7 @@ runAnalysis(*) {
 	global trunkReport := []
 	global lvReportData := []  ; Data structure to hold ListView row info
 	Report := Sort(Sort(Report, "/U"), "NR") ; U is 'remove duplicates.' NR is 'numeric' and 'reverse sort.'
-	For idx, item in strSplit(Report, "`n") {
+	For item in strSplit(Report, "`n") {
 		If item != ""  ; Skip empty lines
          {
             parts := StrSplit(item, " of ⟹ ")
@@ -449,7 +533,7 @@ runAnalysis(*) {
    lv.OnEvent("ItemSelect", LvItemSelect)
    
    ; Add rows to ListView
-   for idx, item in lvReportData {
+   for item in lvReportData {
       lv.Add(, item.Count, item.Hotstring)
    }
    
@@ -501,17 +585,8 @@ LvItemSelect(GuiCtrlObj, Item, IsSelected) {
    parts := StrSplit(selectedHotstring, "::")
    
    if parts.Length >= 3 {
-      ; Skip any flags or options (first element might be empty or contain options)
-      ; Typical format: ::trigger::replacement or options::trigger::replacement
-      if parts[1] = "" {
-         ; Format: ::trigger::replacement
-         triggerText := parts[2]
-         replacementText := parts[3]
-      } else {
-         ; Format: options::trigger::replacement
-         triggerText := parts[2]
-         replacementText := parts[3]
-      }
+      triggerText := parts[2]
+      replacementText := parts[3]
    }
    
    ; Generate and display the DeltaString
@@ -755,19 +830,6 @@ GenerateDeltaString(triggerText, replacementText) {
    return beginning " [ " typo " | " fix " ] " ending
 }
 
-; This function is only accessed via the systray menu item.  It toggles adding/removing
-; link to this script in Windows Start up folder. 
-StartUpMCL(*) { ; Start with windows? 
-	if FileExist(A_Startup "\MCLogger.lnk")
-	{	FileDelete(A_Startup "\MCLogger.lnk")
-		acMsgBox.show("Manual Correction Logger will NO LONGER auto start with Windows.",, 4096)
-	}
-	Else 
-	{	FileCreateShortcut(A_WorkingDir "\MCLogger.exe", A_Startup "\MCLogger.lnk")
-		acMsgBox.show("Manual Correction Logger will auto start with Windows.",, 4096)
-	}
-   Reload()
-}
 
 ; End of the part that Steve Kunkel321 made... 
 
