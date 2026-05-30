@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "5-25-2026",
+    "verion_date_for_this_json_file": "5-29-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -68,7 +68,13 @@
   },
   "Files.MCLogFile": {
     "label": "Manual Corrections Log",
-    "help": "Text file where the MCLogger tool logs the manual corrections identified by the user's typing.",
+    "help": "The main text file where the MCLogger tool logs the manual corrections identified in the user's typing.  This is the log file that the MCLogger app actually scans/analyzes.  As items are adopted into the hotstring library, they are culled from ManualCorrectionsLog.",
+    "type": "file",
+    "filter": "Text Files (*.txt)|*.txt"
+  },
+  "Files.MCLogContinuous": {
+    "label": "MC Log Continuous",
+    "help": "A static duplicate of the MCLogFile.  The normal MCLogFile gets items removed from it if/when they are added to the hotstring library.  Also, sometimes \"old singletons\" might get removed from the Manual Corrections Log, but they are never removed from this file.",
     "type": "file",
     "filter": "Text Files (*.txt)|*.txt"
   },
