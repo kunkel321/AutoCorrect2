@@ -46,6 +46,7 @@ if !FileExist(settingsFile) {
 
 ; Load settings from INI file.  
 MCLogFile := "..\Data\" IniRead(settingsFile, "Files", "MCLogFile", "ManualCorrectionsLog.txt")
+MCLogContinuous := "..\Data\" IniRead(settingsFile, "Files", "MCLogContinuous", "MCLogContinuous.txt")
 myAutoCorrectLibrary := IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
 RemovedHsFile := "..\Data\" IniRead(settingsFile, "Files", "RemovedHsFile", "Data\RemovedHotstrings.txt")
 myAutoCorrectScript := IniRead(settingsFile, "Files", "MyAutoCorrectScript", "AutoCorrect2.ahk")
@@ -65,7 +66,16 @@ SendToHH := IniRead(settingsFile, "MCLogger", "SendToHH", 1)
 SaveFulltoClipBrd := IniRead(settingsFile, "MCLogger", "SaveFullToClipboard", 1)
 AgeOfOldSingles := IniRead(settingsFile, "MCLogger", "AgeOfOldSingles", 90)
 KeepReportOpen := IniRead(settingsFile, "MCLogger", "KeepReportOpen", 1)
-
+; Typo-plausibility thresholds (used by IsTypoOfReplacement).
+; LetterOverlapMin: percentage (0-100) of replacement letters that must appear
+;   in the trigger for Test A to pass.  Default 40 (40%).
+; AdjacentKeyMin: percentage (0-100) of *differing* positions that must be
+;   QWERTY-adjacent for Test B to pass (same-length pairs only).  Default 60 (60%).
+LetterOverlapMin := IniRead(settingsFile, "MCLogger", "LetterOverlapMin", 40)
+AdjacentKeyMin   := IniRead(settingsFile, "MCLogger", "AdjacentKeyMin",   60)
+; DebugFilterLog: set to 1 to log filtered-out items to Debug\MCLogger_Filtered.tsv.
+; Each line records the item and the filter stage that rejected it.
+DebugFilterLog := IniRead(settingsFile, "MCLogger", "DebugFilterLog", 0)
 
 ; Convert string values to integers where needed
 showEachHotString := Integer(showEachHotString)
@@ -76,6 +86,12 @@ SendToHH := Integer(SendToHH)
 SaveFulltoClipBrd := Integer(SaveFulltoClipBrd)
 AgeOfOldSingles := Integer(AgeOfOldSingles)
 KeepReportOpen := Integer(KeepReportOpen)
+LetterOverlapMin := Integer(LetterOverlapMin) / 100
+AdjacentKeyMin   := Integer(AdjacentKeyMin)   / 100
+DebugFilterLog   := Integer(DebugFilterLog)
+
+; Build the debug log path.  The Debug\ folder is created on first write if absent.
+FilteredLogFile := A_ScriptDir "\..\Debug\MCLogger_Filtered.tsv"
 
 ; Extract basenames from file paths for backup file creation
 myLogFileBaseName := SubStr(MCLogFile, 1, InStr(MCLogFile, ".", , -1) - 1)
@@ -320,79 +336,221 @@ tih_EndChar(tih, vk, sc) {
       return
    }
 
-   trigRealWord := 0, replRealWord := 0   ; Initialize before the loop.
-   for item in wordListArray {            ; The list of dictionary words, via above text file lookup.
-      If Trim(item, "`n`r ") = newTrig
-         trigRealWord := 1
-      If Trim(item, "`n`r ") = newRepl
-         replRealWord := 1
+   ; Run all five validity filters (cheapest checks first).
+   ; See PassesAllFilters() below for the full logic.
+   filterReason := ""
+   if !PassesAllFilters(newTrig, newRepl, &filterReason) {
+      if (DebugFilterLog = 1)
+         LogFilteredItem(newTrig, newRepl, filterReason)
+      typoCache := ""
+      setTimer ClearToolTip, -2000
+      return
    }
 
-   ; Compares trigger to existing AC library and Removed items list.
-   ; Checks four conflict types mirroring HotstringHelper's ValidateTriggerString:
-   ;   1. Exact duplicate
-   ;   2. Word-middle conflict  (existing entry has both * and ?)
-   ;   3. Word-ending conflict  (existing entry has ? only — trigger fires inside words)
-   ;   4. Word-beginning conflict (existing entry has * only — trigger fires without end char)
-   global duplicateFound := 0
-   Loop Parse, AcFileContents, "`n", "`r" {
-      If (SubStr(Trim(A_LoopField, " `t"), 1, 1) != ":") and (SubStr(A_LoopField, 1, 7) != "Removed")
-         continue   ; Skip non-hotstring lines so the regex isn't used as much.
-      If RegExMatch(A_LoopField, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)", &loo) {
-         libOpts := loo.Opts
-         libTrig := Trim(loo.Trig)
-
-         ; Check 1: Exact match
-         if newTrig = libTrig {
-            global duplicateFound := 1
-            Break
-         }
-         ; Check 2: Word-middle conflict — existing entry fires anywhere inside a word (*?)
-         if InStr(libOpts, "*") and InStr(libOpts, "?")
-            and InStr(newTrig, libTrig) {
-            global duplicateFound := 1
-            Break
-         }
-         ; Check 3: Word-ending conflict — existing entry has ? (fires inside words)
-         ; libTrig must be shorter and a suffix of newTrig.
-         if InStr(libOpts, "?") and !InStr(libOpts, "*")
-            and StrLen(libTrig) < StrLen(newTrig)
-            and (SubStr(newTrig, -StrLen(libTrig)) = libTrig) {
-            global duplicateFound := 1
-            Break
-         }
-         ; Check 4: Word-beginning conflict — existing entry has * (fires without end char)
-         ; libTrig must be shorter and a prefix of newTrig.
-         if InStr(libOpts, "*") and !InStr(libOpts, "?")
-            and StrLen(libTrig) < StrLen(newTrig)
-            and (SubStr(newTrig, 1, StrLen(libTrig)) = libTrig) {
-            global duplicateFound := 1
-            Break
-         }
-      }
+   ; --- Check 5: not a repeat of the immediately preceding logged entry ---
+   ; Kept here (not in PassesAllFilters) because savedUpText is a live global
+   ; that belongs to the caller's domain, not the filter function's.
+   newHs := A_YYYY "-" A_MM "-" A_DD " -- ::" newTrig "::" newRepl
+   lastSavedHS := SubStr(savedUpText, 1, InStr(savedUpText, '`n'))
+   If InStr(lastSavedHS, newTrig) {   ; Don't save duplicate of one just saved.
+      if (DebugFilterLog = 1)
+         LogFilteredItem(newTrig, newRepl, "Duplicate of previous entry")
+      typoCache := ""
+      setTimer ClearToolTip, -2000
+      return
    }
 
-   If (trigRealWord = 0) and (replRealWord = 1) and (duplicateFound = 0) { ; Ensure replacement is a word, and trigger is not.
-      newHs := A_YYYY "-" A_MM "-" A_DD " -- ::" newTrig "::" newRepl
-      lastSavedHS := SubStr(savedUpText, 1, InStr(savedUpText, '`n'))
-      If not InStr(lastSavedHS, newTrig)   ; Don't save duplicate of one just saved.
-      {  keepText(newHs)                   ; All validity criteria met, so save for appending.
-         If (showEachHotString = 1) {
-            If CaretGetPos(&mcx, &mcy)
-               ToolTip "::" newTrig "::" newRepl, mcx-15, mcy-100, 6   ; <--- LOCATION of tooltip is set here.
-            Else
-               ToolTip "::" newTrig "::" newRepl, (A_ScreenWidth/2), 10, 6
-         }
-         If (beepEachHotString = 1)
-            soundBeep(1600, 120)   ; announcement of capture.
-      }
+   ; --- All checks passed — log it ---
+   keepText(newHs)
+   If (showEachHotString = 1) {
+      If CaretGetPos(&mcx, &mcy)
+         ToolTip "::" newTrig "::" newRepl, mcx-15, mcy-100, 6   ; <--- LOCATION of tooltip is set here.
+      Else
+         ToolTip "::" newTrig "::" newRepl, (A_ScreenWidth/2), 10, 6
    }
+   If (beepEachHotString = 1)
+      soundBeep(1600, 120)   ; announcement of capture.
    typoCache := ""               ; Clear var to start over.
    setTimer ClearToolTip, -2000  ; Clear tooltip after 2 sec.
 }
 
 ClearToolTip(*) { 
 	ToolTip ,,,6 ; The 6 is an arbitrary identifier.  
+}
+
+; -----------------------------------------------------------------------
+; LogFilteredItem(trig, repl, reason)
+; Called only when DebugFilterLog = 1.  Appends one TSV line to
+; Debug\MCLogger_Filtered.tsv so filtered-out pairs can be reviewed.
+; Columns:  Timestamp | Hotstring | Filter reason
+; The Debug\ folder is created automatically if it does not exist.
+; -----------------------------------------------------------------------
+LogFilteredItem(trig, repl, reason) {
+   global FilteredLogFile
+   if !DirExist(SubStr(FilteredLogFile, 1, InStr(FilteredLogFile, "\",, -1) - 1))
+      DirCreate(SubStr(FilteredLogFile, 1, InStr(FilteredLogFile, "\",, -1) - 1))
+   stamp := A_YYYY "-" A_MM "-" A_DD " " A_Hour ":" A_Min
+   line  := stamp "`t" "::" trig "::" repl "`t" reason "`n"
+   FileAppend(line, FilteredLogFile, "UTF-8")
+}
+
+; -----------------------------------------------------------------------
+; PassesAllFilters(newTrig, newRepl)
+; Returns true only if the trig/repl pair clears all four validity gates.
+; Checks are ordered cheapest-first so expensive scans are skipped early.
+;
+;   Check 1 & 2 — Word-list membership (single O(n) pass, early exit):
+;     repl must be a real word; trig must NOT be a real word.
+;     The most common disqualifier, so it runs first.
+;
+;   Check 3 — Plausible typo (O(word-length), very cheap):
+;     Filters out "changed my mind" fragments like analr->other
+;     while preserving genuine typos including whole-hand shift errors
+;     like hyno->jump.  Runs before the expensive library scan.
+;
+;   Check 4 — No conflict with existing AC library or removed list:
+;     The most expensive check (loops the full library).  Only reached
+;     by pairs that passed all prior filters.
+; -----------------------------------------------------------------------
+PassesAllFilters(newTrig, newRepl, &filterReason := "") {
+   global wordListArray, AcFileContents
+
+   ; --- Checks 1 & 2: word-list membership, single pass with early exit ---
+   trigRealWord := 0, replRealWord := 0
+   for item in wordListArray {
+      w := Trim(item, "`n`r ")
+      if (w = newRepl)
+         replRealWord := 1
+      if (w = newTrig)
+         trigRealWord := 1
+      if (replRealWord and trigRealWord)
+         break   ; Both flags set — no need to scan further.
+   }
+   if (replRealWord = 0) {
+      filterReason := "Repl not a word"
+      return false
+   }
+   if (trigRealWord = 1) {
+      filterReason := "Trig is a real word"
+      return false
+   }
+
+   ; --- Check 3: plausible typo (letter overlap or adjacent-key shift) ---
+   if !IsTypoOfReplacement(newTrig, newRepl) {
+      filterReason := "Low similarity (not a plausible typo)"
+      return false
+   }
+
+   ; --- Check 4: no conflict with existing AC library or removed list ---
+   ; Mirrors HotstringHelper's ValidateTriggerString — four conflict types.
+   Loop Parse, AcFileContents, "`n", "`r" {
+      if (SubStr(Trim(A_LoopField, " `t"), 1, 1) != ":") and (SubStr(A_LoopField, 1, 7) != "Removed")
+         continue   ; Skip non-hotstring lines.
+      if RegExMatch(A_LoopField, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)", &loo) {
+         libOpts := loo.Opts
+         libTrig := Trim(loo.Trig)
+         if (newTrig = libTrig) {
+            filterReason := "Exact duplicate in library"
+            return false
+         }
+         if InStr(libOpts, "*") and InStr(libOpts, "?")
+            and InStr(newTrig, libTrig) {
+            filterReason := "Word-middle conflict with :*?:" libTrig
+            return false
+         }
+         if InStr(libOpts, "?") and !InStr(libOpts, "*")
+            and StrLen(libTrig) < StrLen(newTrig)
+            and (SubStr(newTrig, -StrLen(libTrig)) = libTrig) {
+            filterReason := "Word-ending conflict with :?:" libTrig
+            return false
+         }
+         if InStr(libOpts, "*") and !InStr(libOpts, "?")
+            and StrLen(libTrig) < StrLen(newTrig)
+            and (SubStr(newTrig, 1, StrLen(libTrig)) = libTrig) {
+            filterReason := "Word-beginning conflict with :*:" libTrig
+            return false
+         }
+      }
+   }
+   return true
+}
+
+; -----------------------------------------------------------------------
+; IsTypoOfReplacement(trig, repl)
+; Returns true if trig is a plausible mistyping of repl.
+; Either of two tests is sufficient to pass:
+;
+;   Test A — Letter overlap:
+;     At least 40% of the replacement's letters appear in the trigger
+;     (multiset intersection).  Covers normal typos: transpositions,
+;     extra/missing letters, vowel swaps, suffix confusion, etc.
+;
+;   Test B — Adjacent-key shift (same-length pairs only):
+;     At least 60% of the positions where the two strings differ are
+;     QWERTY-adjacent key pairs.  Covers one-handed or partial-hand
+;     shift errors, e.g.:
+;       hyno  -> jump   (every letter shifted — whole right-hand shift)
+;       vurm  -> burn   (mixed: some letters correct, some adjacent-key)
+;     The 60% threshold allows for the correct-hand letters that land
+;     right while the shifted hand produces adjacent-key errors.
+;
+; Pairs that fail BOTH tests are treated as abandoned fragments
+; (user changed their mind mid-word) and filtered out.
+; -----------------------------------------------------------------------
+IsTypoOfReplacement(trig, repl) {
+   global LetterOverlapMin, AdjacentKeyMin
+   trig := StrLower(trig)
+   repl := StrLower(repl)
+
+   ; --- Test A: shared-letter fraction (multiset) ---
+   trigCounts := Map()
+   Loop StrLen(trig) {
+      ch := SubStr(trig, A_Index, 1)
+      if RegExMatch(ch, "[a-z]")
+         trigCounts[ch] := trigCounts.Has(ch) ? trigCounts[ch] + 1 : 1
+   }
+   matched := 0, replLetters := 0
+   Loop StrLen(repl) {
+      ch := SubStr(repl, A_Index, 1)
+      if RegExMatch(ch, "[a-z]") {
+         replLetters++
+         if trigCounts.Has(ch) and trigCounts[ch] > 0 {
+            matched++
+            trigCounts[ch]--   ; consume so each trig letter matches at most once
+         }
+      }
+   }
+   if (replLetters > 0) and ((matched / replLetters) >= LetterOverlapMin)
+      return true   ; Test A passes — plausible normal typo.
+
+   ; --- Test B: adjacent-key shift (same length required) ---
+   if StrLen(trig) != StrLen(repl)
+      return false   ; Different lengths + low overlap = abandoned fragment.
+
+   adjacent := Map(
+      "q","wa",    "w","qase",  "e","wsdr",  "r","edft",
+      "t","rfgy",  "y","tghu",  "u","yhji",  "i","ujko",
+      "o","iklp",  "p","ol",
+      "a","qwsz",  "s","awedxz","d","serfcx","f","drtgvc",
+      "g","ftyhbv","h","gyujnb","j","huikmn","k","jiolm",
+      "l","kop",
+      "z","asx",   "x","zsdc",  "c","xdfv",  "v","cfgb",
+      "b","vghn",  "n","bhjm",  "m","njk"
+   )
+   diffTotal := 0, diffAdjacent := 0
+   Loop StrLen(trig) {
+      tc := SubStr(trig, A_Index, 1)
+      rc := SubStr(repl, A_Index, 1)
+      if (tc = rc)
+         continue   ; Correct-hand letters that landed right — ignore.
+      diffTotal++
+      if RegExMatch(tc, "[a-z]") and RegExMatch(rc, "[a-z]")
+         and ((adjacent.Has(tc) and InStr(adjacent[tc], rc))
+           or (adjacent.Has(rc) and InStr(adjacent[rc], tc)))
+         diffAdjacent++
+   }
+   ; At least one diff, and >= AdjacentKeyMin of diffs are adjacent-key pairs.
+   return (diffTotal > 0) and ((diffAdjacent / diffTotal) >= AdjacentKeyMin)
 }
 
 logIsRunning := 0, savedUpText := '', intervalCounter := 0 
@@ -412,7 +570,8 @@ OnExit Appender 	; Also append one more time on exit.
 ; Gets called by timer, or by onExit.
 Appender(*) { 
    savedUpText := sort(savedUpText, "U") ; A second mechanism for unduping. 
-   FileAppend savedUpText, MCLogFile
+   FileAppend savedUpText, MCLogFile         ; The log that gets scanned by this script.
+   FileAppend savedUpText, MCLogContinuous   ; A static duplicate of the log, for other analyses.
    global savedUpText := ''  		; clear each time, since text has been logged.
 	global logIsRunning := 1  		; set to 1 so we don't keep resetting the timer.
    global intervalCounter += 1 	; Increments here, but resets in other locations. 
