@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-25-2026
+; Version: 5-31-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -391,6 +391,7 @@ IsSkiplistedFocused() {
     
     return false
 }
+
 
 ; ============== REQUIRED INCLUDES ==============
 ; These files need to be in the same directory or properly referenced
@@ -880,17 +881,17 @@ class UI {
             })
             
             this.controlButtons.Push({
+                name: "ACLogContinuous",
+                text: " Open AutoCorrection Continuous Log", 
+                action: (*) => Run(Config.ACLogContinuousFile),
+                icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
+            })
+            
+            this.controlButtons.Push({
                 name: "ACAnalyze",
                 text: " Analyze AutoCorrection Log !^+Q", 
                 action: (*) => Run(Config.AcLogAnalyzer),
                 icon: A_ScriptDir "\..\Resources\Icons\AcAnalysis.ico"
-            })
-            
-            this.controlButtons.Push({
-                name: "MCLogContinuous",
-                text: " Open AutoCorrection Continuous Log", 
-                action: (*) => Run(Config.ACLogContinuousFile),
-                icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
@@ -913,6 +914,13 @@ class UI {
             name: "MCLog",
             text: " Open Manual Correction Log", 
             action: (*) => Run("..\Data\ManualCorrectionsLog.txt"),
+            icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
+        })
+
+        this.controlButtons.Push({
+            name: "MCLogContinuous",
+            text: " Open MC Log Continuous", 
+            action: (*) => Run("..\Data\MCLogContinuous.txt"),
             icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
         })
         
@@ -953,6 +961,16 @@ class UI {
                 name: "Suggester",
                 text: " Hotstring Suggester Tool", 
                 action: (*) => Run("..\Tools\Suggester.exe"),
+                icon: A_ScriptDir "\..\Resources\Icons\lightbulb-Blue.ico"
+            })
+        }
+        
+        ; Check if analysis tool is present, add button.
+        if FileExist("..\Tools\HotstringAnalyzer.exe") {
+            this.controlButtons.Push({
+                name: "HsAnalyzer",
+                text: " Hotstring Analyzer Tool", 
+                action: (*) => Run("..\Tools\HotstringAnalyzer.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\lightbulb-Blue.ico"
             })
         }
@@ -4119,6 +4137,9 @@ class HelpSystem {
                 case " Open AutoCorrection Log":
                     this.helpTexts["ControlButton_ACLog"] := "Opens the " config.AutoCorrectsLogFile " file.`n`nThis log contains a record of all autocorrections made using the f`(`) function, including whether a correction was backspaced, thus indicating a likely mis-application of the item.`n`nThe date of each logged item is present and separated from the item with a hyphen.`n`n<< = Backspace was pressed within one second.`n-- = Backspace not pressed within one second.`n`nNote: The script can't detect exactly WHAT you backspaced, only that the BS was pressed within one second.  There is, however, a Backspace Context Log that tries to help with figuring this out.`n`nThe AC Log file is analyzed by ACLogAnalyer.  Manually handling the log file is usually not needed.  The reading and writing from it is all automated. `n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the Config Setting Manager tool and in the ACSystem section, EnableLogging := 1 to 0."
                     
+                case " Open AutoCorrection Continuous Log":
+                    this.helpTexts["ControlButton_ACLogContinuous"] := "Opens the ACLogContinuous.txt file.`n`nThis is the continuous (non-rotating) version of the AutoCorrection Log. Unlike the main log which may be culled over time, this file accumulates all autocorrection entries without truncation.`n`nUseful for reviewing your full autocorrection history over a longer period."
+                    
                 case " Analyze AutoCorrection Log !^+Q":
                     this.helpTexts["ControlButton_ACAnalyze"] := "Runs the AutoCorrection Log Analyzer tool.`n`nThis tool analyzes your autocorrection log to identify problematic autocorrect items that you frequently backspace after triggering.`n`nThe hotkey Alt+Ctrl+Shift+Q can also be used to launch this tool.`n`nThe most-frequent errant hotstrings are returned as radio buttons in a report.`n`nSeveral actions can be taken on an item."
                     
@@ -4131,6 +4152,9 @@ class HelpSystem {
                 case " Open Manual Correction Log":
                     this.helpTexts["ControlButton_MCLog"] := "Opens the Manual Correction Log file.`n`nThis log contains records of corrections you've made manually, which might be candidates for new autocorrect entries.`n`nThe log is accessed by the Manual Correction Log Anayzer.`n`nIt is usually not necessary to access the log directly.`n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences."
                     
+                case " Open MC Log Continuous":
+                    this.helpTexts["ControlButton_MCLogContinuous"] := "Opens the MCLogContinuous.txt file.`n`nThis is the continuous (non-rotating) version of the Manual Correction Log. Unlike the main log which may be culled over time, this file accumulates all manual correction entries without truncation.`n`nUseful for reviewing your full correction history over a longer period."
+                    
                 case " Analyze Manual Correction Log #^+Q":
                     this.helpTexts["ControlButton_MCAnalyze"] := "Runs the Manual Correction Log Analyzer tool.`n`nThis tool helps identify patterns in your manual corrections that might be good candidates for new autocorrect entries.`n`nThe hotkey Win+Ctrl+Shift+Q can also be used to start the analysis process.`n`nIt is recommended to have the logger run in the background, to `"catch`" your manual corrections.`n`nA sophisticated series of events is used for this.  Please see the AutoCorrect2 User Manual."
                     
@@ -4142,6 +4166,9 @@ class HelpSystem {
                     
                 case " Hotstring Suggester Tool":
                     this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.  When creating a mult-match word middle AutoCorrect item via trimming the ends, it is possible to over-trim.  The Suggester tool helps you choose which letter to put back--that's why it was made.`n`nThe Suggester tool is usually accessed via Alt+Clicking the Append button, or via the ACLogAnalyer report, though you can run it directly, and type/paste in a hotstring."
+                    
+                case " Hotstring Analyzer Tool":
+                    this.helpTexts["ControlButton_HsAnalyzer"] := "Launches the Hotstring Analyzer tool.`n`nThis tool scans your HotstringLib.ahk file and analyzes each hotstring for potential issues, classifying problems such as adjacent transpositions, dropped letters, suffix intrusions, homophones, wrong verb forms, and more.`n`nA timestamped report is generated in the Debug\ folder upon completion.`n`nUseful for auditing your library and identifying entries that may be poorly formed or misclassified."
                     
                 case " Extract Potential Misspellings":
                     this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your HotstringLib.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work. The config options are in the .ahk file."
@@ -4195,6 +4222,8 @@ class HelpSystem {
                         helpTitle := "Help for 'Open HotString Library' button"
                     case "ACLog":
                         helpTitle := "Help for 'AutoCorrection Log' button"
+                    case "ACLogContinuous":
+                        helpTitle := "Help for 'AutoCorrection Continuous Log' button"
                     case "ACAnalyze":
                         helpTitle := "Help for 'Analyze AutoCorrection Log' button"
                     case "BSLog":
@@ -4203,6 +4232,8 @@ class HelpSystem {
                         helpTitle := "Help for 'Removed HotStrings List' button"
                     case "MCLog":
                         helpTitle := "Help for 'Manual Correction Log' button"
+                    case "MCLogContinuous":
+                        helpTitle := "Help for 'Open MC Log Continuous' button"
                     case "MCAnalyze":
                         helpTitle := "Help for 'Analyze Manual Correction Log' button"
                     case "Report":
@@ -4211,6 +4242,8 @@ class HelpSystem {
                         helpTitle := "Help for 'Settings Manager' button"
                     case "Suggester":
                         helpTitle := "Help for 'Hotstring Suggester Tool' button"
+                    case "HsAnalyzer":
+                        helpTitle := "Help for 'Hotstring Analyzer Tool' button"
                     case "ExtractMisspellings":
                         helpTitle := "Help for 'Potential Misspellings Tool' button"
                     case "ConflictingStringLocator":
@@ -4294,12 +4327,16 @@ class HelpSystem {
                             return "ControlButton_OpenLibrary"
                         else if InStr(buttonText, "Open AutoCorrection Log")
                             return "ControlButton_ACLog"
+                        else if InStr(buttonText, "Open AutoCorrection Continuous Log")
+                            return "ControlButton_ACLogContinuous"
                         else if InStr(buttonText, "Analyze AutoCorrection Log")
                             return "ControlButton_ACAnalyze"
                         else if InStr(buttonText, "Open Backspace Context Log")
                             return "ControlButton_BSLog"
                         else if InStr(buttonText, "Open Removed HotStrings List")
                             return "ControlButton_RemovedHS"
+                        else if InStr(buttonText, "Open MC Log Continuous")
+                            return "ControlButton_MCLogContinuous"
                         else if InStr(buttonText, "Open Manual Correction Log")
                             return "ControlButton_MCLog"
                         else if InStr(buttonText, "Analyze Manual Correction Log")
@@ -4310,6 +4347,8 @@ class HelpSystem {
                             return "ControlButton_SettingsMan"
                         else if InStr(buttonText, "Extract Potential Misspellings")
                             return "ControlButton_ExtractMisspellings"
+                        else if InStr(buttonText, "Hotstring Analyzer Tool")
+                            return "ControlButton_HsAnalyzer"
                         else if InStr(buttonText, "Hotstring Suggester Tool")
                             return "ControlButton_Suggester"
                         else if InStr(buttonText, "Conflicting String Locator Tool")
