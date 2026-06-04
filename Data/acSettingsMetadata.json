@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "5-29-2026",
+    "verion_date_for_this_json_file": "5-31-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -613,6 +613,32 @@
     ],
     "restart": "..\\Core\\MCLogger.exe"
   },
+  "MCLogger.LetterOverlapMin": {
+    "label": "Letter Overlap Minimum %",
+    "help": "MCLogger filters out pairs where the trigger and replacement are so different that the trigger was probably an abandoned fragment rather than a genuine typo.  This setting controls the primary (Test A) threshold for that filter.\n\nSpecifically: at least this percentage of the replacement's letters must also appear in the trigger (counted as a multiset, so duplicates matter).  Pairs that meet this threshold are kept as plausible typos.\n\nExamples at the default of 40:\n  recieve -> receive   passes (86% overlap)\n  functionaliyy -> functionality   passes (92% overlap)\n  analr -> other   filtered out (0% overlap)\n\nPairs that fail Test A are then checked by the adjacent-key Test B (see AdjacentKeyMin) before being discarded.  Raise this value to filter more aggressively; lower it to be more permissive.",
+    "type": "integer",
+    "min": 0,
+    "max": 100,
+    "restart": "..\\Core\\MCLogger.exe"
+  },
+  "MCLogger.AdjacentKeyMin": {
+    "label": "Adjacent Key Minimum %",
+    "help": "Secondary threshold for the typo-plausibility filter (Test B).  Only applies to trigger-replacement pairs of the same length that already failed the Letter Overlap test (Test A).\n\nThis test is designed to catch one-handed or hand-shift errors, where a hand drifts off home position and each affected finger presses the key one position away from the intended key.  Some letters in the word may be typed correctly (by the hand that stayed in position) while others are all shifted.\n\nSpecifically: at least this percentage of the positions where trigger and replacement differ must be QWERTY-adjacent key pairs.  Positions where the two strings already agree are ignored.\n\nExamples at the default of 60:\n  hyno -> jump   passes (100% of diffs are adjacent-key — full right-hand shift)\n  vurm -> burn   passes (mixed: some letters correct, shifted letters all adjacent)\n  analr -> other   filtered out (0% adjacent, and lengths differ anyway)\n\nRaise this value to require a tighter adjacent-key pattern; lower it to accept noisier hand-shift errors.",
+    "type": "integer",
+    "min": 0,
+    "max": 100,
+    "restart": "..\\Core\\MCLogger.exe"
+  },
+  "MCLogger.DebugFilterLog": {
+    "label": "Debug Filter Log",
+    "help": "When enabled, every trigger-replacement pair that gets filtered out by MCLogger is logged to a separate file for review.\n\nThe log is written to:  AutoCorrect2\\Debug\\MCLogger_Filtered.tsv\n\nEach line contains three tab-separated columns:\n  Timestamp | ::trigger::replacement | Filter reason\n\nThe 'Filter reason' column tells you exactly which check rejected the pair, e.g.:\n  'Repl not a word'\n  'Trig is a real word'\n  'Low similarity (not a plausible typo)'\n  'Exact duplicate in library'\n  'Word-ending conflict with :?: <trigger>'\n  'Duplicate of previous entry'\n\nThe .tsv file opens cleanly in Excel or any spreadsheet app.  This is useful for tuning the LetterOverlapMin and AdjacentKeyMin thresholds — if legitimate typos are being discarded, you can see them here and lower the thresholds accordingly.\n\nLeave disabled during normal use to avoid unnecessary disk writes.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ],
+    "restart": "..\\Core\\MCLogger.exe"
+  },
   "ACLogAnalyzer.FreqImportance": {
     "label": "Frequency Importance Weight",
     "help": "Importance weight (0-50) for frequency when calculating which items are most important.  The other factor is simply the ratio of backspaced, to kept, items.\n\n0 = ignore frequency, and just sort the AC Analysis report on ratio.",
@@ -697,6 +723,13 @@
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
+  "ControlButtons.ACLogContinuous": {
+    "label": "Open AutoCorrection Continuous Log",
+    "help": "This is the setting for the \"Open AutoCorrection Continuous Log\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\nNote: (1) The specifics of what the button does is hard-coded in AutoCorrect2.ahk and (2) if AC logging is globally disabled, then AC-related Control Buttons will always be hidden.",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
   "ControlButtons.ACAnalyze": {
     "label": "Analyze AutoCorrection Log !^+Q",
     "help": "This is the setting for the \"Analyze AutoCorrection Log !^+Q\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\nNote: (1) The specifics of what the button does is hard-coded in AutoCorrect2.ahk and (2) if AC logging is globally disabled, then AC-related Control Buttons will always be hidden.",
@@ -763,6 +796,13 @@
   "ControlButtons.Suggester": {
     "label": "Hotstring Suggester Tool",
     "help": "This is the setting for the \"Hotstring Suggester Tool\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.HsAnalyzer": {
+    "label": "Hotstring Analyzer Tool",
+    "help": "This is the setting for the \"Hotstring Analyzer Tool\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
