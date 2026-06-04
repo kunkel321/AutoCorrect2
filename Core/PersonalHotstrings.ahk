@@ -10,4 +10,4 @@
 ; Without this, hotstrings that are in f() calls can "double-trigger" if you trigger the string, then press backspace, EndChar again. 
 ; MARK: Personal Hotstrings
 
-::;quick::The five boxing wizards jump quickly and the quick brown fox jumps over the lazy dog, so pack my box with five dozen liquor jugs. 
+:B0X*?:;quick::f("The five boxing wizards jump quickly and the quick brown fox jumps over the lazy dog, so pack my box with five dozen liquor jugs.", 0, 1) ; the  0, 1 means don't log, do paste.
