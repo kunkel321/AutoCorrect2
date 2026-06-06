@@ -2,84 +2,82 @@
 #Requires AutoHotkey v2.0
 Persistent
 
-/*============================================================================
-   MCLogger — The Manual Correction Logger
-   Part of the AutoCorrect2 suite.
-==============================================================================
-   Author:     kunkel321
-   AI Tool:    Claude (Anthropic)
-   Version:    6-5-2026
-   Repository: https://github.com/kunkel321/AutoCorrect2
-==============================================================================
-   OVERVIEW
-   MCLogger runs silently in the background and watches your typing for
-   manual corrections — moments when you backspace over a mistyped word and
-   retype it correctly.  Each viable trigger→replacement pair is formatted as
-   an AHK hotstring and accumulated in a log file.  Later, repeating typo
-   patterns can be identified and promoted to new AutoCorrect library entries
-   via the built-in analysis GUI.
+MCLoggerHelpText := "
+(
+MCLogger — The Manual Correction Logger
+Part of the AutoCorrect2 suite.
+Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 6-6-2026
+Repository: https://github.com/kunkel321/AutoCorrect2
 
-   WHAT IT WATCHES FOR
-   The inputHook monitors every keystroke.  Space and Backspace are the "end
-   keys" that trigger pattern matching.  Three correction patterns are
-   recognized (using ~ for Space and < for Backspace):
-     Pattern A (classic):   tpyo<<<ypo~     corrected before pressing Space
-     Pattern B (space-BSs): tpyo~<<<ypo~    Space pressed after typo, then
-                                            backspaced and corrected
-     Pattern C (next-word): tpyo~nex<<<ypo~ started typing the next word
-                                            before correcting the previous one
-                                            ("nex" fragment is discarded)
-   In all three cases the result logged is ::tpyo::typo.
+OVERVIEW
+MCLogger runs silently in the background and watches your typing for manual
+corrections — moments when you backspace over a mistyped word and retype it
+correctly.  Each viable trigger→replacement pair is formatted as an AHK
+hotstring and accumulated in a log file.  Later, repeating typo patterns can
+be identified and promoted to new AutoCorrect library entries via the built-in
+analysis GUI.
 
-   WHAT IT CAPTURES (AND WHAT IT IGNORES)
-   The cache accepts letters, digits, and punctuation keys that physically
-   border the letter rows ( ; ' , . [ ] ).  Digits can appear in a mistyped
-   trigger (e.g. "q" accidentally typed as "1") but never in a replacement,
-   because real words don't contain digits.  Purely numeric sequences such as
-   phone numbers and PINs are silently dropped at the regex stage — they can
-   never match because the replacement group excludes digits entirely.  The
-   word-list filter (replacement must be a real dictionary word) is a further
-   safety net against logging passwords or other sensitive fragments.
+WHAT IT WATCHES FOR
+The inputHook monitors every keystroke.  Space and Backspace are the "end
+keys" that trigger pattern matching.  Three correction patterns are recognized
+(using ~ for Space and < for Backspace):
+  Pattern A (classic):   tpyo<<<ypo~     corrected before pressing Space
+  Pattern B (space-BSs): tpyo~<<<ypo~    Space pressed after typo, then
+                                         backspaced and corrected
+  Pattern C (next-word): tpyo~nex<<<ypo~ started typing the next word before
+                                         correcting the previous one — the
+                                         "nex" fragment is discarded
+In all three cases the result logged is ::tpyo::typo.
 
-   FILTERS
-   Each candidate pair passes through a chain of checks before being logged:
-     1. Replacement must be a real word; trigger must NOT be a real word.
-     2. Trigger must not already exist in the AC library or removed-items list
-        (four conflict types: exact, word-beginning, word-middle, word-ending).
-     3. Typo plausibility: letter-overlap Test A (>=40% of replacement letters
-        present in trigger) OR adjacent-key Test B (>=60% of differing
-        positions are QWERTY neighbors — same-length pairs only).
-     4. Not a duplicate of the immediately preceding logged entry.
-   Debug logging (DebugFilterLog=1 in acSettings.ini) writes every rejected
-   pair with its filter reason to Debug\MCLogger_Filtered.tsv.
+WHAT IT CAPTURES (AND WHAT IT IGNORES)
+The cache accepts letters, digits, and punctuation keys that physically border
+the letter rows ( ; ' , . [ ] ).  Digits can appear in a mistyped trigger
+(e.g. "q" accidentally typed as "1") but never in a replacement, because real
+words don't contain digits.  Purely numeric sequences such as phone numbers
+and PINs are silently dropped at the regex stage — they can never match
+because the replacement group excludes digits entirely.  The word-list filter
+(replacement must be a real dictionary word) is a further safety net against
+logging passwords or other sensitive fragments.
 
-   SETTINGS
-   MCLogger shares acSettings.ini with several other AutoCorrect2 tools.
-   The other tools do not need to be present, but the INI file does.
-   Key settings (all under [MCLogger]): ShowEachHotString, BeepEachHotString,
-   SaveIntervalMinutes, LetterOverlapMin, AdjacentKeyMin, DebugFilterLog.
-   See SettingsManager.ahk for a full GUI editor with help text for each key.
+FILTERS
+Each candidate pair passes through a chain of checks before being logged:
+  1. Replacement must be a real word; trigger must NOT be a real word.
+  2. Trigger must not already exist in the AC library or removed-items list
+     (four conflict types: exact, word-beginning, word-middle, word-ending).
+  3. Typo plausibility: letter-overlap Test A (>=40% of replacement letters
+     present in trigger) OR adjacent-key Test B (>=60% of differing positions
+     are QWERTY neighbors — same-length pairs only).
+  4. Not a duplicate of the immediately preceding logged entry.
+Debug logging (DebugFilterLog=1 in acSettings.ini) writes every rejected pair
+with its filter reason to Debug\MCLogger_Filtered.tsv.
 
-   CACHE RESET
-   Moving the cursor (arrow keys), clicking the mouse, or pressing Escape
-   clears the keystroke cache and resets pattern matching.  This ensures only
-   uninterrupted typing sequences are analyzed.
+SETTINGS
+MCLogger shares acSettings.ini with several other AutoCorrect2 tools.  The
+other tools do not need to be present, but the INI file does.
+Key settings (all under [MCLogger]): ShowEachHotString, BeepEachHotString,
+SaveIntervalMinutes, LetterOverlapMin, AdjacentKeyMin, DebugFilterLog.
+See SettingsManager.ahk for a full GUI editor with help text for each key.
 
-   ANALYSIS GUI
-   The systray menu and the configurable hotkey both open the analysis report,
-   which groups logged pairs by frequency, scores them, and lets you export
-   directly to HotstringHelper 2.0 or append to the AC library file.
+CACHE RESET
+Moving the cursor (arrow keys), clicking the mouse, or pressing Escape clears
+the keystroke cache and resets pattern matching.  This ensures only
+uninterrupted typing sequences are analyzed.
 
-   CREDITS
-   Thanks to Mikeyww, who helped with the original inputHook code, and to
-   Just Me, who wrote the ToolTipOptions class used for tooltip positioning.
+ANALYSIS GUI
+The systray menu and the configurable hotkey both open the analysis report,
+which groups logged pairs by frequency, scores them, and lets you export
+directly to HotstringHelper 2.0 or append to the AC library file.
 
-   RELATED TOOL
-   MS Word VBA users may be interested in a companion macro that monitors
-   Word's spell-check corrections (via right-click) and logs them to the same
-   ManualCorrectionsLog.txt file:
-   https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
-============================================================================*/
+CREDITS
+Thanks to Mikeyww, who helped with the original inputHook code, and to
+Just Me, who wrote the ToolTipOptions class used for tooltip positioning.
+
+RELATED TOOL
+MS Word VBA users may be interested in a companion macro that monitors
+Word's spell-check corrections (via right-click) and logs them to the same
+ManualCorrectionsLog.txt file:
+https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
+)"
 
 #Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. Required.
 
@@ -186,19 +184,21 @@ mclMenu.Add("Open " MCLogFile, (*) => Run(MCLogFile))
 mclMenu.SetIcon("Open " MCLogFile, "..\Resources\Icons\TxtFile-Brown.ico")
 If FileExist(SettingsManager) { ; Only add to menu if SM found.
    mclMenu.Add("Open " SettingsManager, (*) => Run(SettingsManager))
-   mclMenu.SetIcon("Open " SettingsManager, "..\Resources\Icons\Settings-blue.ico")
+   mclMenu.SetIcon("Open " SettingsManager, "..\Resources\Icons\Settings-Brown.ico")
 }
 mclMenu.Add("Analyze Manual Corrections", runAnalysis)
 mclMenu.SetIcon("Analyze Manual Corrections", "..\Resources\Icons\search-Brown.ico")
 If (DebugFilterLog = 1)  { ; Only add if debug logging is enabled.
    mclMenu.Add("View Filtered Items", ViewFilteredItems)
-   mclMenu.SetIcon("View Filtered Items", "..\Resources\Icons\search-Brown.ico")
+   mclMenu.SetIcon("View Filtered Items", "..\Resources\Icons\Filter-Brown.ico")
 }
 mclMenu.Add("Start with Windows", StartUpMCL)
 if FileExist(A_Startup "\" appName ".lnk")
    mclMenu.Check("Start with Windows")
 mclMenu.Add("List Lines Debug", (*) => ListLines())
 mclMenu.SetIcon("List Lines Debug", "..\Resources\Icons\ListLines-Brown.ico")
+mclMenu.Add("About / Help", ShowMCLHelp)
+mclMenu.SetIcon("About / Help", "..\Resources\Icons\lightbulb-Brown.ico")
 mclMenu.Add("Exit Script", (*) => ExitApp())
 mclMenu.SetIcon("Exit Script", "..\Resources\Icons\exit-Brown.ico")
 mclMenu.SetColor("C29A6A") ; #CD853F is "Peru"
@@ -252,7 +252,7 @@ If FileExist(RemovedHsFile)
    AcFileContents .= "`n" Fileread(RemovedHsFile)
 ;msgbox "AcFileContents:`n`n" AcFileContents
 
-#HotIf WinActive("MCLogger.ahk") ; MCLogger-specific
+#HotIf WinActive("MCLogger.ahk - Visual Studio Code") or WinActive("MCLogger.ahk - Notepad")
 $^s:: ; Save and reload MCLogger script. ; hide 
 SaveAndReload(*) { ; Save, but also reload script in RAM.
    Send "^s"
@@ -261,12 +261,47 @@ SaveAndReload(*) { ; Save, but also reload script in RAM.
 }
 #HotIf ; Turn off "window-specific" stuff.
 
+; F1 opens the help GUI when the MC Report or Filtered Items viewer is focused.
+#HotIf WinActive("MCLogger — Manual Correction Report") or WinActive("Filtered Items — MCLogger Debug Log")
+F1:: {
+   ShowMCLHelp()
+}
+#HotIf
+
 ; For opening this script (not usually needed, since the log is in a separate file).
 EditThisScript(*) {
 	Try
       Run(MyAhkEditorPath " " A_ScriptFullPath)
 	Catch
 		Run A_ScriptFullPath
+}
+
+; Displays the MCLoggerHelpText variable in a minimal scrollable GUI.
+; Callable from the systray menu, or F1 when a MCLogger GUI is focused.
+ShowMCLHelp(*) {
+   static helpWin := ""
+   if IsObject(helpWin) {
+      try {
+         helpWin.Show()   ; Bring existing window to front if still open.
+         return
+      }
+      catch {
+         helpWin := ""    ; Window was closed/destroyed — fall through to recreate.
+      }
+   }
+   helpWin := Gui("+Resize +MinSize400x300", "MCLogger — About / Help")
+   helpWin.SetFont("s12 c" fontColor, "Courier New")
+   helpWin.BackColor := formColor
+   global helpEdit := helpWin.Add("Edit",
+      "x8 y8 w800 h650 +ReadOnly +Multi +VScroll -E0x200 Background" formColor,
+      MCLoggerHelpText)
+   helpEdit.SetFont("s12 c" fontColor, "Courier New")
+   closeBtn := helpWin.Add("Button", "x8 y+8 w80", "Close")
+   closeBtn.OnEvent("Click", (*) => helpWin.Destroy())
+   helpWin.OnEvent("Escape", (*) => helpWin.Destroy())
+   helpWin.OnEvent("Size", (gObj, minMax, W, H) => helpEdit.Move(,, W - 16, H - 50))
+   helpWin.Show()
+   closeBtn.Focus()
 }
 
 ; This function pops up a tooltip to show: (1) the currently captured key press cache 
@@ -918,6 +953,7 @@ runAnalysis(*) {
    ; =========
 
 	global cl := Gui()  ; "cl" for "Culled"
+   cl.Title := "MCLogger — Manual Correction Report"
    cl.SetFont('s12 c' fontColor)  
    cl.BackColor := formColor
 	cl.Add('text','w400 wrap','Analysis complete. The most frequent items are shown below. Select an item then right-click to copy, or use buttons below to cull/append.')
