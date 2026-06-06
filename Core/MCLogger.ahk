@@ -1,36 +1,85 @@
-#SingleInstance
+﻿#SingleInstance
 #Requires AutoHotkey v2.0
 Persistent
 
-; ==============================================================================
-; The Manual Correction Logger -- MCLogger 
-; ==============================================================================
-; Author: Kunkel321
-; Tool Used: Claude AI
-; Version: 5-27-2026 
-; Get latest version here: https://github.com/kunkel321/AutoCorrect2
-; A script to run in the background all the time and log your typing
-; errors and manual corrections, formatting the viable ones into ahk hotstrings,
-; so that repeating typo patterns can later be identified and potentially
-; added as new AutoCorrect library items.  The analysis report is a GUI form that
-; can export the new hotstring to Hotstring Helper 2.0, or merely append it to 
-; the bottom of the AutoCorrect file.  The typoCache variable ignores 
-; non-letters (because those are not needed for typing corrections).  "End keys"
-; are Space (~) and Backspace (<).  The script watches for the pattern "...<. ~" 
-; and then saves the corresponding hotstring for logging.  The log gets saved to 
-; file every X minutes. The log also saves to file on exit.  Moving the cursor 
-; or left-clicking resets the cache and closes the tooltip. 
-; PLEASE NOTE that MCLogger shares acSettings.ini with several other tools, though
-; the other tools don't need to be present for MCLogger to work.
-; See also the WinSysTray context menu for other commands. 
-; Thanks to Mikeyww who helped with the original inputHook code and to Just Me, 
-; who wrote the ToolTipOptions class.
-; ==============================================================================
-; Related tool:  Users of MS Word VBA may be interested in the code here
-; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
-; Which monitors the correction (via r-click) of misspelled words and logs them
-; to the same ManualCorrectionsLog.txt file.
-; ==============================================================================
+/*============================================================================
+   MCLogger — The Manual Correction Logger
+   Part of the AutoCorrect2 suite.
+==============================================================================
+   Author:     kunkel321
+   AI Tool:    Claude (Anthropic)
+   Version:    6-5-2026
+   Repository: https://github.com/kunkel321/AutoCorrect2
+==============================================================================
+   OVERVIEW
+   MCLogger runs silently in the background and watches your typing for
+   manual corrections — moments when you backspace over a mistyped word and
+   retype it correctly.  Each viable trigger→replacement pair is formatted as
+   an AHK hotstring and accumulated in a log file.  Later, repeating typo
+   patterns can be identified and promoted to new AutoCorrect library entries
+   via the built-in analysis GUI.
+
+   WHAT IT WATCHES FOR
+   The inputHook monitors every keystroke.  Space and Backspace are the "end
+   keys" that trigger pattern matching.  Three correction patterns are
+   recognized (using ~ for Space and < for Backspace):
+     Pattern A (classic):   tpyo<<<ypo~     corrected before pressing Space
+     Pattern B (space-BSs): tpyo~<<<ypo~    Space pressed after typo, then
+                                            backspaced and corrected
+     Pattern C (next-word): tpyo~nex<<<ypo~ started typing the next word
+                                            before correcting the previous one
+                                            ("nex" fragment is discarded)
+   In all three cases the result logged is ::tpyo::typo.
+
+   WHAT IT CAPTURES (AND WHAT IT IGNORES)
+   The cache accepts letters, digits, and punctuation keys that physically
+   border the letter rows ( ; ' , . [ ] ).  Digits can appear in a mistyped
+   trigger (e.g. "q" accidentally typed as "1") but never in a replacement,
+   because real words don't contain digits.  Purely numeric sequences such as
+   phone numbers and PINs are silently dropped at the regex stage — they can
+   never match because the replacement group excludes digits entirely.  The
+   word-list filter (replacement must be a real dictionary word) is a further
+   safety net against logging passwords or other sensitive fragments.
+
+   FILTERS
+   Each candidate pair passes through a chain of checks before being logged:
+     1. Replacement must be a real word; trigger must NOT be a real word.
+     2. Trigger must not already exist in the AC library or removed-items list
+        (four conflict types: exact, word-beginning, word-middle, word-ending).
+     3. Typo plausibility: letter-overlap Test A (>=40% of replacement letters
+        present in trigger) OR adjacent-key Test B (>=60% of differing
+        positions are QWERTY neighbors — same-length pairs only).
+     4. Not a duplicate of the immediately preceding logged entry.
+   Debug logging (DebugFilterLog=1 in acSettings.ini) writes every rejected
+   pair with its filter reason to Debug\MCLogger_Filtered.tsv.
+
+   SETTINGS
+   MCLogger shares acSettings.ini with several other AutoCorrect2 tools.
+   The other tools do not need to be present, but the INI file does.
+   Key settings (all under [MCLogger]): ShowEachHotString, BeepEachHotString,
+   SaveIntervalMinutes, LetterOverlapMin, AdjacentKeyMin, DebugFilterLog.
+   See SettingsManager.ahk for a full GUI editor with help text for each key.
+
+   CACHE RESET
+   Moving the cursor (arrow keys), clicking the mouse, or pressing Escape
+   clears the keystroke cache and resets pattern matching.  This ensures only
+   uninterrupted typing sequences are analyzed.
+
+   ANALYSIS GUI
+   The systray menu and the configurable hotkey both open the analysis report,
+   which groups logged pairs by frequency, scores them, and lets you export
+   directly to HotstringHelper 2.0 or append to the AC library file.
+
+   CREDITS
+   Thanks to Mikeyww, who helped with the original inputHook code, and to
+   Just Me, who wrote the ToolTipOptions class used for tooltip positioning.
+
+   RELATED TOOL
+   MS Word VBA users may be interested in a companion macro that monitors
+   Word's spell-check corrections (via right-click) and logs them to the same
+   ManualCorrectionsLog.txt file:
+   https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
+============================================================================*/
 
 #Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. Required.
 
@@ -141,6 +190,10 @@ If FileExist(SettingsManager) { ; Only add to menu if SM found.
 }
 mclMenu.Add("Analyze Manual Corrections", runAnalysis)
 mclMenu.SetIcon("Analyze Manual Corrections", "..\Resources\Icons\search-Brown.ico")
+If (DebugFilterLog = 1)  { ; Only add if debug logging is enabled.
+   mclMenu.Add("View Filtered Items", ViewFilteredItems)
+   mclMenu.SetIcon("View Filtered Items", "..\Resources\Icons\search-Brown.ico")
+}
 mclMenu.Add("Start with Windows", StartUpMCL)
 if FileExist(A_Startup "\" appName ".lnk")
    mclMenu.Check("Start with Windows")
@@ -258,16 +311,30 @@ tih.OnChar  := tih_Char
 tih.OnKeyUp := tih_EndChar
 tih.KeyOpt('{BS}{Space}', '+N')
 tih.Start
-RegEx := "(?<trig>[A-Za-z\.']{3,})(?<midspace>~?)(?<back>[<]+)(?<repl>[A-Za-z\.']+)[ \~]+"
-; regex is watching for pattern ...<.~
-; midspace captures an optional ~ between the trigger and backspaces (Pattern B: space typed before correcting)
+RegEx := "(?<trig>[A-Za-z\.';,\[\]0-9]{3,})(?<midspace>~?)(?<nextword>[A-Za-z\.';,\[\]0-9]*)(?<back>[<]+)(?<repl>[A-Za-z\.';,\[\]]+)[ \~]+"
+; regex watches for pattern ...<.~
+; midspace:  optional ~ between trigger and backspaces (Pattern B: space typed before correcting)
+; nextword:  optional word fragment between mid-space and backspaces (Pattern C: started next
+;            word before correcting previous one, e.g. "tpyo~pat<<<<<<ypo~")
 
-; This function filters-out non-letter characters.  
-; Allow period (for end of sentence) and apostrophe (for contractions) though.
+; This function filters-out characters we don't want accumulating in the cache.
+; Letters plus digits and adjacent punctuation keys (semicolon, apostrophe, comma,
+; period, brackets) are kept.  The reasoning is asymmetric:
+;   - A letter key can be accidentally pressed as a digit or symbol (e.g. 'q' → '1'),
+;     so digits can legitimately appear in a mistyped trigger word.
+;   - We are never interested in cases where the user *intended* to type a digit and
+;     got something else, so digits never appear as a replacement (real words don't
+;     contain digits), and digit keys have no entry in the adjacent map.
+;   - The word-list filter (repl must be a real word) is the ultimate safety net
+;     against logging passwords or credit card numbers.
 ; Note: space is intentionally excluded — Space is routed through tih_EndChar as vk=32.
 tih_Char(tih, char) {
 	Global typoCache
-	if (RegExMatch(char, "[A-Za-z\.']+")) { ; Only use letters, period, apostrophe.
+	; Allow letters plus punctuation keys that can be accidentally typed instead of nearby
+	; letters (semicolon, apostrophe, comma, period, brackets).  Digits and other special
+	; chars are still excluded — the word-list filter is our real safety net, but there's
+	; no reason to accumulate digit runs in the cache.
+	if (RegExMatch(char, "[A-Za-z\.';,\[\]0-9]")) {
 		typoCache .= char
    }
 }
@@ -276,13 +343,13 @@ CoordMode 'ToolTip', 'Screen'
 CoordMode 'Caret', 'Screen'
 
 ; When Backspace or Space is pressed, this function is called.
-; Two correction patterns are recognized:
-;   Pattern A (classic):  word<<<repl~   (corrected before hitting Space)
-;   Pattern B (new):      word~<<<repl~  (Space typed first, then backspaced and corrected)
-; On a non-matching Space the cache is NOT cleared, allowing Pattern B to accumulate.
+; Three correction patterns are recognized:
+;   Pattern A (classic):   tpyo<<<ypo~    corrected before hitting Space
+;   Pattern B (space-BSs): tpyo~<<<ypo~   Space typed first, then backspaced and corrected
+;   Pattern C (next-word): tpyo~pat<<<ypo~  started typing next word before correcting previous
+;     In Pattern C the next-word fragment ("pat") is discarded; only ::tpyo::typo is logged.
+; On a non-matching Space the cache is NOT cleared, allowing Patterns B/C to accumulate.
 ; A length cap prevents the cache from growing unbounded during normal typing.
-; Once a match is found, the trigger and replacement are extrapolated, validity-checked,
-; and (if valid) appended with a datestamp to the "Saved up Text" variable for logging.
 tih_EndChar(tih, vk, sc) {
    Global typoCache .= vk = 8 ? '<' : '~'   ; '<' for Backspace, '~' for Space
 
@@ -295,40 +362,52 @@ tih_EndChar(tih, vk, sc) {
       return  ; No match yet — leave cache intact so Pattern B can accumulate.
 
    ; ---- A match was found.  Determine which pattern. ----
-   ; If midspace captured a ~ it is Pattern B: the user hit Space after finishing the typo,
-   ; then backspaced into the word.  That BS consumed the space rather than a typed letter,
-   ; so subtract 1 from the effective backspace count used in reconstruction.
+   ; Pattern A (classic):   tpyo<<<<<<ypo~        corrected before hitting Space
+   ; Pattern B (space-BSs): tpyo~<<<<<<ypo~       Space typed after typo, then backspaced
+   ; Pattern C (next-word): tpyo~pat<<<<<<ypo~    started next word before correcting previous
+   ;   In Pattern C, midspace="~" and nextword="pat" (the fragment to discard).
+   ;   The backspace count covers both the next-word fragment and the mid-space (or just the
+   ;   next-word fragment if the space itself was also backspaced over).
    rawTrig        := out.trig
-   cleanTrig      := rawTrig                          ; trig group no longer swallows the mid-space
-   spacesBs       := (out.midspace = "~") ? 1 : 0    ; 1 = Pattern B (space before BSs), 0 = Pattern A
+   cleanTrig      := rawTrig
+   nextWord       := out.nextword        ; "" for Patterns A and B
+   spacesBs       := (out.midspace = "~") ? 1 : 0
+   nextWordLen    := StrLen(nextWord)
    trigLen        := StrLen(cleanTrig)
    BsLen          := StrLen(out.back)
    replLen        := StrLen(out.repl)
-   effectiveBsLen := BsLen - spacesBs                ; BSs that actually deleted typed letters
 
-   if (spacesBs > 0) {
-      ; Pattern B: the full trigger word was definitely typed (user pressed Space after it),
-      ; so newTrig is always cleanTrig — no reconstruction needed.
-      newTrig       := cleanTrig
-      ; newRepl reconstruction uses effectiveBsLen instead of raw BsLen.
-      FirstPartTrig := SubStr(cleanTrig, 1, trigLen - effectiveBsLen)
-      newRepl       := FirstPartTrig . out.repl
+   if (nextWordLen > 0) {
+      ; Pattern C: BSs erased the next-word fragment plus the space, so subtract both
+      ; from the effective BS count used to reconstruct the trigger/replacement.
+      effectiveBsLen := BsLen - nextWordLen - spacesBs
+      newTrig        := cleanTrig        ; full trigger was completed before Space was pressed
+      FirstPartTrig  := SubStr(cleanTrig, 1, trigLen - effectiveBsLen)
+      newRepl        := FirstPartTrig . out.repl
+   }
+   else if (spacesBs > 0) {
+      ; Pattern B: Space typed after typo, then backspaced directly into the word.
+      effectiveBsLen := BsLen - spacesBs
+      newTrig        := cleanTrig
+      FirstPartTrig  := SubStr(cleanTrig, 1, trigLen - effectiveBsLen)
+      newRepl        := FirstPartTrig . out.repl
    }
    else {
       ; Pattern A: classic behavior, unchanged.
-      if (replLen > BsLen) { ; Replacement longer than BSs — part of trigger is hiding in repl.
+      effectiveBsLen := BsLen
+      if (replLen > BsLen) {
          LastPartRepl := SubStr(out.repl, '-' (replLen - BsLen))
          newTrig := rawTrig . LastPartRepl
       }
-      else { ; BSs >= repl length — entire trigger was typed before backspacing began.
+      else {
          newTrig := rawTrig
       }
       FirstPartTrig := SubStr(rawTrig, 1, trigLen - BsLen)
       newRepl       := FirstPartTrig . out.repl
    }
 
-   newTrig := Trim(newTrig, " .")
-   newRepl := Trim(newRepl, " .")
+   newTrig := Trim(newTrig, " .';,[]")
+   newRepl := Trim(newRepl, " .';,[]")
 
    ; Sanity check: bail out if reconstruction produced something degenerate.
    if (newTrig = "" || newRepl = "" || newTrig = newRepl || effectiveBsLen < 1) {
@@ -383,19 +462,176 @@ ClearToolTip(*) {
 ; Called only when DebugFilterLog = 1.  Appends one TSV line to
 ; Debug\MCLogger_Filtered.tsv so filtered-out pairs can be reviewed.
 ; Columns:  Timestamp | Hotstring | Filter reason
-; The Debug\ folder is created automatically if it does not exist.
+; The Debug\ folder and file header are created automatically on first write.
 ; -----------------------------------------------------------------------
 LogFilteredItem(trig, repl, reason) {
    global FilteredLogFile
-   if !DirExist(SubStr(FilteredLogFile, 1, InStr(FilteredLogFile, "\",, -1) - 1))
-      DirCreate(SubStr(FilteredLogFile, 1, InStr(FilteredLogFile, "\",, -1) - 1))
+   debugDir := SubStr(FilteredLogFile, 1, InStr(FilteredLogFile, "\",, -1) - 1)
+   if !DirExist(debugDir)
+      DirCreate(debugDir)
+   if !FileExist(FilteredLogFile) {
+      sep := ""
+      Loop 68
+         sep .= "-"
+      header :=
+      (
+         "; MCLogger_Filtered.tsv — Debug log of pairs rejected by MCLogger's typo filters."
+         "`n; Generated by MCLogger.ahk (AutoCorrect2 suite).  github.com/kunkel321/AutoCorrect2"
+         "`n;"
+         "`n; This file records every trigger→replacement pair that was captured but filtered"
+         "`n; out, along with the reason it was rejected.  Because it reflects your actual"
+         "`n; keystrokes, it may contain fragments of sensitive text (partial words from"
+         "`n; passwords, usernames, or other private input) that slipped past the guards."
+         "`n;"
+         "`n; SHARE WITH CAUTION — do not attach this file to bug reports or forum posts"
+         "`n; without first reviewing it for anything you would not want others to see."
+         "`n;"
+         "`n; Note: purely numeric sequences (phone numbers, PINs, etc.) do NOT appear here"
+         "`n; — they are dropped silently at the regex stage before any filter runs."
+         "`n;"
+         "`n; Columns (tab-separated):  Timestamp  |  ::trigger::replacement  |  Filter reason"
+         "`n; " sep "`n"
+      )
+      FileAppend(header, FilteredLogFile, "UTF-8")
+   }
    stamp := A_YYYY "-" A_MM "-" A_DD " " A_Hour ":" A_Min
    line  := stamp "`t" "::" trig "::" repl "`t" reason "`n"
    FileAppend(line, FilteredLogFile, "UTF-8")
 }
 
 ; -----------------------------------------------------------------------
-; PassesAllFilters(newTrig, newRepl)
+; ViewFilteredItems()
+; Opens a resizable ListView GUI showing the contents of MCLogger_Filtered.tsv.
+; Called from the systray menu (only present when DebugFilterLog = 1).
+; Columns: Timestamp | Hotstring | Filter Reason  — all three are sortable.
+; Skips comment/header lines (those starting with ";").
+; -----------------------------------------------------------------------
+ViewFilteredItems(*) {
+   global FilteredLogFile, formColor, listColor, fontColor
+
+   if !FileExist(FilteredLogFile) {
+      acMsgBox.show("No filtered-items log found yet.`n`n"
+         . "The file is created the first time a pair is filtered out`n"
+         . "while DebugFilterLog = 1.`n`nPath: " FilteredLogFile)
+      return
+   }
+
+   ; Read and parse the TSV, skipping comment/header lines.
+   rows := []
+   Loop Read, FilteredLogFile {
+      line := Trim(A_LoopReadLine, "`r`n ")
+      if (line = "" || SubStr(line, 1, 1) = ";")
+         continue
+      parts := StrSplit(line, "`t")
+      if (parts.Length >= 3)
+         rows.Push({ts: parts[1], hs: parts[2], reason: parts[3]})
+      else if (parts.Length = 2)
+         rows.Push({ts: parts[1], hs: parts[2], reason: ""})
+   }
+
+   ; Build GUI.
+   fv := Gui("+Resize +MinSize500x300", "Filtered Items — MCLogger Debug Log")
+   fv.SetFont("s11 c" fontColor)
+   fv.BackColor := formColor
+
+   fv.Add("Text", "w660 wrap",
+      "Items filtered out by MCLogger.  "
+      . "Click a column header to sort.  "
+      . rows.Length " entries (comment lines excluded).")
+
+   global fvLV := fv.Add("ListView",
+      "x10 y+8 w660 h420 Grid Background" listColor " vFvSel",
+      ["Timestamp", "Hotstring", "Filter Reason"])
+   fvLV.OnEvent("ContextMenu", FvContextMenu)
+
+   for row in rows
+      fvLV.Add(, row.ts, row.hs, row.reason)
+
+   fvLV.ModifyCol(1, 130)
+   fvLV.ModifyCol(2, 180)
+   fvLV.ModifyCol(3)   ; auto-size to content initially; FvResize will expand to right edge on Show
+
+   fv.Add("Button", "x10 y+8 w150", "Open in Editor")
+      .OnEvent("Click", (*) => Run(FilteredLogFile))
+   fv.Add("Button", "x+10 w150 yp", "Copy Selected")
+      .OnEvent("Click", FvCopySelected)
+   fv.Add("Button", "x+10 w150 yp", "Close")
+      .OnEvent("Click", (*) => fv.Destroy())
+
+   fv.OnEvent("Size", FvResize)
+   fv.OnEvent("Escape", (*) => fv.Destroy())
+   fv.Show()
+}
+
+; Resize handler — col1 (Timestamp) is fixed; col2 and col3 share the extra width equally.
+FvResize(GuiObj, MinMax, W, H) {
+   if (MinMax = -1)
+      return
+   static col1W := 130
+   fvLV.Move(, , W - 20, H - 90)
+   shared := (W - 20 - col1W - 4) // 2   ; split remaining width evenly; 4px for grid lines
+   fvLV.ModifyCol(2, shared)
+   fvLV.ModifyCol(3, shared)
+}
+
+; Right-click handler — column-aware:
+;   Col 2 (Hotstring)     → copies the filtered-out item  ::trig::repl
+;   Col 3 (Filter Reason) → if the reason contains a conflicting hs, copies that; else copies col 2
+;   Any other col         → copies col 2 as fallback
+FvContextMenu(GuiCtrlObj, Item, IsRightClick, X, Y) {
+   if (Item = 0)
+      return
+   ; Determine which column was right-clicked from the X coordinate.
+   ; ModifyCol widths are dynamic, so ask the LV for current column widths via LVM_GETCOLUMN.
+   col1W := LvColWidth(fvLV, 1)
+   col2W := LvColWidth(fvLV, 2)
+   clickedCol := (X < col1W) ? 1 : (X < col1W + col2W) ? 2 : 3
+
+   filteredHs  := fvLV.GetText(Item, 2)   ; ::trig::repl (the filtered-out item)
+   reasonText  := fvLV.GetText(Item, 3)   ; full reason string
+
+   ; Try to extract a conflicting hotstring from the reason (starts after "conflict with ").
+   conflictHs := ""
+   if RegExMatch(reasonText, "conflict with (.+)$", &cm)
+      conflictHs := Trim(cm[1])
+
+   if (clickedCol = 3) and (conflictHs != "")
+      txt := conflictHs
+   else
+      txt := filteredHs
+
+   A_Clipboard := txt
+   ToolTip("Copied: " txt, , , 5)
+   SetTimer(() => ToolTip(,,,5), -2000)
+}
+
+; Helper: returns the pixel width of a ListView column by index (1-based).
+LvColWidth(lv, colIndex) {
+   static LVM_GETCOLUMNWIDTH := 0x101D
+   return SendMessage(LVM_GETCOLUMNWIDTH, colIndex - 1, 0, lv)
+}
+
+; Copy-Selected button handler — copies all selected rows as TSV.
+FvCopySelected(*) {
+   out := ""
+   row := 0
+   Loop {
+      row := fvLV.GetNext(row)
+      if !row
+         break
+      out .= fvLV.GetText(row, 1) "`t" fvLV.GetText(row, 2) "`t" fvLV.GetText(row, 3) "`n"
+   }
+   if (out = "") {
+      ToolTip("No rows selected.", , , 5)
+      SetTimer(() => ToolTip(,,,5), -2000)
+      return
+   }
+   A_Clipboard := out
+   ToolTip("Copied " StrSplit(Trim(out, "`n"), "`n").Length " row(s) to clipboard.", , , 5)
+   SetTimer(() => ToolTip(,,,5), -2000)
+}
+
+
 ; Returns true only if the trig/repl pair clears all four validity gates.
 ; Checks are ordered cheapest-first so expensive scans are skipped early.
 ;
@@ -446,28 +682,30 @@ PassesAllFilters(newTrig, newRepl, &filterReason := "") {
    Loop Parse, AcFileContents, "`n", "`r" {
       if (SubStr(Trim(A_LoopField, " `t"), 1, 1) != ":") and (SubStr(A_LoopField, 1, 7) != "Removed")
          continue   ; Skip non-hotstring lines.
-      if RegExMatch(A_LoopField, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)", &loo) {
+      if RegExMatch(A_LoopField, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)::(?P<Repl>[^`n`r]*)", &loo) {
          libOpts := loo.Opts
-         libTrig := Trim(loo.Trig)
+         libTrig := LTrim(loo.Trig)   ; LTrim only — trailing space is part of the trigger (e.g. "i " vs "i")
+         libRepl := Trim(loo.Repl)
+         libHs   := ":" libOpts ":" libTrig "::" libRepl   ; full hotstring for reason string
          if (newTrig = libTrig) {
-            filterReason := "Exact duplicate in library"
+            filterReason := "Exact duplicate in library — " libHs
             return false
          }
          if InStr(libOpts, "*") and InStr(libOpts, "?")
             and InStr(newTrig, libTrig) {
-            filterReason := "Word-middle conflict with :*?:" libTrig
+            filterReason := "Word-middle conflict with " libHs
             return false
          }
          if InStr(libOpts, "?") and !InStr(libOpts, "*")
             and StrLen(libTrig) < StrLen(newTrig)
             and (SubStr(newTrig, -StrLen(libTrig)) = libTrig) {
-            filterReason := "Word-ending conflict with :?:" libTrig
+            filterReason := "Word-ending conflict with " libHs
             return false
          }
          if InStr(libOpts, "*") and !InStr(libOpts, "?")
             and StrLen(libTrig) < StrLen(newTrig)
             and (SubStr(newTrig, 1, StrLen(libTrig)) = libTrig) {
-            filterReason := "Word-beginning conflict with :*:" libTrig
+            filterReason := "Word-beginning conflict with " libHs
             return false
          }
       }
@@ -484,6 +722,8 @@ PassesAllFilters(newTrig, newRepl, &filterReason := "") {
 ;     At least 40% of the replacement's letters appear in the trigger
 ;     (multiset intersection).  Covers normal typos: transpositions,
 ;     extra/missing letters, vowel swaps, suffix confusion, etc.
+;     (Punctuation chars in trig/repl are ignored by this test — only
+;     letters count toward the overlap fraction.)
 ;
 ;   Test B — Adjacent-key shift (same-length pairs only):
 ;     At least 60% of the positions where the two strings differ are
@@ -491,7 +731,11 @@ PassesAllFilters(newTrig, newRepl, &filterReason := "") {
 ;     shift errors, e.g.:
 ;       hyno  -> jump   (every letter shifted — whole right-hand shift)
 ;       vurm  -> burn   (mixed: some letters correct, some adjacent-key)
-;     The 60% threshold allows for the correct-hand letters that land
+;     The adjacent map now includes the punctuation keys that border
+;     the letter rows (semicolon, apostrophe, comma, period, brackets),
+;     so accidental ';' for 'l', '[' for 'p', ',' for 'm', etc. are
+;     recognised as adjacent-key errors rather than random noise.
+;     The 60% threshold allows for correct-hand letters that land
 ;     right while the shifted hand produces adjacent-key errors.
 ;
 ; Pairs that fail BOTH tests are treated as abandoned fragments
@@ -528,14 +772,15 @@ IsTypoOfReplacement(trig, repl) {
       return false   ; Different lengths + low overlap = abandoned fragment.
 
    adjacent := Map(
-      "q","wa",    "w","qase",  "e","wsdr",  "r","edft",
-      "t","rfgy",  "y","tghu",  "u","yhji",  "i","ujko",
-      "o","iklp",  "p","ol",
-      "a","qwsz",  "s","awedxz","d","serfcx","f","drtgvc",
-      "g","ftyhbv","h","gyujnb","j","huikmn","k","jiolm",
-      "l","kop",
-      "z","asx",   "x","zsdc",  "c","xdfv",  "v","cfgb",
-      "b","vghn",  "n","bhjm",  "m","njk"
+      "q","wa12",    "w","qase23",  "e","wsdr34",  "r","edft45",
+      "t","rfgy56",  "y","tghu67",  "u","yhji78",  "i","ujko89",
+      "o","iklp90",  "p","ol[;0-",
+      "a","qwsz",    "s","awedxz",  "d","serfcx",  "f","drtgvc",
+      "g","ftyhbv",  "h","gyujnb",  "j","huikmn",  "k","jiolm,",
+      "l","kop;.",   "z","asx",     "x","zsdc",     "c","xdfv",
+      "v","cfgb",    "b","vghn",    "n","bhjm",     "m","njk,",
+      ";","lp'[",    "'",";",       ",","mkl.",      ".","l,",
+      "[","p;]",     "]","['"
    )
    diffTotal := 0, diffAdjacent := 0
    Loop StrLen(trig) {
@@ -544,7 +789,7 @@ IsTypoOfReplacement(trig, repl) {
       if (tc = rc)
          continue   ; Correct-hand letters that landed right — ignore.
       diffTotal++
-      if RegExMatch(tc, "[a-z]") and RegExMatch(rc, "[a-z]")
+      if RegExMatch(tc, "[a-z0-9;',.\\[\\]]") and RegExMatch(rc, "[a-z;',.\\[\\]]")
          and ((adjacent.Has(tc) and InStr(adjacent[tc], rc))
            or (adjacent.Has(rc) and InStr(adjacent[rc], tc)))
          diffAdjacent++
