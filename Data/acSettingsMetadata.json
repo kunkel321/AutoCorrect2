@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "5-31-2026",
+    "verion_date_for_this_json_file": "6-6-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -118,7 +118,7 @@
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "Hotkeys.StringReportHk": {
-    "label": "System Up Time",
+    "label": "Hotstring Stats Report",
     "help": "Shows a \"Report\" of the current number of hotstrings in the HotstringsLib.ahk file, and the total number of \"potential fixes.\"",
     "type": "hotkey",
     "default": "!+u",
