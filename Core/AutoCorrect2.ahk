@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 5-31-2026
+; Version: 6-5-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -2829,7 +2829,7 @@ class Validation {
                 ; Look for hotstring definition
                 if RegExMatch(currentLine, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)", &match) {
                     currentOpts := StrReplace(StrReplace(Trim(match.Opts), "B0", ""), "X", "")
-                    currentTrig := Trim(match.Trig)
+                    currentTrig := LTrim(match.Trig)
                     
                     ; Check 1: Exact duplicate (same trigger, same firing options)
                     if triggerText = currentTrig && propOpts = currentOpts {
@@ -2892,7 +2892,7 @@ class Validation {
                 loop parse, removedContent, "`n", "`r" {
                     if RegExMatch(A_LoopField, "i):(?P<Opts>[^:]*):(?P<Trig>[^:]+)", &match) {
                         removedOpts := StrReplace(StrReplace(Trim(match.Opts), "B0", ""), "X", "")
-                        if triggerText = Trim(match.Trig) && propOpts = removedOpts {
+                        if triggerText = LTrim(match.Trig) && propOpts = removedOpts {
                             validHotDupes .= "`nWarning: A duplicate trigger string was previously removed.`n----> " A_LoopField
                             continue
                         }
@@ -3527,7 +3527,10 @@ class Utils {
                 ; If systray active, put saved clipboard content back.
                 A_Clipboard := State.ClipboardOld
             }
-            else if !((WinActive("Hotstring Suggester - Results")||WinActive("MCLogger.ahk")||WinActive("AC Analysis Report")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
+            else if !((WinActive("Hotstring Suggester - Results")
+                ||WinActive("MCLogger.ahk")
+                ||WinActive("Filtered Items — MCLogger Debug Log")
+                ||WinActive("AC Analysis Report")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
                 ; If Suggester/MCL not active or clipboard doesn't contain a hotstring, 
                 ; clear clipboard and copy selected text
 
