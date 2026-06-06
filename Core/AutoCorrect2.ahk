@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 6-5-2026
+; Version: 6-6-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -3528,7 +3528,7 @@ class Utils {
                 A_Clipboard := State.ClipboardOld
             }
             else if !((WinActive("Hotstring Suggester - Results")
-                ||WinActive("MCLogger.ahk")
+                ||WinActive("MCLogger — Manual Correction Report")
                 ||WinActive("Filtered Items — MCLogger Debug Log")
                 ||WinActive("AC Analysis Report")) && clipContent != "" && RegExMatch(clipContent, hsRegex)) {
                 ; If Suggester/MCL not active or clipboard doesn't contain a hotstring, 
