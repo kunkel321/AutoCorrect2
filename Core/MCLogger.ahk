@@ -6,7 +6,7 @@ MCLoggerHelpText := "
 (
 MCLogger — The Manual Correction Logger
 Part of the AutoCorrect2 suite.
-Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 6-6-2026
+Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 6-10-2026
 Repository: https://github.com/kunkel321/AutoCorrect2
 
 OVERVIEW
@@ -81,9 +81,11 @@ https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
 
 #Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. Required.
 
+SettingsManager := "..\Tools\SettingsManager.exe" ; Optional (appears on systray menu)
+HsAnalyzer := "..\Tools\HotstringAnalyzer.exe" ; Optional (appears on systray menu)
+
 ;========= LOAD SETTINGS FROM INI ============================================
 settingsFile := "..\Data\acSettings.ini" ; Required
-SettingsManager := "..\Tools\SettingsManager.exe" ; Optional (appears on systray menu)
 
 ; Ensure settings file exists.
 if !FileExist(settingsFile) {
@@ -185,6 +187,10 @@ mclMenu.SetIcon("Open " MCLogFile, "..\Resources\Icons\TxtFile-Brown.ico")
 If FileExist(SettingsManager) { ; Only add to menu if SM found.
    mclMenu.Add("Open " SettingsManager, (*) => Run(SettingsManager))
    mclMenu.SetIcon("Open " SettingsManager, "..\Resources\Icons\Settings-Brown.ico")
+}
+If FileExist(HsAnalyzer) { ; Only add to menu if HsAnalyzer found.
+   mclMenu.Add("Run Hotstring Analyzer", (*) => Run(HsAnalyzer))
+   mclMenu.SetIcon("Run Hotstring Analyzer", "..\Resources\Icons\analysis-Brown.ico")
 }
 mclMenu.Add("Analyze Manual Corrections", runAnalysis)
 mclMenu.SetIcon("Analyze Manual Corrections", "..\Resources\Icons\search-Brown.ico")
@@ -574,7 +580,8 @@ ViewFilteredItems(*) {
       . "Click a column header to sort.  "
       . rows.Length " entries (comment lines excluded).")
 
-   global fvLV := fv.Add("ListView",
+   global fvLV, fvBtn1, fvBtn2, fvBtn3
+   fvLV := fv.Add("ListView",
       "x10 y+8 w660 h420 Grid Background" listColor " vFvSel",
       ["Timestamp", "Hotstring", "Filter Reason"])
    fvLV.OnEvent("ContextMenu", FvContextMenu)
@@ -586,27 +593,43 @@ ViewFilteredItems(*) {
    fvLV.ModifyCol(2, 180)
    fvLV.ModifyCol(3)   ; auto-size to content initially; FvResize will expand to right edge on Show
 
-   fv.Add("Button", "x10 y+8 w150", "Open in Editor")
-      .OnEvent("Click", (*) => Run(FilteredLogFile))
-   fv.Add("Button", "x+10 w150 yp", "Copy Selected")
-      .OnEvent("Click", FvCopySelected)
-   fv.Add("Button", "x+10 w150 yp", "Close")
-      .OnEvent("Click", (*) => fv.Destroy())
+   fvBtn1 := fv.Add("Button", "x10 y+8 w150", "Open in Editor")
+   fvBtn1.OnEvent("Click", (*) => Run(FilteredLogFile))
+   fvBtn2 := fv.Add("Button", "x+10 w150 yp", "Copy Selected")
+   fvBtn2.OnEvent("Click", FvCopySelected)
+   fvBtn3 := fv.Add("Button", "x+10 w150 yp", "Close")
+   fvBtn3.OnEvent("Click", (*) => fv.Destroy())
 
    fv.OnEvent("Size", FvResize)
    fv.OnEvent("Escape", (*) => fv.Destroy())
    fv.Show()
 }
 
-; Resize handler — col1 (Timestamp) is fixed; col2 and col3 share the extra width equally.
+; Resize handler — col1 (Timestamp) is fixed; col2 (Hotstring) gets 30% of remaining width,
+; col3 (Filter Reason) gets 70%.  Buttons are repositioned to stay anchored at the bottom.
 FvResize(GuiObj, MinMax, W, H) {
    if (MinMax = -1)
       return
+   global fvLV, fvBtn1, fvBtn2, fvBtn3
    static col1W := 130
-   fvLV.Move(, , W - 20, H - 90)
-   shared := (W - 20 - col1W - 4) // 2   ; split remaining width evenly; 4px for grid lines
-   fvLV.ModifyCol(2, shared)
-   fvLV.ModifyCol(3, shared)
+   static WM_SETREDRAW := 0x000B
+   static RDW_INVALIDATE := 0x0001, RDW_ERASE := 0x0004, RDW_ALLCHILDREN := 0x0080
+
+   DllCall("user32\SendMessageW", "Ptr", GuiObj.Hwnd, "UInt", WM_SETREDRAW, "Ptr", 0, "Ptr", 0)
+
+   btnY := H - 42   ; ~28px gap above buttons
+   fvLV.Move(, , W - 20, H - 85)
+   fvBtn1.Move(10,  btnY)
+   fvBtn2.Move(170, btnY)
+   fvBtn3.Move(330, btnY)
+
+   remaining := W - 20 - col1W - 4   ; 4px for grid lines
+   fvLV.ModifyCol(2, remaining * 0.30)
+   fvLV.ModifyCol(3, remaining * 0.70)
+
+   DllCall("user32\SendMessageW", "Ptr", GuiObj.Hwnd, "UInt", WM_SETREDRAW, "Ptr", 1, "Ptr", 0)
+   DllCall("RedrawWindow", "Ptr", GuiObj.Hwnd, "Ptr", 0, "Ptr", 0,
+           "UInt", RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN)
 }
 
 ; Right-click handler — column-aware:
