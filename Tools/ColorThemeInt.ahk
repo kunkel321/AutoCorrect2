@@ -1,7 +1,7 @@
 ﻿
 /*
 Color Theme Integrator
-Kunkel321: 9-28-2025
+Kunkel321: 6-22-2026
 https://github.com/kunkel321/ColorThemeIntegrator
 https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132310
 
@@ -53,9 +53,17 @@ The script looks for command line arguments when it starts.  If there are comman
 #SingleInstance
 #Requires AutoHotkey v2+
 
-myHotKey := "!+g"                   ; Alt+Shift+G shows/hides tool.
 ^Esc::ExitApp                       ; Ctrl+Esc Terminates entire script.
 guiTitle := "Color Theme Integrator" ; OK to change title (here only).
+
+global isPickingColor := 0          ; True while eyedropper (GetColorAtCursor) is running.
+global pendingAction := ""          ; Deferred action (a Func) to run once the eyedropper notices
+                                     ; it's been interrupted (Cancel/Escape/X while picking) and
+                                     ; cleans itself up. See GetColorAtCursor()'s loop.
+OnExit(RestoreCursorOnExit)         ; Safety net: always restore system cursor, no matter how the app exits.
+RestoreCursorOnExit(*) {
+    try SystemCursor("Show")
+}
 
 pinToTop            := 1            ; 1=Stay on top of other windows.
 shadingSteps        := 30           ; Change number of steps, if desired.
@@ -84,6 +92,7 @@ restartTheseScripts := " ; Path not needed if they are in same folder as this sc
 ..\Core\MCLogger.exe
 ..\..\WayText\WayText.exe
 ..\..\Stickies\Sticky Notes.exe
+..\..\TextToolbox\TextToolbox.exe
 )"
 ; *******************************************************
 
@@ -202,56 +211,77 @@ myList.OnEvent("DoubleClick", listClick)
 warnProg := myGui.Add("Progress", "x14 w215 h30 c" . warnColor, "100")
 myGui.Add("text", "xp+14 yp+4  +BackgroundTrans", "Form warning state" )
 
-; the buttons
-myGui.SetFont("s11")
-
-expButton := myGui.Add("Button" , "w100 x14", "To ClipBrd")
-expButton.OnEvent("Click", exportClip)
-
-relButton := myGui.Add("Button" , "w100 x+15", "Reload Script")
-relButton.OnEvent("Click", buttRestart)
-
-savButton := myGui.Add("Button" , "w100 x14", "Save Colors")
-savButton.OnEvent("Click", SaveColors)
-
-canButton := myGui.Add("Button" , "w100 x+15", "Cancel")
-canButton.OnEvent("Click", buttCancel)
-
-myGui.OnEvent("Escape", ExitTool) ; If user presses escape while gui is active...
-myGui.OnEvent("Close", ExitTool) ; If user closes via red 'x'.
-
-
+; -- Saved Favorite Themes dropdown moved above the button group, so picking a
+; theme previews it immediately (via the Change event below), and the buttons
+; underneath act on whatever is currently shown -- no more switching between
+; two separate button rows to load then apply a theme. --
 myGui.SetFont("s9")
 myGui.Add("Text","x14 w215 Center","Saved Favorite Themes").SetFont("bold")
 myGui.SetFont("s11")
 
-
 ; read ini file and put section names into array for combo box.
-myFavesArr := [] 
+myFavesArr := []
 
 favesDropList := myGui.Add("DropDownList", "y+4 w215", myFavesArr)
+favesDropList.OnEvent("Change", loadFave) ; Auto-preview the theme as soon as it's selected.
 
-saveFaveButton := myGui.Add("Button" , "w100 x14", "Save Fave")
+; Two small status indicators side by side, tracking two different things:
+; LEFT  ("In Use"/blank)            -- does the live preview match what's actually
+;                                       active in [ColorSettings] right now?
+; RIGHT ("Unsaved changes"/blank)   -- does the live preview match the favorite
+;                                       currently selected in the dropdown? (Falls
+;                                       back to the same [ColorSettings] comparison
+;                                       as the left side when nothing's selected.)
+myGui.SetFont("s9")
+leftStatusText := myGui.Add("Text", "x14 w100 Center y+2", "")
+rightStatusText := myGui.Add("Text", "x+15 w100 Center", "")
+myGui.SetFont("s11")
+
+; the buttons (single consolidated group)
+myGui.SetFont("s11")
+
+expButton := myGui.Add("Button" , "w100 x14 y+8", "To ClipBrd")
+expButton.OnEvent("Click", exportClip)
+
+saveFaveButton := myGui.Add("Button" , "w100 x+15", "Save Fave")
 saveFaveButton.OnEvent("Click", saveFave)
 
-loadFaveButton := myGui.Add("Button" , "w100 x+15", "Load Fave")
-loadFaveButton.OnEvent("Click", loadFave)
+; "Apply Colors" (was "Save Colors") -- name change to avoid confusion with "Save
+; Fave" above: this commits the live preview to the active [ColorSettings]
+; section and offers to restart the other tools, it doesn't save a named theme.
+savButton := myGui.Add("Button" , "w100 x14", "Apply Colors")
+savButton.OnEvent("Click", SaveColors)
 
-deleteFaveButton := myGui.Add("Button" , "w100 x14", "Delete Fave")
+renameFaveButton := myGui.Add("Button" , "w100 x+15", "Rename Fave")
+renameFaveButton.OnEvent("Click", renameFave)
+
+; "Reset Colors" sits directly under "Apply Colors" -- reverts the live
+; preview/controls back to whatever's in [ColorSettings], without closing the gui.
+resColorsButton := myGui.Add("Button" , "w100 x14", "Reset Colors")
+resColorsButton.OnEvent("Click", resetColors)
+
+deleteFaveButton := myGui.Add("Button" , "w100 x+15", "Delete Fave")
 deleteFaveButton.OnEvent("Click", deleteFave)
 
-canButton2 := myGui.Add("Button" , "w100 x+15", "Cancel")
-canButton2.OnEvent("Click", buttCancel)
+relButton := myGui.Add("Button" , "w100 x14", "Reload Script")
+relButton.OnEvent("Click", buttRestart)
+
+canButton := myGui.Add("Button" , "w100 x+15", "Exit")
+canButton.OnEvent("Click", ExitTool)
+
+myGui.OnEvent("Close", ExitTool) ; If user closes via red 'x'.
 
 
 saveFave(*) {
-    global myGui, listColor, fontColor, formColor
+    global myGui, listColor, fontColor, formColor, favesDropList
     ; Create input box for theme name
     inputGui := Gui()
     inputGui.BackColor := formColor
     inputGui.SetFont("s12 c" fontColor)
     inputGui.Add("Text",, "Enter theme name:")
-    themeName := inputGui.Add("Edit", "w200 Background" listColor)
+    ; Pre-fill with whatever's currently selected/previewed, so editing an existing
+    ; fave's colors and re-saving doesn't require retyping its name from scratch.
+    themeName := inputGui.Add("Edit", "w200 Background" listColor, favesDropList.Text)
     inputGui.Add("Button", "Default w80", "OK").OnEvent("Click", (*) => inputGui.Submit())
     inputGui.Add("Button", "w80 x+10", "Cancel").OnEvent("Click", (*) => inputGui.Hide())
     inputGui.Show()
@@ -259,7 +289,23 @@ saveFave(*) {
     WinWaitClose(inputGui)
     if !themeName.Value  ; User cancelled or entered empty name
         return
-        
+
+    if (themeName.Value = "ColorSettings") {
+        MsgBox("`"ColorSettings`" is a reserved name (it's the main active-colors section). Please choose a different name.", "Reserved Name", "Icon!")
+        return
+    }
+
+    ; Warn before silently clobbering an existing favorite of the same name.
+    existingSections := StrSplit(IniRead(settingsFile), "`n")
+    for section in existingSections {
+        if (section = themeName.Value) {
+            result := MsgBox("A favorite named '" themeName.Value "' already exists.`n`nOverwrite it?", "Confirm Overwrite", "0x34") ; Yes/No + Warning icon
+            if (result != "Yes")
+                return
+            break
+        }
+    }
+
     ; Save all current settings under new section
     IniWrite(fontColor, settingsFile, themeName.Value, "fontColor")
     IniWrite(listColor, settingsFile, themeName.Value, "listColor")
@@ -281,14 +327,26 @@ saveFave(*) {
     
     ; Update combobox with new theme
     refreshThemesList()
+    favesDropList.Choose(themeName.Value) ; Select the (possibly new) entry.
+    UpdateModifiedStatus() ; The fave's saved values now match what's live -- refresh both indicators.
 }
 
 loadFave(*) {
-    global myGui, favesDropList
+    global myGui, favesDropList, fontColor, listColor, formColor, warnColor, colorsManuallyset
     if !favesDropList.Text  ; No theme selected
         return
         
     themeName := favesDropList.Text
+    
+    ; Loading a fave deliberately replaces every color/control wholesale -- it's
+    ; not an incremental tweak, so any prior manual color override shouldn't be
+    ; preserved or even prompt about it here. (Previously this flag was only
+    ; cleared/checked inside colorChanged(), called at the very end of this
+    ; function -- AFTER all the controls below were already switched to the new
+    ; theme. That meant the warning dialog, if it fired, was too late to mean
+    ; anything: clicking Cancel just aborted the color *recompute*, leaving the
+    ; new theme's controls paired with the old, manually-tainted colors.)
+    colorsManuallyset := 0
     
     ; Load all settings from selected theme section
     fontColor := IniRead(settingsFile, themeName, "fontColor")
@@ -331,6 +389,67 @@ deleteFave(*) {
     refreshThemesList()
 }
 
+; Renames the currently-selected favorite without losing it (previously the only
+; way to "rename" was delete + re-save under a new name, which loses the old one
+; on any typo).
+renameFave(*) {
+    global myGui, listColor, fontColor, formColor, favesDropList
+    oldName := favesDropList.Text
+    if !oldName  ; No theme selected
+        return
+
+    ; Create input box for the new name, pre-filled with the old one.
+    inputGui := Gui()
+    inputGui.BackColor := formColor
+    inputGui.SetFont("s12 c" fontColor)
+    inputGui.Add("Text",, "Rename '" oldName "' to:")
+    newNameEdit := inputGui.Add("Edit", "w200 Background" listColor, oldName)
+    inputGui.Add("Button", "Default w80", "OK").OnEvent("Click", (*) => inputGui.Submit())
+    inputGui.Add("Button", "w80 x+10", "Cancel").OnEvent("Click", (*) => inputGui.Hide())
+    inputGui.Show()
+
+    WinWaitClose(inputGui)
+    newName := newNameEdit.Value
+    if (!newName || newName = oldName)  ; Cancelled, empty, or unchanged
+        return
+
+    if (newName = "ColorSettings") {
+        MsgBox("`"ColorSettings`" is a reserved name (it's the main active-colors section). Please choose a different name.", "Reserved Name", "Icon!")
+        return
+    }
+
+    ; Warn before clobbering an existing favorite with the new name.
+    existingSections := StrSplit(IniRead(settingsFile), "`n")
+    for section in existingSections {
+        if (section = newName) {
+            result := MsgBox("A favorite named '" newName "' already exists.`n`nOverwrite it?", "Confirm Overwrite", "0x34")
+            if (result != "Yes")
+                return
+            break
+        }
+    }
+
+    ; Copy every key from the old section to the new one, then delete the old section.
+    ; NOTE: IniRead(file, section) with no Key param returns lines formatted as
+    ; "Key=Value" -- not bare key names -- so each line must be split on "=".
+    lines := StrSplit(IniRead(settingsFile, oldName), "`n")
+    for line in lines {
+        if (line = "")
+            continue
+        eqPos := InStr(line, "=")
+        if (!eqPos)
+            continue
+        key := SubStr(line, 1, eqPos - 1)
+        value := SubStr(line, eqPos + 1)
+        IniWrite(value, settingsFile, newName, key)
+    }
+    IniDelete(settingsFile, oldName)
+
+    refreshThemesList()
+    favesDropList.Choose(newName) ; Keep the renamed entry selected.
+    UpdateModifiedStatus()
+}
+
 refreshThemesList() {
     global favesDropList, settingsFile
     
@@ -349,25 +468,174 @@ refreshThemesList() {
 ; Call this when GUI is created to populate initial themes list
 refreshThemesList()
 
-; If color tool was opened from hh2, then do a full exit after use.  Otherwise hide. 
-ExitTool(*) {
-    if (A_Args.Length > 0)
-        ExitApp()
-    Else
-        myGui.Hide()
+; Baseline snapshot of what's actually saved in [ColorSettings]. Used to detect
+; unsaved changes (leftStatusText/rightStatusText) and to revert the preview via Reset Colors.
+;
+; IMPORTANT: colorChanged() *recomputes* font/list/form colors from the sliders
+; and reference combo rather than just reading back the raw saved values -- and
+; that recompute runs once at startup, right here. If we
+; snapshotted the raw as-loaded-from-ini colors here, any tiny difference
+; between "what's literally in the ini" and "what the algorithm reproduces from
+; the same control settings" would falsely show as unsaved changes forever, even
+; with zero user interaction. So: run colorChanged() once now (a placeholder
+; baseline avoids an uninitialized-variable error inside it), THEN capture the
+; real baseline from its output -- that's what will always be redisplayed as
+; long as nothing changes, so the comparison stays honest.
+global lastSavedState := CaptureCurrentConfig() ; placeholder, just to avoid an error inside colorChanged()
+global colorsManuallyset := 0 ; Must be initialized before colorChanged() runs -- its own initializer further down in the file hasn't executed yet at this point.
+colorChanged()
+global lastSavedState := CaptureCurrentConfig() ; the real baseline, taken after the recompute settles
+UpdateModifiedStatus()
+
+; Captures every control value + the 4 live colors into a plain Map, so the
+; current state can be compared against / restored later.
+CaptureCurrentConfig() {
+    global fontColor, listColor, formColor, warnColor
+    global myRadRGB, myRadCYM, color1, myReference, sSteps, myRadLight, myRadDark
+    global FontShadeSteps, FontSaturationSteps, ListShadeSteps, ListSaturationSteps, FormShadeSteps, FormSaturationSteps
+    cfg := Map()
+    cfg["fontColor"] := fontColor
+    cfg["listColor"] := listColor
+    cfg["formColor"] := formColor
+    cfg["warnColor"] := warnColor
+    cfg["myRadRGB"] := myRadRGB.Value
+    cfg["myRadCYM"] := myRadCYM.Value
+    cfg["color1"] := color1.Value
+    cfg["myReference"] := myReference.Value
+    cfg["sSteps"] := sSteps.Value
+    cfg["myRadLight"] := myRadLight.Value
+    cfg["myRadDark"] := myRadDark.Value
+    cfg["FontShadeSteps"] := FontShadeSteps.Value
+    cfg["FontSaturationSteps"] := FontSaturationSteps.Value
+    cfg["ListShadeSteps"] := ListShadeSteps.Value
+    cfg["ListSaturationSteps"] := ListSaturationSteps.Value
+    cfg["FormShadeSteps"] := FormShadeSteps.Value
+    cfg["FormSaturationSteps"] := FormSaturationSteps.Value
+    return cfg
 }
 
-; Main hotkey shows/hides gui.
-Hotkey(myHotKey, showHideTool) 
-showHideTool(*) { 
-    If WinActive(guiTitle) {
-        myGui.Hide()
+; Re-applies a config Map captured by CaptureCurrentConfig() -- sets every control
+; back, then recomputes colors via colorChanged() so everything stays consistent.
+ApplyConfig(cfg) {
+    global warnColor, colorArray, additiveRGB, subtractiveCMY
+    global myRadRGB, myRadCYM, color1, myReference, sSteps, myRadLight, myRadDark
+    global FontShadeSteps, FontSaturationSteps, ListShadeSteps, ListSaturationSteps, FormShadeSteps, FormSaturationSteps
+    global colorsManuallyset := 0 ; This is a programmatic revert, not a manual change -- skip the overwrite-warning prompt.
+
+    myRadRGB.Value := cfg["myRadRGB"]
+    myRadCYM.Value := cfg["myRadCYM"]
+    colorArray := (cfg["myRadRGB"] = 1) ? additiveRGB : subtractiveCMY
+    color1.Delete()
+    color1.Add(colorArray)
+    color1.Value := cfg["color1"]
+    myReference.Value := cfg["myReference"]
+    sSteps.Value := cfg["sSteps"]
+    myRadLight.Value := cfg["myRadLight"]
+    myRadDark.Value := cfg["myRadDark"]
+    FontShadeSteps.Value := cfg["FontShadeSteps"]
+    FontSaturationSteps.Value := cfg["FontSaturationSteps"]
+    ListShadeSteps.Value := cfg["ListShadeSteps"]
+    ListSaturationSteps.Value := cfg["ListSaturationSteps"]
+    FormShadeSteps.Value := cfg["FormShadeSteps"]
+    FormSaturationSteps.Value := cfg["FormSaturationSteps"]
+    warnColor := cfg["warnColor"] ; colorChanged() never reassigns warnColor itself, so set it directly.
+    colorChanged()
+}
+
+; True if the live colors/controls differ from what's actually saved in [ColorSettings].
+IsModified() {
+    global lastSavedState
+    return !ConfigsMatch(CaptureCurrentConfig(), lastSavedState)
+}
+
+; Reads a favorite's saved values from the ini into the same Map shape that
+; CaptureCurrentConfig() produces, so the two can be compared directly.
+; Missing keys/sections read back as "" (e.g. a fave deleted out from under the
+; dropdown), which simply won't match the live config -- safe failure mode.
+CaptureFaveConfig(themeName) {
+    static keyList := ["fontColor","listColor","formColor","warnColor"
+        ,"myRadRGB","myRadCYM","color1","myReference","sSteps","myRadLight","myRadDark"
+        ,"FontShadeSteps","FontSaturationSteps","ListShadeSteps","ListSaturationSteps"
+        ,"FormShadeSteps","FormSaturationSteps"]
+    cfg := Map()
+    for k in keyList
+        cfg[k] := IniRead(settingsFile, themeName, k, "")
+    return cfg
+}
+
+; True if every key in cfgA matches cfgB (cfgB may have extra/missing keys; only
+; cfgA's keys are checked, which is fine since both Capture* functions emit the
+; same key set). skipKeys, if given, is a Map of key names to ignore.
+ConfigsMatch(cfgA, cfgB, skipKeys?) {
+    for k, v in cfgA {
+        if (IsSet(skipKeys) && skipKeys.Has(k))
+            continue
+        if (!cfgB.Has(k) || cfgB[k] != v)
+            return false
     }
-    Else {
-        global colorsManuallyset := 0
-        colorChanged()
-        myGui.Show("x" A_ScreenWidth /5*3) ; Show off center.
+    return true
+}
+
+; True if the live colors/controls differ from the favorite currently selected in
+; the dropdown. With nothing selected, falls back to comparing against
+; [ColorSettings] instead (same baseline as IsModified()), so the two status
+; labels behave as plain opposites of each other until a favorite is involved.
+IsModifiedFromSelectedFave() {
+    global favesDropList, lastSavedState
+    current := CaptureCurrentConfig()
+    if (favesDropList.Text) {
+        ; Comparing against a saved FAVE specifically: skip fontColor/listColor/
+        ; formColor. Those three are *recomputed* by colorChanged() from the
+        ; slider/combo values every time it runs (which loadFave() always
+        ; triggers) rather than being copied back verbatim -- so comparing the
+        ; raw stored hex against the freshly-recomputed hex would falsely show
+        ; "modified" immediately after loading a fave, with zero user
+        ; interaction. The underlying slider/combo values (which ARE copied
+        ; verbatim) plus warnColor (never touched by colorChanged()) are the
+        ; reliable signal for "does this match the fave".
+        static derivedColorKeys := Map("fontColor",1,"listColor",1,"formColor",1)
+        refCfg := CaptureFaveConfig(favesDropList.Text)
+        return !ConfigsMatch(current, refCfg, derivedColorKeys)
     }
+    ; Nothing selected -- fall back to the same strict comparison IsModified() uses.
+    return !ConfigsMatch(current, lastSavedState)
+}
+
+; Updates the two status indicators flanking the favorites dropdown.
+UpdateModifiedStatus(*) {
+    global leftStatusText, rightStatusText, fontColor
+
+    ; Left: matches what's actually active in [ColorSettings]?
+    leftStatusText.Value := IsModified() ? "" : "In Use"
+    try leftStatusText.SetFont("c" fontColor)
+
+    ; Right: matches the favorite currently selected in the dropdown?
+    if (IsModifiedFromSelectedFave()) {
+        rightStatusText.Value := "Unsaved changes"
+        try rightStatusText.SetFont("cRed")
+    } else {
+        rightStatusText.Value := ""
+        try rightStatusText.SetFont("c" fontColor)
+    }
+}
+
+; Closes the tool. Always a full exit now -- there's no more "keep running in the
+; background, toggle visible via hotkey" mode, so closing always means closing.
+ExitTool(*) {
+    global isPickingColor, pendingAction
+    ; The eyedropper (GetColorAtCursor) handles its own Escape key via polling, and
+    ; restores the cursor itself when it's done. If we let THIS handler also act on
+    ; the X button while the eyedropper's mid-pick, we could call ExitApp() before
+    ; the eyedropper's own cursor-restore code ever runs -- leaving the crosshair
+    ; cursor stuck system-wide. So instead of racing it, defer: stash this same
+    ; call for the eyedropper's loop to pick up, clean itself up, and then run it
+    ; for us once it's actually safe to.
+    if (isPickingColor) {
+        pendingAction := ExitTool
+        return
+    }
+    try SystemCursor("Show") ; Belt-and-suspenders: make sure cursor is normal before exiting.
+    ExitApp()
 }
 
 ; Show a warning if colors were manually set, then the user tries for programmatically change them. 
@@ -473,6 +741,7 @@ listClick(*) {
         Global customList .= color ","
 
     global colorsManuallyset := 1 ; Set flag. 
+    UpdateModifiedStatus()
 }
 
 ; This function is called if the RGB/CYM radios are clicked. 
@@ -587,6 +856,8 @@ colorChanged(*) {
     myListArr := ["fontColor:`t" fontColor, "listColor:`t" listColor, "formColor:`t" formColor, "warnColor:" warnColor]
     myList.Delete() ; Clear all existing items
     myList.Add(myListArr) ; Add new items
+
+    UpdateModifiedStatus()
 }
 
 ; This is the function that is based closely on ColorGradient() by Lateralus138 and Teadrinker.
@@ -706,7 +977,8 @@ ChooseColor(initColor := 0, hWnd := 0, customColorsArr := '', flags := 3) { ; fl
 GetColorAtCursor() {
     ; Store the original state
     originalCursor := true
-    global fontColor, listColor, formColor, warnColor
+    global fontColor, listColor, formColor, warnColor, isPickingColor, pendingAction
+    isPickingColor := 1
     ; Set up error handling to ensure cursor is restored
     try {
         ; Change cursor to crosshair
@@ -718,9 +990,28 @@ GetColorAtCursor() {
         colorTip.SetFont("s11", "Arial")
         colorTipTxt := colorTip.Add("Text", "center w120 h54", "color `n'Shift' to capture`n'Esc' to cancel`n")
         colorTip.Show("Hide")
+        colorTip.GetPos(,, &tipW, &tipH) ; Real size, used below to keep it on-screen.
         
         ; Wait for either Shift or Escape key
         loop {
+            ; If the gui was closed/canceled out from under us (Cancel, Escape on the
+            ; main gui, or the title-bar X), stop here instead of letting the eyedropper
+            ; just keep running in the background. Clean up exactly like the Escape
+            ; path below, then run whatever the interrupting action wanted to do --
+            ; deferred via SetTimer so it fires only after this call (and listClick(),
+            ; its caller) has fully returned. Running it inline here would risk the
+            ; same kind of race we fixed earlier: e.g. ExitTool() calling ExitApp()
+            ; before this cleanup has actually finished.
+            if (pendingAction) {
+                colorTip.Destroy()
+                SystemCursor("Show")
+                isPickingColor := 0
+                deferred := pendingAction
+                pendingAction := ""
+                SetTimer(deferred, -1)
+                return ""
+            }
+
             ; Get current mouse position and color for preview
             CoordMode("Mouse","Screen")
             CoordMode("Pixel","Screen")
@@ -737,16 +1028,31 @@ GetColorAtCursor() {
             colorTip.BackColor := hexColor
             colorTipTxt.SetFont("c" . textColor)
             colorTipTxt.Value := hexColor "`n'Shift' to capture`n'Esc' to cancel`n"
-            colorTip.Show("x" . (mouseX + 20) . " y" . (mouseY + 20) . " NoActivate")
+
+            ; Keep the tooltip on-screen: flip to the opposite side of the cursor
+            ; whenever the default offset would run it off the right or bottom edge,
+            ; then clamp as a last resort (e.g. near a corner where even the flipped
+            ; position would still overflow).
+            tipX := (mouseX + 20 + tipW > A_ScreenWidth) ? (mouseX - tipW - 10) : (mouseX + 20)
+            tipY := (mouseY + 20 + tipH > A_ScreenHeight) ? (mouseY - tipH - 10) : (mouseY + 20)
+            tipX := Max(0, Min(tipX, A_ScreenWidth - tipW))
+            tipY := Max(0, Min(tipY, A_ScreenHeight - tipH))
+            colorTip.Show("x" . tipX . " y" . tipY . " NoActivate")
 
             if GetKeyState("Shift", "P") { ; Remove GUI
                 colorTip.Destroy()
                 SystemCursor("Show") ; Change cursor back
-                return hexColor
+                isPickingColor := 0
+                return "0x" hexColor ; NOTE: every other color value in this script is "0x"-prefixed
+                                     ; (ChooseColor()'s return, ini storage, the gradient math, etc.)
+                                     ; -- hexColor itself is bare for the tooltip's own display, but the
+                                     ; value handed back to the caller must match that convention or
+                                     ; downstream bitwise math (and the next color-picker call) breaks.
             }
             else if GetKeyState("Escape", "P") { ; Remove GUI
                 colorTip.Destroy()
                 SystemCursor("Show") ; Change cursor back
+                isPickingColor := 0
                 return ""  ; Return empty string on escape
             }
             
@@ -756,41 +1062,41 @@ GetColorAtCursor() {
     catch Error as e { ; Ensure cursor is restored on error
         SystemCursor("Show") ; Clean up GUI if it exists
         try colorTip.Destroy()
+        isPickingColor := 0
         throw e  ; Re-throw the error
     }
     finally { ; Additional safety measure to ensure cursor is always restored
         SystemCursor("Show")
         try colorTip.Destroy()
+        isPickingColor := 0
     }
 }
 
 ; SystemCursor function is used by above GetColorAtCursor function.
+; Rewritten per TeaDrinker's CursorOverride pattern: "Show" no longer copies a cached
+; LoadCursor(0,id) handle back (that's just the generic stock cursor baked into
+; user32.dll, NOT your actual configured cursor scheme/size/theme -- which is why
+; the restored cursor always looked pixelated no matter what CopyImage flags were used).
+; Instead, "Show" asks Windows to reload your real cursor scheme from the registry via
+; SystemParametersInfo(SPI_SETCURSORS). This also eliminates the earlier stale-cache
+; problem, since nothing is cached anymore -- each Hide/Show call is self-contained.
 SystemCursor(cmd) {  ; cmd = "Show|Hide"
-    static c := Map()
     static sys_cursors := [32512, 32513, 32514, 32515, 32516, 32642
                          , 32643, 32644, 32645, 32646, 32648, 32649, 32650]
-    
-    if (!c.Count) {  ; Initialize at first call
-        for i, id in sys_cursors {
-            h_cursor := DllCall("LoadCursor", "Ptr", 0, "Ptr", id)
-            h_default := DllCall("CopyImage", "Ptr", h_cursor, "UInt", 2
-                , "Int", 0, "Int", 0, "UInt", 0)
-            
-            ; Load crosshair cursor instead of blank cursor
-            h_cross := DllCall("LoadCursor", "Ptr", 0, "Ptr", 32515)  ; IDC_CROSS
-            h_custom := DllCall("CopyImage", "Ptr", h_cross, "UInt", 2
-                , "Int", 0, "Int", 0, "UInt", 0)
-            
-            c[id] := {default: h_default, custom: h_custom}
-        }
-    }
-    
+    static SPI_SETCURSORS := 0x57
+
     try {
-        for id, handles in c {
-            h_cursor := DllCall("CopyImage"
-                , "Ptr", cmd = "Show" ? handles.default : handles.custom
-                , "UInt", 2, "Int", 0, "Int", 0, "UInt", 0)
-            DllCall("SetSystemCursor", "Ptr", h_cursor, "UInt", id)
+        if (cmd = "Hide") {
+            h_cross := DllCall("LoadCursor", "Ptr", 0, "Ptr", 32515)  ; IDC_CROSS
+            for id in sys_cursors {
+                ; Each id needs its own copy -- SetSystemCursor takes ownership of the handle it's given.
+                h_custom := DllCall("CopyImage", "Ptr", h_cross, "UInt", 2
+                    , "Int", 0, "Int", 0, "UInt", 0x4000) ; LR_COPYFROMRESOURCE
+                DllCall("SetSystemCursor", "Ptr", h_custom, "UInt", id)
+            }
+        }
+        else { ; "Show" -- reload the user's real cursor scheme instead of copying a stock handle back.
+            DllCall("SystemParametersInfo", "UInt", SPI_SETCURSORS, "UInt", 0, "Ptr", 0, "UInt", 0)
         }
     }
     catch Error as e {
@@ -859,6 +1165,8 @@ doSave(*) {
                 msgbox "`"" A_LoopField "`" doesn't appear to exist.  Skipping that one.`n`nYou may wish to remove it from the 'restartTheseScripts' variable near the top of the code."
         }
     }
+    global lastSavedState := CaptureCurrentConfig() ; What's on disk now matches what's live -- reset the baseline.
+    UpdateModifiedStatus()
     sav.Hide()
 }
 
@@ -867,13 +1175,18 @@ buttRestart(*) {
         Reload()
 }
 
-; 'Cancel' button pressed.
-buttCancel(*) {
-    myGui.Hide()
+; 'Reset Colors' button pressed. Same revert as Cancel, but leaves the gui open
+; so you can keep working -- useful after previewing a fave or tweaking sliders
+; and deciding you want to start back over from the active [ColorSettings].
+resetColors(*) {
+    global lastSavedState, favesDropList
+    ApplyConfig(lastSavedState)
+    favesDropList.Value := 0 ; Clear the selection -- the dropdown shouldn't keep showing
+                              ; a fave that's no longer what's actually being previewed.
+    UpdateModifiedStatus()
 }
 
-if (A_Args.Length > 0)
-    showHideTool() ; If called from hh2, open gui directly. 
+myGui.Show("x" A_ScreenWidth /5*3) ; Always show on run now -- show off center.
 
 ; The color arrays for the main reference color. 
 setColorArrays() {
