@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 6-6-2026
+; Version: 6-22-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -1051,7 +1051,7 @@ class UI {
             this.controlButtons.Push({
                 name: "Theme",
                 text: " Change Color Theme", 
-                action: (*) => Run("..\Tools\ColorThemeInt.exe /script ..\Tools\ColorThemeInt.ahk analyz"),
+                action: (*) => Run("..\Tools\ColorThemeInt.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\color-Blue.ico"
             })
         }
