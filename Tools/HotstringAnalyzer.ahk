@@ -5,7 +5,7 @@
 ; Hotstring / Manual Correction Analyzer
 ; Made for use with the AutoCorrect2 Suite of applications
 ; By: kunkel321 using ChatGPT and Claude.
-; Version Date: 5-30-2026
+; Version Date: 6-29-2026
 ; ============================================================
 ;
 ; On startup a file-selection GUI appears offering:
@@ -420,7 +420,19 @@ RunAnalysis(filePath, isAhkLib, createDump := true, includeLog := true) {
     )
 
     for category in orderedCategories {
-        report .= "`n" category ":`n"
+        count := stats[category]
+        pct   := total ? Round((count / total) * 100, 1) : 0
+        if includeLog && logStats.Count > 0 {
+            bs      := logBS[category]
+            ok      := logOK[category]
+            bsPct   := (bs + ok) ? Round((bs / (bs + ok)) * 100, 1) : 0
+            keptPct := (bs + ok) ? Round((ok / (bs + ok)) * 100, 1) : 0
+            statsLine := Format("Count {} ({:4.1f}%) BSed {} ({:4.1f}%)  Kept {} ({:4.1f}%)",
+                count, pct, bs, bsPct, ok, keptPct)
+        } else {
+            statsLine := Format("Count {} ({:4.1f}%)", count, pct)
+        }
+        report .= "`n" category ":  " statsLine "`n"
         if descriptions.Has(category)
             report .= "  (" descriptions[category] ")`n"
         if !examples.Has(category) || examples[category].Length = 0 {
