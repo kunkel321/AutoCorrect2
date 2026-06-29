@@ -1051,7 +1051,7 @@ class UI {
             this.controlButtons.Push({
                 name: "Theme",
                 text: " Change Color Theme", 
-                action: (*) => Run("..\Tools\ColorThemeInt.exe"),
+                action: (*) => Run("..\Tools\ColorThemeIntegrator.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\color-Blue.ico"
             })
         }
@@ -4195,7 +4195,7 @@ class HelpSystem {
                     this.helpTexts["ControlButton_GitHub"] := "Opens the GitHub repository for this tool, in your default web browswer."
                     
                 case " Change Color Theme":
-                    this.helpTexts["ControlButton_Theme"] := "Opens the Color Theme Integrator customization tool.`n`nThis allows you to change the colors of the HotstringHelper interface (as well as other apps) to match your preferences.  See the ColorThemeInt.ahk code to customize which apps (other than these in the AutoCorrect2 repository) should get colorized."
+                    this.helpTexts["ControlButton_Theme"] := "Opens the Color Theme Integrator customization tool.`n`nThis allows you to change the colors of the HotstringHelper interface (as well as other apps) to match your preferences.  See the ColorThemeIntegrator.ahk code to customize which apps (other than these in the AutoCorrect2 repository) should get colorized."
             }
         }
     }
