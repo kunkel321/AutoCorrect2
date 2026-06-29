@@ -5,7 +5,7 @@
 ; ==============================================================================
 ; Author: kunkel321
 ; Tool Used: Claude AI
-; Version: 11-15-2025 
+; Version: 6-29-2026 
 ; It removes the function call from AutoCorrect2 hotstrings.  
 ; For example 		:B0X*?:useing::f("using") ; Web Freq 369.49 | Fixes 115 words 
 ; is converted to: 	:*?:useing::using
@@ -25,9 +25,10 @@
 ; auto-replace hotstring functionality. 
 
 ; ==============================================================================
+; June 2026 update:  It now supports multi-line continuation style f() calls.
+; ==============================================================================
 ; KNOWN ISSUE: It won't convert :B0X?:http:\\::f("http://")  Sorry !!!
 ; If you have any autocorrects with colons, you'll need to fix them manually.
-
 ; ==============================================================================
 
 settingsFile := "..\Data\acSettings.ini"
@@ -203,12 +204,128 @@ ProcessFile(HSLibrary) {
     
     ; Updated regex to handle the new comment format with Web Freq and pipe separators
     ; Based on regex work by Andymbody.
-    hsRegex := "(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\((?<Repl>[^,)]*)[^)]*\)|(?<Repl>[^;\v]+))?(?<Comment>\h*;.*)?$"
-    
-    For item in myListArr {
-        MyProgress.Value += 1
+    ; Repl is now quote-delimited (rather than comma-delimited) so f() calls with the
+    ; optional Log/Paste boolean params (e.g. f("text, with comma", 1, 0)) parse correctly
+    ; even when the replacement text itself contains a comma. Log/Paste are captured but
+    ; intentionally discarded below since Defunctionizer strips the function call entirely.
+    hsRegex := '(?Jim)^:(?<Opts>[^:]+)*:(?<Trig>[^:]+)::(?:f\("(?<Repl>[^"]*)"(?:\h*,\h*(?<Log>[01]))?(?:\h*,\h*(?<Paste>[01]))?\)|(?<Repl>[^;\v]+))?(?<Comment>\h*;.*)?$'
+
+    ; Detects a multiline continuation-section hotstring (with or without an f() wrapper)
+    ; starting at 1-based index i in lineArr. Mirrors the logic AutoCorrect2 already uses in
+    ; Utils.NormalizeFCallText, adapted to scan the file's line array (rather than a single
+    ; clipboard string) and to report how many lines were consumed.
+    ;
+    ;   Non-f() :   :opts:trig::          (line 1 ends with ::, optional comment)
+    ;               (                     (line 2 is opener, optional modifiers)
+    ;               content lines
+    ;               )                     (closer: first line whose first non-space char is ))
+    ;
+    ;   f() wrap:   :opts:trig::f("       (line 1 ends with f(", optional comment)
+    ;               (                     (line 2 is opener, optional modifiers)
+    ;               content lines
+    ;               )",params)            (closer: first line whose first non-space char is ))
+    ;
+    ; Returns a Map with "Matched". If matched, also includes Opts/Trig/Comment/InnerLines/
+    ; OpenerLine/NextIndex (1-based index of the line just after the consumed block).
+    DetectMultilineBlock(lineArr, i) {
+        result := Map("Matched", false)
+
+        ; Need at least a header line, an opener line, and one more line to even attempt this.
+        if (i + 2 > lineArr.Length)
+            return result
+
+        firstLine := Trim(lineArr[i], " `t`r")
+
+        isFCall := RegExMatch(firstLine, '^:(?<Opts>[^:]*):(?<Trig>[^:]+)::f\("(\h*;.*)?$', &fm)
+        isPlain := !isFCall && RegExMatch(firstLine, '^:(?<Opts>[^:]*):(?<Trig>[^:]+)::(\h*;.*)?$', &fm)
+
+        if (!isFCall && !isPlain)
+            return result   ; Not a recognizable multiline opener.
+
+        ; Line 2 must be the continuation-section opener ( with optional modifiers.
+        openerLine := Trim(lineArr[i + 1], " `t`r")
+        if !RegExMatch(openerLine, '^\((?:RTrim0?|LTrim0?|Join\S*|C|P\d+|\s)*\s*$')
+            return result
+
+        ; Collect content lines until the closer (first line whose first non-space char is )).
+        innerLines  := []
+        foundCloser := false
+        j := i + 2
+        Loop {
+            if (j > lineArr.Length)
+                break
+            rawLine := RTrim(lineArr[j], "`r")   ; strip CR; preserve inner whitespace
+            if RegExMatch(rawLine, '^\s*\)') {
+                foundCloser := true
+                break
+            }
+            innerLines.Push(rawLine)
+            j += 1
+        }
+
+        if !foundCloser
+            return result   ; Malformed — bail out safely; caller falls back to single-line logic.
+
+        ; Extract any trailing comment from line 1 (after the final ::), same approach as
+        ; Utils.NormalizeFCallText: find the last :: then look for required whitespace + ;
+        lastDColonPos := 0
+        p := 1
+        while RegExMatch(firstLine, '::', &dm, p) {
+            lastDColonPos := dm.Pos
+            p := dm.Pos + 2
+        }
+        afterDColon := SubStr(firstLine, lastDColonPos + 2)
+        comm := RegExMatch(afterDColon, '\h+(;.*)$', &mc) ? mc[1] : ""
+
+        result["Matched"]    := true
+        result["Opts"]       := fm.Opts
+        result["Trig"]       := fm.Trig
+        result["Comment"]    := comm
+        result["InnerLines"] := innerLines
+        result["OpenerLine"] := lineArr[i + 1]
+        result["NextIndex"]  := j + 1
+        return result
+    }
+
+    i := 1
+    while (i <= myListArr.Length) {
+        MyProgress.Value := i
+
+        blk := DetectMultilineBlock(myListArr, i)
+        if blk["Matched"] {
+            Debug("Multiline block matched for trigger: " blk["Trig"])
+
+            OptsStr := StrReplace(StrReplace(blk["Opts"], "X", ""), "B0", "")
+            TrigStr := blk["Trig"]
+            commentText := blk["Comment"]
+
+            ; Handle comment retention logic (same rule as the single-line branch below)
+            IF KeepComments || (commentText && InStr(commentText, "misspells")) {
+                FullComment := commentText ? " " commentText : ""
+            } else {
+                FullComment := ""
+            }
+
+            ; Rebuild as a vanilla continuation-section hotstring with no f() wrapper.
+            ; The text has real line breaks, so it must stay a continuation section —
+            ; only the f("...",Log,Paste) wrapper is stripped away. Plain (non-f()) blocks
+            ; pass through unchanged content-wise, just with Opts cleaned the same way.
+            innerText := ""
+            for idx, ln in blk["InnerLines"]
+                innerText .= (idx > 1 ? "`n" : "") . ln
+
+            itemDefun := ":" OptsStr ":" TrigStr "::" FullComment "`n" blk["OpenerLine"] "`n" innerText "`n)"
+
+            Debug("Converted multiline block to: " itemDefun)
+            NewLib .= itemDefun "`n"
+
+            i := blk["NextIndex"]
+            continue
+        }
+
+        item := myListArr[i]
         Debug("Processing line: " item)
-        
+
         If RegExMatch(item, hsRegex, &hotstr) {
             Debug("Regex matched for: " hotstr.Trig)
             
@@ -240,6 +357,8 @@ ProcessFile(HSLibrary) {
             Debug("No regex match for: " item)
             NewLib .= item "`n"
         }
+
+        i += 1
     }
     
     rep.Destroy()
