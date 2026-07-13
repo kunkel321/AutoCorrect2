@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 6-22-2026
+; Version: 7-13-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
@@ -856,7 +856,7 @@ class UI {
         ; Add always-present buttons first
         this.controlButtons.Push({
             name: "OpenLibrary",
-            text: " Open HotString Library", 
+            text: " HotString Library", 
             action: (*) => UIActions.OpenHotstringLibrary(),
             icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
         })
@@ -865,7 +865,7 @@ class UI {
         if FileExist(Config.BoilerplateHotstringLibrary) {
             this.controlButtons.Push({
                 name: "PersonalHotstrings",
-                text: " Open Personal Hotstrings File", 
+                text: " Personal Hotstrings File", 
                 action: (*) => Run("PersonalHotstrings.ahk"),
                 icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
             })
@@ -875,14 +875,14 @@ class UI {
         if (Config.EnableLogging = 1) {
             this.controlButtons.Push({
                 name: "ACLog",
-                text: " Open AutoCorrection Log", 
+                text: " AutoCorrection Log", 
                 action: (*) => Run(Config.AutoCorrectsLogFile),
                 icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
                 name: "ACLogContinuous",
-                text: " Open AutoCorrection Continuous Log", 
+                text: " AutoCorrection Continuous Log", 
                 action: (*) => Run(Config.ACLogContinuousFile),
                 icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
@@ -896,14 +896,14 @@ class UI {
             
             this.controlButtons.Push({
                 name: "BSLog",
-                text: " Open Backspace Context Log", 
+                text: " Backspace Context Log", 
                 action: (*) => Run(Config.ErrContextLog),
                 icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
                 name: "RemovedHS",
-                text: " Open Removed HotStrings List", 
+                text: " Removed HotStrings List", 
                 action: (*) => Run(Config.RemovedHsFile),
                 icon: A_ScriptDir "\..\Resources\Icons\missing-Blue.ico"
             })
@@ -912,14 +912,14 @@ class UI {
         ; Add remaining buttons regardless of logging status
         this.controlButtons.Push({
             name: "MCLog",
-            text: " Open Manual Correction Log", 
+            text: " Manual Correction Log", 
             action: (*) => Run("..\Data\ManualCorrectionsLog.txt"),
             icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
         })
 
         this.controlButtons.Push({
             name: "MCLogContinuous",
-            text: " Open MC Log Continuous", 
+            text: " MC Log Continuous", 
             action: (*) => Run("..\Data\MCLogContinuous.txt"),
             icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
         })
@@ -933,7 +933,7 @@ class UI {
         
         this.controlButtons.Push({
             name: "Report",
-            text:  "Report HotStrings and Potential Fixes", 
+            text: " Report HotStrings and Potential Fixes", 
             action: (*) => StringAndFixReport(),
             icon: A_ScriptDir "\..\Resources\Icons\report-Blue.ico"
         })
@@ -1059,7 +1059,14 @@ class UI {
         ; Create all buttons based on configuration.
         ; Each entry in this.controlButtons has a 'name' key that maps to [ControlButtons] in the ini.
         ; If the name is absent from the ini, the button is shown with stay-open behavior (safe default).
+        ; ControlButtons, ControlButtonNames and ControlButtonActions are PARALLEL arrays --
+        ; same length, same order. Names[i] is the stable ini name of Buttons[i], which lets
+        ; the help system identify a button without string-matching its caption (so captions
+        ; can be reworded freely). Actions[i] is the same wrapped click handler bound to the
+        ; button's Click event, which lets EnterKeyHandler() fire a focused CP button.
         this.Controls["ControlButtons"] := []
+        this.Controls["ControlButtonNames"] := []
+        this.Controls["ControlButtonActions"] := []
         
         for buttonConfig in this.controlButtons {
             ; Check visibility: absent from ini → show by default.
@@ -1083,6 +1090,8 @@ class UI {
                 try this._SetButtonIcon(button, buttonConfig.icon)
                 
             this.Controls["ControlButtons"].Push(button)
+            this.Controls["ControlButtonNames"].Push(buttonConfig.name)
+            this.Controls["ControlButtonActions"].Push(wrappedAction)
         }
     }
     ; Set icon for a button
@@ -1252,6 +1261,19 @@ class UI {
 				if this.Controls.Has(btnName) && this.Controls[btnName].Hwnd = focusedHwnd {
 					action()
 					return
+				}
+			}
+			; Control Pane buttons are NOT named entries in this.Controls -- they live in the
+			; ControlButtons parallel arrays -- so the Map above can never match them. Without
+			; this block, Enter on a focused CP button would fall through to the Append default.
+			; ControlButtonActions[i] is the same wrapped handler bound to the button's Click
+			; event, so firing it here honors the button's [ControlButtons] close=true setting.
+			if this.Controls.Has("ControlButtons") {
+				for index, cpButton in this.Controls["ControlButtons"] {
+					if cpButton.Hwnd = focusedHwnd {
+						this.Controls["ControlButtonActions"][index]()
+						return
+					}
 				}
 			}
 			UIActions.OnAppendButtonClick()
@@ -1475,12 +1497,12 @@ class UIActions {
             UI.Controls["SizeToggle"].Text := "Make Smaller"
             
             ; If exam pane is open, close it first
-            if UI.Controls["ExamButton"].Text = "Done" {
+            if UI.Controls["ExamButton"].Text = "&Done" {
                 this.ShowHideExamPane(false)
                 this.ShowHideControlPane(false)
                 State.ExamPaneOpen := 0
                 State.ControlPaneOpen := 0
-                UI.Controls["ExamButton"].Text := "Exam"
+                UI.Controls["ExamButton"].Text := "E&xam"
             }
             
             State.FormBig := 1
@@ -2057,8 +2079,8 @@ class UIActions {
         this.FilterWordLists(true)
         
         ; Update button status and show exam pane
-        if UI.Controls["ExamButton"].Text = "Exam" {
-            UI.Controls["ExamButton"].Text := "Done"
+        if UI.Controls["ExamButton"].Text = "E&xam" {
+            UI.Controls["ExamButton"].Text := "&Done"
             
             if State.FormBig {
                 UI.Controls["SizeToggle"].Text := "Make Bigger"
@@ -2086,7 +2108,7 @@ class UIActions {
         }
         else if State.ExamPaneOpen = 0 && State.ControlPaneOpen = 0 {
             ; Both panes closed: open exam pane
-            UI.Controls["ExamButton"].Text := "Done"
+            UI.Controls["ExamButton"].Text := "&Done"
             
             ; Use button text as authoritative source (State.FormBig can desync)
             if UI.Controls["SizeToggle"].Text = "Make Smaller" {
@@ -2107,7 +2129,7 @@ class UIActions {
         }
         else {
             ; Close whatever pane is open
-            UI.Controls["ExamButton"].Text := "Exam"
+            UI.Controls["ExamButton"].Text := "E&xam"
             this.ShowHideControlPane(false)
             this.ShowHideExamPane(false)
             
@@ -2121,7 +2143,7 @@ class UIActions {
     ; Handler for right-clicking the Exam button (shows control pane)
     static OnExamButtonRightClick() {
         if State.ControlPaneOpen = 1 {
-            UI.Controls["ExamButton"].Text := "Exam"
+            UI.Controls["ExamButton"].Text := "E&xam"
             this.ShowHideControlPane(false)
             this.ShowHideExamPane(false)
             
@@ -2129,7 +2151,7 @@ class UIActions {
             State.ExamPaneOpen := 0
         }
         else {
-            UI.Controls["ExamButton"].Text := "Done"
+            UI.Controls["ExamButton"].Text := "&Done"
             
             if State.FormBig {
                 this.ToggleSize()
@@ -3637,7 +3659,7 @@ class Utils {
                 ; BP item: close Exam Pane if open, then grow form only if text warrants it.
                 if (State.ExamPaneOpen = 1) {
                     UIActions.ShowHideExamPane(false)
-                    UI.Controls["ExamButton"].Text := "Exam"
+                    UI.Controls["ExamButton"].Text := "E&xam"
                     State.ExamPaneOpen := 0
                 }
                 needsBig := Config.AutoBigReplBox && Utils.ReplNeedsBigMode(hotstr.Repl)
@@ -3651,7 +3673,7 @@ class Utils {
                 if UI.Controls["SizeToggle"].Text = "Make Smaller"
                     UIActions.ToggleSize()
                 if Config.AutoOpenExamPane {
-                    UI.Controls["ExamButton"].Text := "Done"
+                    UI.Controls["ExamButton"].Text := "&Done"
                     UIActions.ShowHideExamPane(true)
 
                     Debug("just before UIActions.ExamineWords()")
@@ -4052,6 +4074,10 @@ RunACLogAnalyzer(*) {
     Run(Config.AcLogAnalyzer) ; Run AutoCorrection Log Analyzer tool.
 }
 
+; Register the Control Pane type-ahead letter keys (a-z). They stay inert until the
+; Control Pane is open AND a CP button has focus, so they never interfere with typing.
+InitCPTypeAhead()
+
 ;===============================================================================
 #HotIf WinActive(Config.ScriptName) ; AC2, etc, open in editor
 || WinActive(Config.HotstringLibrary) 
@@ -4069,11 +4095,111 @@ RunACLogAnalyzer(*) {
 #HotIf WinActive(Config.HHWindowTitle) ; Only if hh2 window is active.
 F1::HelpSystem.ShowHelp() ; Show help for current HH control. ; hide
 
+; Alt+Shift+X toggles the Control Pane -- the keyboard equivalent of right-clicking
+; (or Shift+Clicking) the Exam button.  Alt+X alone still toggles the Exam Pane via
+; the button's "E&xam" accelerator.
+!+x::
+{
+    UIActions.OnExamButtonRightClick()
+    ; OnExamButtonRightClick() is a toggle, so only grab focus when we just OPENED
+    ; the pane.  Focus is deliberately NOT taken when the pane is opened by mouse,
+    ; since the user's hand is already on the mouse in that case.
+    if (State.ControlPaneOpen && UI.Controls["ControlButtons"].Length)
+        UI.Controls["ControlButtons"][1].Focus()
+}
+
+; Control Pane wrap-around navigation.  Windows already handles Up/Down between
+; buttons in the group; these two hotkeys only exist at the top and bottom edges,
+; where the arrow key would otherwise be a no-op.  Everywhere else CPFocusEdge()
+; returns 0, the hotkey doesn't apply, and the keystroke passes through untouched.
+#HotIf WinActive(Config.HHWindowTitle) && CPFocusEdge() = -1
+Up::UI.Controls["ControlButtons"][UI.Controls["ControlButtons"].Length].Focus() ; Top CP button: wrap to bottom. ; hide
+
+#HotIf WinActive(Config.HHWindowTitle) && CPFocusEdge() = 1
+Down::UI.Controls["ControlButtons"][1].Focus() ; Bottom CP button: wrap to top. ; hide
+
 #HotIf
+
+; Reports whether keyboard focus is sitting at an edge of the Control Pane button stack.
+; Returns -1 if the FIRST CP button has focus, 1 if the LAST one does, 0 otherwise.
+; UI.Controls["ControlButtons"] is built in visual order and already excludes any
+; buttons hidden via the [ControlButtons] section of acSettings.ini, so [1] and
+; [Length] are always the visible top and bottom buttons.
+CPFocusEdge() {
+    idx := CPFocusedIndex()
+    if !idx
+        return 0
+    if (idx = 1)
+        return -1
+    if (idx = UI.Controls["ControlButtons"].Length)
+        return 1
+    return 0
+}
+
+; Returns the 1-based index of the focused Control Pane button, or 0 if focus is
+; anywhere else. This is the guard for the letter hotkeys below: when it returns 0,
+; the #HotIf criterion is false, the letter hotkeys simply don't exist, and typing
+; in the Trigger/Replacement edit boxes is completely unaffected.
+CPFocusedIndex() {
+    if !State.ControlPaneOpen              ; Pane closed: never claim any keys.
+        return 0
+    if !UI.Controls.Has("ControlButtons")
+        return 0
+    btns := UI.Controls["ControlButtons"]
+    if !btns.Length
+        return 0
+    try hFocus := ControlGetFocus("A")
+    catch                                  ; No focused control, or window gone.
+        return 0
+    for index, btn in btns {
+        if (hFocus = btn.Hwnd)
+            return index
+    }
+    return 0
+}
+
+; Type-ahead: jump to the next Control Pane button whose caption starts with 'letter'.
+; The scan always STARTS just below the currently focused button and wraps around, so
+; pressing the same letter repeatedly cycles through every button sharing that letter
+; (e.g. C walks Configuration Settings Manager -> Conflicting String Locator ->
+; Check GitHub for Updates -> Compare Two Versions -> Change Color Theme -> back around).
+CPTypeAhead(letter, *) {
+    btns  := UI.Controls["ControlButtons"]
+    count := btns.Length
+    if !count
+        return
+    start := CPFocusedIndex()              ; 0 means "start scanning from the top"
+    Loop count {
+        idx := Mod(start + A_Index - 1, count) + 1
+        ; Captions carry a leading space as icon padding, so trim before testing.
+        caption := Trim(btns[idx].Text, " `t")
+        if (SubStr(caption, 1, 1) = letter) {   ; '=' is case-insensitive in v2
+            btns[idx].Focus()
+            return
+        }
+    }
+    ; No match: leave focus where it is rather than jumping somewhere surprising.
+}
+
+; Register a..z as Control Pane type-ahead keys. They are gated by the HotIf criterion,
+; so they are inert unless the HH window is active AND focus is on a CP button.
+; Called from the auto-execute section.
+InitCPTypeAhead() {
+    HotIf (*) => (WinActive(Config.HHWindowTitle) && CPFocusedIndex() != 0)
+    Loop 26 {
+        letter := Chr(96 + A_Index)        ; "a" through "z"
+        Hotkey(letter, CPTypeAhead.Bind(letter))
+    }
+    HotIf                                  ; Reset criterion for anything registered later.
+}
 
 class HelpSystem {
     static helpTexts := Map()
     static helpGui := 0
+    ; Caption of the last-focused Control Pane button, stashed by GetFocusedControl()
+    ; and used by ShowHelp() to title the help window. Derived from the live button
+    ; text, so it stays correct no matter how captions are reworded.
+    static lastButtonCaption := ""
     
     ; Initialize help texts for all controls
     static Init() {
@@ -4132,69 +4258,77 @@ class HelpSystem {
         
         this.helpTexts["ReplacementMatchesEdit"] := "Shows words that contain the replacement string, based on selected match type.`n`nThese are words that could potentialy be fixed by this AutoCorrect hotstring.`n`nThe Web-Frequency total is based on the Kaggle.com list of `'The 1/3 Million Most Frequent English Words on the Web.`' The data is apparently derived from the Google Web Trillion Word Corpus. This offers a metric to whether the to-be-fixed words are high-frequency words.`n`nThe Fixes number is simply the number of words in the list.`n`nThe idea is to trim the word and adjust the radio buttons such that the maximum number of words appear in this box, while none appear in the Misspells box.`n`nTip: If a word gets over-trimmed you can check for the best letters to put back by using the Suggester Tool (Alt-Click Append Button).  You'll know if you've trimmed an item too much because it will appear as a frequently-backspaced item on your AutoCorrectionLog analysis report."
         ; Control Panel buttons
+        ; Keyed on buttonConfig.name (the stable ini key), NOT on the caption.
+        ; This means button captions can be reworded without breaking help lookup.
         for index, buttonConfig in UI.controlButtons {
-            switch buttonConfig.text {
-                case " Open HotString Library":
+            switch buttonConfig.name {
+                case "OpenLibrary":
                     this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located.`n`nTip:  When adopting a newer version of the HotstringLib.ahk file from https://github.com/kunkel321/AutoCorrect2 it is recommended to use the UniqueStringExtracter tool.  This will allow you to not lose any custom hotstrings that you have, yourself, added.  Also, you'll see any hotstrings that you've manually removed from my working library."
                     
-                case " Open AutoCorrection Log":
+                case "PersonalHotstrings":
+                    this.helpTexts["ControlButton_PersonalHotstrings"] := "Opens your PersonalHotstrings.ahk file in your configured editor.`n`nThis button only appears if the file is present.`n`nPersonalHotstrings.ahk is #Include'd by AutoCorrect2.ahk and is the recommended place for your own boilerplate and template hotstrings, keeping them separate from the main HotstringLib.ahk autocorrect library.`n`nBecause it is a separate file, it will not be overwritten when you adopt a newer release of the AutoCorrect2 suite."
+                    
+                case "ACLog":
                     this.helpTexts["ControlButton_ACLog"] := "Opens the " config.AutoCorrectsLogFile " file.`n`nThis log contains a record of all autocorrections made using the f`(`) function, including whether a correction was backspaced, thus indicating a likely mis-application of the item.`n`nThe date of each logged item is present and separated from the item with a hyphen.`n`n<< = Backspace was pressed within one second.`n-- = Backspace not pressed within one second.`n`nNote: The script can't detect exactly WHAT you backspaced, only that the BS was pressed within one second.  There is, however, a Backspace Context Log that tries to help with figuring this out.`n`nThe AC Log file is analyzed by ACLogAnalyer.  Manually handling the log file is usually not needed.  The reading and writing from it is all automated. `n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the Config Setting Manager tool and in the ACSystem section, EnableLogging := 1 to 0."
                     
-                case " Open AutoCorrection Continuous Log":
+                case "ACLogContinuous":
                     this.helpTexts["ControlButton_ACLogContinuous"] := "Opens the ACLogContinuous.txt file.`n`nThis is the continuous (non-rotating) version of the AutoCorrection Log. Unlike the main log which may be culled over time, this file accumulates all autocorrection entries without truncation.`n`nUseful for reviewing your full autocorrection history over a longer period."
                     
-                case " Analyze AutoCorrection Log !^+Q":
+                case "ACAnalyze":
                     this.helpTexts["ControlButton_ACAnalyze"] := "Runs the AutoCorrection Log Analyzer tool.`n`nThis tool analyzes your autocorrection log to identify problematic autocorrect items that you frequently backspace after triggering.`n`nThe hotkey Alt+Ctrl+Shift+Q can also be used to launch this tool.`n`nThe most-frequent errant hotstrings are returned as radio buttons in a report.`n`nSeveral actions can be taken on an item."
                     
-                case " Open Backspace Context Log":
+                case "BSLog":
                     this.helpTexts["ControlButton_BSLog"] := "Opens the Error Context Log file.`n`nThis log contains detailed context information around autocorrection errors, showing what was typed before and after a problematic correction.`n`nThe context log items are accessed via the ACLogAnaylzer report, to help the user figure out why a particular AutoCorrect entry is problematic.`n`nIt is usually not necessary to access the log directly."
                     
-                case " Open Removed HotStrings List":
+                case "RemovedHS":
                     this.helpTexts["ControlButton_RemovedHS"] := "Opens the RemovedHotstrings.txt file.`n`nThis file keeps track of hotstrings that have been removed in the past.`n`nThis helps prevent the user from inadvertently reintrocuding a hotstring that was found to be problematic in the past.`n`nThe HotstringHelper Validaton mechanism warns the user before appending a previously-removed string to the library.`n`nThe MCLogger will try not to log manual corrections that correspond to a hotstring that has been prevoiusly removed from the library."
                     
-                case " Open Manual Correction Log":
+                case "MCLog":
                     this.helpTexts["ControlButton_MCLog"] := "Opens the Manual Correction Log file.`n`nThis log contains records of corrections you've made manually, which might be candidates for new autocorrect entries.`n`nThe log is accessed by the Manual Correction Log Anayzer.`n`nIt is usually not necessary to access the log directly.`n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences."
                     
-                case " Open MC Log Continuous":
+                case "MCLogContinuous":
                     this.helpTexts["ControlButton_MCLogContinuous"] := "Opens the MCLogContinuous.txt file.`n`nThis is the continuous (non-rotating) version of the Manual Correction Log. Unlike the main log which may be culled over time, this file accumulates all manual correction entries without truncation.`n`nUseful for reviewing your full correction history over a longer period."
                     
-                case " Analyze Manual Correction Log #^+Q":
+                case "MCAnalyze":
                     this.helpTexts["ControlButton_MCAnalyze"] := "Runs the Manual Correction Log Analyzer tool.`n`nThis tool helps identify patterns in your manual corrections that might be good candidates for new autocorrect entries.`n`nThe hotkey Win+Ctrl+Shift+Q can also be used to start the analysis process.`n`nIt is recommended to have the logger run in the background, to `"catch`" your manual corrections.`n`nA sophisticated series of events is used for this.  Please see the AutoCorrect2 User Manual."
                     
-                case " Report HotStrings and Potential Fixes":
+                case "Report":
                     this.helpTexts["ControlButton_Report"] := "Generates a report showing statistics about your hotstring library.`n`nThis includes counts of different types of autocorrect entries and the total number of potential word fixes.`n`nThe total `"Web Frequency`" total is given, though anaylyzing this total number is less imporant that anaylyzing the WF of particular individual hotstrings."
 
-                case " Configuration Settings Manager":
+                case "SettingsMan":
                     this.helpTexts["ControlButton_SettingsMan"] := "Runs the AutoCorrect2 Settings Manager Tool, which is a GUI-based tool for edting the user config initialization file, `"acSettings.ini`"."
                     
-                case " Hotstring Suggester Tool":
+                case "Suggester":
                     this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.  When creating a mult-match word middle AutoCorrect item via trimming the ends, it is possible to over-trim.  The Suggester tool helps you choose which letter to put back--that's why it was made.`n`nThe Suggester tool is usually accessed via Alt+Clicking the Append button, or via the ACLogAnalyer report, though you can run it directly, and type/paste in a hotstring."
                     
-                case " Hotstring Analyzer Tool":
+                case "HsAnalyzer":
                     this.helpTexts["ControlButton_HsAnalyzer"] := "Launches the Hotstring Analyzer tool.`n`nThis tool scans your HotstringLib.ahk file and analyzes each hotstring for potential issues, classifying problems such as adjacent transpositions, dropped letters, suffix intrusions, homophones, wrong verb forms, and more.`n`nA timestamped report is generated in the Debug\ folder upon completion.`n`nUseful for auditing your library and identifying entries that may be poorly formed or misclassified."
                     
-                case " Extract Potential Misspellings":
+                case "ExtractMisspellings":
                     this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your HotstringLib.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work. The config options are in the .ahk file."
 
-                case " Conflicting String Locator Tool":
-                    this.helpTexts["ControlButton_ConflictingStringLocator"] := "This runs an INTRA-script scan, checking for hotstrings in the main part of your " Config.HotstringLibrary " file that might conflict with each other. A report document is created in the \Data\ folder and the report is opened upon completion of the scan.  It uses the same algorithms as the validiy tool.  It is thorough and is slow.  Please see AutoCorrect2 User Manual for more information."
+                case "ConflictLocator":
+                    this.helpTexts["ControlButton_ConflictLocator"] := "This runs an INTRA-script scan, checking for hotstrings in the main part of your " Config.HotstringLibrary " file that might conflict with each other. A report document is created in the \Data\ folder and the report is opened upon completion of the scan.  It uses the same algorithms as the validiy tool.  It is thorough and is slow.  Please see AutoCorrect2 User Manual for more information."
 
-                case " Compare Two Versions of HotstringLib":
+                case "Updater":
+                    this.helpTexts["ControlButton_Updater"] := "Launches the Updater tool, which checks the AutoCorrect2 GitHub repository for newer versions of the suite files.`n`nThe last-seen commit is recorded in Data\LastUpdateCheck.ini, so repeat checks are fast when nothing has changed.`n`nHotstringLib.ahk gets special treatment: rather than being overwritten, you are given the option to save the incoming version under a different name so that your own custom hotstrings are not lost.  Use the Compare Two Versions of HotstringLib tool afterward to merge them.`n`nFiles you skip are remembered and offered again on the next check."
+                    
+                case "UniqueStringExtractor":
                     this.helpTexts["ControlButton_UniqueStringExtractor"] := "This runs an INTER-script scan to compare two versions of the hotstring library:`n`n" Config.HotstringLibrary "`n" Config.NewTemporaryHotstrLib "`n`nIt will alert the user of hotstrings that are unique to each version.  This is meant to facilitate merging two versions of the library. It is recommended to choose a convenient temporary name for one the new version, such as `"HotstringLib (1).ahk`" then program that into the acSettings.ini file (current name is shown above) and use the same temporary name each time.  The tool will default to those paths.  If either is not found, a file chooser dialog will appear. A report document is created in the \Data\ folder and the report is opened upon completion of the scan."
 
-                case " Defunctionize Hotstrings":
+                case "Defunctionizer":
                     this.helpTexts["ControlButton_Defunctionizer"] := "This is for users who do not want their AutoCorrect items embedded in the f() function calls. The `"Defunctionizer`" tool removes them."
 
-                case " Hotkey Reference Tool":
+                case "HotkeyRef":
                     this.helpTexts["ControlButton_HotkeyRef"] := "Launches the AC2 Hotkey Reference tool.`n`nThis tool scans your running AutoHotkey scripts and displays all defined hotkeys in a filterable, sortable ListView.`n`nColumns show the Hotkey, its Action/description, the Context it applies in, and which Script it came from.`n`nYou can filter the list by typing in the search box, and export the full list to a printable HTML file.`n`nThe tool reads hotkey definitions from the running scripts and from acSettings.ini.`n`nThere are several user config options and a list of files to skip in the Tools\AC2HotkeyRef.ahk file."
 
-                case " Go to AutoCorrect2 Folder":
+                case "OpenFolder":
                     this.helpTexts["ControlButton_OpenFolder"] := "Opens the AutoCorrect2 root folder in your preferred file manager.`n`nBy default, Windows Explorer is used as the fallback.`n`nTo use a different file manager (XYplorer, Directory Opus, xplorer², etc.), set the full path to its executable in the [Files] section of acSettings.ini:`n  FileManagerPath=C:\Program Files\XYplorer\XYplorer.exe`nTip: Just use the Settings Manager tool.`nIf the path is left blank, or the specified exe is not found, Windows Explorer will be used automatically."
 
-                case " Go to GitHub Repository":
+                case "GitHub":
                     this.helpTexts["ControlButton_GitHub"] := "Opens the GitHub repository for this tool, in your default web browswer."
                     
-                case " Change Color Theme":
+                case "Theme":
                     this.helpTexts["ControlButton_Theme"] := "Opens the Color Theme Integrator customization tool.`n`nThis allows you to change the colors of the HotstringHelper interface (as well as other apps) to match your preferences.  See the ColorThemeIntegrator.ahk code to customize which apps (other than these in the AutoCorrect2 repository) should get colorized."
             }
         }
@@ -4214,58 +4348,13 @@ class HelpSystem {
         
         ; Determine help text based on focused control
         if focusedControl && this.helpTexts.Has(focusedControl) {
-            ; Format the title based on the control type
+            ; Title the window from the button's own caption rather than a lookup table.
+            ; One less thing to keep in sync when a button gets renamed.
             if InStr(focusedControl, "ControlButton_") {
-                ; For control panel buttons, extract a clean title
-                buttonType := StrReplace(focusedControl, "ControlButton_", "")
-                
-                ; Make title more user-friendly
-                switch buttonType {
-                    case "OpenLibrary":
-                        helpTitle := "Help for 'Open HotString Library' button"
-                    case "ACLog":
-                        helpTitle := "Help for 'AutoCorrection Log' button"
-                    case "ACLogContinuous":
-                        helpTitle := "Help for 'AutoCorrection Continuous Log' button"
-                    case "ACAnalyze":
-                        helpTitle := "Help for 'Analyze AutoCorrection Log' button"
-                    case "BSLog":
-                        helpTitle := "Help for 'Backspace Context Log' button"
-                    case "RemovedHS":
-                        helpTitle := "Help for 'Removed HotStrings List' button"
-                    case "MCLog":
-                        helpTitle := "Help for 'Manual Correction Log' button"
-                    case "MCLogContinuous":
-                        helpTitle := "Help for 'Open MC Log Continuous' button"
-                    case "MCAnalyze":
-                        helpTitle := "Help for 'Analyze Manual Correction Log' button"
-                    case "Report":
-                        helpTitle := "Help for 'Report HotStrings' button"
-                    case "SettingsMan":
-                        helpTitle := "Help for 'Settings Manager' button"
-                    case "Suggester":
-                        helpTitle := "Help for 'Hotstring Suggester Tool' button"
-                    case "HsAnalyzer":
-                        helpTitle := "Help for 'Hotstring Analyzer Tool' button"
-                    case "ExtractMisspellings":
-                        helpTitle := "Help for 'Potential Misspellings Tool' button"
-                    case "ConflictingStringLocator":
-                        helpTitle := "Help for 'Conflicting String Locator Tool' button"
-                    case "UniqueStringExtractor":
-                        helpTitle := "Help for 'Unique String Extractor Tool' button"
-                    case "Defunctionizer":
-                        helpTitle := "Help for 'Defunctionizer Tool' button"
-                    case "Theme":
-                        helpTitle := "Help for 'Change Color Theme' button"
-                    case "HotkeyRef":
-                        helpTitle := "Help for 'Hotkey Reference Tool' button"
-                    case "OpenFolder":
-                        helpTitle := "Help for 'Go to AutoCorrect2 Folder' button"
-                    case "GitHub":
-                        helpTitle := "Help for 'Go to GitHub Repository' button"
-                    default:
-                        helpTitle := "Help for Control Panel Button"
-                }
+                if (this.lastButtonCaption != "")
+                    helpTitle := "Help for '" this.lastButtonCaption "' button"
+                else
+                    helpTitle := "Help for Control Panel Button"
             } else {
                 helpTitle := "Help for " focusedControl
             }
@@ -4317,57 +4406,20 @@ class HelpSystem {
             }
         }
         
-        ; Then check Control Panel buttons
+        ; Then check Control Panel buttons.
+        ; ControlButtons and ControlButtonNames are parallel arrays, so the focused
+        ; button's index gives us its stable ini name directly -- no caption matching.
+        ; The caption is also stashed so ShowHelp() can title the window with whatever
+        ; the button currently says, which keeps titles in sync if captions are reworded.
         if UI.Controls.Has("ControlButtons") && IsObject(UI.Controls["ControlButtons"]) {
             for index, button in UI.Controls["ControlButtons"] {
                 try {
                     if button.Focused {
-                        ; Map the button to its help text key based on text content
-                        buttonText := button.Text
-                        
-                        ; This switch would be cleaner with a map, but we'll use if/else for clarity
-                        if InStr(buttonText, "Open HotString Library")
-                            return "ControlButton_OpenLibrary"
-                        else if InStr(buttonText, "Open AutoCorrection Log")
-                            return "ControlButton_ACLog"
-                        else if InStr(buttonText, "Open AutoCorrection Continuous Log")
-                            return "ControlButton_ACLogContinuous"
-                        else if InStr(buttonText, "Analyze AutoCorrection Log")
-                            return "ControlButton_ACAnalyze"
-                        else if InStr(buttonText, "Open Backspace Context Log")
-                            return "ControlButton_BSLog"
-                        else if InStr(buttonText, "Open Removed HotStrings List")
-                            return "ControlButton_RemovedHS"
-                        else if InStr(buttonText, "Open MC Log Continuous")
-                            return "ControlButton_MCLogContinuous"
-                        else if InStr(buttonText, "Open Manual Correction Log")
-                            return "ControlButton_MCLog"
-                        else if InStr(buttonText, "Analyze Manual Correction Log")
-                            return "ControlButton_MCAnalyze"
-                        else if InStr(buttonText, "Report HotStrings")
-                            return "ControlButton_Report"
-                        else if InStr(buttonText, "Configuration Settings Manager")
-                            return "ControlButton_SettingsMan"
-                        else if InStr(buttonText, "Extract Potential Misspellings")
-                            return "ControlButton_ExtractMisspellings"
-                        else if InStr(buttonText, "Hotstring Analyzer Tool")
-                            return "ControlButton_HsAnalyzer"
-                        else if InStr(buttonText, "Hotstring Suggester Tool")
-                            return "ControlButton_Suggester"
-                        else if InStr(buttonText, "Conflicting String Locator Tool")
-                            return "ControlButton_ConflictingStringLocator"
-                        else if InStr(buttonText, "Compare Two Versions of HotstringLib")
-                            return "ControlButton_UniqueStringExtractor"
-                        else if InStr(buttonText, "Defunctionize Hotstrings")
-                            return "ControlButton_Defunctionizer"
-                        else if InStr(buttonText, "Hotkey Reference Tool")
-                            return "ControlButton_HotkeyRef"
-                        else if InStr(buttonText, "Go to AutoCorrect2 Folder")
-                            return "ControlButton_OpenFolder"
-                        else if InStr(buttonText, "Go to GitHub Repository")
-                            return "ControlButton_GitHub"
-                        else if InStr(buttonText, "Change Color Theme")
-                            return "ControlButton_Theme"
+                        ; Strip the leading icon-padding space and any trailing hotkey
+                        ; hint (e.g. "!^+Q") so the caption reads cleanly in a title bar.
+                        caption := Trim(button.Text, " `t")
+                        this.lastButtonCaption := RegExReplace(caption, "\s+[!^+#][^\s]*$", "")
+                        return "ControlButton_" UI.Controls["ControlButtonNames"][index]
                     }
                 } catch {
                     continue
