@@ -1,0 +1,47 @@
+﻿; ==============================================================================
+;  PersonalHolidays.txt   --   personal dates for DateTool-H
+; ==============================================================================
+;  Read ONCE, when DateTool.ahk (or AutoCorrect2.ahk) loads.
+;  Edit this file, then reload the script to see your changes.
+;
+;  One entry per line.  Fields are separated by | (pipe):
+;
+;      dateSpec | Name | startYear | endYear | originalYear
+;
+;  Only the first two fields are required; trailing pipes may be omitted.
+;  Spaces around the pipes are ignored, so columns can be lined up.
+;  Lines beginning with ';' are comments.  Blank lines are ignored.
+;
+;  dateSpec forms:
+;      MM DD                fixed date ................... 02 14
+;      MM DD-DD DayName     nth weekday of the month ..... 05 08-14 Sunday
+;      MM DD nearest        shifts off weekends .......... 11 11 nearest
+;      L DDD absolute       day-of-year, L = leap flag ... 1 060 absolute
+;
+;  startYear / endYear  limit the entry to a span of years.  Give only
+;                       startYear for a one-time event.
+;  originalYear         appends " (n)", the number of years elapsed.  Use a
+;                       birth year to show an age, or a wedding year to show
+;                       an anniversary number.
+;
+;  Two entries may share the same date -- both will be reported.
+;
+;  If a line can't be understood it is skipped and the reason is shown in a
+;  startup tooltip.  The rest of the file still loads, and nothing breaks.
+; ==============================================================================
+
+; --- Birthdays ----------------------------------------------------------------
+; Add a birth year in the last field to have the age shown, e.g.
+;     01 29 | Spring's Birthday |  |  | 1994      ->   Spring's Birthday (32)
+
+01 29 | Niece's Birthday     |      |      |
+03 14 | Wife's Birthday      |      |      |
+
+
+; --- Anniversaries ------------------------------------------------------------
+; The last field is the original year, so this shows as 'Anniversary (26)' in 2026.
+08 25 | Anniversary          |      |      | 2000
+
+; --- One-time events ----------------------------------------------------------
+; Give a start year (and optionally an end year) for something that happens once.
+;03 17-21 | Spring Break      | 2027 | 2027 |

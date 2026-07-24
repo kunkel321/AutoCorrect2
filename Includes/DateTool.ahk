@@ -7,7 +7,7 @@
 ;======== DateTool-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 2-27-2026 
+; The 'H' is for 'Holidays.'   Version: 7-24-2026  
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -27,6 +27,10 @@
 ; -CaptInsano-led enhancement of hotstring options, weeks, months, years,
 ; 2-digit numbers support, "next Tuesday", etc, and onboard help.
 ; https://www.autohotkey.com/boards/viewtopic.php?p=599890#p599834
+; July 2026
+; -Personal dates (birthdays, anniversaries) moved out to an external file,
+;  ..\Data\PersonalHolidays.txt, so they survive updates to this script.
+;  Each line is validated on its own; a bad line is skipped, never fatal.
 
 ; MARK: Help
 ;======== Directions for Use: Date Hotstrings ==================================
@@ -68,6 +72,7 @@ sMCHelp :=
 Alt+Shift+D ---> Show calendar.
 Bold dates have holidays.  Click to show holiday (if enabled).
 Press h (while calendar is active) ---> Toggle list of holidays for shown months.
+Press p (while calendar is active) ---> Show/hide your personal dates.
 Press t (while calendar is active) ---> Go to today.
 Press 1-5 (while calendar is active) ---> Show this many months.
 Double-click a date, or press Enter  ---> Type date.
@@ -77,8 +82,14 @@ D-Click/Enter while holding Shift key ---> Show menu of scriptlet holiday report
 Calendar appears placed over active window.
 Waits for window to be active again before typing date.
 
-See IsHoliday() function, for array of custom holidays and how to add
-your own custom holidays. Please remove any personal dates, and add your own.
+See IsHoliday() function for the array of built-in holidays.  Your own personal
+dates (birthdays, anniversaries, trips) go in a separate file instead:
+    ..\Data\PersonalHolidays.txt
+That file is read once when the script loads, so reload after editing it.
+See LoadPersonalHolidays() near the bottom of this file for the line format.
+Personal dates can be hidden on the fly (p, or the Shift+D-Click menu), so that
+public holidays are easier to pick out.  ShowPersonalHolidays sets the startup
+state; PersonalHolidayMarker can flag them with a leading or trailing character.
 
 Known issue: With MonthCal, clicking next/last month arrows too fast enters
 the date, rather than just scrolling dates. Gets read as 'double-click.'
@@ -92,8 +103,8 @@ Press F1 while monthCal is showing ----> Summons the help GUI."
 ; ==============================================================================
 ; GET RID OF this #HotIf section if you are using DateTool as a stand-alone app. 
 MyAutoCorrectFileName := "..\Core\AutoCorrect2.exe" ; <------- CHANGE To NAME of your AutoCorrect script?
-#HotIf WinActive("DateTool.ahk",) ; Can't use A_Var here.
-^s:: ; Because this tool is #Included in AutoCorrect2, reload ac2 upon save. hide
+#HotIf WinActive("DateTool.ahk",) ; DateTool.ahk
+^s:: ; Save and reload AutoCorrect2. hide
 {	Send("^s") ; Save me.
 	MsgBox("Reloading...", "", "T0.3")
 	Sleep(250)
@@ -113,7 +124,7 @@ MyAutoCorrectFileName := "..\Core\AutoCorrect2.exe" ; <------- CHANGE To NAME of
 guiTitle := A_UserName "'s DateTool-H" ; change title if desired
 monthCalHotkey := "!+d"             ; Hotkey: Alt+Shift+D.  Change as desired. 
 ; if monthCalHotkey is changed here, must also update RunDateTool() in AutoCorrect2.ahk. 
-; TypeOutFormat := "dd-MMM-yyyy"       ; preferred date format for typing date in edit field
+; TypeOutFormat := "dd-MMM-yyyy"    ; preferred date format for typing date in edit field
 TypeOutFormat := "M-d-yyyy"         ; preferred date format for typing date in edit field
 TypeOutAltFormat := "yyyy-MM-dd"    ; alternate preferred date format for typing
 HolidayListFormat := "MMM-dd"       ; preferred date format for popup list
@@ -131,7 +142,22 @@ sAddOptions := ""
 formColor := "cbd2d4"   ; for ToolTip font and cal border... Won't affect monthCal
 fontColor := "0x100075" ; for ToolTip font... Won't affect monthCal
 
-ERROR_LOG := 1  ; The log functions are at the very bottom of this file. 
+; Personal holidays (birthdays, anniversaries, etc.) live in an external file,
+; ..\Data\PersonalHolidays.txt, so that they survive updates to DateTool.ahk.
+; The file is read ONCE, when this script loads.  Edit it, then reload to see changes.
+; See LoadPersonalHolidays() near the bottom of this file for the format.
+WarnOnBadPersonalHolidays := 1 ; popup a tooltip if a line in that file can't be read (1 = yes / 0 = no)
+ShowPersonalHolidays := 1 ; show personal dates on the calendar at startup (1 = yes / 0 = no)
+; Toggle at any time from the calendar: press p, or Shift+Double-Click for the menu.
+PersonalHolidayMarker := "~" ; optional string put next to every personal date,
+; so they read differently from the public ones even while both are shown.
+; Try "* " or "• " or "~".  Leave blank ("") for no marker.
+PersonalHolidayMarkerAsSuffix := 1 ; where the marker goes.
+; 0 = in front of the name ... ~Wife's Birthday
+; 1 = after the name ........ Wife's Birthday~
+; Note: the marker is applied when the file is read, so reload after changing these.
+
+ERROR_LOG := 0  ; The log functions are at the very bottom of this file. 
 DEBUG_LOG := 0  ; 1 = yes log, 0 = no don't
 ; User Note: If you have many holidays defined, the menu reports can be quite large,
 ; so have 'MenuReportsAsToolTips:=0' or have a small font for tooltips (next section.)
@@ -144,6 +170,11 @@ ToolTipOptions.SetMargins(5, 5, 5, 5) ; Left, Top, Right, Bottom.
 ToolTipOptions.SetColors(formColor, fontColor) ; background, font : Use this for theme colors.
 ;ToolTipOptions.SetColors("Default", "Default") ; background, font
 
+; Read ..\Data\PersonalHolidays.txt into memory now, at script load.  Done here
+; (rather than lazily) so that any complaints about bad lines appear at startup,
+; and so that IsHoliday() never touches the disk while building month reports.
+LoadPersonalHolidays()
+
 ; MARK: Hotstring/Hotkey 
 ;===================================================================
 
@@ -153,7 +184,8 @@ ToolTipOptions.SetColors(formColor, fontColor) ; background, font : Use this for
     SendDateHS(sFormat, sMode)
 }
 
-!;:: { ; hide
+!;:: ; Alt+Semicolon, then d, for alt date format; hide
+{ 
     global sMode := "alternate"
     sFormat := TypeOutAltFormat
     SendDateHS(sFormat, sMode)
@@ -697,13 +729,14 @@ ShowToolTip(sDatePicked, iOff, sPeriod, sCode, sFormat, isWeekday := false, targ
 ; MARK: MonthCal GUI
 ;======== Global Variables. Don't change =======================================
 TargetWindow := 0, MCGUI := 0, hlYear := A_YYYY, hlMonth := A_MM
+DefaultDate := "" ; Selected day, carried across a calendar rebuild.  "" = use today.
 HolidayList := "", toggle := false  ; Variable to keep track of tooltip state
 ; ===================================================================
-
+; !+d:: Show DateTool - H (Alt+Shift+H)
 Hotkey(monthCalHotkey, MCRemake) ; Show DateTool - H
 MCRemake(*) {
     local X, Y, W, H
-    global MCGUI, TargetWindow
+    global MCGUI, TargetWindow, DefaultDate
     if (MCGUI) {
         MCGUIClose() ; Causes hotkey to work like toggle.
         return
@@ -737,6 +770,13 @@ MCRemake(*) {
     OnMessage(0x004E, WM_NOTIFY)        ; needs to be called on control creation
     MCGUI.AddMonthCal("r" MonthCount " +0x01 vMC " sAddOptions)
     OnMessage(0x004E, WM_NOTIFY, 0)
+    ; Put the selection back where it was, if we are rebuilding rather than
+    ; opening fresh.  Done before the Change event is hooked up, so that
+    ; restoring the date doesn't fire a spurious holiday tooltip.
+    if (DefaultDate != "") {
+        MCGUI["MC"].Value := DefaultDate
+        DefaultDate := ""
+    }
     MCGUI["MC"].OnNotify(-747, MCN_GETDAYSTATE)
     if (ShowSingleHoliday = 1)
         MCGUI["MC"].OnEvent("Change", HandleDateChange)
@@ -760,17 +800,18 @@ HandleDateChange(*) {
 
 ; MARK: MonthCal Nav.
 ; ===================================================================
-#HotIf WinActive(guiTitle)
-ALt & Enter:: SendDateAlt() ; For alt format date entry. hide
+#HotIf WinActive(guiTitle) ; MonthCalendar
+Alt & Enter:: SendDateAlt() ; For alt format date entry. hide
 +Enter:: ShowHolidayMenu() ; Shift+Enter to show menu. hide
 h:: doToggle() ; Calls function to popup list of holidays.  hide
+p:: TogglePersonalHolidays() ; Show/hide personal dates. hide
 t:: MCGUI["MC"].Value := A_Now ; Hotkey for 'Go to today.' hide
-1:: ; hide
-2:: ; hide
-3:: ; hide
-4:: ; hide
-5:: ChangeMCNumber() ; Shows this many months. (1-5) ; hide
-F1::monthCalHelp() ; hide
+1::  ; Shows this many months. ; hide
+2::  ; Shows this many months. ; hide
+3::  ; Shows this many months. ; hide
+4::  ; Shows this many months. ; hide
+5:: ChangeMCNumber() ; Shows this many months. ; hide
+F1::monthCalHelp() ; Show help for monthCal ; hide
 #HotIf
 ; ===================================================================
 
@@ -917,6 +958,16 @@ ShowHolidayMenu() {
             }
         }
 
+        ; Personal dates toggle -- only offered if there are any to toggle.
+        ; The menu is rebuilt every time it is shown, so the checkmark is
+        ; always current; there is no state to keep in sync.
+        if (LoadPersonalHolidays().Length) {
+            holidayMenu.Add("Show Personal Dates", TogglePersonalHolidays)
+            if (ShowPersonalHolidays)
+                holidayMenu.Check("Show Personal Dates")
+            holidayMenu.Add() ; separator
+        }
+
         ; Add general items always
         holidayMenu.Add("Show All Holidays in " FormatTime(selectedDate, "yyyy"), ShowYearHolidays)
         holidayMenu.Add("Show " FormatTime(selectedDate, "MMMM") " Holidays (20 Years)", ShowMonthHolidays)
@@ -929,6 +980,37 @@ ShowHolidayMenu() {
         holidayMenu.Show(mX, mY)
     } catch Error as err {
         MsgBox("Error showing menu: " err.Message)
+    }
+}
+
+; Flip personal dates on or off.  Called from the Shift+Double-Click menu and
+; from the p hotkey while the calendar is active.
+;
+; The MonthCal control caches its bold-day states and only asks for them again
+; when its displayed range changes, so simply repainting will not update the
+; bolding.  Rebuilding the calendar is the reliable way to force a fresh round
+; of MCN_GETDAYSTATE notifications -- the same trick ChangeMCNumber() uses.
+; The selected date and the holiday-list tooltip are carried across the rebuild.
+TogglePersonalHolidays(*) {
+    global ShowPersonalHolidays
+    ShowPersonalHolidays := !ShowPersonalHolidays
+    ; Deferred by a hair so that the menu handler (and the WM_LBUTTONDBLCLK
+    ; message handler underneath it) finish unwinding before the window that
+    ; raised them is destroyed.
+    SetTimer(RebuildCalForToggle, -50)
+}
+
+RebuildCalForToggle() {
+    global DefaultDate, MCGUI, toggle
+    if (!MCGUI) ; toggled with no calendar open; nothing to redraw
+        return
+    DefaultDate := MCGUI["MC"].Value ; keep the user's selected day
+    local ListWasShowing := toggle
+    MCGuiClose()
+    MCRemake()
+    if (ListWasShowing) { ; MCGuiClose() cleared it; put it back
+        toggle := true
+        HolidayNames()
     }
 }
 
@@ -1253,7 +1335,7 @@ CalcSolsticeEquinox(Year, EventType := "summer") {
 ; -- got rid of 'Business only' parameter
 ; -- added beginning and end year
 ; -- added "nearest weekday" option
-; CaptInsano added 'orginal_year' feature, mar 13, 2025
+; CaptInsano added 'orginal_year' feature, Mar 13, 2025
 ; ===================================================================
 IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
     static Eastern := Map()
@@ -1288,6 +1370,9 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
     local WinterSolstice := CalcSolsticeEquinox(Date.Year, "winter")
 
     ; MARK: Holiday Define.
+    ; These are the shared/public holidays that ship with DateTool.  Personal
+    ; dates belong in ..\Data\PersonalHolidays.txt instead; they are appended to
+    ; this array just below.  See LoadPersonalHolidays() near the end of the file.
     ; single space delimited, strictly
     ; ["month day-day dayName", "Day Text", start_year, end_year, original_year]
     ; if "dayName" = "absolute", "month" becomes "isLeapYear", and "day-day" is a number between 1-366
@@ -1311,6 +1396,7 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         ;["03 14", "Lunar Eclipse", 2025],
         ;["03 17-21", "Spring Break", 2025],
         ["04 15", "Tax Day"],
+        ["04 22", "Earth Day"],
         ["05 01", "Mayday"],
         ["05 08-14 Sunday", "Mother's Day"],
         ["05 25-31 Monday", "Memorial Day"],
@@ -1319,7 +1405,8 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         ["06 19 nearest", "Juneteenth", , , 1866],
         ["06 15-21 Sunday", "Father's Day"],
         ["07 04", "Independence Day", , , 1776],
-        ["08 25", "Anniversary", , , 2000], ;       <---------- Specific to kunkel321, remove.
+        ; Personal dates such as birthdays and anniversaries do NOT belong here.
+        ; Put them in ..\Data\PersonalHolidays.txt instead -- see LoadPersonalHolidays().
         ["09 01-07 Monday", "Labor Day"],
         ["10 31", "Halloween"],
         ["11 01-07 Sunday", "Daylight Savings Ends"], ; First Sunday in November (Fall Behind/Gain hour of sleep)
@@ -1329,84 +1416,106 @@ IsHoliday(YYYYMMDDHHMISS := "", StopAtFirst := 0) {
         [EMon " " EDay, "Easter"] ; No comma after last array element :)
     ]
 
+    ; MARK: Personal Holiday Merge.
+    ; Append the user's own dates, read from ..\Data\PersonalHolidays.txt at
+    ; script load.  These arrive already validated, as 5-element arrays whose
+    ; unused optional fields are empty strings.  ShowPersonalHolidays is a global
+    ; that the calendar's "Show Personal Dates" menu item (and the p hotkey)
+    ; flips, so personal dates can be hidden without reloading the script.
+    if (!IsSet(ShowPersonalHolidays) || ShowPersonalHolidays) {
+        for PersonalDay in LoadPersonalHolidays()
+            Dates.Push(PersonalDay)
+    }
+
     local Stop := 0, Holiday, Stamp, Range, TTT, IsBetween
     for Day In Dates {
-        ; Check year range if specified
-        if (Day.Length = 3 or Day.Length = 4) {
-            ; If only one year is specified, treat it as both start and end year
-            local StartYear := Day[3]
-            local EndYear := (Day.Length >= 4) ? Day[4] : StartYear
+        ; Each entry is evaluated inside its own try, so that one bad definition
+        ; is dropped rather than aborting the whole holiday check.
+        try {
+            ; Check year range if specified.  Day.Has() is used rather than
+            ; Day.Length because entries may legitimately have empty or omitted
+            ; middle fields, e.g. ["06 19 nearest", "Juneteenth", , , 1866].
+            if (Day.Has(3) && Day[3] != "") {
+                ; If only one year is specified, treat it as both start and end year
+                local StartYear := Day[3]
+                local EndYear := (Day.Has(4) && Day[4] != "") ? Day[4] : StartYear
 
-            ; Skip if current year is outside the range
-            if (Date.Year < StartYear || Date.Year > EndYear)
-                continue
-        }
-
-        Holiday := Day[2] ; give it a nicer name
-        Stamp := StrSplit(Day[1], " ")
-        while Stamp.Length < 3
-            Stamp.Push("")
-
-        if (Stamp[3] = "nearest") {
-            ; Handle holidays that move to nearest weekday
-            Range := [Stamp[2], Stamp[2]] ; Single date
-
-            ; Add age calculation if original_year is specified
-            if Day.Length = 5 { ;age is called for
-                iAge := Date.year - Day[5]
-                Holiday .= " (" iAge ")"
+                ; Skip if current year is outside the range
+                if (Date.Year < StartYear || Date.Year > EndYear)
+                    continue
             }
 
-            ; Create a timestamp for the actual holiday date
-            local HolidayDate := Date.Year Stamp[1] Stamp[2]
-            local HolidayDayName := FormatTime(HolidayDate, "dddd")
+            Holiday := Day[2] ; give it a nicer name
+            Stamp := StrSplit(Day[1], " ")
+            while Stamp.Length < 3
+                Stamp.Push("")
 
-            ; Determine observed date based on day of week
-            if (HolidayDayName = "Saturday") {
-                ; Move to Friday
-                local NewDay := Format("{:02}", Stamp[2] - 1)
-                if (Date.Mon = Stamp[1] && Date.Day = NewDay)
-                    Out .= Holiday "`n", Stop := 1
+            if (Stamp[3] = "nearest") {
+                ; Handle holidays that move to nearest weekday
+                Range := [Stamp[2], Stamp[2]] ; Single date
+
+                ; Add age calculation if original_year is specified
+                if (Day.Has(5) && Day[5] != "") { ;age is called for
+                    iAge := Date.year - Day[5]
+                    Holiday .= " (" iAge ")"
+                }
+
+                ; Create a timestamp for the actual holiday date
+                local HolidayDate := Date.Year Stamp[1] Stamp[2]
+                local HolidayDayName := FormatTime(HolidayDate, "dddd")
+
+                ; Determine observed date based on day of week
+                if (HolidayDayName = "Saturday") {
+                    ; Move to Friday
+                    local NewDay := Format("{:02}", Stamp[2] - 1)
+                    if (Date.Mon = Stamp[1] && Date.Day = NewDay)
+                        Out .= Holiday "`n", Stop := 1
+                }
+                else if (HolidayDayName = "Sunday") {
+                    ; Move to Monday
+                    local NewDay := Format("{:02}", Stamp[2] + 1)
+                    if (Date.Mon = Stamp[1] && Date.Day = NewDay)
+                        Out .= Holiday "`n", Stop := 1
+                }
+                else {
+                    ; Regular weekday - use actual date
+                    if (Date.Mon = Stamp[1] && Date.Day = Stamp[2])
+                        Out .= Holiday "`n", Stop := 1
+                }
             }
-            else if (HolidayDayName = "Sunday") {
-                ; Move to Monday
-                local NewDay := Format("{:02}", Stamp[2] + 1)
-                if (Date.Mon = Stamp[1] && Date.Day = NewDay)
+            else if (Stamp[3] = "absolute") {
+                Range := [Stamp[2], Stamp[2]]
+
+                ; Add age calculation if original_year is specified
+                if (Day.Has(5) && Day[5] != "") { ;age is called for
+                    iAge := Date.year - Day[5]
+                    Holiday .= " (" iAge ")"
+                }
+
+                if (IsLeap = Stamp[1] && Date.DayY = Stamp[2])
                     Out .= Holiday "`n", Stop := 1
             }
             else {
-                ; Regular weekday - use actual date
-                if (Date.Mon = Stamp[1] && Date.Day = Stamp[2])
+                if (Day.Has(5) && Day[5] != "") { ;age is called for
+                    iAge := Date.year - Day[5]
+                    Holiday .= " (" iAge ")"
+                }
+                Range := StrSplit(Stamp[2], "-")
+                if Range.Length = 1
+                    Range.Push(Range[1])
+
+                ; set a temp var to blank if a weekday wasn't specified.
+                ; Otherwise check if the specified day is today
+                TTT := (Stamp[3] = "") ? "" : Date.DayN
+                IsBetween := (Date.Day >= Range[1] && Date.Day <= Range[2])
+                if (Date.Mon = Stamp[1] && IsBetween = 1 && TTT = Stamp[3])
                     Out .= Holiday "`n", Stop := 1
             }
         }
-        else if (Stamp[3] = "absolute") {
-            Range := [Stamp[2], Stamp[2]]
-            
-            ; Add age calculation if original_year is specified
-            if Day.Length = 5 { ;age is called for
-                iAge := Date.year - Day[5]
-                Holiday .= " (" iAge ")"
-            }
-            
-            if (IsLeap = Stamp[1] && Date.DayY = Stamp[2])
-                Out .= Holiday "`n", Stop := 1
-        }
-        else {
-            if Day.Length = 5 { ;age is called for
-                iAge := Date.year - Day[5]
-                Holiday .= " (" iAge ")"
-            }
-            Range := StrSplit(Stamp[2], "-")
-            if Range.Length = 1
-                Range.Push(Range[1])
-
-            ; set a temp var to blank if a weekday wasn't specified.
-            ; Otherwise check if the specified day is today
-            TTT := (Stamp[3] = "") ? "" : Date.DayN
-            IsBetween := (Date.Day >= Range[1] && Date.Day <= Range[2])
-            if (Date.Mon = Stamp[1] && IsBetween = 1 && TTT = Stamp[3])
-                Out .= Holiday "`n", Stop := 1
+        catch as HolErr {
+            DTLogError("Holiday entry skipped ("
+                . (Day.Has(2) ? Day[2] : "unnamed") "): " HolErr.Message)
+            continue
         }
         if (StopAtFirst = 1 && Stop = 1)
             return Trim(Out, "`r`n `t")
@@ -1882,6 +1991,278 @@ ShowDateRangeHolidays(*) {
     } catch Error as err {
         MsgBox("Error processing date range: " err.Message)
     }
+}
+
+; ==============================================================================
+; MARK: Personal Holidays
+; ------------------------------------------------------------------------------
+; Birthdays, anniversaries, trips and other personal dates are kept OUT of this
+; script, in a plain text file, so that they are not lost when DateTool.ahk is
+; updated.  In the AutoCorrect2 suite that file lives at:
+;
+;       AutoCorrect2\Data\PersonalHolidays.txt
+;
+; Stand-alone users can instead put it in a Data\ subfolder beside the script,
+; or simply next to the script itself.  See PersonalHolidayFile() for the
+; search order.
+;
+; ---- File format -------------------------------------------------------------
+; One holiday per line.  Fields separated by | (pipe):
+;
+;       dateSpec | Name | startYear | endYear | originalYear
+;
+;   Only the first two fields are required; trailing pipes may be omitted.
+;   Lines beginning with ';' are comments.  Blank lines are ignored.
+;   Spaces around the pipes don't matter, so columns can be lined up.
+;
+;   dateSpec forms (same as the built-in Dates array in IsHoliday):
+;       MM DD                fixed date .................. 02 14
+;       MM DD-DD DayName     nth weekday of the month .... 05 08-14 Sunday
+;       MM DD nearest        shifts off weekends ......... 11 11 nearest
+;       L DDD absolute       day-of-year, L = leap flag .. 1 060 absolute
+;
+;   startYear / endYear limit the holiday to a range of years.  Give just
+;   startYear for a one-time event.
+;   originalYear appends " (n)" showing years elapsed -- for birthdays and
+;   anniversaries.  It may be combined with a year range.
+;
+;   Example lines:
+;       02 10    | Emma's Birthday |      |      | 2011
+;       08 25    | Anniversary     |      |      | 2000
+;       03 17-21 | Spring Break    | 2026 | 2026
+;
+; ---- Error handling ----------------------------------------------------------
+; Every line is parsed and validated on its own.  A line that can't be
+; understood is discarded with a reason, and the rest of the file still loads.
+; A syntax mistake here can never stop DateTool (or AutoCorrect2) from running.
+; ==============================================================================
+
+; Locate the personal holiday file.  Three locations are tried, in order, and the
+; first one that exists wins:
+;
+;   1.  ..\Data\PersonalHolidays.txt   <- the AutoCorrect2 suite location
+;   2.  .\Data\PersonalHolidays.txt    <- stand-alone, with a Data subfolder
+;   3.  .\PersonalHolidays.txt         <- stand-alone, beside the script
+;
+; A_ScriptDir is the folder of the MAIN script, which is Core\ when DateTool is
+; #Included by AutoCorrect2 and Includes\ when DateTool runs stand-alone.  Both
+; are siblings of Data\, so candidate 1 resolves correctly either way.  Add
+; another entry to the array below if you want the file somewhere else.
+PersonalHolidayFile() {
+    static path := ""
+    if (path != "")
+        return path
+    for candidate in [ A_ScriptDir "\..\Data\PersonalHolidays.txt"
+                     , A_ScriptDir "\Data\PersonalHolidays.txt"
+                     , A_ScriptDir "\PersonalHolidays.txt" ] {
+        if FileExist(candidate)
+            return path := candidate
+    }
+    ; Nothing found.  Return the preferred location anyway, so the warning
+    ; message (and the log) can tell the user where to create the file.
+    return path := A_ScriptDir "\..\Data\PersonalHolidays.txt"
+}
+
+; Read and parse the file ONCE, then hand back the cached array on every later
+; call.  IsHoliday() calls this for every date it examines -- 365+ times for a
+; year report -- so it must never touch the disk after the first load.
+LoadPersonalHolidays() {
+    global WarnOnBadPersonalHolidays, PersonalHolidayMarker, PersonalHolidayMarkerAsSuffix
+    static entries := [], isLoaded := false
+    if isLoaded
+        return entries
+    isLoaded := true
+
+    local file := PersonalHolidayFile()
+    if !FileExist(file) {
+        DTDebug("No personal holiday file found at " file)
+        return entries
+    }
+
+    local txt := ""
+    try
+        txt := FileRead(file, "UTF-8")
+    catch as err {
+        DTLogError("Could not read " file " -- " err.Message)
+        return entries
+    }
+    txt := LTrim(txt, Chr(0xFEFF)) ; discard a byte-order mark, if present
+
+    local problems := []
+    Loop Parse, txt, "`n", "`r" {
+        local lineNum := A_Index, raw := A_LoopField, why := ""
+        try {
+            local entry := ParsePersonalHoliday(raw, &why)
+            if !IsObject(entry) { ; blank line, comment, or rejected line
+                if (why != "")
+                    problems.Push("Line " lineNum ":  " why "`n     " Trim(raw))
+                continue
+            }
+            if (IsSet(PersonalHolidayMarker) && PersonalHolidayMarker != "") {
+                if (IsSet(PersonalHolidayMarkerAsSuffix) && PersonalHolidayMarkerAsSuffix)
+                    entry[2] := entry[2] PersonalHolidayMarker
+                else
+                    entry[2] := PersonalHolidayMarker entry[2]
+            }
+            entries.Push(entry)
+        }
+        catch as err { ; belt and braces -- one odd line can never stop the loop
+            problems.Push("Line " lineNum ":  unexpected error, " err.Message
+                        . "`n     " Trim(raw))
+        }
+    }
+
+    DTDebug("Personal holidays: " entries.Length " loaded, "
+          . problems.Length " skipped, from " file)
+    if (problems.Length && IsSet(WarnOnBadPersonalHolidays) && WarnOnBadPersonalHolidays)
+        WarnBadPersonalHolidays(file, problems)
+    return entries
+}
+
+; Turn one line of the file into a 5-element holiday entry.
+; Returns "" for blank lines and comments (with why := ""), or for a line that
+; failed validation (with why set to a plain-English reason).
+ParsePersonalHoliday(line, &why) {
+    why := ""
+    line := Trim(line)
+    if (line = "" || SubStr(line, 1, 1) = ";")
+        return "" ; not an error, just nothing to do
+
+    local f := StrSplit(line, "|")
+    local spec  := Trim(f[1])
+    local name  := (f.Length >= 2) ? Trim(f[2]) : ""
+    local sYear := (f.Length >= 3) ? Trim(f[3]) : ""
+    local eYear := (f.Length >= 4) ? Trim(f[4]) : ""
+    local oYear := (f.Length >= 5) ? Trim(f[5]) : ""
+
+    if (f.Length > 5) {
+        why := "too many | fields (expected  dateSpec | Name | startYear | endYear | originalYear)"
+        return ""
+    }
+    if (name = "") {
+        why := "no holiday name -- a line needs at least  dateSpec | Name"
+        return ""
+    }
+    if !ValidHolidaySpec(&spec, &why) ; spec is normalized in place
+        return ""
+
+    for yr in [sYear, eYear, oYear] {
+        if (yr != "" && !RegExMatch(yr, "^\d{4}$")) {
+            why := "'" yr "' is not a 4-digit year"
+            return ""
+        }
+    }
+    if (sYear != "" && eYear != "" && eYear + 0 < sYear + 0) {
+        why := "end year " eYear " comes before start year " sYear
+        return ""
+    }
+    return [spec, name, sYear, eYear, oYear]
+}
+
+; Validate a date specification and normalize it (pad to 2 digits, collapse
+; runs of spaces, lower-case the keyword) so that IsHoliday's strictly
+; single-space-delimited parser can rely on it.
+ValidHolidaySpec(&spec, &why) {
+    static DayNames := Map("sunday", 1, "monday", 1, "tuesday", 1, "wednesday", 1
+                         , "thursday", 1, "friday", 1, "saturday", 1)
+    why := ""
+    local p := StrSplit(RegExReplace(Trim(spec), "\s+", " "), " ")
+    if (p.Length < 2 || p.Length > 3) {
+        why := "date '" spec "' should be 2 or 3 space-separated parts, e.g. '02 14' or '05 08-14 Sunday'"
+        return false
+    }
+    local kind := (p.Length = 3) ? StrLower(p[3]) : ""
+
+    ; ---- day-of-year form: "L DDD absolute" ----
+    if (kind = "absolute") {
+        if (p[1] != "0" && p[1] != "1") {
+            why := "with 'absolute', the first field is a leap-year flag and must be 0 or 1"
+            return false
+        }
+        if !(IsInteger(p[2]) && p[2] + 0 >= 1 && p[2] + 0 <= 366) {
+            why := "with 'absolute', the day-of-year must be 1 to 366, not '" p[2] "'"
+            return false
+        }
+        spec := p[1] " " p[2] " absolute"
+        return true
+    }
+
+    ; ---- month ----
+    if !(IsInteger(p[1]) && p[1] + 0 >= 1 && p[1] + 0 <= 12) {
+        why := "'" p[1] "' is not a month number (01 to 12)"
+        return false
+    }
+    local mon := Format("{:02}", p[1] + 0)
+
+    ; ---- day, or day range ----
+    local r := StrSplit(p[2], "-")
+    if (r.Length > 2) {
+        why := "'" p[2] "' should be a day (14) or a day range (15-21)"
+        return false
+    }
+    local maxDay := DaysInMonth(mon + 0, 2024) ; leap year, so Feb 29 is allowed
+    local days := []
+    for d in r {
+        if !(IsInteger(d) && d + 0 >= 1 && d + 0 <= maxDay) {
+            why := "'" d "' is not a valid day for month " mon " (01 to " maxDay ")"
+            return false
+        }
+        days.Push(Format("{:02}", d + 0))
+    }
+    if (r.Length = 2 && days[2] + 0 < days[1] + 0) {
+        why := "day range '" p[2] "' ends before it starts"
+        return false
+    }
+    local dayPart := (r.Length = 2) ? days[1] "-" days[2] : days[1]
+
+    ; ---- optional third part ----
+    if (kind = "") {
+        spec := mon " " dayPart
+        return true
+    }
+    if (kind = "nearest") {
+        if (r.Length != 1) {
+            why := "'nearest' needs a single day, not the range '" p[2] "'"
+            return false
+        }
+        if (days[1] = "01" || days[1] = "31") {
+            why := "'nearest' can shift the date into the neighbouring month; use a day between 02 and 30"
+            return false
+        }
+        spec := mon " " dayPart " nearest"
+        return true
+    }
+    if !DayNames.Has(kind) {
+        why := "'" p[3] "' is not a weekday name, 'nearest', or 'absolute'"
+        return false
+    }
+    ; A weekday name only makes sense with a range that covers a full week.
+    if (r.Length != 2 || ((days[2] + 0) - (days[1] + 0)) != 6) {
+        why := "a weekday name needs a 7-day range, e.g. '05 08-14 Sunday' for the 2nd Sunday in May"
+        return false
+    }
+    ; Match the capitalization FormatTime produces, e.g. "Sunday".
+    spec := mon " " dayPart " " StrUpper(SubStr(kind, 1, 1)) SubStr(kind, 2)
+    return true
+}
+
+; Non-blocking notice, shown at startup only when something in the file was
+; unreadable.  A MsgBox is deliberately avoided here: it would stall the whole
+; of AutoCorrect2 until dismissed.
+WarnBadPersonalHolidays(file, problems) {
+    local plural := (problems.Length = 1) ? " line in:`n" : " lines in:`n"
+    local msg := "DateTool skipped " problems.Length plural file "`n"
+    for p in problems {
+        if (A_Index > 6) {
+            msg .= "`n...and " (problems.Length - 6) " more."
+            break
+        }
+        msg .= "`n" p
+    }
+    msg .= "`n`n(Set WarnOnBadPersonalHolidays := 0 to silence this.)"
+    ToolTip(msg, 40, 40, 4)
+    SetTimer () => ToolTip(, , , 4), -20000
+    DTLogError("Personal holiday file problems:`n" msg)
 }
 
 ; This function gets called from the above scriptlets.
