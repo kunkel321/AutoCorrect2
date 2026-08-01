@@ -9,7 +9,7 @@
 ; ============================================================
 ;
 ; On startup a file-selection GUI appears offering:
-;   1. HotstringLib.ahk   (auto-detected via acSettings.ini)
+;   1. AutoCorrectHotstrings.ahk   (auto-detected via acSettings.ini)
 ;   2. ManualCorrectionsLog.txt  (default log path)
 ;   3. Browse for another file...
 ;
@@ -49,9 +49,9 @@ maxExamples     := 24          ; Max example items shown per category in the rep
 
 ; Resolve HotstringLib path via acSettings.ini if available.
 if FileExist(settingsFile)
-    hsLibPath := A_ScriptDir "\..\Core\" IniRead(settingsFile, "Paths", "HotstringLibrary", "HotstringLib.ahk")
+    hsLibPath := A_ScriptDir "\..\Core\" IniRead(settingsFile, "Paths", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
 else
-    hsLibPath := A_ScriptDir "\..\Core\HotstringLib.ahk"
+    hsLibPath := A_ScriptDir "\..\Core\AutoCorrectHotstrings.ahk"
 
 ; Resolve AutoCorrectsLog path via acSettings.ini if available.
 if FileExist(settingsFile)
@@ -77,8 +77,8 @@ btnLog.OnEvent("Click", ChooseLog)
 
 ; HotstringLib button
 libLabel := FileExist(hsLibPath)
-    ? "HotstringLib.ahk  (defunctionize then analyze)"
-    : "HotstringLib.ahk  (not found)"
+    ? "AutoCorrectHotstrings.ahk  (defunctionize then analyze)"
+    : "AutoCorrectHotstrings.ahk  (not found)"
 btnLib := selGui.Add("Button", "w380 h35", libLabel)
 btnLib.OnEvent("Click", ChooseLib)
 
@@ -113,7 +113,7 @@ ChooseLib(GuiCtrlObj, *) {
     doLog  := chkLog.Value
     selGui.Destroy()
     if !FileExist(hsLibPath) {
-        MsgBox "HotstringLib.ahk was not found:`n" hsLibPath
+        MsgBox "AutoCorrectHotstrings.ahk was not found:`n" hsLibPath
         ExitApp
     }
     RunAnalysis(hsLibPath, true, doDump, doLog)

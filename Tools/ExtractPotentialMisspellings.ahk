@@ -1,11 +1,10 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
+#Include "..\Includes\AcMsgBox.ahk" ; <--- Required.
 /*
 File: ExtractPotentialMisspellings.ahk
 Made by kunkel321 using Claude AI. 
-Version 6-17-2025 
-
-Another comment update just for debugging the new Updater tool on Saturday, 11-15-2025, at 9:59am 
+Version 3-19-2026 
 
 For use with the AutoCorrect2 library of hotstrings.
 AHK v2 Script to extract words that are potentially misspelled by certain AutoCorrect hotstrings.  It doesn't remove them from the HotstringsLib file, it just generates a separate list of them.
@@ -21,20 +20,35 @@ HotstringHelper2 formats potential misspellings this way by default.
 settingsFile := "..\Data\acSettings.ini"
 ; Verify settings file exists
 if !FileExist(settingsFile) {
-	MsgBox(settingsFile " was not found. Please run AutoCorrect2 first to create the file.")
+	acMsgBox.show(settingsFile " was not found. Please run AutoCorrect2 first to create the file.")
 	ExitApp
 }
-filePath := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
+filePath := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
 ; Check if the file exists
 if !FileExist(filePath) {
-    MsgBox("File not found: " filePath)
+    acMsgBox.show("File not found: " filePath)
     ExitApp
 }
 
 ; User Options
-IncludeLineNumbers := 0 ; Set to 1 to include line number of item in library
-IncludeDefinition := 1  ; Set to 1 to include definitions, 0 for words only
-IncludeFullLine := 1   ; Set to 1 to include the entire hotstring line, including the associated AutoCorrect entry.
+IncludeLineNumbers  := 0 ; Set to 1 to include line number of item in library.
+IncludeDefinition   := 1 ; Set to 1 to include definitions, 0 for words only (moot if FullLine = 1).
+IncludeFullLine     := 1 ; Set to 1 to include the entire hotstring line, including the associated AutoCorrect entry.
+
+; Shift at startup toggles between condensed and expanded modes.
+; If full-line mode is active, Shift switches to condensed (words-only).
+; If words-only mode is active, Shift switches to expanded (full-line).
+ShiftCondensed := false
+ShiftExpanded  := false
+if (IncludeDefinition && IncludeFullLine && GetKeyState("Shift", "P")) {
+    IncludeDefinition := 0
+    IncludeFullLine   := 0
+    ShiftCondensed    := true
+} else if (!IncludeDefinition && !IncludeFullLine && GetKeyState("Shift", "P")) {
+    IncludeDefinition := 1
+    IncludeFullLine   := 1
+    ShiftExpanded     := true
+}
 
 ; Editor Configuration
 DefaultEditor := "Notepad.exe" ; Backup editor if VSCode is not found
@@ -48,7 +62,7 @@ ExtractMisspelledWords(filePath, includeDefinition, includeFullLine) {
     try {
         fileContent := FileRead(filePath)
     } catch Error as e {
-        MsgBox("Error reading file: " e.Message)
+        acMsgBox.show("Error reading file: " e.Message)
         return {text: "", totalItems: 0, flaggedItems: 0}
     }
     
@@ -128,14 +142,27 @@ totalItems := result.totalItems
 flaggedItems := result.flaggedItems
 
 ; Calculate percentage
-percentage := totalItems > 0 ? Round((flaggedItems / totalItems) * 100, 1) : 0
+percentage := totalItems > 0 ? Round((flaggedItems / totalItems) * 100, 3) : 0
 
 ; Display the result
 if (misspelledWords != "") {
     ; Create a simple GUI to show the results
-    titleText := IncludeFullLine ? "Hotstrings with Potential Misspellings" : (IncludeDefinition ? "Misspelled Words with Definitions" : "Misspelled Words")
-    headerText := IncludeFullLine ? "The following hotstring lines may cause misspellings:" : (IncludeDefinition ? "The following words with definitions may be misspelled by the hotstrings:" : "The following words may be misspelled by the hotstrings:")
+    titleText := ShiftCondensed ? "Misspelled Words (Condensed)"
+        : ShiftExpanded ? "Hotstrings with Potential Misspellings (Expanded)"
+        : (IncludeFullLine ? "Hotstrings with Potential Misspellings" : (IncludeDefinition ? "Misspelled Words with Definitions" : "Misspelled Words"))
+    headerText := ShiftCondensed ? "Condensed word list — comma-separated (Shift was held at startup)."
+        : ShiftExpanded ? "Expanded view — full hotstring lines (Shift was held at startup)."
+        : (IncludeFullLine ? "The following hotstring lines may cause misspellings:"
+        : (IncludeDefinition ? "The following words with definitions may be misspelled by the hotstrings:"
+        : "The following words may be misspelled by the hotstrings:"))
     headerText .= IncludeLineNumbers ? " (Includes line numbers.)" : ""
+    ; Show the appropriate Shift hint based on the baseline configuration.
+    if (!ShiftCondensed && !ShiftExpanded) {
+        if (IncludeFullLine && IncludeDefinition)
+            headerText .= "   (Rescan while holding Shift for a condensed list.)"
+        else if (!IncludeFullLine && !IncludeDefinition)
+            headerText .= "   (Rescan while holding Shift for a detailed list.)"
+    }
     
     myGui := Gui("", titleText)
     myGui.SetFont("s10", "Segoe UI")
@@ -152,10 +179,10 @@ if (misspelledWords != "") {
     myGui.OnEvent("Close", (*) => myGui.Destroy())
     myGui.Show()
 } else {
-    MsgBox("No misspelled words found.")
+    acMsgBox.show("No misspelled words found.")
 }
 
-; Function to look up selected text in the HotstringLib.ahk file
+; Function to look up selected text in the AutoCorrectHotstrings.ahk file
 LookupSelected(editControl) {
     ; Get selected text
     EM_GETSEL := 0xB0
@@ -180,21 +207,21 @@ LookupSelected(editControl) {
     }
     
     ; Open the library file if not already open
-    if !WinExist("HotstringLib.ahk") {
+    if !WinExist("AutoCorrectHotstrings.ahk") {
         try {
             Run(EditorPath " " filePath)
         } catch {
-            MsgBox("Cannot run " filePath)
+            acMsgBox.show("Cannot run " filePath)
             return
         }
         
         ; Wait for the file to open
         counter := 0
-        while !WinExist("HotstringLib.ahk") {
+        while !WinExist("AutoCorrectHotstrings.ahk") {
             Sleep(50)
             counter++
             if counter > 80 {
-                MsgBox("Cannot seem to open Library.`nMaybe an 'admin rights' issue?")
+                acMsgBox.show("Cannot seem to open Library.`nMaybe an 'admin rights' issue?")
                 return
             }
         }
@@ -202,12 +229,12 @@ LookupSelected(editControl) {
     
     ; Activate the window and search
     try {
-        WinActivate("HotstringLib.ahk")
+        WinActivate("AutoCorrectHotstrings.ahk")
         Sleep(300)
         
         ; Use Ctrl+F to search for the selected text
         SendInput("^f" selected)
     } catch Error as err {
-        MsgBox("Error activating editor: " err.Message)
+        acMsgBox.show("Error activating editor: " err.Message)
     }
 }

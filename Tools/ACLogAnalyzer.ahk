@@ -56,7 +56,7 @@ class ACLogAnalyzer {
                 EditorPath: "",
                 ScriptFiles: {
                     ACScript:       "..\Core\" IniRead(settingsFile, "Files", "AutoCorrect2Script", "..\Core\AutoCorrect2.ahk"),
-                    HSLibrary:      "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\HotstringLib.ahk"),
+                    HSLibrary:      "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\AutoCorrectHotstrings.ahk"),
                     ACLog:          "..\Data\" IniRead(settingsFile, "Files", "AutoCorrectsLogFile", "..\Data\AutoCorrectsLog.txt"),
                     ErrContLog:     "..\Data\" IniRead(settingsFile, "Files", "ErrContextLog", "..\Data\ErrContextLog.txt"),
                     RemovedHsFile:  "..\Data\" IniRead(settingsFile, "Files", "RemovedHsFile", "..\Data\RemovedHotstrings.txt")
@@ -186,10 +186,10 @@ class ACLogAnalyzer {
         if !FileExist(this.Config.ScriptFiles.RemovedHsFile) {
             remFileHeader := "
             (
-            This is a list of AutoCorrect hotstrings that were manually removed from the HotstringLib.ahk.  
+            This is a list of AutoCorrect hotstrings that were manually removed from the AutoCorrectHotstrings.ahk.  
             They were removed because an analysis report from the AutoCorrectsLog file indicated that 
             the autocorrection was 'Backspaced' more than it was kept. The MCLogger tool and the 
-            HotString Helper tool each will check this list to avoid re-adding them to your HotstringLib.ahk list.
+            HotString Helper tool each will check this list to avoid re-adding them to your AutoCorrectHotstrings.ahk list.
             =======================================
             )"
             

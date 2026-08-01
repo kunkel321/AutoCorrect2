@@ -96,7 +96,7 @@ if !FileExist(settingsFile) {
 ; Load settings from INI file.  
 MCLogFile := "..\Data\" IniRead(settingsFile, "Files", "MCLogFile", "ManualCorrectionsLog.txt")
 MCLogContinuous := "..\Data\" IniRead(settingsFile, "Files", "MCLogContinuous", "MCLogContinuous.txt")
-myAutoCorrectLibrary := IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
+myAutoCorrectLibrary := IniRead(settingsFile, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
 RemovedHsFile := "..\Data\" IniRead(settingsFile, "Files", "RemovedHsFile", "Data\RemovedHotstrings.txt")
 myAutoCorrectScript := IniRead(settingsFile, "Files", "MyAutoCorrectScript", "AutoCorrect2.ahk")
 WordListFile := "..\Data\" IniRead(settingsFile, "Files", "WordListFile", "GitHubComboList249k.txt")
@@ -250,7 +250,7 @@ wordListArray := strSplit(WordList, "`n") ; Segment variable into array.
 If not FileExist(myAutoCorrectLibrary) {
 	acMsgBox.show("This error means that the exsiting library of hotstrings "
 	"`nwas not found.`n`nMust assign a file to variable, such as`n"
-	"myAutoCorrectLibrary := `"HotstringLib.ahk`"`nfor script to work.`n`nNow exiting.")
+	"myAutoCorrectLibrary := `"AutoCorrectHotstrings.ahk`"`nfor script to work.`n`nNow exiting.")
 	ExitApp
 }
 AcFileContents := Fileread(myAutoCorrectLibrary)

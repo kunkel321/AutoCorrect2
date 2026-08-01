@@ -22,7 +22,7 @@ if !FileExist(settingsFile) {
 	ExitApp
 }
 
-targetFile := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\HotstringLib.ahk")
+targetFile := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\AutoCorrectHotstrings.ahk")
 fullList := FileRead(targetFile)
 
 ; Find line range to scan

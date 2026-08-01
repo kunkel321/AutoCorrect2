@@ -577,7 +577,7 @@
   },
   "MCLogger.SendToHH": {
     "label": "Send to HotstringHelper",
-    "help": "If enabled, The 'Append' buttons in MCLogger will export to the HotstringHelper2 GUI. If disabled, append directly to the HotstringLib.ahk file.",
+    "help": "If enabled, The 'Append' buttons in MCLogger will export to the HotstringHelper2 GUI. If disabled, append directly to the AutoCorrectHotstrings.ahk file.",
     "type": "boolean",
     "options": [
       "0=Append to directly to Library",

@@ -91,8 +91,7 @@ restartTheseScripts := " ; Path not needed if they are in same folder as this sc
 ..\..\HotKeyTool\HotKeyTool.exe
 ..\Core\MCLogger.exe
 ..\..\WayText\WayText.exe
-..\..\Stickies\Sticky Notes.exe
-..\..\TextToolbox\TextToolbox.exe
+..\..\Stickies\StickyNotes.exe
 )"
 ; *******************************************************
 

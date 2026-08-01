@@ -16,7 +16,7 @@ if !FileExist(settingsFile) {
 	MsgBox(settingsFile " was not found. Please run AutoCorrect2 first to create the file.")
 	ExitApp
 }
-mainFile := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "HotstringLib.ahk")
+mainFile := "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
 extraFile := "..\Core\" IniRead(settingsFile, "Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
 
 ; Function to get file path with dialog fallback

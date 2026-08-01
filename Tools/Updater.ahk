@@ -11,7 +11,7 @@ Tool Used: Claude
 Version: 3-27-2026
 Intended to use with AutoCorrect2 repo. Run the script, and it will download a temporary copy of the repository, then look for files that have been updated.  The script makes this faster by saving a 'LastUpdateCheck.ini' file in the Core\ folder.  Then it checks the github commits page, and compares to the ini date.  If a newer version is found, only then is the zip downloaded and opened.  The script will then offer to replace the old files with the newer versions.  The files listed below as "RarelyUpdatedFolders" will be unchecked by default.  Any file inside those folders (e.g. all Data\ files) will be unchecked.  The user must check them to update them.  Any new files will be listed in a separate dialog.  
 
-HotstringLib.ahk is a special case and never gets over-written by default. Instead, a copy called  "HotstringLib (1).ahk" is saved to the Core\ folder.  The user must then use the UniueStringExtracter to compare that file with their own.  If the user NEVER customizes their HotstringLib.ahk file, and only wants to adopt the newer version, they can select the radio button to *Overwrite* their existing lib file.  The font is made red to ensure that the user sees what they are doing. 
+AutoCorrectHotstrings.ahk is a special case and never gets over-written by default. Instead, a copy called  "HotstringLib (1).ahk" is saved to the Core\ folder.  The user must then use the UniueStringExtracter to compare that file with their own.  If the user NEVER customizes their AutoCorrectHotstrings.ahk file, and only wants to adopt the newer version, they can select the radio button to *Overwrite* their existing lib file.  The font is made red to ensure that the user sees what they are doing. 
 */
 
 ; --- CONFIG ---------------------------------------------------------------
@@ -357,7 +357,7 @@ try {
     updatedFiles := []
     rarelyUpdatedFiles := []
     newFiles := []
-    hotstringLibUpdate := ""  ; Special handling for HotstringLib.ahk
+    hotstringLibUpdate := ""  ; Special handling for AutoCorrectHotstrings.ahk
     
     loop Files, srcRoot "\*", "FR"
     {
@@ -371,9 +371,9 @@ try {
         relPath := SubStr(srcFile, StrLen(srcRoot) + 2)
         destPath := installDir "\" relPath
 
-        ; Special handling for HotstringLib.ahk
-        if (relPath = "Core\HotstringLib.ahk") {
-            LogDebug("Found HotstringLib.ahk in GitHub")
+        ; Special handling for AutoCorrectHotstrings.ahk
+        if (relPath = "Core\AutoCorrectHotstrings.ahk") {
+            LogDebug("Found AutoCorrectHotstrings.ahk in GitHub")
             ; Always save with the configured name, never replace user's original
             destPath := installDir "\Core\" hotstringLibName
             
@@ -386,20 +386,20 @@ try {
                 
                 if (srcTime > destTime) and (srcSize != destSize) {
                     hotstringLibUpdate := {path: destPath, relPath: "Core\" hotstringLibName, srcPath: srcFile}
-                    LogDebug("HotstringLib.ahk update available - will save as: " hotstringLibName)
+                    LogDebug("AutoCorrectHotstrings.ahk update available - will save as: " hotstringLibName)
                 }
             } else {
                 hotstringLibUpdate := {path: destPath, relPath: "Core\" hotstringLibName, srcPath: srcFile}
-                LogDebug("HotstringLib.ahk (" hotstringLibName ") is new/missing")
+                LogDebug("AutoCorrectHotstrings.ahk (" hotstringLibName ") is new/missing")
             }
             continue
         }
 
         ; Check if file is new or updated
         if !FileExist(destPath) {
-            ; Skip HotstringLib.ahk - it's handled specially above
-            if (relPath = "Core\HotstringLib.ahk") {
-                LogDebug("Skipping HotstringLib.ahk from new files (handled specially)")
+            ; Skip AutoCorrectHotstrings.ahk - it's handled specially above
+            if (relPath = "Core\AutoCorrectHotstrings.ahk") {
+                LogDebug("Skipping AutoCorrectHotstrings.ahk from new files (handled specially)")
                 continue
             }
             ; New file
@@ -673,10 +673,10 @@ ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, ho
         updateGui.Add("Text", "w700 cBlack y+8", "HotstringLib Update Available")
         
         ; Radio button option 1: Keep as (1), safe for customizers
-        radAppend := updateGui.Add("Radio", "w700 h38 Checked vHotstringLibMode", "Save new library as: Core\HotstringLib (1).ahk. Your current HotstringLib.ahk will not be modified. Use UniqueStringExtractor tool to compare and merge.")
+        radAppend := updateGui.Add("Radio", "w700 h38 Checked vHotstringLibMode", "Save new library as: Core\HotstringLib (1).ahk. Your current AutoCorrectHotstrings.ahk will not be modified. Use UniqueStringExtractor tool to compare and merge.")
         
         ; Radio button option 2: Replace existing, no merge needed
-        radReplace := updateGui.Add("Radio", "w700 h38", "WARNING: Replaces your existing HotstringLib.ahk file. Any customizations you've made will be lost, but you won't have to bother merging the old and new versions.")
+        radReplace := updateGui.Add("Radio", "w700 h38", "WARNING: Replaces your existing AutoCorrectHotstrings.ahk file. Any customizations you've made will be lost, but you won't have to bother merging the old and new versions.")
         
         ; ListView for HotstringLib - initially shows merge mode
         lvHotstringLib := updateGui.Add("ListView", "w700 r2 Checked -Multi +Background" listColor " y+5", ["Filename", "Path"])
@@ -712,7 +712,7 @@ HotstringLibModeChanged(updateGui, mode, GuiCtrlObj, Info) {
             LogDebug("Radio mode changed to: MERGE (1)")
         } else {
             ; Mode 2: Replace existing - simple mode
-            updateGui.lvHotstringLib.Add("", "HotstringLib.ahk", "Core\HotstringLib.ahk")
+            updateGui.lvHotstringLib.Add("", "AutoCorrectHotstrings.ahk", "Core\AutoCorrectHotstrings.ahk")
             LogDebug("Radio mode changed to: REPLACE")
         }
     }
@@ -823,24 +823,24 @@ PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, in
                 if result.skipped
                     skippedFiles.Push("Core\HotstringLib (1).ahk")
                 else
-                    LogDebug("Created: HotstringLib (1).ahk (existing HotstringLib.ahk untouched)")
+                    LogDebug("Created: HotstringLib (1).ahk (existing AutoCorrectHotstrings.ahk untouched)")
                 
             } else {
-                ; Mode 2: Replace existing HotstringLib.ahk - REPLACE MODE
+                ; Mode 2: Replace existing AutoCorrectHotstrings.ahk - REPLACE MODE
                 LogDebug("HotstringLib mode: REPLACE (direct replacement)")
                 
                 ; Source file from GitHub
                 srcFile := hotstringLibUpdate.srcPath
                 
-                ; Destination: Core\HotstringLib.ahk (replacing existing)
-                destFile := A_ScriptDir "\..\Core\HotstringLib.ahk"
+                ; Destination: Core\AutoCorrectHotstrings.ahk (replacing existing)
+                destFile := A_ScriptDir "\..\Core\AutoCorrectHotstrings.ahk"
                 
                 LogDebug("Copying (replace mode): " srcFile " -> " destFile)
                 result := CopyFileWithDirCreation(srcFile, destFile)
                 if result.skipped
-                    skippedFiles.Push("Core\HotstringLib.ahk")
+                    skippedFiles.Push("Core\AutoCorrectHotstrings.ahk")
                 else
-                    LogDebug("Replaced: HotstringLib.ahk")
+                    LogDebug("Replaced: AutoCorrectHotstrings.ahk")
             }
         } else {
             LogDebug("HotstringLib update skipped by user")

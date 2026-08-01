@@ -61,3 +61,49 @@
 [2026-03-22 08:00:17] HotstringLib update skipped by user
 [2026-03-22 08:00:17] Stored update check info: SHA=2b4adb744c805e43e6feb3c0a3f742185b016c12, Date=2026-03-22T14:58:53Z
 [2026-03-22 08:00:17] === Update Completed Successfully ===
+[2026-08-01 13:52:33] === Update Started ===
+[2026-08-01 13:52:33] Script Directory: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2\Tools
+[2026-08-01 13:52:33] HotstringLib name: AutoCorrectHotstrings (1).ahk
+[2026-08-01 13:52:33] Checking GitHub API for latest commit...
+[2026-08-01 13:52:33] GitHub API response received, parsing JSON...
+[2026-08-01 13:52:33] Response length: 3507
+[2026-08-01 13:52:33] First 500 chars: [{"sha":"eec35c87e548c9211e81d81607deca3e05a50563","node_id":"C_kwDOLty75doAKGVlYzM1Yzg3ZTU0OGM5MjExZTgxZDgxNjA3ZGVjYTNlMDVhNTA1NjM","commit":{"author":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-07-30T22:35:52Z"},"committer":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-07-30T22:35:52Z"},"message":"Update DragTools.ahk\n\n-The script was preventing the right-click-and-drag to pan feature in the ScreenSnip script from working, if AutoCorrect2 was sta
+[2026-08-01 13:52:33] shaPos: 3
+[2026-08-01 13:52:33] First quote after sha: 9
+[2026-08-01 13:52:33] End quote: 50
+[2026-08-01 13:52:33] datePos: 208
+[2026-08-01 13:52:33] colonPos: 214
+[2026-08-01 13:52:33] Quote after colon: 215
+[2026-08-01 13:52:33] End quote: 236
+[2026-08-01 13:52:33] Extracted SHA: eec35c87e548c9211e81d81607deca3e05a50563
+[2026-08-01 13:52:33] Extracted date: 2026-07-30T22:35:52Z
+[2026-08-01 13:52:33] Latest commit: SHA=eec35c87e548c9211e81d81607deca3e05a50563, Date=2026-07-30T22:35:52Z
+[2026-08-01 13:52:33] Last update check: SHA=2b4adb744c805e43e6feb3c0a3f742185b016c12, Date=2026-03-22T14:58:53Z, Pending=0 file(s)
+[2026-08-01 13:52:33] Update available! Proceeding with file comparison...
+[2026-08-01 13:52:34] Install Dir: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2
+[2026-08-01 13:52:34] Temp Dir: C:\Users\steve\AppData\Local\Temp\AutoCorrect2_Update
+[2026-08-01 13:52:34] Cleaning temp directory...
+[2026-08-01 13:52:34] Temp directory created.
+[2026-08-01 13:52:34] Downloading from: https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/main.zip
+[2026-08-01 13:52:38] Download completed.
+[2026-08-01 13:52:38] Starting zip extraction...
+[2026-08-01 13:52:48] Zip extraction completed.
+[2026-08-01 13:52:48] Source root directory found.
+[2026-08-01 13:52:48] Scanning for updated and new files...
+[2026-08-01 13:52:48] Updated file found: desktop.ini (size: 184 ? 178)
+[2026-08-01 13:52:48] Updated file found: README.md (size: 7822 ? 7749)
+[2026-08-01 13:52:48] New file found: Core\HotstringLib.ahk
+[2026-08-01 13:52:48] Updated file found: Core\PersonalHotstrings.ahk (size: 984 ? 971)
+[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\colorThemeSettings.ini
+[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\GitHubComboList249k.txt
+[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\ManualCorrectionsLog.txt
+[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\PersonalHolidays.txt
+[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\RemovedHotstrings.txt
+[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\unigram_freq_list_filtered_89k.csv
+[2026-08-01 13:52:48] Updated file found: Resources\Dictionary\WordNet-3.0\word list readme.txt (size: 920 ? 913)
+[2026-08-01 13:52:48] Updated file found: Resources\Dictionary\WordNet-3.0\WordNet Legal Cite.txt (size: 1290 ? 1271)
+[2026-08-01 13:52:48] Updated file found: Resources\Icons\Icon Sources (size: 126 ? 125)
+[2026-08-01 13:52:48] Updated file found: Tools\ColorThemeIntegrator.ahk (size: 60350 ? 60385)
+[2026-08-01 13:52:48] New file found: Tools\HotstringLibStats.ahk
+[2026-08-01 13:52:48] New file found: Tools\HotstringLibStats.exe
+[2026-08-01 13:52:48] Found 7 updated files, 6 rarely-updated files, 3 new files, and HotstringLib update: no

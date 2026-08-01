@@ -7,7 +7,7 @@
 Made by kunkel321, using Claude AI, for the AutoCorrect2 Suite.
             github.com/kunkel321/autocorrect2 
 
-Analyzes usage statistics for all hotstrings in HotstringLib.ahk
+Analyzes usage statistics for all hotstrings in AutoCorrectHotstrings.ahk
 (between "MARK: No Sort" and "MARK: End Main List" sections).
 
 Reports statistics from AutoCorrectsLog.txt showing:
@@ -20,7 +20,7 @@ Items are shown in clean format: :Options:Trigger::Replacement
 Intended for use with kunkel321's AutoCorrect for v2.
 
 Dependencies:
-- HotstringLib.ahk
+- AutoCorrectHotstrings.ahk
 - AutoCorrectsLog.txt
 - acSettings.ini
 - ColorThemeSettings.ini
@@ -46,7 +46,7 @@ class HotstringLibStats {
             }
             
             config := {
-                HotstringLibraryFile: "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\HotstringLib.ahk"),
+                HotstringLibraryFile: "..\Core\" IniRead(settingsFile, "Files", "HotstringLibrary", "..\Core\AutoCorrectHotstrings.ahk"),
                 AutoCorrectsLogFile: "..\Data\" IniRead(settingsFile, "Files", "AutoCorrectsLogFile", "..\Data\AutoCorrectsLog.txt"),
                 SettingsFile: settingsFile
             }
@@ -106,7 +106,7 @@ class HotstringLibStats {
     
     ; ======= Library Parsing =======
     
-    ; Parse hotstrings from HotstringLib.ahk between the markers
+    ; Parse hotstrings from AutoCorrectHotstrings.ahk between the markers
     static ParseLibraryItems() {
         try {
             content := FileRead(this.Config.HotstringLibraryFile)
@@ -258,7 +258,7 @@ class HotstringLibStats {
                 this.LSGui.SetFont("c" this.FontColor)
             
             ; Title text
-            this.LSGui.Add("Text", "w470 h20", "Library Statistics: " this.LibraryItems.Length " items found")
+            this.LSGui.Add("Text", "w470 ", "Library Stats for: " this.Config.HotstringLibraryFile ".  Found " this.LibraryItems.Length " items`nbetween `"MARK: No Sort`" and `"MARK: End Main List`"")
             
             ; Create ListView
             this.CreateListView()

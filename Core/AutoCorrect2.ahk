@@ -58,7 +58,7 @@ class Config {
     ; This serves as both a language requirement AND a fallback safety mechanism.
     
     ; General Configuration
-    static HotstringLibrary := "HotstringLib.ahk"
+    static HotstringLibrary := "AutoCorrectHotstrings.ahk"
     static BoilerplateHotstringLibrary := "PersonalHotstrings.ahk"
     static NewTemporaryHotstrLib := "HotstringLib (1).ahk"
     static RemovedHsFile := "..\Data\RemovedHotstrings.txt" ; At iniRead, gets replaced with 'RemovedHotstrings.txt'.
@@ -200,7 +200,7 @@ class Config {
         ; added in code below. Fallback defaults here must therefore also be bare
         ; filenames — not full relative paths — or we'd double the prefix when the
         ; INI key is missing (e.g. "..\Data\..\Data\RemovedHotstrings.txt").
-        this.HotstringLibrary           := this.ReadIni("Files", "HotstringLibrary", "HotstringLib.ahk")
+        this.HotstringLibrary           := this.ReadIni("Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
         this.NewTemporaryHotstrLib      := this.ReadIni("Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
         this.BoilerplateHotstringLibrary := this.ReadIni("Files", "BoilerplateHotstringLibrary", "PersonalHotstrings.ahk")
         this.RemovedHsFile              := "..\Data\" this.ReadIni("Files", "RemovedHsFile", "RemovedHotstrings.txt")
@@ -398,7 +398,7 @@ IsSkiplistedFocused() {
 #Include "..\Includes\AutoCorrectSystem.ahk"  ;  Autocorrection module -- REQUIRED
 
 #HotIf AutoCorrectionsActivelyRunning() ; Only if no Skiplisted apps are active and autocorrections are enabled.
-    #Include "HotstringLib.ahk"       ;  Library of hotstrings -- REQUIRED
+    #Include "AutoCorrectHotstrings.ahk"       ;  Library of hotstrings -- REQUIRED
 #HotIf
 
 #Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. -- REQUIRED
@@ -571,7 +571,7 @@ SetTimer(() => BackspaceContextLogger.Start(), 1000)  ; Start after 1 second del
 ; Main application loop
 ; The script continues running, processing hotstrings and handling events
 
-; Note: Your hotstrings are defined in HotstringLib.ahk and call the f() function
+; Note: Your hotstrings are defined in AutoCorrectHotstrings.ahk and call the f() function
 ; from AutoCorrectSystem.ahk when triggered.
 ; Example hotstring:
 ; :B0X:teh::f("the") 
@@ -4225,7 +4225,7 @@ class HelpSystem {
         
         this.helpTexts["PasteCheck"] := "When checked, the f() function will send the replacement text via clipboard paste instead of simulated keystrokes.`n`nThis is useful for large boilerplate entries where keystroke-based sending can be slow or unreliable, especially with special characters or long multi-line text.`n`nFor short AutoCorrect entries, leave this unchecked — paste mode adds a small delay and is unnecessary for brief replacements.`n`nRequires the `"Function`" checkbox to be enabled. Checking this box will auto-enable Function if it is currently off, and unchecking the Function box will uncheck log and paste.`n`nNote: Log and Paste are (optional) second and third parameters of the f() function.  Log=Yes and Paste=No are the defaults, so when this is the case, the hotstring function call is created without those parameters."
         
-        this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (HotstringLib.ahk).`n`nThe AC button is automatically pre-selected when you select three or fewer words, on one line, and press Win+H.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
+        this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (AutoCorrectHotstrings.ahk).`n`nThe AC button is automatically pre-selected when you select three or fewer words, on one line, and press Win+H.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
         
         this.helpTexts["BPRadio"] := "Selects Boilerplate (BP) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the Boilerplate library (PersonalHotstrings.ahk).`n`nThe BP button is automatically pre-selected when you select multiple lines of text or text with more than three words (indicating boilerplate template content), and press Win+H.`n`nYou can manually switch to the AC radio button if you want to save a boilerplate entry to the AutoCorrect library instead."
         
@@ -4263,10 +4263,10 @@ class HelpSystem {
         for index, buttonConfig in UI.controlButtons {
             switch buttonConfig.name {
                 case "OpenLibrary":
-                    this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located.`n`nTip:  When adopting a newer version of the HotstringLib.ahk file from https://github.com/kunkel321/AutoCorrect2 it is recommended to use the UniqueStringExtracter tool.  This will allow you to not lose any custom hotstrings that you have, yourself, added.  Also, you'll see any hotstrings that you've manually removed from my working library."
+                    this.helpTexts["ControlButton_OpenLibrary"] := "Opens your hotstring library file in your configured editor.`n`nThis allows you to directly view and edit all your hotstrings.`n`nScript will attempt to jump to the bottom of the file, where any new hotstrings are likely to be located.`n`nTip:  When adopting a newer version of the AutoCorrectHotstrings.ahk file from https://github.com/kunkel321/AutoCorrect2 it is recommended to use the UniqueStringExtracter tool.  This will allow you to not lose any custom hotstrings that you have, yourself, added.  Also, you'll see any hotstrings that you've manually removed from my working library."
                     
                 case "PersonalHotstrings":
-                    this.helpTexts["ControlButton_PersonalHotstrings"] := "Opens your PersonalHotstrings.ahk file in your configured editor.`n`nThis button only appears if the file is present.`n`nPersonalHotstrings.ahk is #Include'd by AutoCorrect2.ahk and is the recommended place for your own boilerplate and template hotstrings, keeping them separate from the main HotstringLib.ahk autocorrect library.`n`nBecause it is a separate file, it will not be overwritten when you adopt a newer release of the AutoCorrect2 suite."
+                    this.helpTexts["ControlButton_PersonalHotstrings"] := "Opens your PersonalHotstrings.ahk file in your configured editor.`n`nThis button only appears if the file is present.`n`nPersonalHotstrings.ahk is #Include'd by AutoCorrect2.ahk and is the recommended place for your own boilerplate and template hotstrings, keeping them separate from the main AutoCorrectHotstrings.ahk autocorrect library.`n`nBecause it is a separate file, it will not be overwritten when you adopt a newer release of the AutoCorrect2 suite."
                     
                 case "ACLog":
                     this.helpTexts["ControlButton_ACLog"] := "Opens the " config.AutoCorrectsLogFile " file.`n`nThis log contains a record of all autocorrections made using the f`(`) function, including whether a correction was backspaced, thus indicating a likely mis-application of the item.`n`nThe date of each logged item is present and separated from the item with a hyphen.`n`n<< = Backspace was pressed within one second.`n-- = Backspace not pressed within one second.`n`nNote: The script can't detect exactly WHAT you backspaced, only that the BS was pressed within one second.  There is, however, a Backspace Context Log that tries to help with figuring this out.`n`nThe AC Log file is analyzed by ACLogAnalyer.  Manually handling the log file is usually not needed.  The reading and writing from it is all automated. `n`nWhen adopting updated releases of the AutoCorrect2 suite, users should keep their own AutoCorrectsLog.txt and MannualCorrectionsLog.txt files.  The purpose of these is to log and analyze your own typing experiences.`n`nTip: If you don't care to ever use the logging features, go to the Config Setting Manager tool and in the ACSystem section, EnableLogging := 1 to 0."
@@ -4302,16 +4302,16 @@ class HelpSystem {
                     this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.  When creating a mult-match word middle AutoCorrect item via trimming the ends, it is possible to over-trim.  The Suggester tool helps you choose which letter to put back--that's why it was made.`n`nThe Suggester tool is usually accessed via Alt+Clicking the Append button, or via the ACLogAnalyer report, though you can run it directly, and type/paste in a hotstring."
                     
                 case "HsAnalyzer":
-                    this.helpTexts["ControlButton_HsAnalyzer"] := "Launches the Hotstring Analyzer tool.`n`nThis tool scans your HotstringLib.ahk file and analyzes each hotstring for potential issues, classifying problems such as adjacent transpositions, dropped letters, suffix intrusions, homophones, wrong verb forms, and more.`n`nA timestamped report is generated in the Debug\ folder upon completion.`n`nUseful for auditing your library and identifying entries that may be poorly formed or misclassified."
+                    this.helpTexts["ControlButton_HsAnalyzer"] := "Launches the Hotstring Analyzer tool.`n`nThis tool scans your AutoCorrectHotstrings.ahk file and analyzes each hotstring for potential issues, classifying problems such as adjacent transpositions, dropped letters, suffix intrusions, homophones, wrong verb forms, and more.`n`nA timestamped report is generated in the Debug\ folder upon completion.`n`nUseful for auditing your library and identifying entries that may be poorly formed or misclassified."
                     
                 case "ExtractMisspellings":
-                    this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your HotstringLib.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work. The config options are in the .ahk file."
+                    this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your AutoCorrectHotstrings.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work. The config options are in the .ahk file."
 
                 case "ConflictLocator":
                     this.helpTexts["ControlButton_ConflictLocator"] := "This runs an INTRA-script scan, checking for hotstrings in the main part of your " Config.HotstringLibrary " file that might conflict with each other. A report document is created in the \Data\ folder and the report is opened upon completion of the scan.  It uses the same algorithms as the validiy tool.  It is thorough and is slow.  Please see AutoCorrect2 User Manual for more information."
 
                 case "Updater":
-                    this.helpTexts["ControlButton_Updater"] := "Launches the Updater tool, which checks the AutoCorrect2 GitHub repository for newer versions of the suite files.`n`nThe last-seen commit is recorded in Data\LastUpdateCheck.ini, so repeat checks are fast when nothing has changed.`n`nHotstringLib.ahk gets special treatment: rather than being overwritten, you are given the option to save the incoming version under a different name so that your own custom hotstrings are not lost.  Use the Compare Two Versions of HotstringLib tool afterward to merge them.`n`nFiles you skip are remembered and offered again on the next check."
+                    this.helpTexts["ControlButton_Updater"] := "Launches the Updater tool, which checks the AutoCorrect2 GitHub repository for newer versions of the suite files.`n`nThe last-seen commit is recorded in Data\LastUpdateCheck.ini, so repeat checks are fast when nothing has changed.`n`nAutoCorrectHotstrings.ahk gets special treatment: rather than being overwritten, you are given the option to save the incoming version under a different name so that your own custom hotstrings are not lost.  Use the Compare Two Versions of HotstringLib tool afterward to merge them.`n`nFiles you skip are remembered and offered again on the next check."
                     
                 case "UniqueStringExtractor":
                     this.helpTexts["ControlButton_UniqueStringExtractor"] := "This runs an INTER-script scan to compare two versions of the hotstring library:`n`n" Config.HotstringLibrary "`n" Config.NewTemporaryHotstrLib "`n`nIt will alert the user of hotstrings that are unique to each version.  This is meant to facilitate merging two versions of the library. It is recommended to choose a convenient temporary name for one the new version, such as `"HotstringLib (1).ahk`" then program that into the acSettings.ini file (current name is shown above) and use the same temporary name each time.  The tool will default to those paths.  If either is not found, a file chooser dialog will appear. A report document is created in the \Data\ folder and the report is opened upon completion of the scan."
