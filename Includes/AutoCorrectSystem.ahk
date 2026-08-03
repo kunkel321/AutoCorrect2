@@ -1,7 +1,15 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 5-22-2026 
+; Version: 8-3-2026
+; 8-3-2026 restructure: keepText() is now the single source of truth for
+; "Backspace pressed after autocorrection."  When its InputHook ends with
+; Backspace, it calls BackspaceContextLogger.NotifyBackspaced() directly.
+; The context logger's own InputHook (bsih) no longer detects the Backspace
+; itself -- it only maintains the word cache and collects following words.
+; This fixes several ways the <<-marked items could be missed by the context
+; log (bsih deaf-window during hook restart, digit-filter veto, IsRecent
+; timing skew, and the waitingForExtra lockout).
 
 ;===============================================================================
 ;                         AutoCorrect System Module
@@ -36,7 +44,10 @@ If Config.EnableLogging {
 }
 
 ;================== Variable Declarations ======================================
-Global IsRecent := 0  ; Flag to track if a hot string was recently triggered
+Global IsRecent := 0  ; Flag to track if a hot string was recently triggered.
+; NOTE 8-3-2026: IsRecent is no longer read by BackspaceContextLogger (keepText
+; notifies it directly now).  Still set/reset in f() in case anything else in
+; the suite references it.  Safe to remove if nothing does.
 Global lastTrigger := ""  ; Tracks the last used trigger (see recentTriggers for display)
 Global recentTriggers := []                      ; Rolling cache of last 3 triggers (not saved to INI)
 
@@ -109,12 +120,24 @@ f(replace := "", log := 1, paste := 0) {
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
 keepText(KeepForLog, *) {       
     KeepForLog := StrReplace(KeepForLog, "`n", "``n") ; Fixes triggers spanning two lines.
-    global lih := InputHook("B V I1 E T" (Config.BackspaceWindow / 1000), "{Backspace}") ; "logger input hook." T is time-out. BackspaceWindow is in ms (e.g. 500 = 0.5s).
+    ; lih is LOCAL on purpose (was global).  With overlapping instances, a global
+    ; lih gets overwritten by the newer instance's hook, so the older instance
+    ; would read EndKey from the WRONG hook after Wait() returned (false '--').
+    lih := InputHook("B V I1 E T" (Config.BackspaceWindow / 1000), "{Backspace}") ; "logger input hook." T is time-out. BackspaceWindow is in ms (e.g. 500 = 0.5s).
     lih.Start()
     lih.Wait()
     
     ; Determine hyphen style based on whether Backspace was pressed
-    hyphen := (lih.EndKey = "Backspace") ? " << " : " -- "
+    wasBackspaced := (lih.EndKey = "Backspace")
+    hyphen := wasBackspaced ? " << " : " -- "
+
+    ; Single source of truth for the context logger: if this correction got
+    ; backspaced, tell BackspaceContextLogger directly.  (It no longer detects
+    ; the Backspace on its own, so << in the main logs and entries in
+    ; ErrContextLog.txt can never disagree about WHETHER to log.)
+    ; Notify before the FileAppends so following-word collection starts promptly.
+    if wasBackspaced
+        BackspaceContextLogger.NotifyBackspaced(KeepForLog)
     
     ; Log the autocorrection with timestamp and hyphen style
     logEntry := "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog
@@ -127,7 +150,11 @@ keepText(KeepForLog, *) {
 ; Backspace Context Logger
 ; Constantly keeps a cache of the last several words typed. If an autocorrection 
 ; is logged, and backspace is pressed within timeout, the cached words AND 
-; the next X words are logged to help identify misfires. Doesn't cache/log digits.
+; the next X words are logged to help identify misfires. Doesn't cache digit-words.
+; 8-3-2026: Detection of "Backspace after autocorrection" now comes from
+; keepText() calling NotifyBackspaced() -- the same hook that decides << vs --
+; in the main logs.  The bsih hook below only caches words, so its brief
+; stop/restart gaps can no longer cause missed context entries.
 ;===============================================================================
 class BackspaceContextLogger {
     static WordArr := []
@@ -157,6 +184,39 @@ class BackspaceContextLogger {
         
         ; Start the logger loop in a new thread
         SetTimer(() => this.LoggerLoop(), -50)
+    }
+    
+    ; Called by keepText() when Backspace was pressed within the window after an
+    ; autocorrection.  Begins (or restarts) a context capture for that trigger.
+    static NotifyBackspaced(trigger) {
+        if (Config.EnableLogging = 0)
+            return
+        
+        ; If a previous capture is still collecting following words, flush it
+        ; NOW so this new event isn't lost.  (Previously a second backspaced
+        ; correction during the collection window was silently dropped.)
+        ; The flushed entry just has fewer following words than usual.
+        if (this.waitingForExtra)
+            this.LogContent()  ; its finally block resets all capture state
+        
+        this.capturedTrigger := trigger
+        this.extraWordsCount := 0
+        this.waitingForExtra := true
+        
+        ; Cancel any lingering timeout timer before creating a new one.
+        ; (LogContent's finally already does this if we flushed, but be safe.)
+        if (this.timeoutTimer) {
+            try SetTimer(this.timeoutTimer, 0)
+            this.timeoutTimer := 0
+        }
+        
+        ; Set timeout to log even if not enough following words arrive.
+        ; Honors Config.FollowingWordTimeout (in seconds); falls back to 8s if misconfigured.
+        timeoutSec := Config.FollowingWordTimeout
+        if (!IsNumber(timeoutSec) || timeoutSec <= 0)
+            timeoutSec := 8
+        this.timeoutTimer := ObjBindMethod(this, "LogContent")
+        SetTimer(this.timeoutTimer, -Integer(timeoutSec * 1000))
     }
     
     ; ; Toggle debug mode on/off
@@ -248,12 +308,18 @@ class BackspaceContextLogger {
             ; Write to the log file
             FileAppend(dateStamp " << " formattedTrigger tabs "---> " this.LogEntry, Config.ErrContextLog)
             
-            ; Play sound notification if enabled
+            ; Play sound notification if enabled.  Fired via one-shot timer so
+            ; the ~400ms of synchronous beeping doesn't block the calling thread
+            ; (which may be the LoggerLoop, delaying the bsih hook restart).
             If (Config.beepOnContextLog = 1)
-                SoundBeep(600, 200), SoundBeep(400, 200)
+                SetTimer((*) => (SoundBeep(600, 200), SoundBeep(400, 200)), -1)
         }
         catch as e {
-            FileAppend("Error in LogContent: " e.Message "`n", "..\Data\error_log.txt")
+            ; Was FileAppend to '..\Data\error_log.txt' -- a path that doesn't
+            ; exist relative to the script dir, so the append itself threw and
+            ; the error was never recorded.  Use the suite's LogError() helper
+            ; (defined in AutoCorrect2.ahk) instead, guarded with try.
+            try LogError("BackspaceContextLogger.LogContent: " e.Message)
         }
         finally {
             ; CRITICAL: Always reset state, even if there's an error
@@ -294,66 +360,57 @@ class BackspaceContextLogger {
                     this.bsih.Start()
                     this.bsih.Wait()
 
-                    ; Skip digit-only input
-                    If RegExMatch(this.bsih.Input, "\d")
-                        continue
+                    ; Digit filter: words containing digits are not CACHED, but
+                    ; (unlike before) they no longer veto anything else -- the
+                    ; old 'continue' here could skip Backspace detection entirely.
+                    ; Detection now lives in NotifyBackspaced(), so this only
+                    ; governs what goes into the word cache.
+                    hasDigit := RegExMatch(this.bsih.Input, "\d")
                         
                     If (this.waitingForExtra) {
                         If (this.bsih.EndKey = "Space") {
+                            ; Count every Space-ended word toward the following-
+                            ; word quota (even digit-words, though those aren't
+                            ; cached) so the capture completes promptly.
                             this.extraWordsCount++
-                            this.WordArr.Push(this.bsih.Input "]" this.bsih.EndKey "]")
-                            
-                            ; Maintain limited history
-                            If (this.WordArr.Length > (Config.precedingWordCount + Config.followingWordCount))
-                                this.WordArr.RemoveAt(1)
+                            If !hasDigit {
+                                this.WordArr.Push(this.bsih.Input "]" this.bsih.EndKey "]")
+                                
+                                ; Maintain limited history
+                                If (this.WordArr.Length > (Config.precedingWordCount + Config.followingWordCount))
+                                    this.WordArr.RemoveAt(1)
+                            }
                             
                             ; Log when we have enough following words
                             If (this.extraWordsCount > Config.followingWordCount) {
                                 this.LogContent()
                             }
                         }
+                        Else If (this.bsih.EndKey = "Backspace" && !hasDigit) {
+                            ; Record further backspacing during collection (shows
+                            ; as ' < ' in the entry).  Doesn't count toward the
+                            ; following-word quota.
+                            this.WordArr.Push(this.bsih.Input "]" this.bsih.EndKey "]")
+                            If (this.WordArr.Length > (Config.precedingWordCount + Config.followingWordCount))
+                                this.WordArr.RemoveAt(1)
+                        }
                     } 
-                    else {
+                    else If !hasDigit {
                         this.WordArr.Push(this.bsih.Input "[" this.bsih.EndKey "[")
                         
                         ; Maintain limited history
                         If (this.WordArr.Length > Config.precedingWordCount)
                             this.WordArr.RemoveAt(1)
-                            
-                        ; Check if this is a backspace within a recent autocorrection
-                        If (this.bsih.EndKey = "Backspace" && IsRecent = 1) {
-                            this.waitingForExtra := true
-                            
-                            ; CAPTURE the trigger at this moment (before it gets overwritten by next autocorrection)
-                            global lastTrigger
-                            this.capturedTrigger := lastTrigger
-                            
-                            ; CRITICAL FIX: Cancel any existing timeout timer before creating new one
-                            ; This prevents unreferenced timer objects from accumulating
-                            if (this.timeoutTimer) {
-                                try {
-                                    SetTimer(this.timeoutTimer, 0)
-                                }
-                                catch {
-                                    ; Timer may have already fired; that's okay
-                                }
-                            }
-                            
-                            ; Set timeout to log even if not enough following words arrive.
-                            ; Honors Config.FollowingWordTimeout (in seconds); falls back to 8s if misconfigured.
-                            timeoutSec := Config.FollowingWordTimeout
-                            if (!IsNumber(timeoutSec) || timeoutSec <= 0)
-                                timeoutSec := 8
-                            this.timeoutTimer := ObjBindMethod(this, "LogContent")
-                            SetTimer(this.timeoutTimer, -Integer(timeoutSec * 1000))
-                        }
                     }
                 }
                 catch as e {
                     ; CRITICAL FIX: Reset state on error to prevent stuck state
                     ; If we don't reset here, the logger could stay in "waiting" mode permanently,
-                    ; causing every subsequent keystroke to be logged
-                    FileAppend("Error in BackspaceContextLogger loop: " e.Message "`n", "..\Data\error_log.txt")
+                    ; causing every subsequent keystroke to be logged.
+                    ; NOTE: the old FileAppend to '..\Data\error_log.txt' threw
+                    ; (bad path), which killed this loop permanently with no
+                    ; trace -- the likely 'silent death' failure mode.
+                    try LogError("BackspaceContextLogger loop: " e.Message)
                     
                     this.waitingForExtra := false
                     this.extraWordsCount := 0
@@ -374,9 +431,13 @@ class BackspaceContextLogger {
             }
         }
         catch as e {
-            ; Log outer error and mark as not running so we can restart if needed
-            FileAppend("Critical error in BackspaceContextLogger: " e.Message "`n", "..\Data\error_log.txt")
+            ; Mark as not running FIRST (the old code logged first, and since the
+            ; log path was bad, the FileAppend threw and isRunning stayed true --
+            ; so Start() refused to ever restart the dead logger).
             this.isRunning := false
+            try LogError("BackspaceContextLogger critical: " e.Message)
+            ; Attempt an automatic restart after a short delay.
+            SetTimer(() => this.Start(), -1000)
         }
     }
 }
