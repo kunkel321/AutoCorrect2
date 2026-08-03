@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "6-6-2026",
+    "verion_date_for_this_json_file": "8-3-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -304,21 +304,21 @@
   },
   "HotstringHelper.BoilerplatePrefix": {
     "label": "Boilerplate Prefix",
-    "help": "Prefix character/text added to boilerplate anagram triggers to distinguish them.",
+    "help": "Prefix character/text added to boilerplate acronym triggers to distinguish them.",
     "type": "text",
     "default": "",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.BoilerplateSuffix": {
     "label": "Boilerplate Suffix",
-    "help": "Suffix character/text added to boilerplate anagrams. Leave blank for none.",
+    "help": "Suffix character/text added to boilerplate acronyms. Leave blank for none.",
     "type": "text",
     "default": "",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.FirstLettersToInclude": {
     "label": "First Letters to Include",
-    "help": "When creating anagrams for boilerplate text, how many of the first letters to include from each word.  For example, the anagram for the preceding sentence is 'wcafb', if the value is 5",
+    "help": "When creating acronyms for boilerplate text, how many of the first letters to include from each word.  For example, the acronym for the preceding sentence is 'wcafb', if the value is 5",
     "type": "integer",
     "min": 1,
     "max": 10,
@@ -327,7 +327,7 @@
   },
   "HotstringHelper.MinWordLength": {
     "label": "Minimum Word Length",
-    "help": "Minimum length a word must be to include its first letters in boilerplate anagrams.  This allows us to exclude short words like 'of', 'in', 'a', etc.  If the min lengh is 2, then the anagram for the preceding sentence is 'mlwmi'.",
+    "help": "Minimum length a word must be to include its first letters in boilerplate acronyms.  This allows us to exclude short words like 'of', 'in', 'a', etc.  If the min lengh is 2, then the acronym for the preceding sentence is 'mlwmi'.",
     "type": "integer",
     "min": 1,
     "max": 10,
