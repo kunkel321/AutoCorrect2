@@ -5,9 +5,10 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 7-13-2026 
+; Version: 8-8-2026 
 ; Author: kunkel321
 ; AI Used: Claude
+; Inspired by: AutoCorrect.ahk (Jim Biancolo) https://www.biancolo.com/blog/autocorrect/
 ; Thread on AutoHotkey forums: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220
 ; Project location on GitHub: https://github.com/kunkel321/AutoCorrect2 
 ; New versions will be on GitHub.  See also 'Tools\Updater.exe' for updates. 
@@ -124,6 +125,11 @@ class Config {
     ; Editor
     static DefaultEditor := "Notepad.exe"
     static EditorPath := ""
+    ; EditorCmd is a full command-line template with {file} and {line} placeholders.
+    ; When present, it is the preferred way to open a file AT a specific line, e.g.
+    ;    "C:\Users\bob\AppData\Local\Programs\Microsoft VS Code\Code.exe" -r -g "{file}:{line}"
+    ; Left blank, the code falls back to launching EditorPath then sending Ctrl+G.
+    static EditorCmd := ""
     
     ; Appearance (Colors)
     static FormColor := "0xE5E4E2" ; Overwritten if ColorThemeSettings.ini is present.
@@ -175,6 +181,22 @@ class Config {
         this.EditorPath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
         if !FileExist(this.EditorPath)
             this.EditorPath := this.DefaultEditor
+
+        ; If no EditorCmd was supplied in the ini, synthesize one when the editor is
+        ; a known "go to line" capable editor. This gives goto-line behavior out of
+        ; the box; an explicit [Shared] EditorCmd= key always wins over this.
+        if (this.EditorCmd = "") {
+            SplitPath(this.EditorPath, &editorExe)
+            switch StrLower(editorExe) {
+                case "code.exe", "code - insiders.exe", "codium.exe", "cursor.exe":
+                    this.EditorCmd := '"' this.EditorPath '" -r -g "{file}:{line}"'
+                case "notepad++.exe":
+                    this.EditorCmd := '"' this.EditorPath '" -n{line} "{file}"'
+                case "sublime_text.exe":
+                    this.EditorCmd := '"' this.EditorPath '" "{file}:{line}"'
+            }
+        }
+        Debug("EditorCmd in use: " (this.EditorCmd = "" ? "(none -- legacy Ctrl+G path)" : this.EditorCmd))
     }
     
     static EnsureSettingsFileExists() {
@@ -216,6 +238,19 @@ class Config {
         ; [Shared] Section
         ; Editor
         this.DefaultEditor              := this.ReadIni("Shared", "DefaultEditor", "Notepad.exe")
+        ; Command-line template for "open file AT line". Same key/format that
+        ; ScriptAuditor.ahk uses. The ini value is wrapped in an extra pair of
+        ; outer quotes because GetPrivateProfileString strips them, e.g.
+        ;   EditorCmd=""C:\...\Code.exe" -r -g "{file}:{line}""
+        this.EditorCmd                  := this.ReadIni("Shared", "EditorCmd", "")
+        ; Safety net: if the outer wrapping quotes were left off in the ini, Windows
+        ; strips the quotes around the exe path instead, leaving an unbalanced string
+        ; like:  C:\...\Code.exe" -r -g "{file}:{line}
+        ; That shape (no leading quote, no trailing quote, but quotes inside) is only
+        ; ever the result of that mistake, so put the stripped pair back.
+        if (this.EditorCmd != "" && SubStr(this.EditorCmd, 1, 1) != '"' &&
+            SubStr(this.EditorCmd, -1) != '"' && InStr(this.EditorCmd, '"'))
+            this.EditorCmd := '"' this.EditorCmd '"'
         ; Green and Red
         this.LightGreen                 := this.ReadIni("Shared", "LightGreen", "b8f3ab")
         this.DarkGreen                  := this.ReadIni("Shared", "DarkGreen", "0d3803")
@@ -483,9 +518,7 @@ If (Config.AutoCorrect2EditThisScriptHk != "") {
     Hotkey(Config.AutoCorrect2EditThisScriptHk,EditThisScript)
 }
 EditThisScript(*) {	; Open AutoCorrect2 script in VSCode
-	Try
-		Run Config.EditorPath " " Config.ScriptName
-	Catch
+	if !Utils.OpenFileAtLine(Config.ScriptName)
 		acMsgBox.show 'cannot run ' Config.ScriptName
 }
 
@@ -499,9 +532,7 @@ _ControlBtnAction(action, doClose, *) {
 }
 
 OpenHotstringLibrary(*) {
-    Try
-        Run Config.EditorPath " "  Config.HotstringLibrary
-    Catch
+    if !Utils.OpenFileAtLine(Config.HotstringLibrary)
         acMsgBox.show 'cannot run ' Config.EditorPath ' or cannot run ' Config.HotstringLibrary
 }
 
@@ -2309,6 +2340,14 @@ class UIActions {
         ; Note: hiding the HH GUI and restoring the clipboard are NOT done here.
         ; Hiding is handled by the button's close/stay config in [ControlButtons] ini section.
         ; Clipboard restore only applies to the normal "select word → fix it" workflow, not here.
+
+        ; With an EditorCmd configured we can land on the last line directly,
+        ; which is what the Ctrl+End/Home keystrokes below were emulating.
+        if (Config.EditorCmd != "") {
+            Utils.OpenFileAtLine(Config.HotstringLibrary, Utils.CountFileLines(Config.HotstringLibrary))
+            return
+        }
+
         try {
             Run(Config.EditorPath " " Config.HotstringLibrary)
         }
@@ -2365,6 +2404,10 @@ class UIActions {
 		this.ValidityDialog.SetFont(Config.LargeFontSize)
 		messageItems := StrSplit(message, "*|*")
 		
+		; Collect the flagged conflicts BEFORE the message gets truncated below,
+		; so the count is accurate even when the display is clipped.
+		conflictTargets := this._ParseConflictTargets(messageItems.Length >= 2 ? messageItems[2] : "")
+		
 		; Limit long messages
 		if InStr(messageItems[2], "`n", , , 10)
 			messageItems[2] := SubStr(messageItems[2], 1, InStr(messageItems[2], "`n", , , 10)) "`n## Too many conflicts to show in form ##"
@@ -2393,8 +2436,13 @@ class UIActions {
 			; Determine which file to open: AC = HotstringLibrary, BP = BoilerplateHotstringLibrary
 			lookupSource := (messageItems.Length >= 5) ? messageItems[5] : "AC"
 			lookupFile := (lookupSource = "BP") ? Config.BoilerplateHotstringLibrary : Config.HotstringLibrary
-			lookupButton := this.ValidityDialog.Add("Button", "x+12", "Look Up")
-			lookupButton.OnEvent("Click", (*) => Utils.ProcessSelectedText((text) => Utils.LookupSelectedText(text, triggerEditBox, lookupFile)))
+
+			; The button defaults to the FIRST conflict listed, so a plain click always
+			; goes somewhere useful. Selecting a line number or some hotstring text in
+			; the conflicts box overrides that -- see _OnLookupButtonClick().
+			defaultTarget := (conflictTargets.Length > 0) ? conflictTargets[1] : ""
+			lookupButton := this.ValidityDialog.Add("Button", "x+12", this._LookupButtonLabel(conflictTargets))
+			lookupButton.OnEvent("Click", (*) => this._OnLookupButtonClick(triggerEditBox, lookupFile, defaultTarget))
 			triggerEditBox.OnEvent("Focus", (*) => State.CurrentEdit := triggerEditBox)
 		}
 		
@@ -2404,6 +2452,66 @@ class UIActions {
 		WinSetAlwaysontop(1, "A")
 		this.ValidityDialog.OnEvent("Escape", (*) => this.ValidityDialog.Destroy())
 		closeButton.Focus()
+	}
+
+	; Scan a HOTSTRING BOX validation message for the location tags that
+	; Validation._ValidateTriggerString() embeds, and return one
+	; { source, lineNum } object per flagged conflict.
+	; Two tag shapes exist:  "[line 489]" (single library)
+	;                        "[AC line 489]" / "[BP line 489]" (dual library)
+	; Repeats of the same file+line collapse to a single target, so a trigger
+	; flagged by two different checks still counts as one place to go.
+	static _ParseConflictTargets(msgText) {
+		targets := []
+		seen := Map()
+		pos := 1
+		while (pos := RegExMatch(msgText, "\[(?:(AC|BP)\h)?line\h+(\d+)\]", &m, pos)) {
+			src := (m[1] != "") ? m[1] : "AC"
+			key := src ":" m[2]
+			if !seen.Has(key) {
+				seen[key] := true
+				targets.Push({ source: src, lineNum: Integer(m[2]) })
+			}
+			pos += m.Len
+		}
+		return targets
+	}
+
+	; Button caption for the Look Up button. The line number is baked into the label
+	; so it's clear where a plain click will land, and "top:" flags that the message
+	; lists more than one place to go.
+	static _LookupButtonLabel(conflictTargets) {
+		if (conflictTargets.Length = 0)
+			return "Look Up"
+		first := conflictTargets[1]
+		where := Config.SeparateLibForBoilerplates ? first.source " line " first.lineNum : "line " first.lineNum
+		return (conflictTargets.Length > 1) ? "Look Up (top: " where ")" : "Look Up (" where ")"
+	}
+
+	; Look Up click handler.
+	; Priority order:
+	;   1. Text the user selected in the conflicts box -- this is how a conflict
+	;      other than the first one gets chosen.
+	;   2. The first conflict listed, so a plain click needs no setup at all.
+	;   3. Nothing to go on (no line tags at all) -- explain rather than sit silent.
+	; The selection is only honored when it came from the conflicts box itself;
+	; otherwise a stale selection left over in a main-form edit box could hijack
+	; the jump.
+	static _OnLookupButtonClick(editControl, lookupFile, defaultTarget := "") {
+		selectionIsOurs := false
+		if IsObject(State.CurrentEdit) && IsObject(editControl)
+			selectionIsOurs := (State.CurrentEdit.Hwnd = editControl.Hwnd)
+
+		if selectionIsOurs && Utils.ProcessSelectedText((text) => Utils.LookupSelectedText(text, editControl, lookupFile))
+			return
+
+		if IsObject(defaultTarget) {
+			targetFile := (defaultTarget.source = "BP") ? Config.BoilerplateHotstringLibrary : Config.HotstringLibrary
+			Utils.OpenFileAtLine(targetFile, defaultTarget.lineNum)
+			return
+		}
+
+		AcMsgBox.Show("No line number was found in the conflict message.`n`nIn the middle box, select part of the hotstring you want to see, then click Look Up again.", "Nothing To Look Up", 64)
 	}
 		
     ; Construct and append hotstring to library
@@ -3249,6 +3357,123 @@ class Dictionary {
 ; =============== UTILITY FUNCTIONS ===============
 
 class Utils {
+    ; ============================================================
+    ; ===== EDITOR NAVIGATION =====
+    ; Shared "open this file at this line" plumbing, modeled on ScriptAuditor.ahk.
+    ; Everything funnels through OpenFileAtLine() so there is exactly one place
+    ; that knows how to talk to the editor.
+    ; ============================================================
+
+    ; Expand a possibly-relative path (e.g. "..\Data\Foo.txt") into a full path.
+    ; Editors launched via command line don't inherit our working directory, so
+    ; relative paths must be resolved before they're handed off.
+    static ResolveFullPath(path) {
+        if (path = "")
+            return ""
+        buf := Buffer(32768, 0)
+        len := DllCall("GetFullPathNameW", "Str", path, "UInt", 16384, "Ptr", buf, "Ptr", 0, "UInt")
+        return len ? StrGet(buf, "UTF-16") : path
+    }
+
+    ; Open a file in the configured editor, jumping to lineNum if given.
+    ; Preferred path: Config.EditorCmd, a command template with {file}/{line}.
+    ; Fallback path: launch Config.EditorPath, then send Ctrl+G (legacy behavior).
+    static OpenFileAtLine(filePath, lineNum := 1) {
+        if (filePath = "")
+            return false
+        if (lineNum < 1)
+            lineNum := 1
+
+        if (Config.EditorCmd != "") {
+            fullPath := this.ResolveFullPath(filePath)
+            cmd := StrReplace(Config.EditorCmd, "{file}", fullPath)
+            cmd := StrReplace(cmd, "{line}", lineNum)
+            Debug("OpenFileAtLine running: " cmd)
+            try {
+                Run(cmd)
+                return true
+            }
+            catch as err {
+                ; Bad template or missing exe -- log it and drop through to legacy.
+                LogError("EditorCmd failed (" err.Message "): " cmd)
+            }
+        }
+
+        return this._OpenFileAtLineLegacy(filePath, lineNum)
+    }
+
+    ; Legacy fallback: open the file, activate the window, then Ctrl+G the line
+    ; number. Note that Enter is deliberately NOT sent -- this matches the old
+    ; behavior, where the user confirms the jump in the editor's goto box.
+    static _OpenFileAtLineLegacy(filePath, lineNum := 1) {
+        try {
+            if !WinExist(filePath) {
+                Run(Config.EditorPath " " filePath)
+                counter := 0
+                while !WinExist(filePath) {
+                    Sleep(50)
+                    if (++counter > 100) {
+                        LogError("Timed out waiting for editor window: " filePath)
+                        return false
+                    }
+                }
+            }
+            WinActivate(filePath)
+            Sleep(300)
+            if (lineNum > 1)
+                SendInput("^g" lineNum)
+            return true
+        }
+        catch as err {
+            ; Caller decides whether to surface this to the user.
+            LogError("Cannot open " filePath " in editor: " err.Message)
+            return false
+        }
+    }
+
+    ; Find the line number of the first line of filePath that contains needle.
+    ; A hotstring definition line (starts with a colon) wins over any other match,
+    ; so searching for replacement text lands on the definition, not a comment.
+    ; Returns 0 when not found or unreadable.
+    static FindLineInFile(filePath, needle) {
+        needle := Trim(needle, " `t`r`n")
+        if (needle = "" || !FileExist(filePath))
+            return 0
+
+        try
+            content := FileRead(filePath)
+        catch as err {
+            LogError("FindLineInFile could not read " filePath ": " err.Message)
+            return 0
+        }
+
+        firstAnyMatch := 0
+        loop parse, content, "`n", "`r" {
+            if InStr(A_LoopField, needle) {
+                if (SubStr(Trim(A_LoopField, " `t"), 1, 1) = ":")
+                    return A_Index
+                if !firstAnyMatch
+                    firstAnyMatch := A_Index
+            }
+        }
+        return firstAnyMatch
+    }
+
+    ; Number of lines in a file (1 if missing/unreadable). Used to open a file
+    ; "at the bottom" without sending keystrokes.
+    static CountFileLines(filePath) {
+        if !FileExist(filePath)
+            return 1
+        try
+            content := FileRead(filePath)
+        catch
+            return 1
+        count := 1
+        loop parse, content, "`n", "`r"
+            count := A_Index
+        return count
+    }
+
     ; Process selected text from an edit control
     static ProcessSelectedText(callback) {
         if !IsObject(State.CurrentEdit) {
@@ -3382,27 +3607,37 @@ class Utils {
         useSuggestionBtn.Focus()
     }
 
-    ; Look up selected text in editor
+    ; Look up selected text in editor.
+    ; The selection is either a line number ("489" or "[AC line 489]"), in which
+    ; case we jump straight there, or a chunk of hotstring text, in which case we
+    ; locate its line ourselves and then jump. Only if the text can't be found in
+    ; the file do we fall back to opening it and driving the editor's Find box.
     static LookupSelectedText(text, editControl, targetFile := "") {
         ; Default to the main hotstring library if no file specified
         if targetFile = ""
             targetFile := Config.HotstringLibrary
 
-        if !WinExist(targetFile) {
-            Run(Config.EditorPath " " targetFile)
-            while !WinExist(targetFile)
-                Sleep(50)
-        }
-        
-        WinActivate(targetFile)
-        Sleep(300)
-        
-        if RegExMatch(text, "^\d{2,}")
-            SendInput("^g" text)
+        text := Trim(text, " `t`r`n")
+        lineNum := 0
+
+        if RegExMatch(text, "^\d{2,}$")
+            lineNum := Integer(text)                       ; bare line number
+        else if RegExMatch(text, "i)^\[?\h*(?:AC|BP)?\h*line\h+(\d+)\h*\]?$", &m)
+            lineNum := Integer(m[1])                       ; a pasted "[AC line 489]" tag
+        else
+            lineNum := this.FindLineInFile(targetFile, text)
+
+        if (lineNum > 0)
+            this.OpenFileAtLine(targetFile, lineNum)
         else {
-            SendInput("^f^v")
+            ; Couldn't resolve a line -- open the file and let the editor find it.
+            A_Clipboard := text
+            if this._OpenFileAtLineLegacy(targetFile, 1)
+                SendInput("^f^v")
+            else
+                acMsgBox.show("Cannot open " targetFile)
         }
-        
+
         ; Return focus to edit control
         if IsObject(editControl)
             editControl.Focus()
@@ -4098,7 +4333,7 @@ F1::HelpSystem.ShowHelp() ; Show help for current HH control. ; hide
 ; Alt+Shift+X toggles the Control Pane -- the keyboard equivalent of right-clicking
 ; (or Shift+Clicking) the Exam button.  Alt+X alone still toggles the Exam Pane via
 ; the button's "E&xam" accelerator.
-!+x::
+!+x:: ; Opens Control Pane, when HH is active.  ; hide
 {
     UIActions.OnExamButtonRightClick()
     ; OnExamButtonRightClick() is a toggle, so only grab focus when we just OPENED

@@ -1,6 +1,6 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "8-3-2026",
+    "verion_date_for_this_json_file": "8-8-2026",
     "label": "Hotstring Library",
     "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
     "type": "file",
@@ -161,6 +161,11 @@
     "help": "Executable name of your preferred text editor.  The .ahk scripts will use VScode if it is in the default install location.  If not, then this 'backup default' will be used.",
     "type": "file",
     "filter": "*.exe"
+  },
+  "Shared.EditorCmd": {
+    "label": "EditorCmd",
+    "help": "Command template used to open a file AT a specific line. Two placeholders are substituted: {file} (full path) and {line} (line number).\n\nIMPORTANT -- the value must be wrapped in ONE EXTRA pair of double quotes. Windows strips the outermost pair when reading an ini value, so without the extra pair the quotes around your editor's path get eaten instead.\n\nReplace <user> with your Windows user name, and correct any version-numbered folders for your install.\n\nVS Code (per-user install) -- also VS Code Insiders, VSCodium, Cursor, and Windsurf; same flags, different exe:\nEditorCmd=\"\"C:\\Users\\<user>\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\" -r -g \"{file}:{line}\"\"\n\nVS Code (system-wide install):\nEditorCmd=\"\"C:\\Program Files\\Microsoft VS Code\\Code.exe\" -r -g \"{file}:{line}\"\"\n\nNotepad++:\nEditorCmd=\"\"C:\\Program Files\\Notepad++\\notepad++.exe\" -n{line} \"{file}\"\"\n\nSciTE / SciTE4AutoHotkey -- the file name MUST come before -goto:, since SciTE processes arguments left to right and the file has to be open first:\nEditorCmd=\"\"C:\\Program Files\\AutoHotkey\\SciTE\\SciTE.exe\" \"{file}\" -goto:{line}\"\n\nSublime Text:\nEditorCmd=\"\"C:\\Program Files\\Sublime Text\\sublime_text.exe\" \"{file}:{line}\"\"\n\nUltraEdit / UEStudio:\nEditorCmd=\"\"C:\\Program Files\\IDM Computer Solutions\\UltraEdit\\uedit64.exe\" \"{file}\" -l{line}\"\n\nEmEditor -- the switch is a lowercase L, and EmEditor's options are case sensitive:\nEditorCmd=\"\"C:\\Program Files\\EmEditor\\EmEditor.exe\" \"{file}\" /l {line}\"\n\njEdit:\nEditorCmd=\"\"C:\\Program Files\\jEdit\\jedit.exe\" \"{file}\" +line:{line}\"\n\ngVim -- the vim91 folder name changes with each version:\nEditorCmd=\"\"C:\\Program Files\\Vim\\vim91\\gvim.exe\" +{line} \"{file}\"\"\n\nJetBrains IDEs -- swap idea64.exe for pycharm64.exe, webstorm64.exe, rider64.exe, etc:\nEditorCmd=\"\"C:\\Program Files\\JetBrains\\IntelliJ IDEA\\bin\\idea64.exe\" --line {line} \"{file}\"\"\n\nEmacs -- requires a running Emacs server; the version folder varies:\nEditorCmd=\"\"C:\\Program Files\\Emacs\\emacs-30.1\\bin\\emacsclientw.exe\" -n +{line} \"{file}\"\"\n\nWindows Notepad -- has no goto-line switch, so {line} is simply left out and the file opens at the top:\nEditorCmd=\"\"C:\\Windows\\System32\\notepad.exe\" \"{file}\"\"\n\nEditors with no known goto-line switch (TextPad, EditPlus, PSPad, AkelPad) can use the plain-open form above, substituting only {file}.\n\nIf EditorCmd is left blank entirely, AutoCorrect2 falls back to launching the DefaultEditor and sending Ctrl+G with the line number.",
+    "type": "text"
   },
   "Shared.LightGreen": {
     "label": "Light Green Color",
