@@ -166,7 +166,7 @@ ChatGptWordLookup_GetDefinition(word, apiKey, &errMsg) {
 	; entire purpose is line layout arrives with no layout.
 	prompt := 
 	(
-"Return the definition of the word: " word ".  Please provide a normal definition, including the word type (e.g. noun, verb, adjective, adverb). Additionally, at the top, provide a super-condensed summary definition that is just a short sentence.`n`n"
+"Return the definition of the word: " word ".  Please provide a normal definition, including the word type (e.g. noun, verb, adjective, adverb) and some interesting etymological information about the word's origins, etc. Additionally, at the top, provide a super-condensed summary definition that is just a short sentence.`n`n"
 "Have the condensed version formatted as:`n"
 "Word (summary definition)`n"
 "Don't present it as 'Condensed version: Word (summary definition)', just have the summary on the top row and the extended description below.`n`n"
