@@ -3,7 +3,7 @@
 
 ; ============================================================================
 ; Settings Manager - Standalone GUI for editing INI configuration files
-; Version: 3-29-2026
+; Version: 8-12-2026
 ; 
 ; A dedicated GUI application for viewing and editing INI settings with
 ; metadata-driven features: type-specific editing, auto-generation, validation,
@@ -13,7 +13,7 @@
 ; ============================================================================
 ; 1. UPDATE CONFIGURATION (see below):
 ;    - Change AppName, IniFileName, MetadataFileName, ExpectedDataDir
-;    - Set EditorPath (optional, auto-detects VS Code)
+;    - Set EditorCmd (optional, auto-detects VS Code)
 ;
 ; 2. RUN: If metadata file doesn't exist, script offers to auto-generate
 ;    skeleton based on INI structure
@@ -28,6 +28,11 @@
 ; TEXT (default):    { "label": "...", "help": "...", "type": "text" }
 ;
 ; INTEGER:           { "type": "integer", "min": 0, "max": 100 }
+;
+; FLOAT:             { "type": "float", "min": 0, "max": 1, "decimals": 2 }
+;                    Edit box + slider. "decimals" (default 2) sets both the
+;                    slider step (10^-decimals) and the saved formatting, so
+;                    0.6 is written back as 0.60.
 ;
 ; BOOLEAN:           { "type": "boolean", "options": ["0=Off", "1=On"] }
 ;
@@ -49,7 +54,8 @@
 ;
 ; AUTO-DETECTION: New metadata types are detected from INI values
 ;   - Boolean: 0 or 1 values
-;   - Integer: Numeric values
+;   - Integer: Whole numbers
+;   - Float:   Numbers containing a decimal point
 ;   - Color: Hex color patterns
 ;   - Hotkey: Common hotkey patterns
 ;   - File: Common file extensions (.ahk, .exe, .txt, .csv)
@@ -59,6 +65,12 @@
 ;   Example: "help": "Line 1\nLine 2\nLine 3"
 ;
 ; COMMENTS IN JSON: Add "_Comment" key for documentation (optional)
+;
+; RESIZABLE HELP PANE: The gray bar between the Settings list and the help pane
+;   can be dragged up or down to trade space between them. Double-click the bar
+;   to snap back to the startup split. The startup split is set by the
+;   HELP_PANE_PCT variable below (percent of the middle area given to help);
+;   it is intentionally not saved, so every launch starts at that percentage.
 ;
 ; ============================================================================
 ; GUI BUTTONS & WORKFLOW
@@ -92,11 +104,70 @@ IniFileName := "acSettings.ini"
 MetadataFileName := "acSettingsMetadata.json"
 ExpectedDataDir := "..\Data"  ; Relative path to expected data directory
 
-; Path to your preferred editor. Will be used by "Go To" button to open metadata file.
-; If path is blank or invalid, defaults to VS Code.
-; Examples: "C:\Program Files\Notepad++\notepad++.exe"
-;           "C:\Program Files\Microsoft VS Code\Code.exe"
-EditorPath := ""  ; Leave blank to auto-detect VS Code, or set your own path
+; ----------------------------------------------------------------------------
+; "Go To" button — command used to open the metadata JSON AT the selected key.
+;
+; Two placeholders are substituted: {file} (full path) and {line} (line number).
+; The key's line is found by scanning the JSON at click time, so it stays right
+; even after the file has been edited behind SettingsManager's back.
+;
+; LEAVE BLANK to auto-detect VS Code (per-user install, then Program Files,
+; then `code` on PATH) and use its -r -g form. Set it explicitly to use a
+; different editor. Unlike the INI-stored EditorCmd used elsewhere in the
+; suite, this is an AHK string literal, so it needs NO extra pair of quotes —
+; write it exactly as you would type it at a command prompt. Single-quoted
+; here so the double quotes around the paths can be typed literally.
+;
+; Replace <user> with your Windows user name, and correct any version-numbered
+; folders for your install.
+;
+; VS Code (per-user install) — also VS Code Insiders, VSCodium, Cursor and
+; Windsurf; same flags, different exe:
+;   '"C:\Users\<user>\AppData\Local\Programs\Microsoft VS Code\Code.exe" -r -g "{file}:{line}"'
+;
+; VS Code (system-wide install):
+;   '"C:\Program Files\Microsoft VS Code\Code.exe" -r -g "{file}:{line}"'
+;
+; Notepad++:
+;   '"C:\Program Files\Notepad++\notepad++.exe" -n{line} "{file}"'
+;
+; SciTE / SciTE4AutoHotkey — the file name MUST come before -goto:, since SciTE
+; processes arguments left to right and the file has to be open first:
+;   '"C:\Program Files\AutoHotkey\SciTE\SciTE.exe" "{file}" -goto:{line}'
+;
+; Sublime Text:
+;   '"C:\Program Files\Sublime Text\sublime_text.exe" "{file}:{line}"'
+;
+; UltraEdit / UEStudio:
+;   '"C:\Program Files\IDM Computer Solutions\UltraEdit\uedit64.exe" "{file}" -l{line}'
+;
+; EmEditor — the switch is a lowercase L, and EmEditor's options are case
+; sensitive:
+;   '"C:\Program Files\EmEditor\EmEditor.exe" "{file}" /l {line}'
+;
+; jEdit:
+;   '"C:\Program Files\jEdit\jedit.exe" "{file}" +line:{line}'
+;
+; gVim — the vim91 folder name changes with each version:
+;   '"C:\Program Files\Vim\vim91\gvim.exe" +{line} "{file}"'
+;
+; JetBrains IDEs — swap idea64.exe for pycharm64.exe, webstorm64.exe,
+; rider64.exe, etc:
+;   '"C:\Program Files\JetBrains\IntelliJ IDEA\bin\idea64.exe" --line {line} "{file}"'
+;
+; Emacs — requires a running Emacs server; the version folder varies:
+;   '"C:\Program Files\Emacs\emacs-30.1\bin\emacsclientw.exe" -n +{line} "{file}"'
+;
+; Windows Notepad — has no goto-line switch, so {line} is simply left out and
+; the file opens at the top:
+;   '"C:\Windows\System32\notepad.exe" "{file}"'
+;
+; Editors with no known goto-line switch (TextPad, EditPlus, PSPad, AkelPad)
+; can use that plain-open form too, substituting only {file}. Omitting {line}
+; is supported everywhere — the line number is simply reported in a tooltip
+; instead, so you can jump to it yourself.
+; ----------------------------------------------------------------------------
+EditorCmd := ""  ; Leave blank to auto-detect VS Code, or set your own command
 
 ; ============================================================================
 ; Global variables
@@ -113,7 +184,39 @@ mainGui := ""
 lvSettings := ""
 tvSections := ""
 helpPane := ""
+helpLabel := ""
 sectionMap := Map()  ; Maps TreeView ItemID to section name
+
+; ----------------------------------------------------------------------------
+; Splitter (draggable divider between the TreeView/ListView and the help pane)
+; ----------------------------------------------------------------------------
+
+; ==== TUNABLE ================================================================
+; Percentage of the splittable area given to the help region at startup.
+; The help region is everything below the divider: the divider bar itself, the
+; "Help for: ..." label, and the help pane. Bigger number = taller help pane and
+; a shorter TreeView/ListView. 26 reproduces the old fixed layout.
+; Clamped to the MIN_LIST / MIN_HELP limits below, so silly values are safe.
+HELP_PANE_PCT := 40
+; =============================================================================
+
+; Layout constants. All values are Gui layout units (AHK scales them by DPI).
+SPLIT_H   := 5            ; Visual thickness of the divider bar
+SPLIT_GRAB := 3           ; Extra pixels above/below the bar that still "grab"
+LIST_TOP  := 30           ; Top edge of the TreeView and ListView
+STATUS_Y  := 550          ; Top edge of the "(Double-click to edit...)" text
+BOTTOM_GAP := 8           ; Gap between the help pane and the status text
+MIN_LIST  := 120          ; Smallest allowed TreeView/ListView height
+MIN_HELP  := 40           ; Smallest allowed help pane height
+LABEL_H   := 22           ; Height reserved for the help label above the pane
+SPLIT_GAP := 5            ; Gap between the divider and the help label
+
+splitter := ""            ; The divider control itself
+SPLIT_BOTTOM := STATUS_Y - BOTTOM_GAP      ; Bottom edge of the splittable area
+SPLIT_AVAIL  := SPLIT_BOTTOM - LIST_TOP    ; Total height shared by the two regions
+SPLIT_DEFAULT := SPLIT_BOTTOM - Round(SPLIT_AVAIL * HELP_PANE_PCT / 100)
+splitY := SPLIT_DEFAULT   ; Current top edge of the divider, in Gui layout units.
+                          ; Deliberately not persisted -- resets on every launch.
 
 ; Font and color settings
 DefaultFontSize := "s11"
@@ -128,27 +231,40 @@ TraySetIcon("shell32.dll", 70)
 ; COLOR PICKER FUNCTION based on work by Teadrinker
 ; ============================================================================
 
-ValidateAndInitializeEditorPath() {
-    global EditorPath
-    
-    ; If EditorPath is blank or file doesn't exist, try to find VS Code
-    if (EditorPath = "" || !FileExist(EditorPath)) {
-        ; Try default VS Code location
-        defaultVSCode := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
-        
-        if (FileExist(defaultVSCode)) {
-            EditorPath := defaultVSCode
-        } else {
-            ; If still not found, try Program Files location
-            altVSCode := "C:\Program Files\Microsoft VS Code\Code.exe"
-            if (FileExist(altVSCode)) {
-                EditorPath := altVSCode
-            } else {
-                ; Last resort: try to find it in PATH or just use "code"
-                EditorPath := "code"
-            }
+; Fill in EditorCmd when the user left it blank, by locating VS Code and
+; wrapping its path in the -r -g form:
+;   -r  reuse the existing window instead of opening a second one
+;   -g  "go to" — the file:line syntax that follows
+; Falls back to the bare `code` shim on PATH, which covers installs in unusual
+; folders. That last resort is NOT verified with FileExist (it's a .cmd on the
+; PATH, not an absolute path), so it may still fail at Run() time — Btn_GoTo
+; catches that and degrades to opening the file with its default handler.
+ResolveEditorCmd() {
+    global EditorCmd
+
+    if (Trim(EditorCmd) != "")
+        return
+
+    ; A_AppData is Roaming; VS Code's per-user install lives under Local, so
+    ; that one is read from the environment rather than derived with a "\.."
+    ; traversal, which would work for FileExist but bake an ugly path into the
+    ; command line.
+    localApp := EnvGet("LOCALAPPDATA")
+
+    candidates := [
+        (localApp != "" ? localApp "\Programs\Microsoft VS Code\Code.exe" : ""),
+        "C:\Program Files\Microsoft VS Code\Code.exe",
+        "C:\Program Files (x86)\Microsoft VS Code\Code.exe"
+    ]
+
+    for path in candidates {
+        if (path != "" && FileExist(path)) {
+            EditorCmd := '"' path '" -r -g "{file}:{line}"'
+            return
         }
     }
+
+    EditorCmd := 'code -r -g "{file}:{line}"'
 }
 
 ChooseColor(initColor := 0, hWnd := 0, customColorsArr := '', flags := 3) { 
@@ -200,8 +316,9 @@ LoadFontAndColors(iniFilePath) {
         DefaultFontSize := "s" fontSize
     }
     
-    ; Load theme colors from colorThemeSettings.ini
-    colorThemeFile := "..\Data\colorThemeSettings.ini"
+    ; Load theme colors from colorThemeSettings.ini (optional; AC2 suite only).
+    ; Anchored to A_ScriptDir for the same reason as FindINIFile above.
+    colorThemeFile := A_ScriptDir "\..\Data\colorThemeSettings.ini"
     if FileExist(colorThemeFile) {
         FormColor := IniRead(colorThemeFile, "ColorSettings", "formColor", "E5E4E2")
         FontColor := "c" IniRead(colorThemeFile, "ColorSettings", "fontColor", "1F1F1F")
@@ -386,6 +503,113 @@ EditInteger(section, key, originalValue) {
     btnCancel.OnEvent("Click", EditDlg_Cancel)
     
     editGui.Show("w330 h160")
+}
+
+EditFloat(section, key, originalValue) {
+    ; Decimal editor. Deliberately NOT an Edit with the Number option -- that
+    ; style rejects the decimal point itself. A Slider is paired with the Edit
+    ; because most float settings here are 0.0-1.0 blend factors, where dragging
+    ; is more natural than typing. The Slider works in integer "ticks", so the
+    ; value is scaled by 10^decimals in both directions.
+    global mainGui, allSettings, isDirty, lvSettings, settingsMetadata, DefaultFontSize, FormColor, FontColor, ListColor
+    
+    metadata := GetMetadata(section, key)
+    minVal := metadata.Has("min") ? Float(metadata["min"]) : 0.0
+    maxVal := metadata.Has("max") ? Float(metadata["max"]) : 1.0
+    decimals := metadata.Has("decimals") ? Integer(metadata["decimals"]) : 2
+    if (decimals < 1)
+        decimals := 1
+    if (decimals > 6)
+        decimals := 6
+    
+    scale := 10 ** decimals
+    fmt := "{:." decimals "f}"
+    
+    editGui := Gui()
+    editGui.Opt("+AlwaysOnTop +4096")
+    editGui.Title := "Edit Decimal Setting"
+    editGui.BackColor := FormColor
+    editGui.SetFont(DefaultFontSize " " FontColor)
+    
+    editGui.Add("Text", "x10 y10 w360 h20", section "." key)
+    editGui.Add("Text", "x10 y35 w360 h20"
+        , "Value (range " Format(fmt, minVal) " to " Format(fmt, maxVal) "):")
+    
+    valueEdit := editGui.Add("Edit", "x10 y60 w120 h25 vFloatValue Background" ListColor, originalValue)
+    
+    ; Slider spans the range in 10^decimals steps
+    startTick := Round(Float(originalValue != "" ? originalValue : minVal) * scale)
+    if (startTick < Round(minVal * scale))
+        startTick := Round(minVal * scale)
+    if (startTick > Round(maxVal * scale))
+        startTick := Round(maxVal * scale)
+    
+    slider := editGui.Add("Slider", "x140 y60 w230 h30 NoTicks vFloatSlider"
+        . " Range" Round(minVal * scale) "-" Round(maxVal * scale), startTick)
+    
+    SyncFromSlider(GuiCtrlObj, Info) {
+        valueEdit.Value := Format(fmt, slider.Value / scale)
+    }
+    
+    SyncFromEdit(GuiCtrlObj, Info) {
+        typed := Trim(valueEdit.Value)
+        if RegExMatch(typed, "^[+-]?(\d+(\.\d*)?|\.\d+)$") {
+            tick := Round(Float(typed) * scale)
+            if (tick >= Round(minVal * scale) && tick <= Round(maxVal * scale))
+                slider.Value := tick
+        }
+    }
+    
+    slider.OnEvent("Change", SyncFromSlider)
+    valueEdit.OnEvent("Change", SyncFromEdit)
+    
+    btnOK := editGui.Add("Button", "x200 y105 w80 h30 Default", "OK")
+    btnCancel := editGui.Add("Button", "x290 y105 w80 h30", "Cancel")
+    
+    EditDlg_OK(GuiCtrlObj, Info) {
+        submitted := editGui.Submit(0)
+        newValue := Trim(submitted.FloatValue)
+        
+        ; Must look like a number. Note the leading "." form (.5) is accepted
+        ; here but normalized to 0.50 below.
+        if !RegExMatch(newValue, "^[+-]?(\d+(\.\d*)?|\.\d+)$") {
+            MsgBox("'" newValue "' is not a valid decimal number.", "Invalid Value", "Iconx 4096")
+            return
+        }
+        
+        numValue := Float(newValue)
+        
+        if (numValue < minVal) {
+            MsgBox("Value must be at least " Format(fmt, minVal), "Invalid Value", "Iconx 4096")
+            return
+        }
+        if (numValue > maxVal) {
+            MsgBox("Value must be at most " Format(fmt, maxVal), "Invalid Value", "Iconx 4096")
+            return
+        }
+        
+        ; Normalize to a fixed number of decimals so the INI stays tidy and
+        ; values like .5 or 0.5 are written consistently as 0.50
+        newValue := Format(fmt, numValue)
+        
+        fullKey := section "." key
+        allSettings[fullKey] := newValue
+        lvSettings.Modify(lvSettings.GetNext(0), , key, newValue)
+        isDirty := true
+        
+        editGui.Destroy()
+        ToolTip("Setting updated")
+        SetTimer(() => ToolTip(), 1000)
+    }
+    
+    EditDlg_Cancel(GuiCtrlObj, Info) {
+        editGui.Destroy()
+    }
+    
+    btnOK.OnEvent("Click", EditDlg_OK)
+    btnCancel.OnEvent("Click", EditDlg_Cancel)
+    
+    editGui.Show("w385 h150")
 }
 
 EditHotkey(section, key, originalValue) {
@@ -617,6 +841,13 @@ DetectFieldType(value) {
         return "integer"
     }
     
+    ; 2b. FLOAT: digits with a decimal point (0.55, 1.20, .5, -2.0)
+    ; Must be tested before FILE, or a value like 1.234 is mistaken for a
+    ; filename with a ".234" extension.
+    if (RegExMatch(value, "^-?(\d+\.\d*|\.\d+)$")) {
+        return "float"
+    }
+    
     ; 3. COLOR: Exactly 6 hex digits
     if (RegExMatch(value, "^[0-9A-Fa-f]{6}$")) {
         return "color"
@@ -666,9 +897,37 @@ DetectFieldType(value) {
     return "text"
 }
 
+GetMinMaxForFloat(value) {
+    ; Decimal settings in this suite are nearly always either a 0.0-1.0
+    ; fraction (blend strengths, confidence scores) or a small multiplier.
+    ; Also reports how many decimal places the sample value carries, so the
+    ; saved value can keep its formatting (0.60 stays 0.60, not 0.6).
+    
+    decimals := 2
+    if (dotPos := InStr(value, ".")) {
+        decimals := StrLen(value) - dotPos
+        if (decimals < 1)
+            decimals := 1
+        if (decimals > 6)
+            decimals := 6
+    }
+    
+    numValue := Float(value)
+    
+    if (numValue <= 1.0)
+        return { min: 0, max: 1, decimals: decimals }
+    
+    maxValue := Ceil(numValue * 2)
+    return { min: 0, max: maxValue, decimals: decimals }
+}
+
 GetMinMaxForInteger(value) {
     ; If value <= 50, use 0-100
     ; If value > 50, use 0 to value*1.5 rounded up to nearest 10
+    
+    ; Guard: a mistyped decimal would make Integer() throw
+    if !RegExMatch(value, "^-?\d+$")
+        return { min: 0, max: 100 }
     
     numValue := Integer(value)
     
@@ -734,6 +993,13 @@ GenerateMetadataSkeleton() {
                         json .= ","
                         json .= "`n    " quote "min" quote ": " range.min ","
                         json .= "`n    " quote "max" quote ": " range.max
+                    
+                    case "float":
+                        range := GetMinMaxForFloat(value)
+                        json .= ","
+                        json .= "`n    " quote "min" quote ": " range.min ","
+                        json .= "`n    " quote "max" quote ": " range.max ","
+                        json .= "`n    " quote "decimals" quote ": " range.decimals
                     
                     case "color":
                         json .= ","
@@ -803,7 +1069,7 @@ CheckAndGenerateMetadata(metadataPath) {
 }
 
 ValidateMetadata() {
-    global allSettings, iniPath, mainGui
+    global allSettings, iniPath, mainGui, metadataPath
     
     ; Get all INI keys
     iniKeys := Map()
@@ -851,7 +1117,7 @@ ValidateMetadata() {
         result := MsgBox(report, "Metadata Validation Report", "YesNo Icon! 4096")
         
         if (result = "Yes") {
-            jsonPath := SubStr(iniPath, 1, InStr(iniPath, "\", , -1) - 1) "\" "acSettingsMetadata.json"
+            jsonPath := metadataPath  ; was hard-coded to the AutoCorrect2 filename
             
             ; Proceed with merge to add missing keys and remove unused keys
             if MergeKeysIntoJSON(missingKeys, unusedKeys, jsonPath) {
@@ -896,11 +1162,11 @@ quote(str) {
 
 FindMissingKeys() {
     ; Returns array of keys in INI but not in JSON
-    global iniPath
+    global iniPath, allSettings, metadataPath
     
     missingKeys := Array()
     
-    jsonPath := SubStr(iniPath, 1, InStr(iniPath, "\", , -1) - 1) "\" "acSettingsMetadata.json"
+    jsonPath := metadataPath  ; was hard-coded to the AutoCorrect2 filename
     
     if !FileExist(jsonPath) {
         return missingKeys  ; All keys are "missing" if no JSON exists
@@ -926,11 +1192,11 @@ FindMissingKeys() {
 
 FindUnusedKeys() {
     ; Returns array of keys in JSON but not in INI
-    global iniPath, allSettings
+    global iniPath, allSettings, metadataPath
     
     unusedKeys := Array()
     
-    jsonPath := SubStr(iniPath, 1, InStr(iniPath, "\", , -1) - 1) "\" "acSettingsMetadata.json"
+    jsonPath := metadataPath  ; was hard-coded to the AutoCorrect2 filename
     
     if !FileExist(jsonPath) {
         return unusedKeys
@@ -988,6 +1254,12 @@ GenerateMetadataObject(fullKey, fieldType, value) {
             obj .= ",`n    " q "min" q ": " range.min ",`n"
             obj .= "    " q "max" q ": " range.max
         
+        case "float":
+            range := GetMinMaxForFloat(value)
+            obj .= ",`n    " q "min" q ": " range.min ",`n"
+            obj .= "    " q "max" q ": " range.max ",`n"
+            obj .= "    " q "decimals" q ": " range.decimals
+        
         case "color":
             obj .= ",`n    " q "validation" q ": " q "^[0-9A-Fa-f]{6}$" q
         
@@ -1036,6 +1308,12 @@ GenerateMetadataEntryAsString(fullKey, fieldType, value) {
             range := GetMinMaxForInteger(value)
             entry .= ",`n      " q "min" q ": " range.min ",`n"
             entry .= "      " q "max" q ": " range.max
+        
+        case "float":
+            range := GetMinMaxForFloat(value)
+            entry .= ",`n      " q "min" q ": " range.min ",`n"
+            entry .= "      " q "max" q ": " range.max ",`n"
+            entry .= "      " q "decimals" q ": " range.decimals
         
         case "color":
             entry .= ",`n      " q "validation" q ": " q "^[0-9A-Fa-f]{6}$" q
@@ -1233,7 +1511,7 @@ Btn_ManageMissingKeys(GuiCtrlObj := "", Info := "") {
     
     if (result = "Yes") {
         ; Proceed with merge
-        jsonPath := SubStr(iniPath, 1, InStr(iniPath, "\", , -1) - 1) "\" "acSettingsMetadata.json"
+        jsonPath := metadataPath  ; was hard-coded to the AutoCorrect2 filename
         
         if MergeKeysIntoJSON(missingKeys, unusedKeys, jsonPath) {
             MsgBox("Metadata updated successfully!`n`n"
@@ -1270,7 +1548,9 @@ LoadMetadata(filePath) {
         currentArrayField := ""
         
         for lineNum, line in lines {
-            line := Trim(line)
+            ; Trim() alone leaves the `r of a CRLF file attached, which would
+            ; end up glued to numeric fields (min/max/decimals) and break them.
+            line := Trim(line, " `t`r`n")
             
             ; Skip empty lines and opening/closing braces
             if (line = "" || line = "{" || line = "}" || line = "},")
@@ -1410,15 +1690,26 @@ GetMetadata(section, key) {
 
 FindINIFile() {
     global IniFileName, ExpectedDataDir
-    ; Look for INI file - portable app structure
+    ; Look for INI file - portable app structure.
+    ; A relative ExpectedDataDir is resolved against A_ScriptDir, NOT against
+    ; A_WorkingDir. When another script launches this one with Run(), the
+    ; working directory is inherited from the launcher, so a bare "..\Data"
+    ; would point somewhere else entirely.
+    dataDir := ExpectedDataDir
+    if !RegExMatch(dataDir, "^([A-Za-z]:|\\\\)")     ; not already absolute
+        dataDir := A_ScriptDir "\" dataDir
+    
     possiblePaths := [
-        ExpectedDataDir "\" IniFileName,
+        dataDir "\" IniFileName,
         A_ScriptDir "\" IniFileName,
         A_ScriptDir "\Data\" IniFileName
     ]
     
     for path in possiblePaths {
         if FileExist(path) {
+            ; Normalize to a full path so metadataPath is derived correctly
+            loop files path
+                return A_LoopFileFullPath
             return path
         }
     }
@@ -1513,46 +1804,94 @@ GetSectionSettings(section) {
     return settings
 }
 
+; Appends every key of `section` that has not been written yet to outLines.
+; Called just before we leave a section (i.e. when the next [Header] is reached
+; and again at end of file) so that keys which are new to the INI land inside
+; their own section instead of being dumped at the bottom of the file.
+; Any blank lines that were sitting at the end of the section are lifted off
+; first and put back afterwards, so the file keeps its blank-line spacing.
+FlushSectionKeys(section, outLines, processedKeys, modifiedKeys) {
+    global allSettings, originalSettings, keyOrder
+    
+    if (section = "" || !keyOrder.Has(section))
+        return
+    
+    ; Collect the keys still owed to this section, in INI order
+    pending := Array()
+    for key in keyOrder[section] {
+        fullKey := section "." key
+        if (!processedKeys.Has(fullKey) && allSettings.Has(fullKey))
+            pending.Push(key)
+    }
+    if (pending.Length = 0)
+        return
+    
+    ; Lift trailing blank lines so new keys go above them, not after
+    trailing := Array()
+    while (outLines.Length > 0 && Trim(outLines[outLines.Length]) = "") {
+        trailing.InsertAt(1, outLines.Pop())
+    }
+    
+    for key in pending {
+        fullKey := section "." key
+        outLines.Push(key "=" allSettings[fullKey])
+        processedKeys[fullKey] := true
+        modifiedKeys.Push(fullKey)
+    }
+    
+    for blank in trailing {
+        outLines.Push(blank)
+    }
+}
+
 SaveINIFile() {
-    global isDirty, iniPath, allSettings, originalSettings, mainGui
+    global isDirty, iniPath, allSettings, originalSettings, mainGui, keyOrder
     
     try {
-        output := ""
         sections := GetSections()
         modifiedKeys := Array()  ; Track which keys were modified
+        processedKeys := Map()   ; fullKeys already written out
+        outLines := Array()      ; The new file, one entry per line
         
         ; Read original file to preserve comments and structure
         if FileExist(iniPath) {
             content := FileRead(iniPath)
             currentSection := ""
-            processedKeys := Map()
             
-            ; Process existing content, updating values as needed
-            loop parse content, "`n" {
+            ; Process existing content, updating values as needed.
+            ; NOTE: the third parameter of Loop Parse strips the carriage return
+            ; from a CRLF file. Trim() does NOT remove `r -- it only removes
+            ; spaces and tabs -- and leaving the `r attached was what made the
+            ; "]" test below fail on every section header, which in turn left
+            ; currentSection empty, skipped every key update, and dumped the
+            ; whole settings map at the bottom of the file on every save.
+            loop parse content, "`n", "`r" {
                 line := A_LoopField
                 trimmedLine := Trim(line)
                 
                 ; Handle section headers
                 if (SubStr(trimmedLine, 1, 1) = "[" && SubStr(trimmedLine, -1) = "]") {
+                    ; Finish the section we are leaving before starting the new one
+                    FlushSectionKeys(currentSection, outLines, processedKeys, modifiedKeys)
                     currentSection := SubStr(trimmedLine, 2, -1)
-                    output .= line "`n"
+                    outLines.Push(line)
                     continue
                 }
                 
                 ; Preserve comments and empty lines
                 if (trimmedLine = "" || SubStr(trimmedLine, 1, 1) = ";") {
-                    output .= line "`n"
+                    outLines.Push(line)
                     continue
                 }
                 
                 ; Handle key=value pairs
                 if (currentSection != "") {
                     eqPos := InStr(trimmedLine, "=")
-                    if (eqPos > 0) {
+                    if (eqPos > 1) {
                         key := Trim(SubStr(trimmedLine, 1, eqPos - 1))
                         fullKey := currentSection "." key
                         
-                        if allSettings.Has(fullKey) {
+                        if (allSettings.Has(fullKey) && !processedKeys.Has(fullKey)) {
                             newValue := allSettings[fullKey]
                             oldValue := originalSettings.Has(fullKey) ? originalSettings[fullKey] : ""
                             
@@ -1562,53 +1901,62 @@ SaveINIFile() {
                             }
                             
                             ; Update with new value
-                            output .= key "=" newValue "`n"
+                            outLines.Push(key "=" newValue)
                             processedKeys[fullKey] := true
                         } else {
-                            ; Keep original line
-                            output .= line "`n"
+                            ; Unknown key, or a stray duplicate we already wrote.
+                            ; Keep the original line so nothing is silently lost.
+                            outLines.Push(line)
                         }
                         continue
                     }
                 }
                 
-                output .= line "`n"
+                outLines.Push(line)
             }
             
-            ; Add any new keys that weren't in the original file
-            for fullKey, value in allSettings {
-                if !processedKeys.Has(fullKey) {
-                    parts := StrSplit(fullKey, ".")
-                    if (parts.Length = 2) {
-                        section := parts[1]
-                        key := parts[2]
-                        
-                        ; Add section header if not present
-                        if !InStr(output, "[" section "]") {
-                            output .= "`n[" section "]`n"
-                        }
-                        
-                        output .= key "=" value "`n"
-                        modifiedKeys.Push(fullKey)
+            ; Finish the final section of the file
+            FlushSectionKeys(currentSection, outLines, processedKeys, modifiedKeys)
+            
+            ; Any section that is not in the file at all gets appended whole
+            for section in sections {
+                needsHeader := false
+                for key in (keyOrder.Has(section) ? keyOrder[section] : Array()) {
+                    if (!processedKeys.Has(section "." key) && allSettings.Has(section "." key)) {
+                        needsHeader := true
+                        break
                     }
+                }
+                if (needsHeader) {
+                    outLines.Push("")
+                    outLines.Push("[" section "]")
+                    FlushSectionKeys(section, outLines, processedKeys, modifiedKeys)
                 }
             }
         } else {
             ; Create new file from scratch
             for section in sections {
-                output .= "[" section "]`n"
+                outLines.Push("[" section "]")
                 settings := GetSectionSettings(section)
                 for key, value in settings {
-                    output .= key "=" value "`n"
+                    outLines.Push(key "=" value)
                     fullKey := section "." key
+                    processedKeys[fullKey] := true
                     modifiedKeys.Push(fullKey)
                 }
-                output .= "`n"
+                outLines.Push("")
             }
         }
         
-        ; Trim trailing newlines to prevent accumulation
-        output := RTrim(output, "`r`n")
+        ; Join with CRLF -- the Windows INI convention, and what the
+        ; GetPrivateProfileString API (IniRead) expects.
+        output := ""
+        for outLine in outLines {
+            output .= outLine "`r`n"
+        }
+        
+        ; Trim trailing newlines to prevent accumulation, then end with exactly one
+        output := RTrim(output, "`r`n") "`r`n"
         
         ; Write to file
         FileDelete(iniPath)
@@ -1639,6 +1987,7 @@ SaveINIFile() {
 
 CreateGUI() {
     global mainGui, lvSettings, tvSections, iniPath, currentSection, sectionMap, allSettings, helpPane, helpLabel, metadataPath, DefaultFontSize, FormColor, FontColor, ListColor, AppName
+    global splitter, splitY, SPLIT_H, SPLIT_DEFAULT, LIST_TOP
     
     mainGui := Gui()
     mainGui.Opt("+AlwaysOnTop")
@@ -1664,8 +2013,11 @@ CreateGUI() {
     lvSettings.OnEvent("DoubleClick", List_DoubleClick)
     lvSettings.OnEvent("ItemSelect", List_ItemSelect)
     
+    ; Draggable splitter between the TreeView/ListView above and the help pane below.
+    ; LayoutMain() (called below) sets the real position of this and the help controls.
+    splitter := mainGui.Add("Text", "x10 y" splitY " w730 h" SPLIT_H " Background909090")
+    
     ; Help pane at bottom
-    mainGui.Add("Text", "x10 y410 w730 h2 cGray")
     helpLabel := mainGui.Add("Text", "x10 y415 w730 h20 vHelpLabel", "Select a setting for help")
     helpPane := mainGui.Add("Edit", "x10 y435 w730 h110 ReadOnly vHelpPane Background" ListColor, "")
     helpPane.Value := "Select an item and press Go To to open it in your preferred editor."
@@ -1722,7 +2074,168 @@ CreateGUI() {
         Tree_ItemSelect(tvSections, firstItemID)
     }
     
+    ; Apply the initial split (clamped, in case HELP_PANE_PCT is out of range),
+    ; then hook the mouse messages that drive dragging.
+    splitY := ClampSplit(SPLIT_DEFAULT)
+    LayoutMain()
+    OnMessage(0x0201, Splitter_LButtonDown)   ; WM_LBUTTONDOWN - start a drag
+    OnMessage(0x0020, Splitter_SetCursor)     ; WM_SETCURSOR - show the resize cursor
+    
     mainGui.Show("w750 h615")
+}
+
+; ============================================================================
+; SPLITTER - draggable divider between the list area and the help pane
+; ============================================================================
+
+; Repositions the five controls whose geometry depends on splitY.
+; Everything below STATUS_Y (status text, button row) is anchored to the
+; bottom of a fixed-height window and never moves.
+; Suspends or resumes painting for one window. WM_SETREDRAW does NOT propagate
+; to child controls, so each control that gets resized has to be bracketed
+; individually or it repaints itself mid-move.
+SetRedraw(hwnd, on) {
+    static WM_SETREDRAW := 0x000B
+    DllCall("user32\SendMessageW", "Ptr", hwnd, "UInt", WM_SETREDRAW,
+            "Ptr", on ? 1 : 0, "Ptr", 0)
+}
+
+LayoutMain(prevSplitY := 0) {
+    global mainGui, tvSections, lvSettings, splitter, helpLabel, helpPane
+    global splitY, SPLIT_H, SPLIT_GAP, LIST_TOP, SPLIT_BOTTOM, LABEL_H
+    static RDW_INVALIDATE := 0x0001, RDW_ERASE := 0x0004
+    static RDW_FRAME := 0x0400
+    
+    listH := splitY - LIST_TOP - 8
+    helpY := splitY + SPLIT_H + SPLIT_GAP
+    helpH := SPLIT_BOTTOM - (helpY + LABEL_H)
+    
+    ; Freeze the form and every control whose size changes, move everything,
+    ; then thaw. DllCall rather than SendMessage: AHK's SendMessage does window
+    ; matching that can fail for a window that isn't shown yet.
+    resized := [tvSections, lvSettings, helpPane]
+    SetRedraw(mainGui.Hwnd, false)
+    for ctrl in resized
+        SetRedraw(ctrl.Hwnd, false)
+    
+    tvSections.Move(, , , listH)
+    lvSettings.Move(, , , listH)
+    splitter.Move(, splitY)
+    helpLabel.Move(, helpY)
+    helpPane.Move(, helpY + LABEL_H, , helpH)
+    
+    for ctrl in resized
+        SetRedraw(ctrl.Hwnd, true)
+    SetRedraw(mainGui.Hwnd, true)
+    
+    ; Repaint each resized control in full, frame included. RDW_FRAME is the
+    ; important one: scrollbars live in the non-client area, so without it the
+    ; ListView's horizontal scrollbar stays painted at every position it passed
+    ; through during the drag.
+    for ctrl in resized
+        DllCall("RedrawWindow", "Ptr", ctrl.Hwnd, "Ptr", 0, "Ptr", 0,
+                "UInt", RDW_INVALIDATE | RDW_ERASE | RDW_FRAME)
+    
+    ; Now the form background behind them. RDW_ERASE is required here or the old
+    ; client-edge borders of the TreeView/ListView and the previous positions of
+    ; the divider stay on screen as ghost lines. Erasing the whole window every
+    ; tick would flicker, so restrict the dirty rect to the band that actually
+    ; changed -- from the higher of the old and new divider positions down to the
+    ; bottom of the help pane. Everything above that is untouched by the move.
+    ; No RDW_ALLCHILDREN: the children were just handled explicitly above.
+    ;
+    ; GetClientRect gives left/right in PHYSICAL pixels, so the top/bottom we
+    ; substitute have to be scaled from layout units the same way.
+    scale := A_ScreenDPI / 96
+    dirtyTop := (prevSplitY ? Min(prevSplitY, splitY) : LIST_TOP) - 12
+    rc := Buffer(16, 0)
+    DllCall("GetClientRect", "Ptr", mainGui.Hwnd, "Ptr", rc)
+    NumPut("Int", Round(dirtyTop * scale), rc, 4)
+    NumPut("Int", Round((SPLIT_BOTTOM + 4) * scale), rc, 12)
+    
+    DllCall("RedrawWindow", "Ptr", mainGui.Hwnd, "Ptr", rc, "Ptr", 0,
+            "UInt", RDW_INVALIDATE | RDW_ERASE)
+}
+
+; Constrains a proposed divider position to the MIN_LIST / MIN_HELP limits.
+ClampSplit(y) {
+    global SPLIT_H, SPLIT_GAP, LIST_TOP, SPLIT_BOTTOM, MIN_LIST, MIN_HELP, LABEL_H
+    
+    minY := LIST_TOP + MIN_LIST
+    maxY := SPLIT_BOTTOM - MIN_HELP - LABEL_H - SPLIT_GAP - SPLIT_H
+    if (maxY < minY)          ; Window too short for both minimums; favor the list
+        maxY := minY
+    return Round(Max(minY, Min(maxY, y)))
+}
+
+; Moves the divider, relayouting only if the position actually changed.
+SetSplit(newY) {
+    global splitY
+    
+    newY := ClampSplit(newY)
+    if (newY != splitY) {
+        prevY := splitY
+        splitY := newY
+        LayoutMain(prevY)     ; Pass the old position so the repaint band covers it
+    }
+}
+
+; Cursor Y relative to the Gui's client area, converted to Gui layout units.
+; ScreenToClient returns physical pixels; AHK's Move()/Add() coordinates are
+; scaled by A_ScreenDPI/96 (the Gui does not use -DPIScale), so the two have to
+; be reconciled or the divider drifts away from the cursor on a high-DPI screen.
+CursorClientY() {
+    global mainGui
+    pt := Buffer(8, 0)
+    DllCall("GetCursorPos", "Ptr", pt)
+    DllCall("ScreenToClient", "Ptr", mainGui.Hwnd, "Ptr", pt)
+    return NumGet(pt, 4, "Int") * 96 / A_ScreenDPI
+}
+
+; True when the cursor is over the divider bar (plus a small grab margin).
+OverSplitter() {
+    global splitY, SPLIT_H, SPLIT_GRAB
+    y := CursorClientY()
+    return (y >= splitY - SPLIT_GRAB && y <= splitY + SPLIT_H + SPLIT_GRAB)
+}
+
+Splitter_LButtonDown(wParam, lParam, msg, hwnd) {
+    global mainGui, splitY, SPLIT_DEFAULT
+    static lastClick := 0
+    
+    ; The divider is a plain Static with no SS_NOTIFY, so it is hit-transparent
+    ; and the click arrives at the parent window. Ignore clicks anywhere else.
+    if (hwnd != mainGui.Hwnd || !OverSplitter())
+        return
+    
+    ; Second click inside the system double-click interval snaps back to default.
+    ; Detected by hand rather than via WM_LBUTTONDBLCLK so it does not depend on
+    ; the Gui window class carrying CS_DBLCLKS.
+    dblTime := DllCall("GetDoubleClickTime", "UInt")
+    if (A_TickCount - lastClick < dblTime) {
+        lastClick := 0
+        SetSplit(SPLIT_DEFAULT)
+        return 0
+    }
+    lastClick := A_TickCount
+    
+    grabOffset := CursorClientY() - splitY
+    DllCall("SetCapture", "Ptr", mainGui.Hwnd)
+    while GetKeyState("LButton", "P") {
+        SetSplit(CursorClientY() - grabOffset)
+        Sleep(10)
+    }
+    DllCall("ReleaseCapture")
+    return 0
+}
+
+Splitter_SetCursor(wParam, lParam, msg, hwnd) {
+    global mainGui
+    if (hwnd != mainGui.Hwnd || !OverSplitter())
+        return
+    static IDC_SIZENS := 32645
+    DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", IDC_SIZENS, "Ptr"))
+    return 1   ; Halt further processing so the class cursor doesn't override
 }
 
 Tree_ItemSelect(GuiCtrlObj, Item) {
@@ -1869,8 +2382,43 @@ Btn_ValidateMetadata(GuiCtrlObj := "", Info := "") {
     ValidateMetadata()
 }
 
+; Scan a metadata JSON for the line that OPENS the given entry, i.e.
+;     "Section.Key": {
+; Returns the 1-based line number, or 0 if not found.
+;
+; The file is re-read on every call rather than line numbers being cached at
+; load time, because the whole point of the button is to go and edit the file —
+; so by the second click the cached numbers would be stale.
+;
+; The match is anchored to the start of the trimmed line, which is what keeps a
+; key NAME appearing inside some other entry's help text from stealing the
+; jump: a help line always begins with "help", never with the key. JSON string
+; values can't contain a raw newline (they use \n), so every line is
+; self-contained and a line-at-a-time scan is safe here.
+FindKeyLineInJson(filePath, fullKey) {
+    if !FileExist(filePath)
+        return 0
+
+    try {
+        content := FileRead(filePath)
+    } catch {
+        return 0
+    }
+
+    needle := '"' fullKey '": {'
+
+    lineNum := 0
+    loop parse content, "`n", "`r" {
+        lineNum++
+        if (SubStr(Trim(A_LoopField), 1, StrLen(needle)) = needle)
+            return lineNum
+    }
+
+    return 0
+}
+
 Btn_GoTo(GuiCtrlObj := "", Info := "") {
-    global lvSettings, currentSection, metadataPath, EditorPath
+    global lvSettings, currentSection, metadataPath, EditorCmd
     
     ; Check if an item is selected
     item := lvSettings.GetNext(0, "Checked")
@@ -1902,38 +2450,40 @@ Btn_GoTo(GuiCtrlObj := "", Info := "") {
         return
     }
     
-    ; Open the file in editor
+    ; Locate the entry. A miss is not an error worth blocking on -- the key may
+    ; genuinely have no metadata yet (see the Manage Missing Keys dialog), so
+    ; the file still opens, just at the top.
+    lineNum := FindKeyLineInJson(metadataPath, fullKey)
+    notice := (lineNum > 0)
+        ? fullKey "  (line " lineNum ")"
+        : fullKey " has no entry yet - opening at top of file"
+    if (lineNum = 0)
+        lineNum := 1
+    
+    ; Build the command. Editors without a goto-line switch simply have no
+    ; {line} in their template, so the substitution is a harmless no-op there.
+    cmd := StrReplace(EditorCmd, "{file}", metadataPath)
+    cmd := StrReplace(cmd, "{line}", lineNum)
+    
     try {
-        Run(EditorPath " " chr(34) metadataPath chr(34))
-    } catch as err {
-        ToolTip("Error opening editor: " err.What)
+        Run(cmd)
+        ToolTip(notice)
         SetTimer(() => ToolTip(), 3000)
-        return
+    } catch as err {
+        ; The configured editor could not be launched -- most likely a stale
+        ; path in EditorCmd, or the `code` PATH shim not being present. Rather
+        ; than leaving the person with nothing, hand the file to whatever is
+        ; associated with .json and report the line so they can jump manually.
+        try {
+            Run(metadataPath)
+            ToolTip("Could not run EditorCmd - opened with the default app.`n"
+                . fullKey " is on line " lineNum)
+            SetTimer(() => ToolTip(), 5000)
+        } catch {
+            ToolTip("Could not open the metadata file.`n" err.Message)
+            SetTimer(() => ToolTip(), 5000)
+        }
     }
-    
-    ; Wait for editor to open and settle
-    Sleep(800)
-    
-    ; Try to activate the editor window (works for most editors)
-    WinActivate("ahk_exe Code.exe")  ; For VS Code
-    Sleep(200)
-    
-    ; Open Find dialog
-    Send("^f")
-    Sleep(300)
-    
-    ; Type the search string in quotes to match JSON format exactly
-    ; Using single quotes to wrap double quotes is cleaner in AHK v2
-    searchString := '"' fullKey '"'
-    SendText(searchString)
-    
-    Sleep(200)
-    
-    ; Press Enter to find the first occurrence
-    Send("{Enter}")
-    
-    ToolTip("Found: " fullKey)
-    SetTimer(() => ToolTip(), 2000)
 }
 
 EditSetting(itemRow) {
@@ -1962,6 +2512,8 @@ EditSetting(itemRow) {
             EditFile(currentSection, key, originalValue)
         case "integer":
             EditInteger(currentSection, key, originalValue)
+        case "float":
+            EditFloat(currentSection, key, originalValue)
         case "hotkey":
             EditHotkey(currentSection, key, originalValue)
         case "list":
@@ -2203,8 +2755,8 @@ Tray_Exit(ItemName, ItemPos, MyMenu) {
 ; MAIN EXECUTION
 ; ============================================================================
 
-; Initialize editor path (with fallback to VS Code)
-ValidateAndInitializeEditorPath()
+; Fill in EditorCmd if it was left blank (auto-detects VS Code)
+ResolveEditorCmd()
 
 ; Find INI file
 iniPath := FindINIFile()
