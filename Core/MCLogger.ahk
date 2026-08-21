@@ -55,7 +55,8 @@ SETTINGS
 MCLogger shares acSettings.ini with several other AutoCorrect2 tools.  The
 other tools do not need to be present, but the INI file does.
 Key settings (all under [MCLogger]): ShowEachHotString, BeepEachHotString,
-SaveIntervalMinutes, LetterOverlapMin, AdjacentKeyMin, DebugFilterLog.
+SaveIntervalMinutes, LetterOverlapMin, AdjacentKeyMin, DebugFilterLog,
+HighlightCulled.
 See SettingsManager.ahk for a full GUI editor with help text for each key.
 
 CACHE RESET
@@ -66,7 +67,9 @@ uninterrupted typing sequences are analyzed.
 ANALYSIS GUI
 The systray menu and the configurable hotkey both open the analysis report,
 which groups logged pairs by frequency, scores them, and lets you export
-directly to HotstringHelper 2.0 or append to the AC library file.
+directly to HotstringHelper 2.0 or append to the AC library file.  Culled items
+stay in the list (so you can go back to them) but are tinted with the theme's
+warnColor -- set HighlightCulled=0 in acSettings.ini to turn that off.
 
 CREDITS
 Thanks to Mikeyww, who helped with the original inputHook code, and to
@@ -115,6 +118,13 @@ SendToHH := IniRead(settingsFile, "MCLogger", "SendToHH", 1)
 SaveFulltoClipBrd := IniRead(settingsFile, "MCLogger", "SaveFullToClipboard", 1)
 AgeOfOldSingles := IniRead(settingsFile, "MCLogger", "AgeOfOldSingles", 90)
 KeepReportOpen := IniRead(settingsFile, "MCLogger", "KeepReportOpen", 1)
+; HighlightCulled: 1 = tint report rows that have been culled during this
+;   session with warnColor (from colorThemeSettings.ini), so it is obvious at a
+;   glance which items have already been removed from the log.  Rows are NOT
+;   deleted from the list, so a culled item can still be reviewed or re-copied.
+;   The tint is keyed to the hotstring text rather than the row number, so it
+;   follows the item when the ListView columns are sorted.
+HighlightCulled := IniRead(settingsFile, "MCLogger", "HighlightCulled", 1)
 ; Typo-plausibility thresholds (used by IsTypoOfReplacement).
 ; LetterOverlapMin: percentage (0-100) of replacement letters that must appear
 ;   in the trigger for Test A to pass.  Default 40 (40%).
@@ -135,6 +145,7 @@ SendToHH := Integer(SendToHH)
 SaveFulltoClipBrd := Integer(SaveFulltoClipBrd)
 AgeOfOldSingles := Integer(AgeOfOldSingles)
 KeepReportOpen := Integer(KeepReportOpen)
+HighlightCulled := Integer(HighlightCulled)
 LetterOverlapMin := Integer(LetterOverlapMin) / 100
 AdjacentKeyMin   := Integer(AdjacentKeyMin)   / 100
 DebugFilterLog   := Integer(DebugFilterLog)
@@ -159,10 +170,27 @@ If FileExist("..\Data\colorThemeSettings.ini") {
    fontColor := IniRead(ctSettingsFile, "ColorSettings", "fontColor")
    listColor := IniRead(ctSettingsFile, "ColorSettings", "listColor")
    formColor := IniRead(ctSettingsFile, "ColorSettings", "formColor")
+   ; warnColor may be absent in older theme files, so supply a default.
+   warnColor := IniRead(ctSettingsFile, "ColorSettings", "warnColor", "FFFF99")
 }
 Else { ; Ini file not there, so use these colors instead. 
-   fontColor := "1F1F1F", listColor := "FFFFFF", formColor := "E5E4E2"
+   fontColor := "1F1F1F", listColor := "FFFFFF", formColor := "E5E4E2", warnColor := "FFFF99"
 }
+
+; Culled rows in the report ListView are painted with warnColor.  Derive a text
+; color that stays readable on top of it, using the same luminance test that is
+; used for the progress bar below.
+warnColorNum := Integer("0x" SubStr(warnColor, -6))
+wr := (warnColorNum >> 16) & 0xFF, wg := (warnColorNum >> 8) & 0xFF, wb := warnColorNum & 0xFF
+warnBrightness := (wr * 299 + wg * 587 + wb * 114) / 1000
+culledBkColor := warnColorNum
+culledTxColor := warnBrightness > 128 ? 0x1F1F1F : 0xFFFFFF
+
+; Tracks which hotstrings have been culled during the current report session.
+; Rebuilt each time the report opens -- once an item is culled it no longer
+; appears in the log, so there is nothing to carry over between runs.
+culledMap := Map()
+lvColors := "" ; Holds the LV_Colors instance while the report GUI is open.
 
 ; Calculate contrasting text color for better readability of progress bar.
 formColor := "0x" subStr(formColor, -6) ; Make sure the hex value appears as a number, rather than a string. 
@@ -1004,6 +1032,14 @@ runAnalysis(*) {
    lv.ModifyCol(1, 60)  ; Count column
    lv.ModifyCol(2, 330) ; Hotstring column
 
+   ; Start each report run with a clean slate of culled items, then attach the
+   ; row colorizer.  The colorizer looks rows up by their column-2 text, so
+   ; clicking a column header to sort does not scramble the tinting.
+   global culledMap := Map()
+   global lvColors := ""
+   If (HighlightCulled = 1)
+      lvColors := LV_Colors(lv, 2, culledMap)
+
    cl.SetFont('s10 c' FontColor)
    Global BUchkBox := cl.Add('Checkbox', 'w400 y+8','Make backup of ' MCLogFile ' first')
 	
@@ -1024,7 +1060,10 @@ runAnalysis(*) {
 LvContextMenu(GuiCtrlObj, Item, IsRightClick, X, Y) {
    if Item = 0  ; No item selected
       return
-   selectedHotstring := lvReportData[Item].Hotstring
+   ; Read from the control, not from lvReportData.  Clicking a column header
+   ; reorders the ListView rows but not the backing array, so indexing the
+   ; array by row number returns the wrong item once the list has been sorted.
+   selectedHotstring := GuiCtrlObj.GetText(Item, 2)
    A_Clipboard := selectedHotstring
    ToolTip("Copied to clipboard: " selectedHotstring, , , 5)
    SetTimer(() => ToolTip(,,,5), -2000)
@@ -1035,7 +1074,7 @@ LvItemSelect(GuiCtrlObj, Item, IsSelected) {
    if !IsSelected || Item = 0
       return
    
-   selectedHotstring := lvReportData[Item].Hotstring
+   selectedHotstring := GuiCtrlObj.GetText(Item, 2)  ; Sort-safe; see LvContextMenu.
    
    ; Parse the hotstring to extract trigger and replacement
    ; Format is typically: ::trigger::replacement
@@ -1072,7 +1111,7 @@ CullOnlyFunc(*) {
       Return   ; Abort function. 
    }
 
-   selItemName := lvReportData[selectedRow].Hotstring
+   selItemName := lv.GetText(selectedRow, 2)  ; Sort-safe; see LvContextMenu.
 
    ; Make backup if checkbox is checked
    If (BUchkBox.Value = 1)
@@ -1088,6 +1127,8 @@ CullOnlyFunc(*) {
    newFileContent := Trim(newFileContent, "`n ") "`n " ; Ensure exactly one empty line at the bottom. 
    FileDelete MCLogFile ; Delete the file so we can remake it.
    FileAppend(newFileContent, MCLogFile) ; Remake the file with the (now culled) string.
+
+   MarkAsCulled(selItemName) ; Tint the row so it reads as "already dealt with."
 
    ToolTip("Item culled from log: " selItemName, , , 9)
    SetTimer(() => ToolTip(,,,9), -3000) ; Clear tooltip after 3 seconds 
@@ -1111,7 +1152,7 @@ AppendOnlyFunc(*) {
       Return   ; Abort function. 
    }
 
-   selItemName := lvReportData[selectedRow].Hotstring
+   selItemName := lv.GetText(selectedRow, 2)  ; Sort-safe; see LvContextMenu.
 
    ; Make backup if checkbox is checked  
    If (BUchkBox.Value = 1)
@@ -1214,7 +1255,7 @@ CullerAppender(*) {
       Return   ; Abort function. 
    }
 
-   selItemName := lvReportData[selectedRow].Hotstring
+   selItemName := lv.GetText(selectedRow, 2)  ; Sort-safe; see LvContextMenu.
 
    ; Always cull from log (since this is "Cull and Append")
    for line in StrSplit(FileRead(MCLogFile), "`n") { ; Process and remove duplicates.
@@ -1229,6 +1270,8 @@ CullerAppender(*) {
    
    If (BUchkBox.Value = 1)
       FileCopy(MCLogFile, myLogFileBaseName '-BU-' A_Now '.txt', 1)
+
+   MarkAsCulled(selItemName) ; Tint the row so it reads as "already dealt with."
    
    ; Always append to library (since this is "Cull and Append")
    If SendToHH = 1 ; If =1, send to HotStr Helper via command line.
@@ -1245,6 +1288,26 @@ CullerAppender(*) {
       cl.Destroy() 
       trunkReport := []
    }
+}
+
+; ==============================================================================
+; MarkAsCulled()
+; ==============================================================================
+; Records a hotstring as culled and repaints the report ListView so the row
+; picks up the warnColor tint.  The row is deliberately NOT deleted -- the whole
+; point is to keep culled items visible in case they need a second look.
+; Keying on the hotstring text rather than the row number means the tint stays
+; attached to the right item after the user sorts by clicking a column header.
+; Does nothing when HighlightCulled is off, so the report behaves exactly as it
+; did before this feature existed.
+; ==============================================================================
+MarkAsCulled(hotstringText) {
+   global lvColors, lv, culledBkColor, culledTxColor, HighlightCulled
+   If (HighlightCulled != 1) || !IsObject(lvColors)
+      Return
+   lvColors.SetKey(hotstringText, culledBkColor, culledTxColor)
+   ; No ListView.Redraw() exists in v2, so invalidate the client area directly.
+   DllCall("InvalidateRect", "Ptr", lv.Hwnd, "Ptr", 0, "Int", 1)
 }
 
 ; ==============================================================================
@@ -1295,6 +1358,95 @@ GenerateDeltaString(triggerText, replacementText) {
 
 
 ; End of the part that Steve Kunkel321 made... 
+
+; ==============================================================================
+; Class LV_Colors -- keyed row tinting for a ListView.
+; Based on just me's LV_Colors:  https://www.autohotkey.com/boards/viewtopic.php?t=93922
+; Trimmed to row colorizing only (no alternating rows, no per-column colors, no
+; sort/filter blocking), then changed in one important way:
+;
+;   The original stores colors against a ROW NUMBER.  A ListView row number is
+;   not stable -- clicking a column header reorders the rows and the colors end
+;   up on the wrong items.  This version stores colors against the TEXT of a
+;   designated key column instead, and resolves row -> key at paint time.  The
+;   tint therefore follows the item through any number of sorts, and sorting can
+;   stay enabled.
+;
+; Usage:
+;   colorizer := LV_Colors(myLv, 2, myMap)   ; column 2 is the key column
+;   colorizer.SetKey("::teh::the", 0xFFFF99, 0x1F1F1F)
+;   DllCall("InvalidateRect", "Ptr", myLv.Hwnd, "Ptr", 0, "Int", 1)
+; ==============================================================================
+Class LV_Colors {
+   ; LV      -  the Gui.ListView control object
+   ; KeyCol  -  1-based column whose cell text identifies a row
+   ; KeyMap  -  Map of cellText -> Map("B", bgrBackground, "T", bgrText).
+   ;            Passed in (rather than created here) so the caller can also use
+   ;            it to test whether an item has already been marked.
+   __New(LV, KeyCol, KeyMap) {
+      this.LV     := LV
+      this.HWND   := LV.HWND
+      this.KeyCol := KeyCol
+      this.KeyMap := KeyMap
+      LV.Opt("+LV0x010000") ; LVS_EX_DOUBLEBUFFER -- prevents flicker while custom drawing.
+      this.OnNotifyFunc := ObjBindMethod(this, "OnNotify")
+      this.LV.OnNotify(-12, this.OnNotifyFunc) ; -12 = NM_CUSTOMDRAW
+   }
+
+   ; Colorize every row whose key column contains KeyText.
+   SetKey(KeyText, BkColor, TxColor) {
+      if !(this.HWND)
+         return false
+      this.KeyMap[KeyText] := Map("B", this.BGR(BkColor), "T", this.BGR(TxColor))
+      return true
+   }
+
+   ; Return a row to its default colors.
+   ClearKey(KeyText) {
+      if this.KeyMap.Has(KeyText)
+         this.KeyMap.Delete(KeyText)
+      return true
+   }
+
+   OnNotify(LV, L) {
+      Critical -1
+
+      static SizeNMHDR := A_PtrSize * 3
+      static OffItem := SizeNMHDR + 16 + (A_PtrSize * 2)
+      static OffCT := SizeNMHDR + 16 + (A_PtrSize * 5)
+      static OffCB := OffCT + 4
+
+      if (NumGet(L, "UPtr") != this.HWND)
+         return
+
+      DrawStage := NumGet(L + SizeNMHDR, "UInt")
+
+      if (DrawStage = 0x1)  ; CDDS_PREPAINT
+         return 0x20        ; CDRF_NOTIFYITEMDRAW
+
+      if (DrawStage = 0x10001) {  ; CDDS_ITEMPREPAINT
+         ; Skip the GetText round trip entirely while nothing is marked, which
+         ; is the normal state for most of a report session.
+         if (this.KeyMap.Count) {
+            Row := NumGet(L + OffItem, "UPtr") + 1
+            KeyText := ""
+            try KeyText := this.LV.GetText(Row, this.KeyCol) ; Never let a paint handler throw.
+            if this.KeyMap.Has(KeyText) {
+               NumPut("UInt", this.KeyMap[KeyText]["T"], L + OffCT)
+               NumPut("UInt", this.KeyMap[KeyText]["B"], L + OffCB)
+            }
+         }
+         return 0x2  ; CDRF_NEWFONT
+      }
+      return 0
+   }
+
+   BGR(Color) {
+      if IsInteger(Color)
+         return ((Color >> 16) & 0xFF) | (Color & 0x00FF00) | ((Color & 0xFF) << 16)
+      return 0
+   }
+}
 
 ; .QQQQQQQQQQQQQQQQ...QQQQQQQQQQQQQQQQ..............QQQQQQQ...
 ; QQQQQQQQQQQQQQQQQ..QQQQQQQQQQQQQQQQQ...........QQQQQQQQQQ...
