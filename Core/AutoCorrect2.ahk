@@ -61,7 +61,7 @@ class Config {
     ; General Configuration
     static HotstringLibrary := "AutoCorrectHotstrings.ahk"
     static BoilerplateHotstringLibrary := "PersonalHotstrings.ahk"
-    static NewTemporaryHotstrLib := "HotstringLib (1).ahk"
+    static NewTemporaryHotstrLib := "AutoCorrectHotstrings (1).ahk"
     static RemovedHsFile := "..\Data\RemovedHotstrings.txt" ; At iniRead, gets replaced with 'RemovedHotstrings.txt'.
     static AutoCorrectsLogFile := "..\Data\AutoCorrectsLog.txt"
     static ACLogContinuousFile := "..\Data\ACLogContinuous.txt"
@@ -223,7 +223,7 @@ class Config {
         ; filenames — not full relative paths — or we'd double the prefix when the
         ; INI key is missing (e.g. "..\Data\..\Data\RemovedHotstrings.txt").
         this.HotstringLibrary           := this.ReadIni("Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
-        this.NewTemporaryHotstrLib      := this.ReadIni("Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
+        this.NewTemporaryHotstrLib      := this.ReadIni("Files", "NewTemporaryHotstrLib", "AutoCorrectHotstrings (1).ahk")
         this.BoilerplateHotstringLibrary := this.ReadIni("Files", "BoilerplateHotstringLibrary", "PersonalHotstrings.ahk")
         this.RemovedHsFile              := "..\Data\" this.ReadIni("Files", "RemovedHsFile", "RemovedHotstrings.txt")
         this.AutoCorrectsLogFile        := "..\Data\" this.ReadIni("Files", "AutoCorrectsLogFile", "AutoCorrectsLog.txt")
@@ -1016,6 +1016,16 @@ class UI {
             })
         }
         
+        ; Check if "tool" is present, add button.
+        if FileExist("..\Tools\TypoInvaders.exe") {
+            this.controlButtons.Push({
+                name: "TypoInvaders",
+                text: " Play TypoInvaders", 
+                action: (*) => Run("..\Tools\TypoInvaders.exe"),
+                icon: A_ScriptDir "\..\Resources\Icons\Invaders-Blue.ico"
+            })
+        }
+        
         ; Check if tool is present, add button.
         if FileExist("..\Tools\ConflictingStringLocator.exe") {
             this.controlButtons.Push({
@@ -1040,7 +1050,7 @@ class UI {
         if FileExist("..\Tools\UniqueStringExtractor.exe") {
             this.controlButtons.Push({
                 name: "UniqueStringExtractor",
-                text: " Compare Two Versions of HotstringLib", 
+                text: " Compare Two Versions of AutoCorrectHotstrings", 
                 action: (*) => Run("..\Tools\UniqueStringExtractor.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\diff-files-Blue.ico"
             })
@@ -4542,14 +4552,17 @@ class HelpSystem {
                 case "ExtractMisspellings":
                     this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your AutoCorrectHotstrings.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work. The config options are in the .ahk file."
 
+                case "TypoInvaders":
+                    this.helpTexts["ControlButton_TypoInvaders"] := "Not really a `"Tool`" per se.  TypoInvaders is a retro-style video game. Instead of scrolling back and forth to aim, you correctly type the word that is the replacement for the given typo.  See in-line settings in the .ahk code."
+
                 case "ConflictLocator":
                     this.helpTexts["ControlButton_ConflictLocator"] := "This runs an INTRA-script scan, checking for hotstrings in the main part of your " Config.HotstringLibrary " file that might conflict with each other. A report document is created in the \Data\ folder and the report is opened upon completion of the scan.  It uses the same algorithms as the validiy tool.  It is thorough and is slow.  Please see AutoCorrect2 User Manual for more information."
 
                 case "Updater":
-                    this.helpTexts["ControlButton_Updater"] := "Launches the Updater tool, which checks the AutoCorrect2 GitHub repository for newer versions of the suite files.`n`nThe last-seen commit is recorded in Data\LastUpdateCheck.ini, so repeat checks are fast when nothing has changed.`n`nAutoCorrectHotstrings.ahk gets special treatment: rather than being overwritten, you are given the option to save the incoming version under a different name so that your own custom hotstrings are not lost.  Use the Compare Two Versions of HotstringLib tool afterward to merge them.`n`nFiles you skip are remembered and offered again on the next check."
+                    this.helpTexts["ControlButton_Updater"] := "Launches the Updater tool, which checks the AutoCorrect2 GitHub repository for newer versions of the suite files.`n`nThe last-seen commit is recorded in Data\LastUpdateCheck.ini, so repeat checks are fast when nothing has changed.`n`nAutoCorrectHotstrings.ahk gets special treatment: rather than being overwritten, you are given the option to save the incoming version under a different name so that your own custom hotstrings are not lost.  Use the Compare Two Versions of AutoCorrectHotstrings tool afterward to merge them.`n`nFiles you skip are remembered and offered again on the next check."
                     
                 case "UniqueStringExtractor":
-                    this.helpTexts["ControlButton_UniqueStringExtractor"] := "This runs an INTER-script scan to compare two versions of the hotstring library:`n`n" Config.HotstringLibrary "`n" Config.NewTemporaryHotstrLib "`n`nIt will alert the user of hotstrings that are unique to each version.  This is meant to facilitate merging two versions of the library. It is recommended to choose a convenient temporary name for one the new version, such as `"HotstringLib (1).ahk`" then program that into the acSettings.ini file (current name is shown above) and use the same temporary name each time.  The tool will default to those paths.  If either is not found, a file chooser dialog will appear. A report document is created in the \Data\ folder and the report is opened upon completion of the scan."
+                    this.helpTexts["ControlButton_UniqueStringExtractor"] := "This runs an INTER-script scan to compare two versions of the hotstring library:`n`n" Config.HotstringLibrary "`n" Config.NewTemporaryHotstrLib "`n`nIt will alert the user of hotstrings that are unique to each version.  This is meant to facilitate merging two versions of the library. It is recommended to choose a convenient temporary name for one the new version, such as `"AutoCorrectHotstrings (1).ahk`" then program that into the acSettings.ini file (current name is shown above) and use the same temporary name each time.  The tool will default to those paths.  If either is not found, a file chooser dialog will appear. A report document is created in the \Data\ folder and the report is opened upon completion of the scan."
 
                 case "Defunctionizer":
                     this.helpTexts["ControlButton_Defunctionizer"] := "This is for users who do not want their AutoCorrect items embedded in the f() function calls. The `"Defunctionizer`" tool removes them."

@@ -634,6 +634,16 @@
     "max": 100,
     "restart": "..\\Core\\MCLogger.exe"
   },
+  "MCLogger.HighlightCulled": {
+    "label": "Highlight Culled Rows",
+    "help": "Tint report rows with the theme's warnColor after they've been culled from the log. Culled rows stay in the list so you can go back to them.",
+    "type": "boolean",
+    "options": [
+      "0=Don't Highlight",
+      "1=Highlight"
+    ],
+    "restart": "..\\Core\\MCLogger.exe"
+  },
   "MCLogger.DebugFilterLog": {
     "label": "Debug Filter Log",
     "help": "When enabled, every trigger-replacement pair that gets filtered out by MCLogger is logged to a separate file for review.\n\nThe log is written to:  AutoCorrect2\\Debug\\MCLogger_Filtered.tsv\n\nEach line contains three tab-separated columns:\n  Timestamp | ::trigger::replacement | Filter reason\n\nThe 'Filter reason' column tells you exactly which check rejected the pair, e.g.:\n  'Repl not a word'\n  'Trig is a real word'\n  'Low similarity (not a plausible typo)'\n  'Exact duplicate in library'\n  'Word-ending conflict with :?: <trigger>'\n  'Duplicate of previous entry'\n\nThe .tsv file opens cleanly in Excel or any spreadsheet app.  This is useful for tuning the LetterOverlapMin and AdjacentKeyMin thresholds — if legitimate typos are being discarded, you can see them here and lower the thresholds accordingly.\n\nLeave disabled during normal use to avoid unnecessary disk writes.",
@@ -815,6 +825,13 @@
   "ControlButtons.ExtractMisspellings": {
     "label": "Extract Potential Misspellings",
     "help": "This is the setting for the \"Extract Potential Misspellings\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.TypoInvaders": {
+    "label": "TypoInvaders",
+    "help": "Not really a \"Tool\" per se.  TypoInvaders is a retro-style video game. Instead of scrolling back and forth to aim, you correctly type the word that is the replacement for the given typo.  See in-line settings in the .ahk code for tunables and adjustments",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
