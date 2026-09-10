@@ -3,7 +3,7 @@
 
 ; ============================================================================
 ; Settings Manager - Standalone GUI for editing INI configuration files
-; Version: 8-12-2026
+; Version: 9-9-2026
 ; 
 ; A dedicated GUI application for viewing and editing INI settings with
 ; metadata-driven features: type-specific editing, auto-generation, validation,
@@ -71,6 +71,22 @@
 ;   to snap back to the startup split. The startup split is set by the
 ;   HELP_PANE_PCT variable below (percent of the middle area given to help);
 ;   it is intentionally not saved, so every launch starts at that percentage.
+;
+; RESIZABLE WINDOW: The whole dialog can be dragged to any size, down to the
+;   MIN_W x MIN_H floor set below. The section tree keeps its width and the
+;   button row keeps its height; everything else absorbs the change -- the
+;   ListView, the help pane, and the Value column all grow with the window.
+;   The divider keeps the PROPORTION it had rather than a fixed pixel height,
+;   so both panes grow together. See GUI_Size() to change that.
+;
+; SEARCH / FILTER: The box in the top right narrows the display as you type.
+;   Sections with no matches drop out of the tree, and non-matching keys drop
+;   out of the list, so what is left on screen is exactly what matched. The
+;   match is case-insensitive and covers the key name, the value, and (unless
+;   SEARCH_INCLUDE_HELP is turned off below) the metadata label and help text.
+;   A section whose NAME matches shows all of its keys. Esc or the X button
+;   clears the filter; Ctrl+F jumps to the box. Filtering only changes what is
+;   displayed -- nothing is edited, hidden permanently, or written to disk.
 ;
 ; ============================================================================
 ; GUI BUTTONS & WORKFLOW
@@ -201,22 +217,70 @@ HELP_PANE_PCT := 40
 ; =============================================================================
 
 ; Layout constants. All values are Gui layout units (AHK scales them by DPI).
+; Anything that used to be a fixed Y coordinate is now derived from the live
+; window height instead -- see the geometry functions further down.
 SPLIT_H   := 5            ; Visual thickness of the divider bar
 SPLIT_GRAB := 3           ; Extra pixels above/below the bar that still "grab"
-LIST_TOP  := 30           ; Top edge of the TreeView and ListView
-STATUS_Y  := 550          ; Top edge of the "(Double-click to edit...)" text
+MARGIN    := 10           ; Outer margin on all four sides
+TREE_W    := 150          ; Width of the Sections TreeView (does not change)
+COL_GAP   := 10           ; Gap between the TreeView and the ListView
+TOP_ROW_Y := 6            ; Top edge of the search box
+SEARCH_H  := 26           ; Height of the search box
+LIST_TOP  := 38           ; Top edge of the TreeView and ListView
+BTN_H     := 30           ; Height of the buttons along the bottom
+STATUS_H  := 20           ; Height of the "(Double-click to edit...)" text
 BOTTOM_GAP := 8           ; Gap between the help pane and the status text
 MIN_LIST  := 120          ; Smallest allowed TreeView/ListView height
 MIN_HELP  := 40           ; Smallest allowed help pane height
 LABEL_H   := 22           ; Height reserved for the help label above the pane
 SPLIT_GAP := 5            ; Gap between the divider and the help label
 
+; Startup size, and the smallest the window may be dragged to.
+START_W := 750
+START_H := 615
+MIN_W   := 620
+MIN_H   := 460
+
+; Live client size of the window, in layout units. Kept up to date by
+; GUI_Size(). Seeded with the startup size because the first LayoutMain() runs
+; before Show(), and therefore before the first Size event arrives.
+winW := START_W
+winH := START_H
+
 splitter := ""            ; The divider control itself
-SPLIT_BOTTOM := STATUS_Y - BOTTOM_GAP      ; Bottom edge of the splittable area
-SPLIT_AVAIL  := SPLIT_BOTTOM - LIST_TOP    ; Total height shared by the two regions
-SPLIT_DEFAULT := SPLIT_BOTTOM - Round(SPLIT_AVAIL * HELP_PANE_PCT / 100)
-splitY := SPLIT_DEFAULT   ; Current top edge of the divider, in Gui layout units.
-                          ; Deliberately not persisted -- resets on every launch.
+splitY   := 0             ; Current top edge of the divider, in layout units.
+                          ; Set for real by CreateGUI() via ClampSplit().
+splitPct := HELP_PANE_PCT ; Share of the splittable area given to the help
+                          ; region, as a percent. This -- not splitY -- is what
+                          ; survives a window resize, so the two panes keep
+                          ; their proportions as the window grows and shrinks.
+                          ; Deliberately not persisted -- resets every launch.
+
+; ----------------------------------------------------------------------------
+; Search / filter
+; ----------------------------------------------------------------------------
+
+; ==== TUNABLE ================================================================
+; Whether a hit in the metadata "label" or "help" text counts as a match. On by
+; default: the help text is where the human-readable wording lives, so it finds
+; things the key names alone never would. The trade-off is that a row can show
+; up with nothing visibly matching in either column, because the match was in
+; the help pane text. Set to false if that gets noisy.
+SEARCH_INCLUDE_HELP := true
+SEARCH_MIN_CHARS    := 2    ; Fewer characters than this is treated as no filter
+SEARCH_DEBOUNCE     := 200  ; ms of idle typing before the filter is applied
+; =============================================================================
+
+searchBox := ""           ; The Edit control you type the filter into
+searchCount := ""         ; "12 matches in 4 sections" label beside it
+btnClearSearch := ""      ; The little X button
+statusText := ""          ; The line above the button row
+lblSections := ""         ; "Sections:" heading
+lblSettings := ""         ; "Settings" heading
+btnRow := Array()         ; [{ctrl, x, w}, ...] for the bottom button row
+searchText := ""          ; The filter currently in force ("" means show all)
+filteredSections := Array()   ; Sections surviving the filter, in INI order
+STATUS_DEFAULT_TEXT := "(Double-click to edit | Right-click to copy)"
 
 ; Font and color settings
 DefaultFontSize := "s11"
@@ -1987,110 +2051,380 @@ SaveINIFile() {
 
 CreateGUI() {
     global mainGui, lvSettings, tvSections, iniPath, currentSection, sectionMap, allSettings, helpPane, helpLabel, metadataPath, DefaultFontSize, FormColor, FontColor, ListColor, AppName
-    global splitter, splitY, SPLIT_H, SPLIT_DEFAULT, LIST_TOP
-    
+    global splitter, splitY, SPLIT_H, LIST_TOP, MARGIN, TREE_W, COL_GAP, TOP_ROW_Y, SEARCH_H
+    global searchBox, searchCount, btnClearSearch, statusText, btnRow, lblSections, lblSettings
+    global winW, winH, START_W, START_H, MIN_W, MIN_H, STATUS_DEFAULT_TEXT
+
     mainGui := Gui()
-    mainGui.Opt("+AlwaysOnTop")
+    mainGui.Opt("+AlwaysOnTop +Resize +MinSize" MIN_W "x" MIN_H)
     mainGui.Title := AppName
     mainGui.OnEvent("Close", GUI_Close)
-    
+    mainGui.OnEvent("Size", GUI_Size)
+
     ; Set font and background color for entire GUI
     mainGui.BackColor := FormColor
     mainGui.SetFont(DefaultFontSize " " FontColor)
-    
+
+    winW := START_W
+    winH := START_H
+
+    ; NOTE ON COORDINATES: every x/y/w/h below is a placeholder. LayoutMain() is
+    ; called at the end of this function and again on every resize, and it is
+    ; the single authority on where anything sits. Change positions there, not
+    ; here -- editing these numbers has no lasting effect.
+
+    ; --- Top row: the two column headings, and the search box on the right ---
+    lblSections := mainGui.Add("Text", "x10 y12 w150 h20", "Sections:")
+    lblSettings := mainGui.Add("Text", "x170 y12 w100 h20", "Settings")
+    searchCount := mainGui.Add("Text", "x280 y12 w200 h20 Right", "")
+
+    searchBox := mainGui.Add("Edit", "x490 y" TOP_ROW_Y " w200 h" SEARCH_H
+        . " vSearchBox Background" ListColor, "")
+    searchBox.OnEvent("Change", Search_Changed)
+    SetCueBanner(searchBox, "Filter settings...")
+
+    btnClearSearch := mainGui.Add("Button", "x694 y" TOP_ROW_Y " w26 h" SEARCH_H, "X")
+    btnClearSearch.OnEvent("Click", Btn_ClearSearch)
+
     ; Sections TreeView
-    mainGui.Add("Text", "x10 y10 w150 h20", "Sections:")
-    tvSections := mainGui.Add("TreeView", "x10 y30 w150 h370 vSectionTree Background" ListColor)
+    tvSections := mainGui.Add("TreeView", "x10 y" LIST_TOP " w150 h370 vSectionTree Background" ListColor)
     tvSections.OnEvent("ItemSelect", Tree_ItemSelect)
-    
-    ; Settings ListView
-    mainGui.Add("Text", "x170 y10 w570 h20", "Settings")
-    lvSettings := mainGui.Add("ListView", "x170 y30 w570 h370 vSettingsList"
+
+    ; Settings ListView. Column 2 is re-widened to fill the control by
+    ; StretchValueColumn() during every layout pass, so 330 is just a starting
+    ; point; column 1 keeps whatever width you drag it to.
+    lvSettings := mainGui.Add("ListView", "x170 y" LIST_TOP " w570 h370 vSettingsList"
         . " Grid AltSubmit Checked Background" ListColor, ["Setting", "Value"])
     lvSettings.ModifyCol(1, 250)
     lvSettings.ModifyCol(2, 330)
     lvSettings.OnEvent("ContextMenu", List_ContextMenu)
     lvSettings.OnEvent("DoubleClick", List_DoubleClick)
     lvSettings.OnEvent("ItemSelect", List_ItemSelect)
-    
-    ; Draggable splitter between the TreeView/ListView above and the help pane below.
-    ; LayoutMain() (called below) sets the real position of this and the help controls.
-    splitter := mainGui.Add("Text", "x10 y" splitY " w730 h" SPLIT_H " Background909090")
-    
+
+    ; Draggable splitter between the TreeView/ListView above and the help pane below
+    splitter := mainGui.Add("Text", "x10 y420 w730 h" SPLIT_H " Background909090")
+
     ; Help pane at bottom
-    helpLabel := mainGui.Add("Text", "x10 y415 w730 h20 vHelpLabel", "Select a setting for help")
-    helpPane := mainGui.Add("Edit", "x10 y435 w730 h110 ReadOnly vHelpPane Background" ListColor, "")
+    helpLabel := mainGui.Add("Text", "x10 y445 w730 h20 vHelpLabel", "Select a setting for help")
+    helpPane := mainGui.Add("Edit", "x10 y467 w730 h75 ReadOnly vHelpPane Background" ListColor, "")
     helpPane.Value := "Select an item and press Go To to open it in your preferred editor."
-    
-    
-    ; Status bar
-    mainGui.Add("Text", "x10 y550 w730 h20 cGray c909090", "(Double-click to edit | Right-click to copy)")
-    
-    ; Button row
-    btnEdit := mainGui.Add("Button", "x10 y575 w80 h30", "Edit")
-    btnEdit.OnEvent("Click", Btn_Edit)
-    
-    btnValidate := mainGui.Add("Button", "x100 y575 w150 h30", "Validate Metadata")
-    btnValidate.OnEvent("Click", Btn_ValidateMetadata)
-    
-    btnGoTo := mainGui.Add("Button", "x260 y575 w80 h30", "Go To")
-    btnGoTo.OnEvent("Click", Btn_GoTo)
-    
-    btnOpenINI := mainGui.Add("Button", "x390 y575 w100 h30", "Open INI File")
-    btnOpenINI.OnEvent("Click", Btn_OpenINI)
-    
-    btnReload := mainGui.Add("Button", "x500 y575 w80 h30", "Reload")
-    btnReload.OnEvent("Click", Btn_Reload)
-    
-    btnSave := mainGui.Add("Button", "x590 y575 w60 h30", "Save")
-    btnSave.OnEvent("Click", Btn_Save)
-    
-    btnExit := mainGui.Add("Button", "x660 y575 w60 h30", "Exit")
-    btnExit.OnEvent("Click", Btn_Exit)
-    
-    ; Populate sections with ItemID tracking
-    sections := GetSections()
-    sectionMap := Map()  ; Reset the map
-    firstItemID := 0
-    lastItemID := 0
-    for section in sections {
-        ; Add each section after the previous one to preserve order
-        if (lastItemID = 0) {
-            ; First item - just add it
-            ItemID := tvSections.Add(section)
-        } else {
-            ; Add after the last item we added
-            ItemID := tvSections.Add(section, , lastItemID)
-        }
-        sectionMap[ItemID] := section
-        lastItemID := ItemID
-        if (firstItemID = 0) {
-            firstItemID := ItemID
-        }
-    }
-    
-    ; Select first section (use actual ItemID, not 1)
-    if (firstItemID != 0) {
-        Tree_ItemSelect(tvSections, firstItemID)
-    }
-    
+
+    ; Status bar. Doubles as the "you are currently filtered" warning line.
+    statusText := mainGui.Add("Text", "x10 y550 w730 h20 c909090", STATUS_DEFAULT_TEXT)
+
+    ; Button row. Each button's X offset and width are recorded so LayoutMain()
+    ; can slide the whole row down on a resize without re-deriving them.
+    btnRow := Array()
+    AddRowButton(10,  80,  "Edit",              Btn_Edit)
+    AddRowButton(100, 150, "Validate Metadata", Btn_ValidateMetadata)
+    AddRowButton(260, 80,  "Go To",             Btn_GoTo)
+    AddRowButton(390, 100, "Open INI File",     Btn_OpenINI)
+    AddRowButton(500, 80,  "Reload",            Btn_Reload)
+    AddRowButton(590, 60,  "Save",              Btn_Save)
+    AddRowButton(660, 60,  "Exit",              Btn_Exit)
+
+    ; Fill the section tree and select the first section. With no search text
+    ; in force this shows every section, exactly as it always did.
+    RebuildTree()
+
     ; Apply the initial split (clamped, in case HELP_PANE_PCT is out of range),
     ; then hook the mouse messages that drive dragging.
-    splitY := ClampSplit(SPLIT_DEFAULT)
+    splitY := ClampSplit(SplitDefault())
     LayoutMain()
     OnMessage(0x0201, Splitter_LButtonDown)   ; WM_LBUTTONDOWN - start a drag
     OnMessage(0x0020, Splitter_SetCursor)     ; WM_SETCURSOR - show the resize cursor
-    
-    mainGui.Show("w750 h615")
+
+    mainGui.Show("w" START_W " h" START_H)
+}
+
+; Adds one button to the bottom row and records the geometry LayoutMain needs.
+AddRowButton(x, w, caption, handler) {
+    global mainGui, btnRow, BTN_H
+
+    ctrl := mainGui.Add("Button", "x" x " y575 w" w " h" BTN_H, caption)
+    ctrl.OnEvent("Click", handler)
+    btnRow.Push({ctrl: ctrl, x: x, w: w})
+}
+
+; Grey prompt text shown inside an Edit control while it is empty.
+SetCueBanner(ctrl, text) {
+    static EM_SETCUEBANNER := 0x1501
+    DllCall("user32\SendMessageW", "Ptr", ctrl.Hwnd, "UInt", EM_SETCUEBANNER,
+            "Ptr", 1, "WStr", text)
 }
 
 ; ============================================================================
-; SPLITTER - draggable divider between the list area and the help pane
+; SEARCH / FILTER
+; ============================================================================
+;
+; Typing in the search box narrows BOTH levels of the display: the TreeView is
+; rebuilt to show only sections holding at least one match, and the ListView
+; shows only the matching keys inside whichever section is selected. What is
+; left on screen is exactly the set of matches.
+;
+; Nothing is destroyed by this. The filter is applied when the tree and list are
+; populated, and clearing the box puts everything back untouched. allSettings,
+; keyOrder and sectionOrder are never modified, so Save, Validate and Go To
+; behave identically whether a filter is in force or not.
+;
+; A section whose NAME matches passes all of its keys through, so typing part of
+; a section name shows that whole section.
 ; ============================================================================
 
-; Repositions the five controls whose geometry depends on splitY.
-; Everything below STATUS_Y (status text, button row) is anchored to the
-; bottom of a fixed-height window and never moves.
+; Called on every keystroke. The real work is deferred by SEARCH_DEBOUNCE ms so
+; a fast typist doesn't trigger one full tree rebuild per character. Each new
+; keystroke resets the timer, so only the pause at the end of typing costs
+; anything.
+Search_Changed(GuiCtrlObj := "", Info := "") {
+    global SEARCH_DEBOUNCE
+    SetTimer(ApplySearchFilter, -SEARCH_DEBOUNCE)
+}
+
+ApplySearchFilter() {
+    global searchBox, searchText, SEARCH_MIN_CHARS
+
+    raw := Trim(searchBox.Value)
+
+    ; A single character matches nearly everything, which makes the display
+    ; flicker for no benefit, so treat it as "no filter yet".
+    if (StrLen(raw) < SEARCH_MIN_CHARS)
+        raw := ""
+
+    if (raw = searchText)        ; nothing actually changed
+        return
+
+    searchText := raw
+    RebuildTree()
+    UpdateSearchStatus()
+}
+
+; True when this key should be visible under the current filter.
+MatchesSearch(section, key) {
+    global allSettings, searchText, SEARCH_INCLUDE_HELP
+
+    if (searchText = "")
+        return true
+
+    ; InStr is case-insensitive by default in v2, which is what we want here.
+    if InStr(key, searchText) || InStr(section, searchText)
+        return true
+
+    fullKey := section "." key
+    if (allSettings.Has(fullKey) && InStr(allSettings[fullKey], searchText))
+        return true
+
+    if (SEARCH_INCLUDE_HELP) {
+        md := GetMetadata(section, key)
+        if (md.Has("label") && InStr(md["label"], searchText))
+            return true
+        if (md.Has("help") && InStr(md["help"], searchText))
+            return true
+    }
+
+    return false
+}
+
+; True when a section should stay in the tree under the current filter.
+SectionHasMatch(section) {
+    global keyOrder, searchText
+
+    if (searchText = "")
+        return true
+    if InStr(section, searchText)
+        return true
+    if keyOrder.Has(section) {
+        for key in keyOrder[section] {
+            if MatchesSearch(section, key)
+                return true
+        }
+    }
+    return false
+}
+
+; How many keys in a section survive the current filter.
+SectionMatchCount(section) {
+    global keyOrder
+
+    n := 0
+    if keyOrder.Has(section) {
+        for key in keyOrder[section] {
+            if MatchesSearch(section, key)
+                n++
+        }
+    }
+    return n
+}
+
+; Rebuilds the TreeView from scratch, skipping sections with no matches.
+; A TreeView has no way to hide an item, so a rebuild is the only option -- and
+; it is cheap here, since the section list is short.
+;
+; The section that was selected stays selected if it survives the filter;
+; otherwise the first surviving section is selected instead, so the ListView
+; always shows something as long as anything matched at all.
+RebuildTree() {
+    global tvSections, lvSettings, helpLabel, helpPane, sectionMap, currentSection
+    global filteredSections
+
+    prevSection := currentSection
+    filteredSections := Array()
+    sectionMap := Map()
+
+    tvSections.Opt("-Redraw")
+    tvSections.Delete()
+
+    firstID := 0, targetID := 0
+    for section in GetSections() {
+        if !SectionHasMatch(section)
+            continue
+        filteredSections.Push(section)
+
+        ; A plain Add appends to the end of the root, which is what preserves
+        ; the INI's own section order.
+        ItemID := tvSections.Add(section)
+        sectionMap[ItemID] := section
+
+        if (firstID = 0)
+            firstID := ItemID
+        if (section = prevSection)
+            targetID := ItemID
+    }
+    tvSections.Opt("+Redraw")
+    tvSections.Redraw()
+
+    selectID := targetID ? targetID : firstID
+    if (selectID) {
+        ; Modify raises ItemSelect on its own, but calling the handler directly
+        ; as well guarantees the ListView is populated -- and a second pass over
+        ; a couple of dozen rows costs nothing.
+        tvSections.Modify(selectID, "Select Vis")
+        Tree_ItemSelect(tvSections, selectID)
+    } else {
+        ; Filter matched nothing anywhere.
+        currentSection := ""
+        lvSettings.Delete()
+        helpLabel.Value := "No matches"
+        helpPane.Value := ""
+    }
+}
+
+; Refreshes the counter beside the search box and the status line underneath.
+; The status line turns red while a filter is in force -- the whole risk of
+; filtering is forgetting you are filtered and concluding a key doesn't exist.
+UpdateSearchStatus() {
+    global searchCount, statusText, searchText, filteredSections, STATUS_DEFAULT_TEXT
+
+    if (searchText = "") {
+        searchCount.Value := ""
+        statusText.Value := STATUS_DEFAULT_TEXT
+        try statusText.SetFont("c909090")
+        searchCount.Redraw()
+        statusText.Redraw()
+        return
+    }
+
+    total := 0
+    for section in filteredSections
+        total += SectionMatchCount(section)
+
+    secs := filteredSections.Length
+    searchCount.Value := total . " " . (total = 1 ? "match" : "matches")
+        . " in " . secs . " " . (secs = 1 ? "section" : "sections")
+    statusText.Value := "Filtered by '" . searchText
+        . "' - press Esc or click X to show everything"
+    try statusText.SetFont("cC00000")
+    searchCount.Redraw()
+    statusText.Redraw()
+}
+
+; Empties the search box and restores the full tree and list.
+ClearSearch() {
+    global searchBox, searchText
+
+    if (searchBox.Value = "" && searchText = "")
+        return
+
+    searchBox.Value := ""
+    searchText := ""
+    SetTimer(ApplySearchFilter, 0)   ; cancel any pending debounced pass
+    RebuildTree()
+    UpdateSearchStatus()
+}
+
+Btn_ClearSearch(GuiCtrlObj := "", Info := "") {
+    global searchBox
+    ClearSearch()
+    try searchBox.Focus()
+}
+
+; Ctrl+F target: focus the box and select whatever is in it, so typing replaces
+; the previous search instead of appending to it.
+FocusSearch() {
+    global searchBox
+    try {
+        searchBox.Focus()
+        SendMessage(0x00B1, 0, -1, searchBox)   ; EM_SETSEL, select all
+    }
+}
+
+; ============================================================================
+; LAYOUT AND SPLITTER
+; ============================================================================
+;
+; LayoutMain() is the single authority on where every control sits. It runs once
+; at startup, on every window resize, and on every tick of a divider drag. The
+; coordinates passed to Gui.Add() in CreateGUI() are placeholders only.
+;
+; The vertical model, top to bottom:
+;
+;     TOP_ROW_Y   headings + search box            (fixed to the top)
+;     LIST_TOP    TreeView / ListView              (absorbs the slack)
+;     splitY      the divider                      (dragged, or proportional)
+;                 help label + help pane           (absorbs the slack)
+;     StatusY()   status text                      (fixed to the bottom)
+;     ButtonRowY  button row                       (fixed to the bottom)
+;
+; Horizontally the TreeView keeps TREE_W; the ListView, divider, help label,
+; help pane and status text all stretch to the window width.
+; ============================================================================
+
+; ----------------------------------------------------------------------------
+; Geometry. These used to be constants computed once at load. Now that the
+; window can be resized, everything anchored to the bottom edge has to be
+; derived from the live client height instead.
+; ----------------------------------------------------------------------------
+
+; Top edge of the button row.
+ButtonRowY() {
+    global winH, MARGIN, BTN_H
+    return winH - MARGIN - BTN_H
+}
+
+; Top edge of the "(Double-click to edit...)" status text.
+StatusY() {
+    global STATUS_H
+    return ButtonRowY() - STATUS_H - 5
+}
+
+; Bottom edge of the splittable area -- everything below this is fixed.
+SplitBottom() {
+    global BOTTOM_GAP
+    return StatusY() - BOTTOM_GAP
+}
+
+; Total height shared by the list region and the help region.
+SplitAvail() {
+    global LIST_TOP
+    return SplitBottom() - LIST_TOP
+}
+
+; Where the divider sits at HELP_PANE_PCT, for the current window height.
+; This is what a double-click on the bar snaps back to.
+SplitDefault() {
+    global HELP_PANE_PCT
+    return SplitBottom() - Round(SplitAvail() * HELP_PANE_PCT / 100)
+}
+
 ; Suspends or resumes painting for one window. WM_SETREDRAW does NOT propagate
 ; to child controls, so each control that gets resized has to be bracketed
 ; individually or it repaints itself mid-move.
@@ -2100,34 +2434,151 @@ SetRedraw(hwnd, on) {
             "Ptr", on ? 1 : 0, "Ptr", 0)
 }
 
-LayoutMain(prevSplitY := 0) {
+; Widens the Value column so the ListView never shows dead space to the right
+; of it. Deliberately done with LVM_* messages in PHYSICAL pixels rather than
+; ModifyCol, which would drag the layout-unit-versus-pixel question into it.
+; Column 1 is read rather than set, so a width you have dragged is preserved.
+StretchValueColumn() {
+    global lvSettings
+    static LVM_GETCOLUMNWIDTH := 0x101D, LVM_SETCOLUMNWIDTH := 0x101E
+    static LVSCW_AUTOSIZE_USEHEADER := -2
+
+    ; On the LAST column of a report-mode ListView, LVSCW_AUTOSIZE_USEHEADER is
+    ; documented to mean "fill whatever client width is left over". Letting
+    ; Windows do the arithmetic is the whole point here: measuring the client
+    ; rect ourselves and subtracting column 1 gets the vertical scrollbar wrong.
+    ; GetClientRect only stops counting those 17-odd pixels once Windows has
+    ; actually drawn the scrollbar, and during a resize it hasn't yet -- so the
+    ; columns come out a hair too wide and the ListView grows a horizontal
+    ; scrollbar it doesn't need.
+    DllCall("user32\SendMessageW", "Ptr", lvSettings.Hwnd,
+            "UInt", LVM_SETCOLUMNWIDTH, "Ptr", 1, "Ptr", LVSCW_AUTOSIZE_USEHEADER)
+
+    ; That sizes to the header text if the header is wider than the space left,
+    ; which on a very narrow window would be worse than nothing. Floor it.
+    got := DllCall("user32\SendMessageW", "Ptr", lvSettings.Hwnd,
+                   "UInt", LVM_GETCOLUMNWIDTH, "Ptr", 1, "Ptr", 0)
+    if (got < 60) {
+        DllCall("user32\SendMessageW", "Ptr", lvSettings.Hwnd,
+                "UInt", LVM_SETCOLUMNWIDTH, "Ptr", 1, "Ptr", 60)
+    }
+}
+
+; Recomputes the layout after the window has been resized.
+;
+; The divider keeps its PROPORTION (splitPct) rather than the help pane keeping
+; a fixed pixel height, so a taller window gives both regions more room. If you
+; would rather the list absorb all of the growth and the help pane stay put,
+; replace the splitY line below with:
+;
+;     splitY := ClampSplit(SplitBottom() - oldHelpHeight)
+;
+; ...keeping oldHelpHeight from before winH was updated.
+GUI_Size(GuiObj, MinMax, W, H) {
+    global winW, winH, splitY, splitPct, splitter, btnRow
+
+    if (MinMax = -1)                  ; minimized: nothing worth laying out
+        return
+    ; The first Size event arrives from inside Show(). Everything exists by then,
+    ; but bail out safely if that ever stops being true -- btnRow is the last
+    ; thing CreateGUI builds, so a populated btnRow means the rest is there too.
+    if (!IsObject(splitter) || btnRow.Length = 0)
+        return
+
+    ; The W and H parameters are NOT used, deliberately. AHK has already applied
+    ; DPI scaling to them by the time they arrive, so on a 125% display they are
+    ; layout units, not pixels -- dividing them by A_ScreenDPI/96 the way
+    ; CursorClientY() does to a ScreenToClient result shrinks the layout a second
+    ; time and leaves a fat dead band down the right and bottom of the window.
+    ;
+    ; GetClientRect has no such ambiguity: it always returns physical pixels, so
+    ; the conversion to layout units is always exactly one division. Measuring
+    ; here rather than trusting the parameters also means this keeps working if
+    ; AHK ever changes what it passes.
+    scale := A_ScreenDPI / 96
+    rc := Buffer(16, 0)
+    DllCall("GetClientRect", "Ptr", GuiObj.Hwnd, "Ptr", rc)
+    winW := Round(NumGet(rc, 8, "Int") / scale)     ; right
+    winH := Round(NumGet(rc, 12, "Int") / scale)    ; bottom
+
+    splitY := ClampSplit(SplitBottom() - Round(SplitAvail() * splitPct / 100))
+    LayoutMain(0, true)
+}
+
+LayoutMain(prevSplitY := 0, fullRedraw := false) {
     global mainGui, tvSections, lvSettings, splitter, helpLabel, helpPane
-    global splitY, SPLIT_H, SPLIT_GAP, LIST_TOP, SPLIT_BOTTOM, LABEL_H
+    global lblSections, lblSettings, searchBox, searchCount, btnClearSearch
+    global statusText, btnRow
+    global splitY, SPLIT_H, SPLIT_GAP, LIST_TOP, LABEL_H, MARGIN, TREE_W, COL_GAP
+    global TOP_ROW_Y, SEARCH_H, winW, winH
     static RDW_INVALIDATE := 0x0001, RDW_ERASE := 0x0004
-    static RDW_FRAME := 0x0400
-    
+    static RDW_FRAME := 0x0400, RDW_ALLCHILDREN := 0x0080
+
+    ; --- horizontal -----------------------------------------------------------
+    rightX := MARGIN + TREE_W + COL_GAP        ; left edge of the ListView
+    fullW  := winW - MARGIN * 2                ; width of the full-width controls
+    lvW    := winW - rightX - MARGIN
+    if (lvW < 120)
+        lvW := 120
+
+    ; Search box and its clear button hug the right edge.
+    clearX  := winW - MARGIN - 26
+    searchX := clearX - 4 - 200
+    if (searchX < rightX + 60)                 ; very narrow window: let it shrink
+        searchX := rightX + 60
+    searchW := clearX - 4 - searchX
+    if (searchW < 60)
+        searchW := 60
+
+    ; The match counter takes whatever is left between "Settings" and the box.
+    countX := rightX + 105
+    countW := searchX - 8 - countX
+    if (countW < 20)
+        countW := 20
+
+    ; --- vertical -------------------------------------------------------------
     listH := splitY - LIST_TOP - 8
+    if (listH < 10)
+        listH := 10
     helpY := splitY + SPLIT_H + SPLIT_GAP
-    helpH := SPLIT_BOTTOM - (helpY + LABEL_H)
-    
+    helpH := SplitBottom() - (helpY + LABEL_H)
+    if (helpH < 10)
+        helpH := 10
+
     ; Freeze the form and every control whose size changes, move everything,
     ; then thaw. DllCall rather than SendMessage: AHK's SendMessage does window
     ; matching that can fail for a window that isn't shown yet.
-    resized := [tvSections, lvSettings, helpPane]
+    resized := [tvSections, lvSettings, helpPane, splitter, helpLabel,
+                statusText, searchCount]
     SetRedraw(mainGui.Hwnd, false)
     for ctrl in resized
         SetRedraw(ctrl.Hwnd, false)
-    
-    tvSections.Move(, , , listH)
-    lvSettings.Move(, , , listH)
-    splitter.Move(, splitY)
-    helpLabel.Move(, helpY)
-    helpPane.Move(, helpY + LABEL_H, , helpH)
-    
+
+    lblSections.Move(MARGIN, 12, TREE_W)
+    lblSettings.Move(rightX, 12, 100)
+    searchCount.Move(countX, 12, countW)
+    searchBox.Move(searchX, TOP_ROW_Y, searchW, SEARCH_H)
+    btnClearSearch.Move(clearX, TOP_ROW_Y, 26, SEARCH_H)
+
+    tvSections.Move(MARGIN, LIST_TOP, TREE_W, listH)
+    lvSettings.Move(rightX, LIST_TOP, lvW, listH)
+    splitter.Move(MARGIN, splitY, fullW)
+    helpLabel.Move(MARGIN, helpY, fullW)
+    helpPane.Move(MARGIN, helpY + LABEL_H, fullW, helpH)
+    statusText.Move(MARGIN, StatusY(), fullW)
+
+    btnY := ButtonRowY()
+    for b in btnRow
+        b.ctrl.Move(b.x, btnY, b.w)
+
     for ctrl in resized
         SetRedraw(ctrl.Hwnd, true)
     SetRedraw(mainGui.Hwnd, true)
-    
+
+    ; The ListView now has its final width, so the Value column can take up the
+    ; slack. Has to happen after the thaw or the header doesn't repaint.
+    StretchValueColumn()
+
     ; Repaint each resized control in full, frame included. RDW_FRAME is the
     ; important one: scrollbars live in the non-client area, so without it the
     ; ListView's horizontal scrollbar stays painted at every position it passed
@@ -2135,47 +2586,61 @@ LayoutMain(prevSplitY := 0) {
     for ctrl in resized
         DllCall("RedrawWindow", "Ptr", ctrl.Hwnd, "Ptr", 0, "Ptr", 0,
                 "UInt", RDW_INVALIDATE | RDW_ERASE | RDW_FRAME)
-    
+
     ; Now the form background behind them. RDW_ERASE is required here or the old
     ; client-edge borders of the TreeView/ListView and the previous positions of
-    ; the divider stay on screen as ghost lines. Erasing the whole window every
-    ; tick would flicker, so restrict the dirty rect to the band that actually
-    ; changed -- from the higher of the old and new divider positions down to the
-    ; bottom of the help pane. Everything above that is untouched by the move.
-    ; No RDW_ALLCHILDREN: the children were just handled explicitly above.
+    ; the divider stay on screen as ghost lines.
+    ;
+    ; Dragging the divider only dirties a narrow band, and erasing the whole
+    ; window on every tick of a drag would flicker -- so that case restricts the
+    ; dirty rect to the rows that actually changed, from the higher of the old
+    ; and new divider positions down to the bottom of the help pane. A window
+    ; resize moves everything, so it passes fullRedraw and repaints the lot.
+    ; No RDW_ALLCHILDREN in the drag case: the children were handled explicitly
+    ; just above.
     ;
     ; GetClientRect gives left/right in PHYSICAL pixels, so the top/bottom we
     ; substitute have to be scaled from layout units the same way.
-    scale := A_ScreenDPI / 96
-    dirtyTop := (prevSplitY ? Min(prevSplitY, splitY) : LIST_TOP) - 12
     rc := Buffer(16, 0)
     DllCall("GetClientRect", "Ptr", mainGui.Hwnd, "Ptr", rc)
-    NumPut("Int", Round(dirtyTop * scale), rc, 4)
-    NumPut("Int", Round((SPLIT_BOTTOM + 4) * scale), rc, 12)
-    
+    if (!fullRedraw) {
+        scale := A_ScreenDPI / 96
+        dirtyTop := (prevSplitY ? Min(prevSplitY, splitY) : LIST_TOP) - 12
+        NumPut("Int", Round(dirtyTop * scale), rc, 4)
+        NumPut("Int", Round((SplitBottom() + 4) * scale), rc, 12)
+    }
+
     DllCall("RedrawWindow", "Ptr", mainGui.Hwnd, "Ptr", rc, "Ptr", 0,
-            "UInt", RDW_INVALIDATE | RDW_ERASE)
+            "UInt", RDW_INVALIDATE | RDW_ERASE | (fullRedraw ? RDW_ALLCHILDREN : 0))
 }
 
 ; Constrains a proposed divider position to the MIN_LIST / MIN_HELP limits.
 ClampSplit(y) {
-    global SPLIT_H, SPLIT_GAP, LIST_TOP, SPLIT_BOTTOM, MIN_LIST, MIN_HELP, LABEL_H
+    global SPLIT_H, SPLIT_GAP, LIST_TOP, MIN_LIST, MIN_HELP, LABEL_H
     
     minY := LIST_TOP + MIN_LIST
-    maxY := SPLIT_BOTTOM - MIN_HELP - LABEL_H - SPLIT_GAP - SPLIT_H
+    maxY := SplitBottom() - MIN_HELP - LABEL_H - SPLIT_GAP - SPLIT_H
     if (maxY < minY)          ; Window too short for both minimums; favor the list
         maxY := minY
     return Round(Max(minY, Min(maxY, y)))
 }
 
 ; Moves the divider, relayouting only if the position actually changed.
-SetSplit(newY) {
-    global splitY
+;
+; A move the user made (dragging the bar, or double-clicking it to snap back)
+; also records the new proportion in splitPct, which is what a later window
+; resize restores the split from. Pass remember := false for a move that should
+; not become the new remembered proportion.
+SetSplit(newY, remember := true) {
+    global splitY, splitPct
     
     newY := ClampSplit(newY)
     if (newY != splitY) {
         prevY := splitY
         splitY := newY
+        avail := SplitAvail()
+        if (remember && avail > 0)
+            splitPct := Round((SplitBottom() - splitY) / avail * 100)
         LayoutMain(prevY)     ; Pass the old position so the repaint band covers it
     }
 }
@@ -2200,7 +2665,7 @@ OverSplitter() {
 }
 
 Splitter_LButtonDown(wParam, lParam, msg, hwnd) {
-    global mainGui, splitY, SPLIT_DEFAULT
+    global mainGui, splitY
     static lastClick := 0
     
     ; The divider is a plain Static with no SS_NOTIFY, so it is hit-transparent
@@ -2214,7 +2679,7 @@ Splitter_LButtonDown(wParam, lParam, msg, hwnd) {
     dblTime := DllCall("GetDoubleClickTime", "UInt")
     if (A_TickCount - lastClick < dblTime) {
         lastClick := 0
-        SetSplit(SPLIT_DEFAULT)
+        SetSplit(SplitDefault())
         return 0
     }
     lastClick := A_TickCount
@@ -2239,7 +2704,7 @@ Splitter_SetCursor(wParam, lParam, msg, hwnd) {
 }
 
 Tree_ItemSelect(GuiCtrlObj, Item) {
-    global lvSettings, currentSection, sectionMap, helpPane, keyOrder, allSettings
+    global lvSettings, currentSection, sectionMap, helpPane, helpLabel, keyOrder, allSettings
     
     if (Item = 0) {
         return
@@ -2260,9 +2725,14 @@ Tree_ItemSelect(GuiCtrlObj, Item) {
     helpPane.Value := ""
     
     if (currentSection != "") {
-        ; Iterate through keys in the order they appear in the INI file
+        ; Iterate through keys in the order they appear in the INI file,
+        ; skipping any that the search box is currently filtering out.
+        ; MatchesSearch() returns true for everything when the box is empty, so
+        ; this is a no-op in the unfiltered case.
         if keyOrder.Has(currentSection) {
             for key in keyOrder[currentSection] {
+                if !MatchesSearch(currentSection, key)
+                    continue
                 fullKey := currentSection "." key
                 if allSettings.Has(fullKey) {
                     value := allSettings[fullKey]
@@ -2554,34 +3024,13 @@ Btn_Reload(GuiCtrlObj := "", Info := "") {
     originalSettings := Map()
     
     if LoadINIFile(iniPath) {
-        lvSettings.Delete()
-        tvSections.Delete()
-        
-        sections := GetSections()
-        sectionMap := Map()  ; Reset the map
-        
-        firstItemID := 0
-        lastItemID := 0
-        for section in sections {
-            ; Add each section after the previous one to preserve order
-            if (lastItemID = 0) {
-                ItemID := tvSections.Add(section)
-            } else {
-                ItemID := tvSections.Add(section, , String(lastItemID))
-            }
-            sectionMap[ItemID] := section
-            lastItemID := ItemID
-            if (firstItemID = 0) {
-                firstItemID := ItemID
-            }
-        }
-        
         isDirty := false
         
-        if (sections.Length > 0) {
-            currentSection := sections[1]
-            Tree_ItemSelect(tvSections, firstItemID)
-        }
+        ; RebuildTree() handles the tree, the sectionMap, the ListView and the
+        ; search filter in one go, and keeps you on the same section when it
+        ; still exists after the reload.
+        RebuildTree()
+        UpdateSearchStatus()
         
         ToolTip("Settings reloaded")
         SetTimer(() => ToolTip(), 2000)
@@ -2792,3 +3241,21 @@ if (iniPath = "") {
         ExitApp
     }
 }
+
+; ============================================================================
+; HOTKEYS
+; ============================================================================
+; Both are scoped to this script's own window, so they do nothing while any
+; other application is in front, and nothing while one of the edit dialogs is
+; up (those are separate Gui windows with their own HWNDs).
+;
+; Escape is taken here rather than through the Gui's Escape event so it never
+; reaches the window's default handling. There is no tray command to bring the
+; window back once it is hidden, so "Esc hides the GUI" would be a dead end.
+;
+; The IsObject() guard matters: mainGui is still an empty string until
+; CreateGUI() runs, and && short-circuits before .Hwnd would be touched.
+#HotIf IsObject(mainGui) && WinActive("ahk_id " mainGui.Hwnd)
+Escape::ClearSearch()
+^f::FocusSearch()
+#HotIf
