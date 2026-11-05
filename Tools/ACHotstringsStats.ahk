@@ -204,6 +204,9 @@ class HotstringLibStats {
                 
                 ; Extract hotstring starting at position 15
                 logHotstring := SubStr(line, 15)
+                ; Detail fields (time, word change, exe) follow the first TAB -- not part of the hotstring.
+                if (tabPos := InStr(logHotstring, "`t"))
+                    logHotstring := SubStr(logHotstring, 1, tabPos - 1)
                 
                 ; Parse the log hotstring
                 parsed := this.ParseHotstring(logHotstring)

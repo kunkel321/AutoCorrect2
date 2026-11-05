@@ -1252,6 +1252,9 @@ class TI {
             line := Trim(A_LoopField)
             if (line = "" || SubStr(line, 1, 1) = ";")
                 continue
+            ; Detail fields (time, word change, exe) follow the first TAB -- not part of the hotstring.
+            if (tabPos := InStr(line, "`t"))
+                line := SubStr(line, 1, tabPos - 1)
             if !RegExMatch(line, "^(\d{4}-\d{2}-\d{2}).*?::([^:]+)::(.*)$", &m)
                 continue
             if (cutoff != "" && m[1] < cutoff)               ; ISO dates sort as strings

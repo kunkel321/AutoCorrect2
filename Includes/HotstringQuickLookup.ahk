@@ -26,12 +26,13 @@ Dependencies:
 ; Gets #Include'ed in AutoCorrect2.ahk, so comment-out Auto Exe section.
 ; #Requires AutoHotkey v2.0+
 ; #SingleInstance 
-; ^Esc::ExitApp()
+; ^Esc::ExitApp() ; hide
 
 ; ======= Global Hotkey Setup =======
 
 ; Hotkey: Ctrl+Shift+Q - Grab selected text and populate the lookup tool
-^+q:: {
+^+q:: ; Hotstring stats Quick Lookup Tool.
+{
     try {
         ; Copy selected text to clipboard
         SoundBeep()
@@ -256,7 +257,7 @@ class HotstringQuickLookup {
         inputText := Trim(inputText)
         
         ; Remove inline comments (anything after ;)
-        commentPos := InStr(inputText, ";")
+        commentPos := RegExMatch(inputText, "\s;") ; not InStr(";"): ";" with no space before it is part of the rule (;s triggers)
         if (commentPos > 0)
             inputText := Trim(SubStr(inputText, 1, commentPos - 1))
         
@@ -314,6 +315,9 @@ class HotstringQuickLookup {
                 ; The hotstring data starts at position 15
                 if (StrLen(line) >= 15) {
                     logHotstring := SubStr(line, 15)
+                    ; Detail fields (time, word change, exe) follow the first TAB -- not part of the hotstring.
+                    if (tabPos := InStr(logHotstring, "`t"))
+                        logHotstring := SubStr(logHotstring, 1, tabPos - 1)
                     actionType := SubStr(line, 12, 2)  ; "--" or "<<"
                     
                     ; Check if this log entry matches our search

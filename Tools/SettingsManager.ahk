@@ -530,7 +530,10 @@ EditInteger(section, key, originalValue) {
     
     ; Add Edit and UpDown controls
     editGui.Add("Edit", "x10 y60 w250 h25 Number vIntValue", originalValue)
-    editGui.Add("UpDown", "x260 y60 w30 h25 Range" minVal "-" maxVal, originalValue)
+    ; 0x80 = UDS_NOTHOUSANDS: by default the UpDown rewrites its buddy Edit as
+    ; "3,000", which Submit() returns as a string and the range check then throws on.
+    ; (Not -16: that removes UDS_AUTOBUDDY, and the arrows stop changing the box.)
+    editGui.Add("UpDown", "x260 y60 w30 h25 0x80 Range" minVal "-" maxVal, originalValue)
     
     btnOK := editGui.Add("Button", "x120 y100 w80 h30 Default", "OK")
     btnCancel := editGui.Add("Button", "x210 y100 w80 h30", "Cancel")
@@ -3122,7 +3125,8 @@ ShowRestartDialog(appsToRestart) {
         
         for app in appsToRestart {
             try {
-                Run(app)
+                if (RestartApp(app) = "stuck") ; still running: no second copy was started
+                    throw Error("would not close", "still running, so it was not started again")
                 launchCount++
             } catch as err {
                 failedApps.Push(app " (Error: " err.What ")")
@@ -3141,6 +3145,59 @@ ShowRestartDialog(appsToRestart) {
             SetTimer(() => ToolTip(), 2000)
         }
     }
+}
+
+; Run(app) alone leaves the replacement to the target's own #SingleInstance Force,
+; which only recognises an instance started by the SAME AutoHotkey version: it looks
+; for the hidden main window titled "<script path> - AutoHotkey vX.Y.Z".  A copy
+; started through the .ahk file association (the system AutoHotkey64.exe) is thus
+; not replaced by Core\AutoCorrect2.exe, and two copies end up running.  So close
+; every copy of the target script by path first, whatever version runs it, and
+; never start one while a copy is still running.
+; Returns "restarted", "not running" (and not started, if startIfNotRunning is
+; false) or "stuck" (a copy would not close within 3 s; nothing was started).
+RestartApp(app, startIfNotRunning := true) {
+    paths := []
+    buf := Buffer(2 * 32768)   ; resolve "..\" and 8.3 names the way the title shows them
+    for p in [RegExReplace(app, "i)\.exe$", ".ahk"), app] {
+        if DllCall("GetFullPathName", "Str", p, "UInt", 32768, "Ptr", buf, "Ptr", 0, "UInt")
+            p := StrGet(buf)
+        if DllCall("GetLongPathName", "Str", p, "Ptr", buf, "UInt", 32768, "UInt")
+            p := StrGet(buf)
+        paths.Push(p)
+    }
+    prevDHW := DetectHiddenWindows(true)
+    running := _AppWindows(paths)
+    for hwnd in running
+        try WinClose(hwnd)            ; WM_CLOSE on the main window = ExitApp
+    for hwnd in running
+        try WinWaitClose(hwnd, , 3)
+    stuck := _AppWindows(paths).Length
+    DetectHiddenWindows(prevDHW)
+    if stuck
+        return "stuck"
+    if (!running.Length && !startIfNotRunning)
+        return "not running"
+    Run(app)
+    return "restarted"
+}
+
+; Main windows of running copies: titled "<script path> - AutoHotkey vX.Y.Z", or
+; just the path for a compiled script.
+_AppWindows(paths) {
+    found := []
+    for hwnd in WinGetList("ahk_class AutoHotkey") {
+        try title := WinGetTitle(hwnd)
+        catch
+            continue
+        for p in paths {
+            if (InStr(title, p) = 1 && (title = p || InStr(title, p " - AutoHotkey") = 1)) {
+                found.Push(hwnd)
+                break
+            }
+        }
+    }
+    return found
 }
 
 ; ============================================================================

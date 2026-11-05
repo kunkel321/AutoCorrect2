@@ -1108,6 +1108,9 @@ LoadACLogStats(logPath) {
 
         action     := SubStr(line, 12, 2)   ; "--" or "<<"
         hsFragment := SubStr(line, 15)
+        ; Detail fields (time, word change, exe) follow the first TAB -- not part of the hotstring.
+        if (tabPos := InStr(hsFragment, "`t"))
+            hsFragment := SubStr(hsFragment, 1, tabPos - 1)
 
         if !RegExMatch(hsFragment, hsRegex, &m)
             continue

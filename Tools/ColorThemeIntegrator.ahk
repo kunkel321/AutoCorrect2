@@ -88,7 +88,7 @@ else { ; Ini file not there, so use these color instead.
 restartTheseScripts := " ; Path not needed if they are in same folder as this script.
 (           
 ..\Core\AutoCorrect2.exe
-..\..\HotKeyTool\HotKeyTool.exe
+HotkeyHub.exe
 ..\Core\MCLogger.exe
 ..\..\WayText\WayText.exe
 ..\..\Stickies\StickyNotes.exe
@@ -119,6 +119,7 @@ If FileExist(settingsFile) {
     ListSaturationStepsVal   := IniRead(settingsFile, "ColorSettings", "ListSaturationSteps")
     FormShadeStepsVal        := IniRead(settingsFile, "ColorSettings", "FormShadeSteps")
     FormSaturationStepsVal   := IniRead(settingsFile, "ColorSettings", "FormSaturationSteps")	
+    darkButtonsVal           := IniRead(settingsFile, "ColorSettings", "darkButtons", 0)
 }
 Else {  ; If ini file doesn't exist, just use these default values. 
     formColor := "0x550000", listColor := "0xC4E1A4", fontColor := "0x92B0C3"
@@ -126,6 +127,7 @@ Else {  ; If ini file doesn't exist, just use these default values.
     , myReferenceVal := "1", sStepsVal := "10", myRadLightVal := "1", myRadDarkVal := "0"
     , FontShadeStepsVal := "25", FontSaturationStepsVal := "30", ListShadeStepsVal := "6"
     , ListSaturationStepsVal := "30", FormShadeStepsVal := "5", FormSaturationStepsVal := "30", customList := ""
+    , darkButtonsVal := "0"
         setColorArrays() ; The arrays are large, so I put them at the bottom.  
         colorArray := additiveRGB
 }
@@ -209,6 +211,12 @@ myList.OnEvent("DoubleClick", listClick)
 
 warnProg := myGui.Add("Progress", "x14 w215 h30 c" . warnColor, "100")
 myGui.Add("text", "xp+14 yp+4  +BackgroundTrans", "Form warning state" )
+
+; Windows draws push buttons itself, so the colors above never reach them.  Ticked,
+; with a dark form color, they take Windows' own dark style -- here and in
+; HotstringHelper, which reads darkButtons from [ColorSettings].
+myDarkButtons := myGui.Add("Checkbox", "x50 y+14 c" fontColor " Checked" darkButtonsVal, "Dark buttons")
+myDarkButtons.OnEvent("Click", darkButtonsChanged)
 
 ; -- Saved Favorite Themes dropdown moved above the button group, so picking a
 ; theme previews it immediately (via the Change event below), and the buttons
@@ -323,6 +331,7 @@ saveFave(*) {
     IniWrite(ListSaturationSteps.Value, settingsFile, themeName.Value, "ListSaturationSteps")
     IniWrite(FormShadeSteps.Value, settingsFile, themeName.Value, "FormShadeSteps")
     IniWrite(FormSaturationSteps.Value, settingsFile, themeName.Value, "FormSaturationSteps")
+    IniWrite(myDarkButtons.Value, settingsFile, themeName.Value, "darkButtons")
     
     ; Update combobox with new theme
     refreshThemesList()
@@ -365,6 +374,7 @@ loadFave(*) {
     ListSaturationSteps.Value := IniRead(settingsFile, themeName, "ListSaturationSteps")
     FormShadeSteps.Value := IniRead(settingsFile, themeName, "FormShadeSteps")
     FormSaturationSteps.Value := IniRead(settingsFile, themeName, "FormSaturationSteps")
+    myDarkButtons.Value := IniRead(settingsFile, themeName, "darkButtons", 0)
     
     ; Update GUI with new colors
     colorChanged()
@@ -510,6 +520,7 @@ CaptureCurrentConfig() {
     cfg["ListSaturationSteps"] := ListSaturationSteps.Value
     cfg["FormShadeSteps"] := FormShadeSteps.Value
     cfg["FormSaturationSteps"] := FormSaturationSteps.Value
+    cfg["darkButtons"] := myDarkButtons.Value
     return cfg
 }
 
@@ -537,6 +548,7 @@ ApplyConfig(cfg) {
     ListSaturationSteps.Value := cfg["ListSaturationSteps"]
     FormShadeSteps.Value := cfg["FormShadeSteps"]
     FormSaturationSteps.Value := cfg["FormSaturationSteps"]
+    myDarkButtons.Value := cfg.Get("darkButtons", 0)
     warnColor := cfg["warnColor"] ; colorChanged() never reassigns warnColor itself, so set it directly.
     colorChanged()
 }
@@ -555,10 +567,10 @@ CaptureFaveConfig(themeName) {
     static keyList := ["fontColor","listColor","formColor","warnColor"
         ,"myRadRGB","myRadCYM","color1","myReference","sSteps","myRadLight","myRadDark"
         ,"FontShadeSteps","FontSaturationSteps","ListShadeSteps","ListSaturationSteps"
-        ,"FormShadeSteps","FormSaturationSteps"]
+        ,"FormShadeSteps","FormSaturationSteps","darkButtons"]
     cfg := Map()
     for k in keyList
-        cfg[k] := IniRead(settingsFile, themeName, k, "")
+        cfg[k] := IniRead(settingsFile, themeName, k, k = "darkButtons" ? 0 : "") ; older favorites lack darkButtons
     return cfg
 }
 
@@ -856,6 +868,7 @@ colorChanged(*) {
     myList.Delete() ; Clear all existing items
     myList.Add(myListArr) ; Add new items
 
+    ApplyDarkButtons(myGui) ; the form color decides it, so recheck on every change
     UpdateModifiedStatus()
 }
 
@@ -1125,11 +1138,12 @@ SaveColors(*) {
     Global sav := Gui()
     sav.BackColor := formColor
     sav.SetFont("s12 c" fontColor)
-    Global savCkBx := sav.Add("Checkbox", "Checked1", "Attempt to restart the following scripts.")
+    Global savCkBx := sav.Add("Checkbox", "Checked1", "Restart those of these scripts that are running.")
     sav.Add("Edit", "BackGround" listColor, restartTheseScripts)
     sav.SetFont("s11 c" fontColor)
     sav.Add("Button", "x14 w100", "OK").OnEvent("Click", doSave)
     sav.Add("Button", "w100 x+15", "Cancel").OnEvent("Click", (*) => sav.Hide())
+    ApplyDarkButtons(sav)
     sav.Show()
 }
 
@@ -1152,17 +1166,21 @@ doSave(*) {
     IniWrite(ListSaturationSteps.Value, settingsFile, "ColorSettings", "ListSaturationSteps")
     IniWrite(FormShadeSteps.Value, settingsFile, "ColorSettings", "FormShadeSteps")
     IniWrite(FormSaturationSteps.Value, settingsFile, "ColorSettings", "FormSaturationSteps")
+    IniWrite(myDarkButtons.Value, settingsFile, "ColorSettings", "darkButtons")
     Try IniWrite(customList, settingsFile, "ColorSettings", "customList")
     
-    If (savCkBx.Value = 1) { ; If checkbox is true, try to run the scripts. 
+    If (savCkBx.Value = 1) { ; If checkbox is true, restart the listed scripts that are running.
+        ; Entries that do not exist here are skipped quietly, and so are scripts that
+        ; are not running: a restart must never start something that was off.
+        stuck := ""
         loop parse restartTheseScripts, "`n" {
-            If FileExist(A_LoopField) { ; Only try to run scripts that exist. 
-                Run(A_LoopField)
-                Sleep 100
-            }
-            else
-                msgbox "`"" A_LoopField "`" doesn't appear to exist.  Skipping that one.`n`nYou may wish to remove it from the 'restartTheseScripts' variable near the top of the code."
+            if (Trim(A_LoopField) = "" || !FileExist(A_LoopField))
+                continue
+            if (RestartApp(A_LoopField, false) = "stuck")
+                stuck .= "`n" A_LoopField
         }
+        if (stuck != "")
+            MsgBox("These would not close, so they were left running and not started again:" stuck "`n`nRestart them yourself to see the new colors.")
     }
     global lastSavedState := CaptureCurrentConfig() ; What's on disk now matches what's live -- reset the baseline.
     UpdateModifiedStatus()
@@ -1183,6 +1201,35 @@ resetColors(*) {
     favesDropList.Value := 0 ; Clear the selection -- the dropdown shouldn't keep showing
                               ; a fave that's no longer what's actually being previewed.
     UpdateModifiedStatus()
+}
+
+darkButtonsChanged(*) {
+    ApplyDarkButtons(myGui)
+    UpdateModifiedStatus()
+}
+
+; Ticked and a dark form color: Windows' DarkMode_Explorer style (Win10 1809+) on
+; every push button of g; otherwise the normal style back.
+ApplyDarkButtons(g) {
+    dark := myDarkButtons.Value && IsDarkColor(formColor)
+    for hwnd, ctrl in g {
+        if (ctrl.Type != "Button") ; checkboxes/radios keep the font color
+            continue
+        if dark
+            DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Str", "DarkMode_Explorer", "Ptr", 0)
+        else
+            DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Ptr", 0, "Ptr", 0)
+        DllCall("InvalidateRect", "Ptr", hwnd, "Ptr", 0, "Int", 1)
+    }
+}
+
+; True for a color like "0x2C2C2C" whose perceived brightness is under half.
+; Same test as HotstringHelper's UI.IsDarkColor().
+IsDarkColor(color) {
+    if !RegExMatch(color, "i)([0-9a-f]{6})$", &m)
+        return false
+    v := Integer("0x" m[1])
+    return (0.299 * (v >> 16 & 0xFF) + 0.587 * (v >> 8 & 0xFF) + 0.114 * (v & 0xFF)) < 128
 }
 
 myGui.Show("x" A_ScreenWidth /5*3) ; Always show on run now -- show off center.
@@ -1218,3 +1265,56 @@ setColorArrays() {
         "0xC60039", "0xCC0033", "0xD2002D", "0xD90026", "0xDF0020", "0xE6001A", "0xEC0013", "0xF2000D", "0xF90006", "0xFF0000"
     ]
 }
+; Run(app) alone leaves the replacement to the target's own #SingleInstance Force,
+; which only recognises an instance started by the SAME AutoHotkey version: it looks
+; for the hidden main window titled "<script path> - AutoHotkey vX.Y.Z".  A copy
+; started through the .ahk file association (the system AutoHotkey64.exe) is thus
+; not replaced by Core\AutoCorrect2.exe, and two copies end up running.  So close
+; every copy of the target script by path first, whatever version runs it, and
+; never start one while a copy is still running.
+; Returns "restarted", "not running" (and not started, if startIfNotRunning is
+; false) or "stuck" (a copy would not close within 3 s; nothing was started).
+RestartApp(app, startIfNotRunning := true) {
+    paths := []
+    buf := Buffer(2 * 32768)   ; resolve "..\" and 8.3 names the way the title shows them
+    for p in [RegExReplace(app, "i)\.exe$", ".ahk"), app] {
+        if DllCall("GetFullPathName", "Str", p, "UInt", 32768, "Ptr", buf, "Ptr", 0, "UInt")
+            p := StrGet(buf)
+        if DllCall("GetLongPathName", "Str", p, "Ptr", buf, "UInt", 32768, "UInt")
+            p := StrGet(buf)
+        paths.Push(p)
+    }
+    prevDHW := DetectHiddenWindows(true)
+    running := _AppWindows(paths)
+    for hwnd in running
+        try WinClose(hwnd)            ; WM_CLOSE on the main window = ExitApp
+    for hwnd in running
+        try WinWaitClose(hwnd, , 3)
+    stuck := _AppWindows(paths).Length
+    DetectHiddenWindows(prevDHW)
+    if stuck
+        return "stuck"
+    if (!running.Length && !startIfNotRunning)
+        return "not running"
+    Run(app)
+    return "restarted"
+}
+
+; Main windows of running copies: titled "<script path> - AutoHotkey vX.Y.Z", or
+; just the path for a compiled script.
+_AppWindows(paths) {
+    found := []
+    for hwnd in WinGetList("ahk_class AutoHotkey") {
+        try title := WinGetTitle(hwnd)
+        catch
+            continue
+        for p in paths {
+            if (InStr(title, p) = 1 && (title = p || InStr(title, p " - AutoHotkey") = 1)) {
+                found.Push(hwnd)
+                break
+            }
+        }
+    }
+    return found
+}
+

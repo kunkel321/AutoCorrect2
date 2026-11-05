@@ -1,4 +1,4 @@
-﻿#SingleInstance Force
+#SingleInstance Force
 #Requires AutoHotkey v2.0
 SetWorkingDir(A_ScriptDir)
 
@@ -104,6 +104,12 @@ class Config {
     static BoilerplateSuffix := ""
     static FirstLettersToInclude := 5
     static MinWordLength := 2
+    static MaxClipLength := 0                ; Clipboard longer than this opens a blank form (0 = no limit)
+    static RememberWindowPosition := 1       ; Reopen HH where it was last dragged to (else centered)
+    static BeepOnAppend := 1                 ; Beep once a new rule is live (Reload paths beep via BeepOnStartup)
+    static SpellCheckReplacement := 1        ; Windows spell check in HH's Replacement box (see SpellMark)
+    static EmptyFormDefaults := 0            ; Empty clipboard: AC defaults (opts, Function, Log, AC) instead of a bare form
+    static DarkModeButtons := 1              ; darkButtons in colorThemeSettings.ini (ColorThemeIntegrator's "Dark buttons" box)
     
     ; AutoCorrect Options
     static DefaultAutoCorrectOpts := "B0X"
@@ -154,6 +160,15 @@ class Config {
     static AutoCorrectionsEnabled := true
     static BeepOnContextLog := 1
     static BeepOnCapFix := 1
+    static CapFixTimeoutMs := 300       ; How long the caps fix waits for the 3rd letter
+    static CapFixTwoLetterList := "OF,TO,IN,IT,IS,AS,AT,WE,HE,BY,ON,BE,NO" ; Words CapFixTwoLetterWords fixes (upstream's hard-coded list)
+    static LogActiveExe := 0            ; Append [process.exe] to each AutoCorrectsLog line
+    static LogExtendedDetail := 1       ; Append time and "typed -> result" to each log line
+    static LogCapFixes := 1             ; Log the double-capital fixes (THe -> The) too
+    static LogRuleLocation := 1         ; Add the rule's library and line (BP:311) to each log line
+    static SuppressAfterBackspace := 1  ; Backspacing a correction mutes that rule briefly
+    static SuppressSeconds := 5         ; ...for this long, measured from the Backspace
+    static ShowTrayExtras := 1          ; Tray menu: Run Printer Tool, Show Calendar, System Up Time (unrelated to autocorrection; 0 hides them)
 
 
     ; ============================================================
@@ -288,6 +303,11 @@ class Config {
         this.BoilerplateSuffix          := this.ReadIni("HotstringHelper", "BoilerplateSuffix", "")
         this.FirstLettersToInclude      := this.ReadIni("HotstringHelper", "FirstLettersToInclude", 5)
         this.MinWordLength              := this.ReadIni("HotstringHelper", "MinWordLength", 2)
+        this.MaxClipLength              := this.ReadIni("HotstringHelper", "MaxClipLength", 0)
+        this.RememberWindowPosition     := this.ReadIni("HotstringHelper", "RememberWindowPosition", 1)
+        this.BeepOnAppend               := this.ReadIni("HotstringHelper", "BeepOnAppend", 1)
+        this.SpellCheckReplacement      := this.ReadIni("HotstringHelper", "SpellCheckReplacement", 1)
+        this.EmptyFormDefaults          := this.ReadIni("HotstringHelper", "EmptyFormDefaults", 0)
         ; AutoCorrect
         this.DefaultAutoCorrectOpts     := this.ReadIni("HotstringHelper", "DefaultAutoCorrectOpts", "B0X")
         this.MakeAcFuncByDefault        := this.ReadIni("HotstringHelper", "MakeAcFuncByDefault", 1)
@@ -315,6 +335,15 @@ class Config {
         this.WinSkiplist                := StrSplit(WinSkiplistString, ",")
         this.BeepOnCapFix               := this.ReadIni("ACSystem", "BeepOnCapFix", 1)
         this.CapFixTwoLetterWords       := this.ReadIni("ACSystem", "CapFixTwoLetterWords", 1)
+        this.CapFixTimeoutMs            := this.ReadIni("ACSystem", "CapFixTimeoutMs", 300)
+        this.CapFixTwoLetterList        := this.ReadIni("ACSystem", "CapFixTwoLetterList", "OF,TO,IN,IT,IS,AS,AT,WE,HE,BY,ON,BE,NO")
+        this.LogActiveExe               := this.ReadIni("ACSystem", "LogActiveExe", 0)
+        this.LogExtendedDetail          := this.ReadIni("ACSystem", "LogExtendedDetail", 1)
+        this.LogCapFixes                := this.ReadIni("ACSystem", "LogCapFixes", 1)
+        this.LogRuleLocation            := this.ReadIni("ACSystem", "LogRuleLocation", 1)
+        this.SuppressAfterBackspace     := this.ReadIni("ACSystem", "SuppressAfterBackspace", 1)
+        this.SuppressSeconds            := this.ReadIni("ACSystem", "SuppressSeconds", 5)
+        this.ShowTrayExtras             := this.ReadIni("ACSystem", "ShowTrayExtras", 1)
 
         ; [ControlButtons] Section
         ; Read entire section in one call; parse into a Map of {show, close} objects.
@@ -345,6 +374,7 @@ class Config {
             this.FontColor := "c" IniRead(ctSettingsFile, "ColorSettings", "fontColor")
             this.ListColor := IniRead(ctSettingsFile, "ColorSettings", "listColor")
             this.FormColor := IniRead(ctSettingsFile, "ColorSettings", "formColor")
+            this.DarkModeButtons := IniRead(ctSettingsFile, "ColorSettings", "darkButtons", 1) ; older theme files lack it
         }
         ; If theme file doesn't exist, defaults are already set in static declarations
     }
@@ -409,16 +439,22 @@ AutoCorrectionsActivelyRunning() {
 }
 
 IsSkiplistedFocused() {
-    ; Check app skiplist (by process name)
-    activeProcessName := WinGetProcessName("A")
+    ; Check app skiplist (by process name).  ActiveExeName() returns "" instead
+    ; of throwing when there is no resolvable active window -- this runs inside
+    ; #HotIf evaluation, so an uncaught throw here is an error dialog mid-typing.
+    activeProcessName := ActiveExeName()
     for processName in Config.AppSkiplist {
-        if (activeProcessName = processName)
+        if (processName != "" && activeProcessName = processName)
             return true
     }
     
-    ; Check window skiplist (by window title, partial match)
+    ; Check window skiplist (by window title, partial match).  Not WinActive():
+    ; it uses the default SetTitleMatchMode 1 (starts-with), so "Hotstring Helper"
+    ; never matched HH's real title, "<user>'s Hotstring Helper".
+    activeTitle := ""
+    try activeTitle := WinGetTitle("A")
     for windowTitle in Config.WinSkiplist {
-        if WinActive(windowTitle)
+        if (windowTitle != "" && InStr(activeTitle, windowTitle))
             return true
     }
     
@@ -456,20 +492,29 @@ SetupTrayMenu() {
     acMenu.Add("Hotstring Library", (*) => OpenHotstringLibrary())
     acMenu.SetIcon("Hotstring Library", "..\Resources\Icons\library-Blue.ico")
 
-    acMenu.Add("Run Printer Tool", (*) => RunPrinterTool())
-    acMenu.SetIcon("Run Printer Tool", "..\Resources\Icons\printer-Blue.ico")
-
-    acMenu.Add("Show Calendar", (*) => RunDateTool())
-    acMenu.SetIcon("Show Calendar", "..\Resources\Icons\calendar-Blue.ico")
-    
-    acMenu.Add("System Up Time", (*) => UpTime())
-    acMenu.SetIcon("System Up Time", "..\Resources\Icons\clock-Blue.ico")
+    acMenu.Add("Open AutoCorrect Log", (*) => Utils.OpenFileAtEnd(Config.AutoCorrectsLogFile))
+    acMenu.SetIcon("Open AutoCorrect Log", "..\Resources\Icons\log-Blue.ico")
     
     acMenu.Add("Reload Script", (*) => Reload())
     acMenu.SetIcon("Reload Script", "..\Resources\Icons\repeat-Blue.ico")
 
+    acMenu.Add("Reset HH Window Position", (*) => WindowPos.Reset()) ; Forgets the saved spot; next open is centered.
+    acMenu.SetIcon("Reset HH Window Position", "..\Resources\Icons\repeat-Blue.ico")
+
     acMenu.Add("Open Settings Manager", (*) => Run(Config.SettingsManager))
     acMenu.SetIcon("Open Settings Manager", "..\Resources\Icons\Settings-blue.ico")
+    
+    ; Handy but not autocorrect-related, so they can be hidden: ShowTrayExtras=0 in [ACSystem].
+    if Config.ShowTrayExtras {
+        acMenu.Add("Run Printer Tool", (*) => RunPrinterTool())
+        acMenu.SetIcon("Run Printer Tool", "..\Resources\Icons\printer-Blue.ico")
+        
+        acMenu.Add("Show Calendar", (*) => RunDateTool())
+        acMenu.SetIcon("Show Calendar", "..\Resources\Icons\calendar-Blue.ico")
+        
+        acMenu.Add("System Up Time", (*) => UpTime())
+        acMenu.SetIcon("System Up Time", "..\Resources\Icons\clock-Blue.ico")
+    }
     
     acMenu.Add("List Lines Debug", (*) => ListLines())
     acMenu.SetIcon("List Lines Debug", "..\Resources\Icons\ListLines-Blue.ico")
@@ -491,8 +536,18 @@ SetupTrayMenu() {
             FileDelete(A_Startup "\" Config.ScriptName ".lnk")
             acMsgBox.show("" Config.ScriptName " will NO LONGER auto`nstart with Windows.",, "icon!")
         } Else {
-            FileCreateShortcut(A_WorkingDir "\" StrReplace(Config.ScriptName, ".ahk") ".exe", A_Startup "\" Config.ScriptName ".lnk"
-            , A_WorkingDir, "", "", A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
+            ; Target whichever interpreter is running us now (the renamed
+            ; Core\AutoCorrect2.exe, or an installed AutoHotkey64.exe) and pass the
+            ; script explicitly, so the shortcut works however the user launched it.
+            FileCreateShortcut(A_AhkPath, A_Startup "\" Config.ScriptName ".lnk"
+            , A_WorkingDir, '"' A_ScriptFullPath '"', "", A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
+            ; Windows' "Startup apps" toggle remembers a disabled entry by name.
+            ; Re-creating the .lnk doesn't clear that, so the new shortcut can sit
+            ; there silently disabled.  A 12-byte value starting 02 marks it enabled.
+            enabled := Buffer(12, 0), NumPut("UChar", 2, enabled)
+            try RegWrite(enabled, "REG_BINARY"
+                , "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder"
+                , Config.ScriptName ".lnk")
             acMsgBox.show(Config.ScriptName " will now auto`nstart with Windows.",, "icon!")
         }
         Reload()
@@ -530,7 +585,7 @@ _ControlBtnAction(action, doClose, *) {
 }
 
 OpenHotstringLibrary(*) {
-    if !Utils.OpenFileAtLine(Config.HotstringLibrary)
+    if !Utils.OpenFileAtEnd(Config.HotstringLibrary) ; HH appends new rules at the bottom
         acMsgBox.show 'cannot run ' Config.EditorPath ' or cannot run ' Config.HotstringLibrary
 }
 
@@ -612,6 +667,8 @@ class State {
     ; UI State
     static ExamPaneOpen := 0
     static ControlPaneOpen := 0
+    static OptionsPaneOpen := 0
+    static SideCPOpen := 0        ; Control Panel copy under the Options Reference pane
     static FormBig := 0
     static SymbolsVisible := 0
     static CurrentEdit := 0
@@ -689,7 +746,7 @@ class UI {
     static ListBackground := ""
     static DeltaColor := ""
     static CommentColor := ""
-    
+
     ; Initialize and build the main UI
     static Init() {
         ; Create main GUI
@@ -717,22 +774,34 @@ class UI {
         ; Set up event handlers
         this._SetupEventHandlers()
         
+        this._CreateOptionsPane()
+        this._ApplyDarkButtons()
+
         ; Hide panes by default
         UIActions.ShowHideExamPane(false)
         UIActions.ShowHideControlPane(false)
+        UIActions.ShowHideOptionsPane(false)
+
+        ; Remember the window position when the user finishes dragging it.
+        OnMessage(0x0232, WindowPos.Save.Bind(WindowPos)) ; WM_EXITSIZEMOVE
     }
 
     ; Create the trigger string section
     static _CreateTriggerSection() {
-        this.MainForm.AddText("y4 w30", "Options")
-        this.Controls["TriggerLabel"] := this.MainForm.AddText("x+40 w250", "Trigger String")
+        ; The "Options" caption is a button: it labels the Options box below it AND
+        ; opens/closes the Options Reference pane (it replaced the old » button).
+        ; Same x and width as the Options box, so it reads as that box's header.
+        this.Controls["FuncHelperButton"] := this.MainForm.AddButton("xm+1 y2 w70 h21", "Options")
+        ; 18 = the gap between the Options box and the Trigger box below, so this label
+        ; sits over the Trigger box's left edge.
+        this.Controls["TriggerLabel"] := this.MainForm.AddText("x+18 y4 w250", "Trigger String")
         
         ; Set background color for edit controls
         this.ListBackground := Config.ListColor != "" ? "Background" Config.ListColor : ""
         
         ; Add the option and trigger input fields
-        this.Controls["OptionsEdit"] := this.MainForm.AddEdit(this.ListBackground " yp+20 xm+2 w70 h24")
-        this.Controls["TriggerEdit"] := this.MainForm.AddEdit(this.ListBackground " x+18 w" Config.DefaultWidth - 91)
+        this.Controls["OptionsEdit"] := this.MainForm.AddEdit(this.ListBackground " y24 xm+1 w70 h24") ; xm+1: left edge level with the Replacement box
+        this.Controls["TriggerEdit"] := this.MainForm.AddEdit(this.ListBackground " x+18 w" Config.DefaultWidth - 90) ; -90 not -91: right edge at DefaultWidth+14, level with the Replacement box
 
         ; Add the help button
         this.Controls["HelpButton"] := this.MainForm.AddButton("x" (Config.DefaultWidth - 10) " y2 w25 h20", "?")
@@ -747,9 +816,10 @@ class UI {
 		this.MainForm.SetFont("s9")
 		
 		; Add size toggle and symbols toggle buttons
-		this.Controls["SizeToggle"] := this.MainForm.AddButton("x+40 yp-5 h8", "Make Bigger")
+		this.Controls["SizeToggle"] := this.MainForm.AddButton("x+34 yp-5 h8", "Make Bigger") ; x+34 puts the » button's right edge level with the ? button
 		this.Controls["SymbolToggle"] := this.MainForm.AddButton("x+5 h8", "Show Symbols")
 		this.Controls["WrapToggle"] := this.MainForm.AddButton("x+5 h8", "Unwrap")
+		; (The » button that opened the Options Reference pane is gone: the "Options" button above the Options box does that job now.)
 		
 		; Reset font size
 		this.MainForm.SetFont(Config.DefaultFontSize)
@@ -758,7 +828,7 @@ class UI {
 		this.ListBackground := Config.ListColor != "" ? "Background" Config.ListColor : ""
 		
 		; Add the replacement edit control
-		this.Controls["ReplacementEdit"] := this.MainForm.AddEdit(this.ListBackground " +Wrap y+1 xs h100 w" Config.DefaultWidth)
+		this.Controls["ReplacementEdit"] := this.MainForm.AddEdit(this.ListBackground " +Wrap y+1 xs+1 h100 w" Config.DefaultWidth - 1) ; xs+1 / -1: left edge level with the buttons below, right edge unchanged
 	}
 		
 	; Create the library selection section (radio buttons for AC/BP)
@@ -871,6 +941,180 @@ class UI {
         this.Controls["ReplacementMatchesEdit"] := this.MainForm.AddEdit(this.listBackground " x+5 h" Config.ExamPaneListHeight " w" Config.DefaultWidth / 2)
     }
         
+    ; Right-side "Options Reference" pane: one button per option combination.
+    ; Clicking a button fills the Options box and sets the f() checkbox; hovering
+    ; explains the option with examples.  Toggled by the » button beside Unwrap.
+    static _CreateOptionsPane() {
+        local panelX := Config.DefaultWidth + 28
+        local panelW := 200   ; wide enough for the radio captions in the form's own font
+        this.Controls["OptionsPaneControls"] := []
+
+        this.MainForm.SetFont("s9 bold")
+        ctrl := this.MainForm.AddText("x" panelX " y2 w" panelW " center", "Options Reference")
+        this.Controls["OptionsPaneControls"].Push(ctrl)
+
+        ; Radio captions use the form's own font -- the same as the Exam pane's
+        ; Beginnings/Middles/Endings radios -- instead of the old 9pt Courier New.
+        ; SetFont() with no parameters resets the typeface too.
+        this.MainForm.SetFont()
+        this.MainForm.SetFont(Config.DefaultFontSize (Config.FontColor != "" ? " c" SubStr(Config.FontColor, -6) : ""))
+        optionsList := [
+            ["Plain",  "no function",    false,
+                "Plain, no function`nNo function -- AHK handles replacement natively.`nNo logging, no beep.`nAHK auto-conforms case (teh->the, Teh->The).`nFires only on whole words -- needs space or punctuation after.`n`nExample:`n  ::maek::make`n  maek -> make"],
+            ["B0X",    "Whole words",    true,
+                "B0X - Whole words`nStandard f() correction. Fires only on whole words.`nDoes NOT handle suffixes.`n`nExample:`n  :B0X:maek::f('make')`n  maek -> make"],
+            ["B0X?",   "Matches *word",  true,
+                "B0X? - Matches *word`nFires when trigger appears at the END of a typed word.`nThe ? allows letters BEFORE the trigger -- not after.`n`nExamples:`n  :B0X?:maek::f('make')`n  maek -> make`n  remaek -> remake"],
+            ["B0X*",   "Matches  word*", true,
+                "B0X* - Matches word*`nFires before you have ended a word.`nWill match suffixes.`n`nExamples:`n  :B0X*:maek::f('make')`n  maek -> make`n  maeks -> makes"],
+            ["B0X*?",  "Matches *word*", true,
+                "B0X*? - Matches *word*`nFires immediately when trigger is typed AND allows`nletters both before and after.`n`nExamples:`n  :B0X*?:valit::f('valid')`n  valit -> valid`n  valitated -> validated`n  invalit -> invalid`n  revalitated -> revalidated"],
+            ["B0XC",   "Case S.  Word",  true,
+                "B0XC - Matches case sensitive Word`nCase-sensitive -- trigger must match exactly as typed.`n`nExamples:`n  :B0XC:Valit::f('Valid')`n  Valit -> Valid`t-- valit is NOT corrected"],
+            ["B0X?C",  "Case S. *Word",  true,
+                "B0X?C - Matches case sensitive *Word`nFires at word endings AND is case-sensitive.`n`nExamples:`n  :B0X?C:Valit::f('Valid')`n  Valit -> Valid`t`t-- valit is NOT corrected`n  InValit -> InValid`t-- Invalit is NOT corrected"],
+            ["B0X*C",  "Case S.  Word*", true,
+                "B0X*C - Matches case sensitive Word*`nFires immediately (no end char) AND is case-sensitive.`nHandles suffixes while only matching exact case.`n`nExamples:`n  :B0X*C:Valit::f('Valid')`n  Valit -> Valid`t`t-- valit is NOT corrected`n  Valitate -> Validate`t-- valitate is NOT corrected"],
+            ["B0X*?C", "Case S. *Word*", true,
+                "B0X*?C - Matches case sensitive *Word*`nFires anywhere, immediately, AND is case-sensitive.`nMost permissive case-sensitive option.`nUse with caution -- fires inside any word containing the trigger.`n`nExamples:`n  :B0X*?C:Valit::f('Valid')`n  Valit -> Valid`t`t`t-- valit is NOT corrected`n  InValit -> InValid`t`t-- Invalit is NOT corrected`n  InValited -> InValided`t-- Invalited is NOT corrected"]
+        ]
+        ; One radio per combination.  They are a single group (the first follows a Text
+        ; control; the Control Panel button after them is not a radio), so ticking one
+        ; unticks the rest.  OptionsRadios maps the combination's key (see
+        ; UIActions.OptionsKey) to its radio, so UIActions.SyncOptionsUI() can tick
+        ; whichever one matches the Options box.
+        this.Controls["OptionsRadios"] := Map()
+        this.Controls["OptionsRadioActions"] := Map()
+        for item in optionsList {
+            optVal  := (item[1] == "Plain") ? "" : item[1]
+            ; Proportional font, so no column padding: collapse the monospace-alignment spaces.
+            btnText := item[1] "  " RegExReplace(item[2], "\s+", " ")
+            ctrl := this.MainForm.AddRadio("x" panelX " y+2 w" panelW " h22", btnText)
+            ; Bind() passes the values at creation time; a fat-arrow closure would
+            ; share the loop variable and every radio would apply the last one.
+            act := ((opt, fn, *) => UIActions.SetOption(opt, fn)).Bind(optVal, item[3])
+            ctrl.OnEvent("Click", act)
+            this.Controls["OptionsRadioActions"][ctrl.Hwnd] := act   ; EnterKeyHandler() fires these
+            ctrl.OnEvent("ContextMenu", (*) => UIActions.ClearRadioButtons()) ; same as the Exam radios: drop * and ?
+            ; Registered by name so F1 finds it (GetFocusedControl walks UI.Controls).  The
+            ; explanation and examples live in the help system, not in a hover tooltip.
+            this.Controls["OptRadio_" item[1]] := ctrl
+            HelpSystem.helpTexts["OptRadio_" item[1]] := item[4]
+            this.Controls["OptionsPaneControls"].Push(ctrl)
+            this.Controls["OptionsRadios"][UIActions.OptionsKey(optVal != "", InStr(optVal, "*"), InStr(optVal, "?"), InStr(optVal, "C"))] := ctrl
+        }
+
+        ; Back to the form's own font.  SetFont() with no parameters resets the typeface
+        ; too; a size alone would leave Courier New in force.
+        this.MainForm.SetFont()
+        this.MainForm.SetFont(Config.DefaultFontSize (Config.FontColor != "" ? " c" SubStr(Config.FontColor, -6) : ""))
+
+        ; "Control Panel" toggle, directly under the last radio.  Width only, so it
+        ; auto-sizes to the same height as the other buttons (an explicit h needs a w anyway).
+        ctrl := this.MainForm.AddButton("x" panelX " y+2 w" panelW, "Control Panel") ; y re-set by PlaceSidePane()
+        ctrl.OnEvent("Click", (*) => UIActions.ToggleSideControlPane())
+        this.Controls["SideCPToggle"] := ctrl
+        this.Controls["OptionsPaneControls"].Push(ctrl)
+
+        this._CreateSideControlPane(panelX, panelW)
+        this.PlaceSidePane()
+
+        ; The Options box drives the Function check, the Exam radios and these radios.
+        ; Registered here, after the radios exist.
+        this.Controls["OptionsEdit"].OnEvent("Change", (*) => UIActions.OnOptionsEditChanged())
+    }
+
+    static GetOptionsPaneControls() {
+        return this.Controls["OptionsPaneControls"]
+    }
+
+    ; DarkModeButtons: Windows draws themed push buttons itself, so BackColor never
+    ; reaches them.  Its DarkMode_Explorer style (Win10 1809+) is the dark look a
+    ; button can take.  Runs after every pane is built; hidden buttons are included.
+    static _ApplyDarkButtons() {
+        if !Config.DarkModeButtons || !this.IsDarkColor(Config.FormColor)
+            return
+        for hwnd, ctrl in this.MainForm
+            if (ctrl.Type = "Button") ; push buttons only; checkboxes/radios keep the font color
+                DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Str", "DarkMode_Explorer", "Ptr", 0)
+    }
+
+    ; True for a color like "0x2C2C2C" whose perceived brightness is under half.
+    static IsDarkColor(color) {
+        if !RegExMatch(color, "i)([0-9a-f]{6})$", &m)
+            return false
+        v := Integer("0x" m[1])
+        return (0.299 * (v >> 16 & 0xFF) + 0.587 * (v >> 8 & 0xFF) + 0.114 * (v & 0xFF)) < 128
+    }
+
+    ; Narrow copy of the Control Pane for the right column.  It reuses the left pane's
+    ; buttons -- so the same [ControlButtons] filtering, close-after behaviour and icons
+    ; -- with short captions; a shortened caption shows the full one on hover.
+    static _CreateSideControlPane(x, w) {
+        static shortNames := Map(
+            "PersonalHotstrings",    "Personal Hotstrings",
+            "ACLogContinuous",       "AC Continuous Log",
+            "ACAnalyze",             "Analyze AC Log",
+            "BSLog",                 "Backspace Log",
+            "RemovedHS",             "Removed HotStrings",
+            "MCAnalyze",             "Analyze MC Log",
+            "Report",                "HotString Report",
+            "SettingsMan",           "Settings Manager",
+            "HotkeyRef",             "Hotkey Reference",
+            "Suggester",             "Hotstring Suggester",
+            "HsAnalyzer",            "Hotstring Analyzer",
+            "HsAuditor",             "Hotstring Auditor",
+            "ExtractMisspellings",   "Find Misspellings",
+            "TypoInvaders",          "TypoInvaders",
+            "ConflictLocator",       "Conflict Locator",
+            "Updater",               "Check for Updates",
+            "UniqueStringExtractor", "Compare Libraries",
+            "Defunctionizer",        "Defunctionize",
+            "OpenFolder",            "AutoCorrect2 Folder",
+            "GitHub",                "GitHub Repository"
+        )
+        ; Parallel arrays, like ControlButtons / ControlButtonNames / ControlButtonActions,
+        ; so EnterKeyHandler() and the help lookup treat these buttons the same way.
+        this.Controls["SideCPButtons"] := []
+        this.Controls["SideCPNames"]   := []
+        this.Controls["SideCPActions"] := []
+        this.MainForm.SetFont("s10")
+        for i, leftBtn in this.Controls["ControlButtons"] {
+            name   := this.Controls["ControlButtonNames"][i]
+            action := this.Controls["ControlButtonActions"][i]
+            full   := Trim(leftBtn.Text)
+            label  := shortNames.Has(name) ? shortNames[name] : full
+            ; Position is set by PlaceSidePane().  +Left: icon and caption left-aligned.
+            btn := this.MainForm.AddButton("x" x " y+2 w" w " h24 +Left", " " label)
+            btn.OnEvent("Click", action)
+            if (hIcon := SendMessage(0xF6, 1, 0, leftBtn))   ; BM_GETIMAGE: share the left button's icon
+                SendMessage(0xF7, 1, hIcon, btn)             ; BM_SETIMAGE
+            this.Controls["SideCPButtons"].Push(btn)
+            this.Controls["SideCPNames"].Push(name)
+            this.Controls["SideCPActions"].Push(action)
+        }
+        this.MainForm.SetFont(Config.DefaultFontSize)
+    }
+
+    ; The toggle sits on the Append row and the side buttons stack under it.  Called at
+    ; creation and from Resize(): Make Bigger moves the Append row down and the pane right.
+    ; Stacked from GetPos rather than fixed offsets, so it holds at any DPI.
+    static PlaceSidePane() {
+        ; Anchor to the last Options radio, not the Append row: Make Bigger moves the
+        ; Append row down, but the radios stay put, so the toggle must follow the radios.
+        last := this.Controls["OptionsPaneControls"][-2]   ; [-1] is the toggle itself
+        last.GetPos(, &ry, , &rh)
+        this.Controls["SideCPToggle"].GetPos(&x, , , &h)
+        y := ry + rh + 2
+        this.Controls["SideCPToggle"].Move(x, y)
+        y += h + 4
+        for btn in this.Controls["SideCPButtons"] {
+            btn.Move(x, y)
+            btn.GetPos(, , , &h)
+            y += h + 2
+        }
+    }
+
     ; Create the control pane (initially hidden)
     static _CreateControlPane() {
         Debug("In UI class, at top of _CreateControlPane()")
@@ -895,7 +1139,9 @@ class UI {
             this.controlButtons.Push({
                 name: "PersonalHotstrings",
                 text: " Personal Hotstrings File", 
-                action: (*) => Run("PersonalHotstrings.ahk"),
+                ; Open in the editor at the last line, like the OpenLibrary button.  Run() on an
+                ; .ahk EXECUTES it (shell "open" verb = AutoHotkey), i.e. a second AHK process.
+                action: (*) => Utils.OpenFileAtLine(Config.BoilerplateHotstringLibrary, Utils.CountFileLines(Config.BoilerplateHotstringLibrary)),
                 icon: A_ScriptDir "\..\Resources\Icons\library-Blue.ico"
             })
         }
@@ -905,14 +1151,14 @@ class UI {
             this.controlButtons.Push({
                 name: "ACLog",
                 text: " AutoCorrection Log", 
-                action: (*) => Run(Config.AutoCorrectsLogFile),
+                action: (*) => Utils.OpenFileAtEnd(Config.AutoCorrectsLogFile),
                 icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
                 name: "ACLogContinuous",
                 text: " AutoCorrection Continuous Log", 
-                action: (*) => Run(Config.ACLogContinuousFile),
+                action: (*) => Utils.OpenFileAtEnd(Config.ACLogContinuousFile),
                 icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
@@ -926,14 +1172,14 @@ class UI {
             this.controlButtons.Push({
                 name: "BSLog",
                 text: " Backspace Context Log", 
-                action: (*) => Run(Config.ErrContextLog),
+                action: (*) => Utils.OpenFileAtEnd(Config.ErrContextLog),
                 icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
             })
             
             this.controlButtons.Push({
                 name: "RemovedHS",
                 text: " Removed HotStrings List", 
-                action: (*) => Run(Config.RemovedHsFile),
+                action: (*) => Utils.OpenFileAtEnd(Config.RemovedHsFile),
                 icon: A_ScriptDir "\..\Resources\Icons\missing-Blue.ico"
             })
         }
@@ -942,14 +1188,14 @@ class UI {
         this.controlButtons.Push({
             name: "MCLog",
             text: " Manual Correction Log", 
-            action: (*) => Run("..\Data\ManualCorrectionsLog.txt"),
+            action: (*) => Utils.OpenFileAtEnd("..\Data\ManualCorrectionsLog.txt"),
             icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
         })
 
         this.controlButtons.Push({
             name: "MCLogContinuous",
             text: " MC Log Continuous", 
-            action: (*) => Run("..\Data\MCLogContinuous.txt"),
+            action: (*) => Utils.OpenFileAtEnd("..\Data\MCLogContinuous.txt"),
             icon: A_ScriptDir "\..\Resources\Icons\log-Blue.ico"
         })
         
@@ -1000,6 +1246,16 @@ class UI {
                 name: "HsAnalyzer",
                 text: " Hotstring Analyzer Tool", 
                 action: (*) => Run("..\Tools\HotstringAnalyzer.exe"),
+                icon: A_ScriptDir "\..\Resources\Icons\lightbulb-Blue.ico"
+            })
+        }
+
+        ; Whole-library firing-order audit (plain .ahk, run with our own interpreter).
+        if FileExist("..\Tools\HotstringAuditor.ahk") {
+            this.controlButtons.Push({
+                name: "HsAuditor",
+                text: " Hotstring Auditor (firing-order scan)",
+                action: (*) => Run('"' A_AhkPath '" "..\Tools\HotstringAuditor.ahk"'),
                 icon: A_ScriptDir "\..\Resources\Icons\lightbulb-Blue.ico"
             })
         }
@@ -1136,7 +1392,53 @@ class UI {
     ; Set icon for a button
     static _SetButtonIcon(ButtonCtrl, IconFile) {
         hIcon := DllCall("LoadImage", "Ptr", 0, "Str", IconFile, "UInt", 1, "Int", 24, "Int", 24, "UInt", 0x10) 
+        if (Config.DarkModeButtons && this.IsDarkColor(Config.FormColor))
+            hIcon := this._LightenIcon(hIcon)
         SendMessage(0xF7, 1, hIcon, ButtonCtrl.Hwnd)
+    }
+
+    ; Lifts every pixel of an icon most of the way to white, keeping its hue and
+    ; alpha: the dark blue icons vanish on DarkModeButtons' dark grey.  An icon with
+    ; no alpha channel comes back unchanged.
+    static _LightenIcon(hIcon) {
+        static LIFT := 0.6                       ; 0 = unchanged, 1 = white
+        ii := Buffer(8 + 3 * A_PtrSize, 0)       ; ICONINFO
+        if !hIcon || !DllCall("GetIconInfo", "Ptr", hIcon, "Ptr", ii)
+            return hIcon
+        hbmMask := NumGet(ii, 8 + A_PtrSize, "Ptr"), hbmColor := NumGet(ii, 8 + 2 * A_PtrSize, "Ptr")
+        bm := Buffer(16 + 2 * A_PtrSize, 0)      ; BITMAP
+        DllCall("GetObject", "Ptr", hbmColor, "Int", bm.Size, "Ptr", bm)
+        w := NumGet(bm, 4, "Int"), h := NumGet(bm, 8, "Int")
+        bi := Buffer(40, 0)                      ; BITMAPINFOHEADER: 32 bpp, top-down
+        NumPut("UInt", 40, "Int", w, "Int", -h, "UShort", 1, "UShort", 32, bi)
+        px := Buffer(w * h * 4)
+        hdc := DllCall("GetDC", "Ptr", 0, "Ptr")
+        DllCall("GetDIBits", "Ptr", hdc, "Ptr", hbmColor, "UInt", 0, "UInt", h, "Ptr", px, "Ptr", bi, "UInt", 0)
+        hasAlpha := false
+        Loop w * h {
+            o := (A_Index - 1) * 4
+            if !NumGet(px, o + 3, "UChar")
+                continue
+            hasAlpha := true
+            Loop 3 {
+                c := NumGet(px, o + A_Index - 1, "UChar")
+                NumPut("UChar", Round(c + (255 - c) * LIFT), px, o + A_Index - 1)
+            }
+        }
+        hNew := 0
+        if hasAlpha {
+            dib := DllCall("CreateDIBSection", "Ptr", hdc, "Ptr", bi, "UInt", 0, "Ptr*", &bits := 0, "Ptr", 0, "UInt", 0, "Ptr")
+            DllCall("RtlMoveMemory", "Ptr", bits, "Ptr", px, "UPtr", px.Size)
+            NumPut("Ptr", dib, ii, 8 + 2 * A_PtrSize)
+            hNew := DllCall("CreateIconIndirect", "Ptr", ii, "Ptr")
+            DllCall("DeleteObject", "Ptr", dib)
+        }
+        DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc)
+        DllCall("DeleteObject", "Ptr", hbmMask), DllCall("DeleteObject", "Ptr", hbmColor)
+        if !hNew
+            return hIcon
+        DllCall("DestroyIcon", "Ptr", hIcon)
+        return hNew
     }
     
     ; Set up event handlers for all controls
@@ -1148,8 +1450,10 @@ class UI {
         this.Controls["SizeToggle"].OnEvent("Click", (*) => UIActions.ToggleSize())
         this.Controls["SymbolToggle"].OnEvent("Click", (*) => UIActions.ToggleSymbols())
         this.Controls["WrapToggle"].OnEvent("Click", (*) => UIActions.ToggleNewlineFormat())
+        this.Controls["FuncHelperButton"].OnEvent("Click", (*) => UIActions.ToggleOptionsPane())
         this.Controls["ReplacementEdit"].OnEvent("Change", (*) => UIActions.FilterWordLists())
         this.Controls["ReplacementEdit"].OnEvent("Change", (*) => UIActions.UpdateToggleButtonText())
+        this.Controls["ReplacementEdit"].OnEvent("Change", (*) => SpellMark.Refresh())
         this.Controls["ReplacementEdit"].OnEvent("Focus", (ctrl, *) => State.CurrentEdit := ctrl)
         
         ; Comment section events — checkbox interdependencies
@@ -1281,6 +1585,11 @@ class UI {
 				UIActions.FilterWordLists()
 				return
 			}
+			; Options Reference radios: Enter picks that combination (like clicking it).
+			if this.Controls.Has("OptionsRadioActions") && this.Controls["OptionsRadioActions"].Has(focusedHwnd) {
+				this.Controls["OptionsRadioActions"][focusedHwnd]()
+				return
+			}
 			static buttonActions := Map(
 				"AppendButton",    () => UIActions.OnAppendButtonClick(),
 				"CheckButton",     () => UIActions.OnCheckButtonClick(),
@@ -1294,7 +1603,9 @@ class UI {
 				"HelpButton",      () => HelpSystem.ShowHelp(true),
 				"SizeToggle",      () => UIActions.ToggleSize(),
 				"SymbolToggle",    () => UIActions.ToggleSymbols(),
-				"WrapToggle",      () => UIActions.ToggleNewlineFormat()
+				"WrapToggle",      () => UIActions.ToggleNewlineFormat(),
+				"FuncHelperButton", () => UIActions.ToggleOptionsPane(),
+				"SideCPToggle",    () => UIActions.ToggleSideControlPane()
 			)
 			for btnName, action in buttonActions {
 				if this.Controls.Has(btnName) && this.Controls[btnName].Hwnd = focusedHwnd {
@@ -1311,6 +1622,14 @@ class UI {
 				for index, cpButton in this.Controls["ControlButtons"] {
 					if cpButton.Hwnd = focusedHwnd {
 						this.Controls["ControlButtonActions"][index]()
+						return
+					}
+				}
+			}
+			if this.Controls.Has("SideCPButtons") {
+				for index, cpButton in this.Controls["SideCPButtons"] {
+					if cpButton.Hwnd = focusedHwnd {
+						this.Controls["SideCPActions"][index]()
 						return
 					}
 				}
@@ -1368,8 +1687,8 @@ class UI {
         wFactor := isLarge ? Config.DefaultWidth + Config.WidthSizeIncrease : Config.DefaultWidth
         
         ; Resize and reposition controls
-        this.Controls["TriggerEdit"].Move(, , wFactor - 86)
-        this.Controls["ReplacementEdit"].Move(, , wFactor, hFactor + 100)
+        this.Controls["TriggerEdit"].Move(, , wFactor - 90) ; same widths as at creation, so Bigger->Smaller lands back exactly
+        this.Controls["ReplacementEdit"].Move(, , wFactor - 1, hFactor + 100)
         
         ; Comment label Y position is the same with or without radio buttons (x differs
         ; but is set once at control creation, not here). Keep this as a single line.
@@ -1396,9 +1715,13 @@ class UI {
         this.Controls["SpellButton"].Move(, hFactor + 234)
         this.Controls["LookButton"].Move(, hFactor + 234)
         this.Controls["CancelButton"].Move(, hFactor + 234)
+        ; Options Reference pane rides the right edge (created at DefaultWidth + 28)
+        for ctrl in this.GetOptionsPaneControls()
+            ctrl.Move(wFactor + 28)
+        this.PlaceSidePane()
         
         ; Update form
-        this.MainForm.Show("AutoSize yCenter")
+        this.MainForm.Show(WindowPos.Keep())
     }
 
     ; Set initial focus based on configuration
@@ -1529,6 +1852,130 @@ class UIActions {
             
         State.ControlPaneOpen := visible
     }
+
+    ; Options Reference pane (right of the form)
+    static ShowHideOptionsPane(visible := false) {
+        for ctrl in UI.GetOptionsPaneControls()
+            ctrl.Visible := visible
+        State.OptionsPaneOpen := visible
+        if !visible
+            this.ShowHideSideControlPane(false) ; its toggle just went away with the pane
+    }
+
+    ; Control Panel copy under the Options Reference pane.
+    static ShowHideSideControlPane(visible := false) {
+        for ctrl in UI.Controls["SideCPButtons"]
+            ctrl.Visible := visible
+        State.SideCPOpen := visible
+    }
+
+    ; The two Control Panels hold the same buttons, so only one is open at a time:
+    ; opening this one closes the one under the form (and Shift+Exam closes this one).
+    ; The Exam pane can stay open beside it -- that is what the side copy is for.
+    static ToggleSideControlPane() {
+        if !State.SideCPOpen && State.ControlPaneOpen {
+            this.ShowHideControlPane(false)
+            UI.Controls["ExamButton"].Text := "E&xam"
+        }
+        this.ShowHideSideControlPane(!State.SideCPOpen)
+        UI.MainForm.Show(WindowPos.Keep())
+    }
+
+    static ToggleOptionsPane() {
+        this.ShowHideOptionsPane(!State.OptionsPaneOpen)
+        UI.MainForm.Show(WindowPos.Keep())
+    }
+
+    ; Key for one option combination: four 0/1 flags -- f() (B0X), *, ?, case-sensitive (C).
+    ; The nine Options Reference radios are filed under their key, and SyncOptionsUI()
+    ; builds the same key from the Options box to find which radio to tick.
+    static OptionsKey(isFunc, star, q, cs) {
+        return Format("{}{}{}{}", isFunc ? 1 : 0, star ? 1 : 0, q ? 1 : 0, cs ? 1 : 0)
+    }
+
+    ; Called by the Options Reference radios: set the Options box and the f() checkbox.
+    ; Options this pane does not manage (SI, K10, T, ...) are kept; B0, X, *, ? and C are
+    ; replaced by the chosen combination.
+    static SetOption(opts, useFunc) {
+        edit := UI.Controls["OptionsEdit"]
+        edit.Text := opts Trim(RegExReplace(edit.Text, "i)B0|[X*?]|C(?![01])"))
+        this.SyncOptionsUI()                 ; f() box, Log/Paste, Exam radios, this pane's radios
+        if !useFunc {
+            UI.Controls["LogCheck"].Value   := 0
+            UI.Controls["PasteCheck"].Value := 0
+        }
+        if State.ExamPaneOpen
+            this.FilterWordLists()           ; same as clicking an Exam radio
+    }
+
+    ; The Options box is the source of truth.  This reads it and brings every other
+    ; control that mirrors part of it into line:
+    ;   - the Function checkbox (B0 + X present),
+    ;   - the three Exam radios (* / ? / *?),
+    ;   - the nine Options Reference radios (f(), *, ?, C).
+    ; It only ever sets Value on those controls -- never the Options text, never a
+    ; word-list filter -- so it cannot loop and is cheap enough to run per keystroke.
+    ; Returns true when the * / ? mode changed since the last call.
+    static LastWildMode := ""
+    static SyncOptionsUI() {
+        if !UI.Controls.Has("OptionsRadios")
+            return false                     ; Options pane not built yet (early in UI.Init)
+        opts   := UI.Controls["OptionsEdit"].Text
+        isFunc := InStr(opts, "B0") && InStr(opts, "X")
+        star   := InStr(opts, "*")
+        q      := InStr(opts, "?")
+        cs     := RegExMatch(opts, "i)C(?![01])")   ; C1 / C0 are the case-conform modes, not case-sensitive
+        
+        ; Function checkbox.  On a real change, Log/Paste follow like they do when the
+        ; box is clicked (see OnFunctionCheckClick).
+        wasFunc := UI.Controls["FunctionCheck"].Value
+        UI.Controls["FunctionCheck"].Value := isFunc ? 1 : 0
+        nowFunc := isFunc ? 1 : 0
+        if nowFunc != wasFunc {
+            if nowFunc
+                UI.Controls["LogCheck"].Value := 1
+            else {
+                UI.Controls["LogCheck"].Value   := 0
+                UI.Controls["PasteCheck"].Value := 0
+            }
+        }
+        
+        ; Exam pane radios.  Unticked first, so exactly one (or none) ends up ticked.
+        UI.Controls["BeginningRadio"].Value := 0
+        UI.Controls["MiddleRadio"].Value    := 0
+        UI.Controls["EndingRadio"].Value    := 0
+        if star && q
+            UI.Controls["MiddleRadio"].Value := 1
+        else if star
+            UI.Controls["BeginningRadio"].Value := 1
+        else if q
+            UI.Controls["EndingRadio"].Value := 1
+        
+        ; Options Reference radios.  A combination with no radio (e.g. "*" without f())
+        ; leaves all nine unticked.
+        for key, radio in UI.Controls["OptionsRadios"]
+            radio.Value := 0
+        key := this.OptionsKey(isFunc, star, q, cs)
+        if UI.Controls["OptionsRadios"].Has(key)
+            UI.Controls["OptionsRadios"][key].Value := 1
+        
+        mode := (star ? "*" : "") (q ? "?" : "")
+        changed := (mode !== this.LastWildMode)
+        this.LastWildMode := mode
+        return changed
+    }
+
+    ; Change event of the Options box (typing, or the script setting its text).
+    static OnOptionsEditChanged() {
+        changed := this.SyncOptionsUI()
+        ; Typing * or ? with the Exam pane open: re-filter the word lists once the typing
+        ; pauses.  Only while the box has focus, so loading a hotstring (which also sets
+        ; the box) does not trigger an extra pass over the word list.
+        if changed && State.ExamPaneOpen && UI.Controls["OptionsEdit"].Focused {
+            static refilter := ObjBindMethod(UIActions, "FilterWordLists")
+            SetTimer(refilter, -300)         ; re-arming restarts the delay
+        }
+    }
     
     ; Toggle form size between normal and large
     static ToggleSize() {
@@ -1553,7 +2000,7 @@ class UIActions {
             UI.Resize(false)
         }
         
-        UI.MainForm.Show("AutoSize yCenter")
+        UI.MainForm.Show(WindowPos.Keep())
     }
     
     ; Toggle symbol display in replacement text
@@ -1706,6 +2153,7 @@ class UIActions {
             if Config.BeepOnFunctionCheck
                 SoundBeep(900, 200)
         }
+        this.SyncOptionsUI()   ; keep the Options Reference radios in step
     }
 
     ; Handle Function checkbox click — if unchecked, clear Paste and Log too
@@ -1713,7 +2161,8 @@ class UIActions {
         if UI.Controls["FunctionCheck"].Value = 0 {
             UI.Controls["PasteCheck"].Value := 0
             UI.Controls["LogCheck"].Value   := 0
-        }
+        } else
+            UI.Controls["LogCheck"].Value   := 1 ; f()'s own default; left unticked, an empty-clipboard form wrote f(r, 0) rules that never log
         this.FormAsFunction()
     }
 
@@ -1857,6 +2306,7 @@ class UIActions {
         
         options := UI.Controls["OptionsEdit"].Text
         UI.Controls["OptionsEdit"].Text := StrReplace(StrReplace(options, "?", ""), "*", "")
+        this.SyncOptionsUI()   ; the Options Reference radios follow the * / ? that just went away
         
         this.FilterWordLists()
     }
@@ -1938,7 +2388,7 @@ class UIActions {
                     else {
                         ; Whole-word comparison (no wildcards)
                         if line = triggerText {
-                            triggerFilteredList := triggerText
+                            triggerFilteredList .= line '`n'
                             triggerMatches++
                         }
                     }
@@ -1964,7 +2414,7 @@ class UIActions {
                     }
                     else {
                         if line = replacementText {
-                            replacementFilteredList := replacementText
+                            replacementFilteredList .= line '`n'
                             replacementMatches++
                         }
                     }
@@ -1995,7 +2445,12 @@ class UIActions {
             options := StrReplace(options, "?")
         }
         
-        UI.Controls["OptionsEdit"].Text := options
+        ; Assign only on a real change: setting an Edit's text sends the caret back to the
+        ; start, which would wreck typing in the Options box when a re-filter fires mid-edit.
+        if (options !== UI.Controls["OptionsEdit"].Text) {
+            UI.Controls["OptionsEdit"].Text := options
+            this.SyncOptionsUI()   ; the Exam radio just changed the options; mirror it
+        }
         
         ; Update trigger matches display
         UI.Controls["TriggerMatchesEdit"].Value := triggerFilteredList
@@ -2060,7 +2515,7 @@ class UIActions {
         if UI.Controls["SizeToggle"].Text = "Make Smaller" {
             this.ToggleSize()
         }
-        UI.MainForm.Show("AutoSize yCenter")
+        UI.MainForm.Show(WindowPos.Keep())
         
         ; Analyze the delta between trigger and replacement
         beginning := ""
@@ -2130,7 +2585,7 @@ class UIActions {
         }
         Debug("In ExamineWords() method, before second mainForm.show")
         ; Commenting-out the next line does not prevent the form from reappearing.
-        UI.MainForm.Show("AutoSize yCenter")
+        UI.MainForm.Show(WindowPos.Keep())
         Debug("At bottom of ExamineWords() method")
     }
     
@@ -2176,7 +2631,7 @@ class UIActions {
             State.ControlPaneOpen := 0
         }
         
-        UI.MainForm.Show("AutoSize yCenter")
+        UI.MainForm.Show(WindowPos.Keep())
     }
     
     ; Handler for right-clicking the Exam button (shows control pane)
@@ -2199,12 +2654,13 @@ class UIActions {
             
             this.ShowHideControlPane(true)
             this.ShowHideExamPane(false)
+            this.ShowHideSideControlPane(false)
             
             State.ControlPaneOpen := 1
             State.ExamPaneOpen := 0
         }
         
-        UI.MainForm.Show("AutoSize yCenter")
+        UI.MainForm.Show(WindowPos.Keep())
     }
     
     ; Handler for the Append button
@@ -2588,7 +3044,18 @@ class UIActions {
                 autoComment := "Fixes " State.ReplacementMatches " words " misspellsText
 
             autoComment := StrReplace(autoComment, "Fixes 1 words ", "Fixes 1 word ")
-            autoComment := StrReplace(autoComment, "Fixes 0 words ", "Fixes 1 word ") ; <--- catches grammar items
+            ; "Fixes 0 words" has two causes.  A phrase replacement ("want to",
+            ; "today's") can't match a single word in the list -- that is the
+            ; grammar-item case and gets relabelled.  A ONE-WORD replacement that
+            ; matches nothing means the replacement itself is misspelled, and
+            ; relabelling it too is how f("neighboo") sat in the library looking
+            ; healthy.  Flag that case instead.
+            if InStr(autoComment, "Fixes 0 words ") {
+                if RegExMatch(Trim(replacementText, " `t`r`n"), "^[A-Za-z]+$")
+                    autoComment := StrReplace(autoComment, "Fixes 0 words ", "Fixes 0 words !!! CHECK REPLACEMENT - it matches no real word ")
+                else
+                    autoComment := StrReplace(autoComment, "Fixes 0 words ", "Fixes 1 word ") ; <--- catches grammar items
+            }
         }
         
         ; Add function part if needed. Combine the parts into a single- or multi-line hotstring.
@@ -2733,8 +3200,15 @@ class UIActions {
         }
         else if isFuncStyle {
             effectiveOpts := "B0X" StrReplace(StrReplace(options, "B0", ""), "X", "")
+            ; Same criterion as the libraries' #HotIf, so the live rule obeys the
+            ; skiplist / on-off toggle exactly as it will after a reload.  Hotstring()
+            ; otherwise registers with no criterion (auto-execute ends on "HotIf").
+            ; The string form must match that #HotIf text exactly, or it throws.
+            HotIf "AutoCorrectionsActivelyRunning()"
             ; Use a factory function so replacementText is captured by value, not by reference.
             Hotstring(":" effectiveOpts ":" triggerText, _MakeFuncHS(replacementText, logVal, pasteVal))
+            HotIf
+            UIActions.BeepAppended()
         }
         else if isMultiLine {
             ; Multi-line hotstrings can't be registered live via Hotstring() --
@@ -2745,8 +3219,19 @@ class UIActions {
         else {
             ; Plain single-line hotstring -- pass replacement string directly.
             effectiveOpts := StrReplace(options, "X", "")
+            HotIf "AutoCorrectionsActivelyRunning()" ; see the f() branch above
             Hotstring(":" effectiveOpts ":" triggerText, replacementText)
+            HotIf
+            UIActions.BeepAppended()
         }
+    }
+
+    ; The old version reloaded after every append, and the startup beep said "the
+    ; rule took".  Live registration skips the reload, so give that signal here.
+    ; Reload paths (multi-line rules) don't call this: the startup beep covers them.
+    static BeepAppended() {
+        if Config.BeepOnAppend
+            SoundBeep(1100, 150)
     }
     
     ; Auto-enter the replacement in the active document
@@ -3364,6 +3849,183 @@ class Dictionary {
 
 ; =============== UTILITY FUNCTIONS ===============
 
+; Remembers where the user last left the HotstringHelper window.  Runtime state,
+; not a setting, so it lives in its own tiny ini (like LastUpdateCheck.ini) and
+; stays out of acSettings.ini / the SettingsManager.
+class WindowPos {
+    static File := "..\Data\hhWindowPos.ini"
+
+    ; Called on WM_EXITSIZEMOVE -- once per drag, when the user lets go.
+    static Save(wParam, lParam, msg, hwnd) {
+        if (hwnd != UI.MainForm.Hwnd || !Config.RememberWindowPosition)
+            return
+        try {
+            WinGetPos(&x, &y, , , UI.MainForm)
+            IniWrite(x, this.File, "Window", "X")
+            IniWrite(y, this.File, "Window", "Y")
+        }
+    }
+
+    ; Show options for OPENING the form: the saved spot if it exists and is still
+    ; on a monitor, otherwise centered (the original behaviour).
+    static ShowOptions() {
+        if !Config.RememberWindowPosition
+            return "AutoSize yCenter"
+        try {
+            x := Integer(IniRead(this.File, "Window", "X"))
+            y := Integer(IniRead(this.File, "Window", "Y"))
+            Loop MonitorGetCount() {
+                MonitorGetWorkArea(A_Index, &L, &T, &R, &B)
+                if (x >= L - 50 && x < R - 50 && y >= T - 20 && y < B - 50)
+                    return "AutoSize x" x " y" y
+            }
+        }
+        return "AutoSize yCenter"
+    }
+
+    ; Show options for RE-showing the form (pane toggles, resize): stay where it
+    ; is when the option is on; re-centre every time when it is off (original).
+    static Keep() {
+        return Config.RememberWindowPosition ? "AutoSize" : "AutoSize yCenter"
+    }
+
+    ; Forgets the saved spot, and re-centres HH only if it is open (a bare Show()
+    ; opened it, with whatever it last held).
+    static Reset(*) {
+        try FileDelete(this.File)
+        try if DllCall("IsWindowVisible", "Ptr", UI.MainForm.Hwnd)
+            UI.MainForm.Show("AutoSize yCenter")
+    }
+}
+
+; HH Replacement box spell check through the Windows spell checker (ISpellChecker,
+; Win8+, offline; same dictionary as Windows' red squiggles).  A plain Edit can't
+; draw squiggles, so misspelled text turns red, and right-clicking a misspelled word
+; shows Windows' suggestions instead of the Edit's own menu.
+class SpellMark {
+    static checker := 0
+    static avail := ""  ; "" until first use, then true/false.  Not "ready": names are case-insensitive, so Ready() would make it read-only
+    static isRed := false
+
+    static __New() => OnMessage(0x205, ObjBindMethod(this, "OnRButtonUp")) ; WM_RBUTTONUP
+
+    static Ready() {
+        if (this.avail != "")
+            return this.avail
+        this.avail := false
+        if !Config.SpellCheckReplacement
+            return false
+        try {
+            factory := ComObject("{7AB36653-1796-484B-BDFA-E74F1DB7C1DC}", "{8E018A9D-2415-4677-BF08-794EA61F94BB}")
+            buf := Buffer(85 * 2, 0)
+            lang := DllCall("GetUserDefaultLocaleName", "Ptr", buf, "Int", 85) ? StrGet(buf) : "en-US"
+            ComCall(4, factory, "WStr", lang, "Int*", &ok := 0)    ; IsSupported
+            if !ok
+                lang := "en-US"
+            ComCall(5, factory, "WStr", lang, "Ptr*", &p := 0)     ; CreateSpellChecker
+            this.checker := ComValue(13, p)
+            this.avail := true
+        }
+        return this.avail
+    }
+
+    ; Misspellings in text as [{start (0-based, counts `r`n as 2), len}].
+    static Errors(text) {
+        errs := []
+        if (text = "" || !this.Ready())
+            return errs
+        ComCall(4, this.checker, "WStr", text, "Ptr*", &pEnum := 0) ; Check -> IEnumSpellingError
+        enum := ComValue(13, pEnum)
+        while (ComCall(3, enum, "Ptr*", &pErr := 0) = 0) {          ; Next; S_FALSE = done
+            err := ComValue(13, pErr)
+            ComCall(3, err, "UInt*", &start := 0)                    ; get_StartIndex
+            ComCall(4, err, "UInt*", &len := 0)                      ; get_Length
+            errs.Push({start: start, len: len})
+        }
+        return errs
+    }
+
+    static Suggest(word) {
+        list := []
+        ComCall(5, this.checker, "WStr", word, "Ptr*", &pEnum := 0) ; Suggest -> IEnumString
+        if !pEnum
+            return list
+        enum := ComValue(13, pEnum)
+        while (list.Length < 12 && ComCall(3, enum, "UInt", 1, "Ptr*", &pStr := 0, "Ptr", 0) = 0) {
+            list.Push(StrGet(pStr))
+            DllCall("ole32\CoTaskMemFree", "Ptr", pStr)
+        }
+        return list
+    }
+
+    ; Red text while the box holds a misspelling.  Runs on each keystroke and when HH
+    ; opens; other code that sets the box's text catches up on the next keystroke.
+    static Refresh() {
+        if !this.Ready()
+            return
+        bad := this.Errors(UI.Controls["ReplacementEdit"].Text).Length > 0
+        if (bad != this.isRed) {
+            UI.Controls["ReplacementEdit"].SetFont(bad ? Config.ValidityDialogRed : Config.FontColor)
+            this.isRed := bad
+        }
+    }
+
+    ; WM_RBUTTONUP is posted, so OnMessage sees it before the Edit turns it into its
+    ; own context menu; returning 0 swallows it.  Off a misspelled word, the normal
+    ; Edit menu shows as before.
+    static OnRButtonUp(wParam, lParam, msg, hwnd) {
+        if !UI.Controls.Has("ReplacementEdit") || hwnd != UI.Controls["ReplacementEdit"].Hwnd || !this.Ready()
+            return
+        ctrl := UI.Controls["ReplacementEdit"]
+        text := ctrl.Text
+        idx := SendMessage(0xD7, 0, lParam & 0xFFFFFFFF, ctrl) & 0xFFFF ; EM_CHARFROMPOS
+        for e in this.Errors(text) {
+            if (idx < e.start || idx > e.start + e.len)
+                continue
+            word := SubStr(text, e.start + 1, e.len)
+            m := Menu()
+            sugg := this.Suggest(word)
+            for s in sugg
+                m.Add(StrReplace(s, "&", "&&"), this.Replace.Bind(this, e.start, e.len, s))
+            if !sugg.Length {
+                m.Add("(no suggestions)", (*) => 0)
+                m.Disable("(no suggestions)")
+            }
+            m.Add()
+            m.Add("Add to dictionary", this.AddWord.Bind(this, word))
+            m.Add()
+            ; The Edit's own items, since this menu replaces it (a plain Edit has no Redo).
+            m.Add("Undo", (*) => SendMessage(0xC7, 0, 0, ctrl))       ; EM_UNDO
+            m.Add()
+            m.Add("Cut", (*) => SendMessage(0x300, 0, 0, ctrl))       ; WM_CUT
+            m.Add("Copy", (*) => SendMessage(0x301, 0, 0, ctrl))      ; WM_COPY
+            m.Add("Paste", (*) => SendMessage(0x302, 0, 0, ctrl))     ; WM_PASTE
+            m.Add()
+            m.Add("Select All", (*) => SendMessage(0xB1, 0, -1, ctrl)) ; EM_SETSEL
+            SetTimer(() => m.Show(), -1)
+            return 0
+        }
+    }
+
+    static Replace(start, len, s, *) {
+        ctrl := UI.Controls["ReplacementEdit"]
+        text := ctrl.Text
+        ctrl.Text := SubStr(text, 1, start) s SubStr(text, start + len + 1)
+        ; Setting .Text raises no Change event, so run the box's Change handlers here.
+        UIActions.FilterWordLists()
+        UIActions.UpdateToggleButtonText()
+        this.Refresh()
+        caret := start + StrLen(s) ; caret after the new word, so one Backspace trims it
+        ctrl.Focus()
+        SendMessage(0xB1, caret, caret, ctrl) ; EM_SETSEL
+    }
+
+    static AddWord(word, *) {
+        ComCall(6, this.checker, "WStr", word) ; Add: Windows' user dictionary, shared system-wide
+        this.Refresh()
+    }
+}
+
 class Utils {
     ; ============================================================
     ; ===== EDITOR NAVIGATION =====
@@ -3466,6 +4128,9 @@ class Utils {
         }
         return firstAnyMatch
     }
+
+    ; Open a file that grows at the bottom (logs, the library) at its last line.
+    static OpenFileAtEnd(filePath) => this.OpenFileAtLine(filePath, this.CountFileLines(filePath))
 
     ; Number of lines in a file (1 if missing/unreadable). Used to open a file
     ; "at the bottom" without sending keystrokes.
@@ -3766,7 +4431,14 @@ class Utils {
         ; Save old clipboard content
         State.ClipboardOld := ClipboardAll()
         
-        ; Reset state
+        ; Reset state.  Close what State.Reset() calls closed, or a pane left open
+        ; last time stays up while the code thinks it is shut (both Control Panels
+        ; open at once, the pane's keys dead, Replacement read-only after Symbols).
+        UIActions.ShowHideControlPane(false)
+        UIActions.ShowHideExamPane(false)
+        UI.Controls["ExamButton"].Text := "E&xam"
+        if (UI.Controls["SymbolToggle"].Text = "Hide Symbols")
+            UIActions.ToggleSymbols()
         State.Reset()
         
         ; Check if the call comes from command line
@@ -3946,9 +4618,11 @@ class Utils {
         UI.Controls["UndoButton"].Enabled := false
         State.TriggerHistory := []
         State.ReplacementHistory := []
+        SpellMark.Refresh()
+        UIActions.ShowHideSideControlPane(false) ; the side Control Panel always opens closed
         
-        ; Show UI
-        UI.MainForm.Show("AutoSize yCenter")
+        ; Show UI where the user last left it (or centered, first time / off-screen)
+        UI.MainForm.Show(WindowPos.ShowOptions())
         UI.SetInitialFocus()  ; Set focus based on config
     }
         
@@ -3960,6 +4634,12 @@ class Utils {
         ; Reset library selection override
         State.LibrarySelection := ""
 
+        ; Optional guard against opening the form with a whole paragraph in it
+        ; because that happened to be on the clipboard.  0 = no limit (default),
+        ; since boilerplate users paste long text on purpose.
+        if (Config.MaxClipLength > 0 && StrLen(content) > Config.MaxClipLength)
+            content := ""
+
         ; Determine if this is boilerplate text or a typo
         if (StrLen(content) - StrLen(StrReplace(content, " ")) > 2) || InStr(content, "`n") {
             ; Likely boilerplate text
@@ -3969,7 +4649,7 @@ class Utils {
             State.IsBoilerplate := 1
             UI.Controls["FunctionCheck"].Value := Config.MakeBpFuncByDefault
             UI.Controls["PasteCheck"].Value    := 0
-            UI.Controls["LogCheck"].Value      := 0
+            UI.Controls["LogCheck"].Value      := Config.MakeBpFuncByDefault ; user: log everything
             
             ; Set BP radio button if dual library support is enabled
             if Config.SeparateLibForBoilerplates && UI.Controls.Has("BPRadio") {
@@ -4022,6 +4702,17 @@ class Utils {
             UI.Controls["FunctionCheck"].Value := 0
             UI.Controls["PasteCheck"].Value    := 0
             UI.Controls["LogCheck"].Value      := 0
+
+            ; EmptyFormDefaults: start like a new AutoCorrect entry instead
+            if Config.EmptyFormDefaults {
+                UI.Controls["OptionsEdit"].Text := Config.DefaultAutoCorrectOpts
+                UI.Controls["FunctionCheck"].Value := Config.MakeAcFuncByDefault
+                UI.Controls["LogCheck"].Value      := Config.MakeAcFuncByDefault
+                if Config.SeparateLibForBoilerplates && UI.Controls.Has("ACRadio") {
+                    UI.Controls["ACRadio"].Value := 1
+                    State.LibrarySelection := "AC"
+                }
+            }
         }
         else {
             ; Likely a typo/autocorrect entry
@@ -4439,6 +5130,7 @@ InitCPTypeAhead() {
 class HelpSystem {
     static helpTexts := Map()
     static helpGui := 0
+    static helpEdit := 0
     ; Caption of the last-focused Control Pane button, stashed by GetFocusedControl()
     ; and used by ShowHelp() to title the help window. Derived from the live button
     ; text, so it stays correct no matter how captions are reworded.
@@ -4461,6 +5153,9 @@ class HelpSystem {
         this.helpTexts["SymbolToggle"] := "Toggle button to show special characters: spaces, tabs, and line breaks as visible symbols.`n`nThe symbols used can be customized in the code.  (They can't be in the INI file because they are unicode chars.)`n`nTip: Including a space with the Pilcrow or Dot allows more natural text-wrapping in the Replacement box.`n`nThis mostly applies to large boilerplate texts, not autocorrects."
         
         this.helpTexts["WrapToggle"] := "Toggle button to convert between actual line breaks and literal ``n characters.`n`nClick Unwrap to convert line breaks into literal ``n characters for single-line hotstring format:`n`t::;sig::John Doe``nAutoHotkey User``n555-2345`n`nLeave wrapped to keep actual line breaks for multi-line Continuation Section format:`n`t::;sig::`n`t(`n`tJohn Doe`n`tAutoHotkey User`n`t555-2345`n`t)`n`nBoth formats produce the same result when the hotstring executes. The Continuation Section format is more `"What you see is what you get,`" but the unwrapped format uses only one line of code in your Hotstring Library and can be sorted without breaking them.  The wrap/unwrap functionality is primarily useful for boilerplate template items. It would not be used with f() AutoCorrect items."
+
+        this.helpTexts["FuncHelperButton"] := "Opens or closes the Options Reference pane on the right of the form.`n`nThis button is also the caption of the Options box.  The pane has one radio button per option combination (Plain, B0X, B0X?, B0X*, ...).  Picking one fills the Options box and sets the f() checkbox to match.  It works both ways: typing in the Options box, ticking the Function checkbox, or picking Beginnings/Middles/Endings in the Exam pane moves the radio buttons to match.  Hover a radio button for an explanation of that option with examples."
+        this.helpTexts["SideCPToggle"] := "Opens or closes the Control Panel under the Options Reference pane: the same buttons as the Secret Control Panel that Shift+click on Exam opens under the form, with shorter captions (hover one for its full name).`n`nOn the right it fits beside the Exam pane, so both can be open at once.  Only one of the two Control Panels is open at a time: opening either closes the other."
         
         this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above.`n`nThe `"Paste`" and `"Log`" checkboxes require Function to be enabled. Unchecking Function will also uncheck both.`n`nTip: If you never want function calls by default, set `"MakeAcFuncByDefault`" and/or `"MakeBpFuncByDefault`" to 0 in the `"HotstringHelper`" section of the Settings Manager. Also checkout the Defunctionizer script in the Control Pane."
         
@@ -4547,6 +5242,9 @@ class HelpSystem {
                 case "HsAnalyzer":
                     this.helpTexts["ControlButton_HsAnalyzer"] := "Launches the Hotstring Analyzer tool.`n`nThis tool scans your AutoCorrectHotstrings.ahk file and analyzes each hotstring for potential issues, classifying problems such as adjacent transpositions, dropped letters, suffix intrusions, homophones, wrong verb forms, and more.`n`nA timestamped report is generated in the Debug\ folder upon completion.`n`nUseful for auditing your library and identifying entries that may be poorly formed or misclassified."
                     
+                case "HsAuditor":
+                    this.helpTexts["ControlButton_HsAuditor"] := "Runs the Hotstring Auditor: it simulates AutoHotkey's firing order for every one of the 246,000 words in the word list against BOTH libraries (PersonalHotstrings.ahk then AutoCorrectHotstrings.ahk, the include order) and reports:`n`n1a. real words silently turned into non-words (definite defects)`n1b. real words turned into other real words (review -- many are intentional, e.g. defence -> defense)`n1c. the rules responsible, ranked by how much web-frequency they damage`n2. duplicate trigger+options`n3. no-op rules`n4. unreachable rules (an earlier rule always wins)`n5. dead nullifiers (nothing would have broken that word)`n6. replacements that cannot produce a real word at the position the rule's options put them`n`nTakes about 15 seconds; the report opens as Data\HotstringAudit.txt.  Unlike the Conflicting String Locator, which compares rules to each other by pattern, this one measures what actually happens to real words -- including whether a nullifier really protects a word (it must come BEFORE the rule it protects)."
+
                 case "ExtractMisspellings":
                     this.helpTexts["ControlButton_ExtractMisspellings"] := "Launches the Extract Potential Misspellings tool.`n`nThis tool scans your AutoCorrectHotstrings.ahk file and generates a list of words that may be inadvertently misspelled by your autocorrect entries.`n`nThe tool looks for comments containing 'but misspells' and extracts those flagged words.`n`nYou can configure whether to include definitions and line numbers, making it easy to review and decide if any autocorrect entries should be removed to avoid misspelling words relevant to your work. The config options are in the .ahk file."
 
@@ -4580,14 +5278,89 @@ class HelpSystem {
         }
     }
     
+    ; Name of the control whose help is on screen ("" = the general text).
+    static pollFn := ""
+    
+    ; F1 / the "?" button.  The help window stays open and follows keyboard focus:
+    ; Tab (or click) to another control and its help replaces the current text.  Calling
+    ; this while the window is already open just refreshes it.
     static ShowHelp(showGeneral := false) {
-        ; Destroy existing help window if open
-        if IsObject(this.helpGui)
-            this.helpGui.Destroy()
-            
-        ; Get the currently focused control
-        focusedControl := showGeneral ? "" : this.GetFocusedControl()
+        focused := this.GetFocusedControl()
+        if !IsObject(this.helpGui)
+            this._BuildWindow()
+        this._SetContent(showGeneral ? "" : focused)
+        ; NoActivate: keep keyboard focus on the main form, so Tab keeps working.
+        this.helpGui.Show("NoActivate")
         
+        ; Poll focus.  Cheap, and avoids hooking every control's Focus event.
+        ; "?" (showGeneral): remember where focus is, so the poll does not
+        ; immediately swap the general text for that control's.
+        this.lastPolled := focused
+        if (this.pollFn = "")
+            this.pollFn := ObjBindMethod(this, "_Poll")
+        SetTimer(this.pollFn, 150)
+    }
+    
+    static lastPolled := ""
+    static _Poll() {
+        if !IsObject(this.helpGui) {
+            SetTimer(this.pollFn, 0)
+            return
+        }
+        ; The main form was hidden (Esc, Cancel, Append...): the help goes with it.
+        if !DllCall("IsWindowVisible", "Ptr", UI.MainForm.Hwnd) {
+            this.CloseHelp()
+            return
+        }
+        ; GetFocusedControl() is "" while focus is in the help window itself (or on a
+        ; control with no name), so the text stays put while the user reads/scrolls it.
+        name := this.GetFocusedControl()
+        if (name = "" || name = this.lastPolled)
+            return
+        this.lastPolled := name
+        this._SetContent(name)
+    }
+    
+    static CloseHelp() {
+        if IsObject(this.helpGui) {
+            this.helpGui.Destroy()
+            this.helpGui := 0
+        }
+        if (this.pollFn != "")
+            SetTimer(this.pollFn, 0)
+    }
+    
+    ; Create the window once; _SetContent() swaps title and text afterwards.
+    static _BuildWindow() {
+        this.helpGui := Gui("AlwaysOnTop", "HotString Helper Help")
+        this.helpGui.SetFont("s10", "Courier New")
+        fontColor := Config.FontColor != "" ? "c" SubStr(Config.FontColor, -6) : ""
+        this.helpGui.SetFont(fontColor)
+        this.helpGui.BackColor := Config.FormColor
+        
+        ; Selectable text styled as a label.  Fixed height with a scrollbar (the old
+        ; auto-height box would need rebuilding for every control's text length).
+        this.helpEdit := this.helpGui.Add("Edit", "w500 r18 +VScroll ReadOnly -E0x200 -WantReturn -TabStop Background" Config.FormColor)
+        
+        closeBtn := this.helpGui.AddButton("Default", "Close")
+        closeBtn.OnEvent("Click", (*) => this.CloseHelp())
+        this.helpGui.OnEvent("Escape", (*) => this.CloseHelp())
+        this.helpGui.OnEvent("Close",  (*) => this.CloseHelp())
+        
+        ; First position: just right of the main form, so neither covers the other.
+        this.helpGui.Show("Hide")
+        this.helpGui.GetPos(, , &hw, &hh)
+        WinGetPos(&mx, &my, &mw, &mh, UI.MainForm.Hwnd)
+        hx := mx + mw + 8
+        if (hx + hw > A_ScreenWidth)          ; no room on the right: try the left
+            hx := mx - hw - 8
+        if (hx < 0)                           ; no room anywhere: overlap, offset a little
+            hx := mx + 40
+        this.helpGui.Move(hx, my)
+    }
+    
+    ; Put the help for one control (or the general text, for "") into the window.
+    static _SetContent(focusedControl) {
         ; Determine if panes are visible by checking if controls are visible
         examPaneVisible := UI.Controls["DeltaStringBlue"].Visible
         controlPaneVisible := UI.Controls["ControlPanelLabel"].Visible
@@ -4601,6 +5374,8 @@ class HelpSystem {
                     helpTitle := "Help for '" this.lastButtonCaption "' button"
                 else
                     helpTitle := "Help for Control Panel Button"
+            } else if (SubStr(focusedControl, 1, 9) = "OptRadio_") {
+                helpTitle := "Help for the '" SubStr(focusedControl, 10) "' option"
             } else {
                 helpTitle := "Help for " focusedControl
             }
@@ -4617,25 +5392,8 @@ class HelpSystem {
                 helpText .= "`n`n------------------`nAt the bottom is the `"Control Panel.`"`n`nIt contains buttons to launch several script-related tools and other things.  Some items are only shown conditionally.  The bottom `'Suggester`' and `'Color Theme`' buttons are only displayed if the corresponding apps are present in the AutoCorrect2 folder.  The log-related buttons are only displayed if logging is enabled in the Core\acSettings.ini file.`n`nThe icons are not compiled.  They are in the Resources\Icons\ folder. Most are from icons8.com"
         }
         
-        ; Create help GUI
-        this.helpGui := Gui("AlwaysOnTop", helpTitle)
-        this.helpGui.SetFont("s10", "Courier New")
-        fontColor := Config.FontColor != "" ? "c" SubStr(Config.FontColor, -6) : ""
-        this.helpGui.SetFont(fontColor)
-        this.helpGui.BackColor := Config.FormColor
-        
-        ; Use an Edit control for selectable text, styled as a label
-        this.helpGui.Add("Edit", "w500 -VScroll ReadOnly -E0x200 -WantReturn -TabStop Background" Config.FormColor, helpText)
-        
-        ; Add close button
-        closeBtn := this.helpGui.AddButton("Default", "Close")
-        closeBtn.OnEvent("Click", (*) => this.helpGui.Destroy())
-        
-        ; Show the help window
-        this.helpGui.Show()
-        
-        ; Set up event handlers
-        this.helpGui.OnEvent("Escape", (*) => this.helpGui.Destroy())
+        this.helpGui.Title := helpTitle
+        this.helpEdit.Value := helpText
     }
             
     ; Get the name of the currently focused control
@@ -4669,6 +5427,15 @@ class HelpSystem {
                     }
                 } catch {
                     continue
+                }
+            }
+        }
+        ; Side copy of the Control Panel: same help entries, keyed by the same names.
+        if UI.Controls.Has("SideCPButtons") {
+            for index, button in UI.Controls["SideCPButtons"] {
+                if button.Focused {
+                    this.lastButtonCaption := Trim(button.Text, " `t")
+                    return "ControlButton_" UI.Controls["SideCPNames"][index]
                 }
             }
         }

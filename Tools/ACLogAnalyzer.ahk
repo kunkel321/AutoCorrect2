@@ -247,6 +247,9 @@ class ACLogAnalyzer {
                 
                 ; Extract the hotstring and action type from this line
                 hotstring := SubStr(A_LoopField, 15)
+                ; Detail fields (time, word change, exe) follow the first TAB -- not part of the hotstring.
+                if (tabPos := InStr(hotstring, "`t"))
+                    hotstring := SubStr(hotstring, 1, tabPos - 1)
                 actionType := SubStr(A_LoopField, 12, 2)  ; "--" or "<<"
                 
                 ; Initialize entry in map if not exists
@@ -648,7 +651,7 @@ class ACLogAnalyzer {
             this.ContextGui.Add("Edit", "-VScroll ReadOnly -E0x200 -WantReturn -TabStop Background" this.FormColor, 
                 "Context of item -- " selItemTrigger "`n======================`n" contextItems)
             
-            this.ContextGui.AddButton(, "Open Log").OnEvent("Click", (*) => (this.ContextGui.Destroy(), Run(this.Config.ScriptFiles.ErrContLog), this.ACAGui.Show()))
+            this.ContextGui.AddButton(, "Open Log").OnEvent("Click", (*) => (this.ContextGui.Destroy(), OpenLogAtEnd(this.Config.ScriptFiles.ErrContLog, "..\Data\acSettings.ini"), this.ACAGui.Show()))
             
             closeBtn := this.ContextGui.AddButton("x+4", "Close This")
             closeBtn.OnEvent("Click", (*) => (this.ContextGui.Destroy(), this.ACAGui.Show()))
@@ -735,6 +738,7 @@ class ACLogAnalyzer {
     ; Actually cull the item from the log
     static DoCullItem(itemToCull, addToRemoved, notes) {
         try {
+            logItem := itemToCull ; the bare hotstring, as in the log; the notes go to RemovedHotstrings only
             if (notes && notes != "")
                 itemToCull .= " (" notes ")"
                 
@@ -759,7 +763,9 @@ class ACLogAnalyzer {
             for scriptLine in StrSplit(thisFileContents, "`n") {
                 if (scriptLine != "") {
                     logSuffix := RTrim(SubStr(scriptLine, 15))   ; strip trailing space/CR
-                    if (!InStr(logSuffix, itemToCull))
+                    if (tabPos := InStr(logSuffix, "`t"))  ; detail fields follow the first TAB
+                        logSuffix := SubStr(logSuffix, 1, tabPos - 1)
+                    if (logSuffix !== logItem)             ; the whole hotstring, exactly
                         newFileContents .= scriptLine "`n"
                 }
             }
@@ -1410,3 +1416,24 @@ Class ToolTipOptions {
    }
 }
 ; ============= Bottom of TOOLTIP OPTIONS CLASS ===============
+
+; Open a log that grows at the bottom at its last line (the newest entry), using the
+; [Shared] EditorCmd template ({file}/{line}) from acSettings.ini.  Without one,
+; open it the old way (top).  Mirrors Utils.OpenFileAtEnd in AutoCorrect2.ahk.
+OpenLogAtEnd(logFile, iniFile) {
+    editorCmd := IniRead(iniFile, "Shared", "EditorCmd", "")
+    if (editorCmd = "" || !FileExist(logFile)) {
+        Run(logFile)
+        return
+    }
+    ; IniRead strips one pair of outer quotes; if those were missing from the ini,
+    ; it ate the exe path's pair instead -- put it back (same repair as Config).
+    if (SubStr(editorCmd, 1, 1) != '"' && SubStr(editorCmd, -1) != '"' && InStr(editorCmd, '"'))
+        editorCmd := '"' editorCmd '"'
+    lineCount := 1
+    loop read logFile
+        lineCount := A_Index
+    loop files logFile
+        fullPath := A_LoopFileFullPath
+    Run(StrReplace(StrReplace(editorCmd, "{file}", fullPath), "{line}", lineCount))
+}

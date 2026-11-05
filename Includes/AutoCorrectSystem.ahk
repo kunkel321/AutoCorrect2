@@ -1,7 +1,7 @@
 ﻿; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 8-3-2026
+; Version: 8-5-2026
 ; 8-3-2026 restructure: keepText() is now the single source of truth for
 ; "Backspace pressed after autocorrection."  When its InputHook ends with
 ; Backspace, it calls BackspaceContextLogger.NotifyBackspaced() directly.
@@ -50,6 +50,20 @@ Global IsRecent := 0  ; Flag to track if a hot string was recently triggered.
 ; the suite references it.  Safe to remove if nothing does.
 Global lastTrigger := ""  ; Tracks the last used trigger (see recentTriggers for display)
 Global recentTriggers := []                      ; Rolling cache of last 3 triggers (not saved to INI)
+; Backspace-undo suppression: rule text -> A_TickCount of the Backspace that undid it.
+; While an entry is younger than Config.SuppressSeconds, f() leaves that rule's
+; trigger alone so the user can type e.g. "UE4SS" past a :*:ue::eu rule.
+Global SuppressedRules := Map()
+
+; Name of the focused process, or "" if Windows can't resolve one (focus is
+; mid-transition, or a fullscreen game owns input).  WinGetProcessName("A")
+; throws in those cases and this gets called from inside #HotIf evaluations,
+; where an uncaught throw must never escape.
+ActiveExeName() {
+    try return WinGetProcessName("A")
+    catch
+        return ""
+}
 
 ;===============================================================================
 ; The main autocorrection logger f() function
@@ -64,6 +78,23 @@ f(replace := "", log := 1, paste := 0) {
     endchar := A_EndChar
     Global lastTrigger := StrReplace(trigger, "B0X", "") "::" replace
 
+    ; Capture the focused .exe now, before any focus change, for the log line.
+    activeExe := Config.LogActiveExe ? ActiveExeName() : ""
+    ruleHotkey := trigger ; ":opts:trig" exactly as written in the library -- RuleLocation()'s key
+
+    ; Backspace-undo suppression.  If the user backspaced this same rule less than
+    ; SuppressSeconds ago, do nothing: every library rule is B0, so the typed text
+    ; is still intact on screen.  A different rule on the same word is unaffected.
+    Global SuppressedRules
+    if (Config.SuppressAfterBackspace && SuppressedRules.Has(lastTrigger)
+        && (A_TickCount - SuppressedRules[lastTrigger]) < Config.SuppressSeconds * 1000) {
+        HSInputBuffer.Stop()
+        trigOnly := SubStr(trigger, InStr(trigger, ":",,,2)+1)
+        if (log && Config.EnableLogging = 1)
+            SetTimer(keepText.bind(lastTrigger, trigOnly, "", activeExe, "~~", ruleHotkey), -1)
+        return
+    }
+
     ; Maintain rolling cache of last 3 triggers (resets on script restart; not saved to INI)
     Global recentTriggers
     recentTriggers.Push(lastTrigger)
@@ -72,6 +103,7 @@ f(replace := "", log := 1, paste := 0) {
 
     trigger := SubStr(trigger, inStr(trigger, ":",,,2)+1)
     TrigLen := StrLen(trigger) + StrLen(endchar)
+    origReplace := replace ; Rarify below strips the shared prefix; the log wants the whole word.
 
     If paste {
         SendInput("{BS " TrigLen "}")
@@ -107,9 +139,13 @@ f(replace := "", log := 1, paste := 0) {
         SoundBeep(900, 60)
 
     if (log && Config.EnableLogging = 1) {
-        SetTimer(keepText.bind(LastTrigger), -1)
+        SetTimer(keepText.bind(LastTrigger, trigger, origReplace, activeExe, "", ruleHotkey), -1)
         Global IsRecent := 1
         setTimer (*) => IsRecent := 0, -(Config.BackspaceWindow)
+    } else if Config.SuppressAfterBackspace {
+        ; Unlogged rules (f(r, 0)) still get backspace suppression: keepText() is
+        ; what records it, and it never runs for them.
+        SetTimer(WatchBackspace.bind(lastTrigger), -1)
     }
 }
 
@@ -117,9 +153,82 @@ f(replace := "", log := 1, paste := 0) {
 ; Automatically logs (if enabled) if an autocorrect happens, and if the 
 ; user presses Backspace within the specified timeout
 ;===============================================================================
+; Log line format -- the first 14 characters are fixed, because every analysis
+; tool (ACLogAnalyzer, ACLogStatistics, ACHotstringsStats, HotstringAnalyzer,
+; TypoInvaders) reads the date from columns 1-10, the marker from 12-13 and the
+; hotstring from column 15 up to the first TAB.  Everything after that TAB is
+; optional detail those tools ignore (LogRuleLocation / LogExtendedDetail / LogActiveExe):
+;   YYYY-MM-DD -- :opts:trig::repl<TAB>BP:311<TAB>HH:MM:SS<TAB>typed -> result<TAB>[exe]
+; Markers:  --  kept   <<  backspaced within BackspaceWindow   ~~  suppressed
+; (rule skipped because the user backspaced it moments ago, see f()).
+; trigText / replText are the bare trigger and full replacement, used to work
+; out the whole word that changed.  activeExe is "" unless LogActiveExe is on.
+; ruleHotkey is the raw ":opts:trig", looked up by RuleLocation(); location, if
+; given, is used instead (the caps fix has no library line: SYS:<its line here>).
 #MaxThreadsPerHotkey 5 ; Allow up to 5 instances of the function.
-keepText(KeepForLog, *) {       
+keepText(KeepForLog, trigText := "", replText := "", activeExe := "", marker := "", ruleHotkey := "", location := "", *) {       
+    Global SuppressedRules
+    ruleKey := KeepForLog ; Unescaped -- must match the key f() looks up in SuppressedRules.
     KeepForLog := StrReplace(KeepForLog, "`n", "``n") ; Fixes triggers spanning two lines.
+    KeepForLog := StrReplace(KeepForLog, "`t", "``t") ; A TAB would end the hotstring field for every log reader.
+
+    ; Work out the whole word that changed.  WordArr holds words the context
+    ; logger has already cached (endchar-triggered rules); bsih.Input holds the
+    ; partial word still being typed (* rules fire before an endchar).
+    beforeWord := trigText
+    afterWord  := replText
+    trigLen    := StrLen(trigText)
+    if (trigLen && marker = "") {
+        found := false
+        ; A * rule (and the caps fix) fires before the end char, so its word is not
+        ; cached yet: the cached ones are all earlier words, and one can end the same
+        ; way ("the" for a THe fix).  Only bsih.Input has it.
+        wordArr := RegExMatch(ruleHotkey, "^:[^:]*\*") ? [] : BackspaceContextLogger.WordArr
+        Loop wordArr.Length {
+            entry := wordArr[wordArr.Length - A_Index + 1] ; most recent first
+            bracketPos := InStr(entry, "[")
+            if !bracketPos
+                continue
+            fullWord := SubStr(entry, 1, bracketPos - 1)
+            if (StrLen(fullWord) >= trigLen && SubStr(fullWord, -trigLen) = trigText) {
+                beforeWord := fullWord
+                afterWord  := SubStr(fullWord, 1, -trigLen) . replText
+                found := true
+                break
+            }
+        }
+        if !found {
+            ; bsih.Input is everything typed since the last Space/Tab/Enter/BS
+            ; the hook saw, which can include earlier lines.  Keep only the
+            ; trailing run of non-whitespace -- the word actually being typed.
+            rawInput := ""
+            try rawInput := BackspaceContextLogger.bsih.Input
+            if RegExMatch(rawInput, "\S+$", &m) && StrLen(m[0]) >= trigLen && SubStr(m[0], -trigLen) = trigText {
+                beforeWord := m[0]
+                afterWord  := SubStr(m[0], 1, -trigLen) . replText
+            }
+        }
+    }
+    if !Config.LogRuleLocation
+        location := ""
+    else if (location = "" && ruleHotkey != "") {
+        location := RuleLocation(ruleHotkey)
+        if (location = "")
+            location := "unknown" ; in neither library -- still says so, rather than a missing field
+    }
+    detail := location != "" ? "`t" location : ""
+    if Config.LogExtendedDetail
+        detail .= "`t" A_Hour ":" A_Min ":" A_Sec "`t" StrReplace(StrReplace(beforeWord " -> " afterWord, "`n", "``n"), "`t", "``t")
+    if (activeExe != "")
+        detail .= "`t[" activeExe "]"
+
+    ; Suppressed: nothing was sent, so there is no Backspace to wait for.
+    if (marker = "~~") {
+        logEntry := "`n" A_YYYY "-" A_MM "-" A_DD " ~~ " KeepForLog (location != "" ? "`t" location : "") (Config.LogExtendedDetail ? "`t" A_Hour ":" A_Min ":" A_Sec "`t" beforeWord " (suppressed)" : "") (activeExe != "" ? "`t[" activeExe "]" : "")
+        FileAppend(logEntry, Config.AutoCorrectsLogFile)
+        FileAppend(logEntry, Config.ACLogContinuousFile)
+        return
+    }
     ; lih is LOCAL on purpose (was global).  With overlapping instances, a global
     ; lih gets overwritten by the newer instance's hook, so the older instance
     ; would read EndKey from the WRONG hook after Wait() returned (false '--').
@@ -138,13 +247,62 @@ keepText(KeepForLog, *) {
     ; Notify before the FileAppends so following-word collection starts promptly.
     if wasBackspaced
         BackspaceContextLogger.NotifyBackspaced(KeepForLog)
+    if wasBackspaced
+        SuppressedRules[ruleKey] := A_TickCount ; see f(): mutes this rule for SuppressSeconds
     
     ; Log the autocorrection with timestamp and hyphen style
-    logEntry := "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog
+    logEntry := "`n" A_YYYY "-" A_MM "-" A_DD hyphen KeepForLog detail
     FileAppend(logEntry, Config.AutoCorrectsLogFile) ; For ACLogAnalyzer. Gets culled from.
     FileAppend(logEntry, Config.ACLogContinuousFile) ; For ACLogStatistics. Never gets culled. 
 }
 #MaxThreadsPerHotkey 1
+
+; keepText()'s Backspace watch without the log line, for corrections f() does
+; not log.  Same window, same SuppressedRules key.
+WatchBackspace(ruleKey) {
+    Global SuppressedRules
+    lih := InputHook("B V I1 E T" (Config.BackspaceWindow / 1000), "{Backspace}")
+    lih.Start()
+    lih.Wait()
+    if (lih.EndKey = "Backspace")
+        SuppressedRules[ruleKey] := A_TickCount
+}
+
+; Where a rule lives, for the log: ":opts:trig" -> "BP:311" / "AC:4146" ("" if not
+; found, e.g. the caps fix's synthetic rules).  BP is scanned first -- it is included
+; first, so its copy of a duplicate is the one that fires.  The index is rebuilt only
+; when either library changes on disk (HH appends new rules), so this runs from
+; keepText()'s timer, after the correction has been sent.
+RuleLocation(ruleHotkey) {
+    static index := Map(), loose := Map(), stamp := ""
+    libs := [["BP", Config.BoilerplateHotstringLibrary], ["AC", Config.HotstringLibrary]]
+    now := ""
+    for lib in libs
+        try now .= FileGetTime(lib[2]) FileGetSize(lib[2]) "|"
+    if (now != stamp) {
+        index := Map(), loose := Map(), stamp := now
+        for lib in libs {
+            try Loop Read lib[2] {
+                if RegExMatch(A_LoopReadLine, "^\s*(:[^:\s]*:.+?)::", &m) && !index.Has(m[1]) {
+                    index[m[1]] := lib[1] ":" A_Index
+                    if !loose.Has(k := RuleLooseKey(m[1]))
+                        loose[k] := lib[1] ":" A_Index
+                }
+            }
+        }
+    }
+    if index.Has(ruleHotkey)
+        return index[ruleHotkey]
+    return loose.Get(RuleLooseKey(ruleHotkey), "")
+}
+
+; ":opts:trig" with the options sorted: a rule HH registered live can spell its
+; options in another order than the line it appended (B0X*? vs *?B0X).
+RuleLooseKey(ruleHotkey) {
+    if !RegExMatch(ruleHotkey, "^:([^:]*):(.*)$", &m)
+        return ruleHotkey
+    return Sort(RegExReplace(StrUpper(m[1]), "(.)", "$1`n")) ":" m[2]
+}
 
 ;===============================================================================
 ; Backspace Context Logger
@@ -665,9 +823,9 @@ StringAndFixReport(caller := "Button") {
             '`nhotstring stats as of ' A_MMMM ' ' A_DD ', ' A_YYYY '.'
             '`n================================'
             '`n    Regular Autocorrects:`t' numberFormat(regulars)
-            '`n    Word Beginnings:`t`t' numberFormat(begins)
-            '`n    Word Middles:`t`t' numberFormat(middles)
-            '`n    Word Ends:`t`t' numberFormat(ends)
+            '`n *  Word Beginnings:`t`t' numberFormat(begins)
+            '`n *? Word Middles:`t`t' numberFormat(middles)
+            '`n ?  Word Ends:`t`t' numberFormat(ends)
             '`n================================'
             '`n   Total Entries:`t`t' numberFormat(entries)
             '`n   Potential Fixes:`t`t' numberFormat(fixes)
@@ -719,21 +877,26 @@ StringAndFixReport(caller := "Button") {
 fix_consecutive_caps()
 fix_consecutive_caps() {
 ; Hotstring only works if CapsLock is off.
-	HotIf (*) => !GetKeyState("CapsLock", "T")
+	; These are created with Hotstring(), so the textual
+	; "#HotIf AutoCorrectionsActivelyRunning()" around the library include does
+	; NOT cover them -- without the second condition all 676 caps-fix
+	; hotstrings stay live in skiplisted apps and when autocorrect is toggled off.
+	HotIf (*) => !GetKeyState("CapsLock", "T") && AutoCorrectionsActivelyRunning()
 	loop 26 {
 		char1 := Chr(A_Index + 64)
 		loop 26 {
 			char2 := Chr(A_Index + 64)
 			; Create hotstring for every possible combination of two letter capital letters.
             ;If (char1 char2 != "CO")
-			Hotstring(":*?CXB0:" char1 char2, fix.Bind(char1, char2))
+			Hotstring(":*?CXB0Z0:" char1 char2, fix.Bind(char1, char2)) ; Z0: keep "BA" in the recognizer, so "sical" in BAsical is not a word start
 		}
 	}
 	HotIf
 	; Third letter is checked using InputHook.
 	fix(char1, char2, *) {
+		activeExe := Config.LogActiveExe ? ActiveExeName() : ""
 		; ih := InputHook("V I101 L1")
-		ih := InputHook("V I101 L1 T.3")
+		ih := InputHook("V I101 L1 T" Config.CapFixTimeoutMs / 1000) ; upstream: fixed T.3
 		ih.OnEnd := OnEnd
 		ih.Start()
 		OnEnd(ih) {
@@ -741,11 +904,19 @@ fix_consecutive_caps() {
 			if (char3 ~= "[A-Z]")  ; If char is UPPERcase alpha.
 				Hotstring "Reset"
 			else if (char3 ~= "[a-z]")  ; If char is lowercase alpha.
-			|| ((char3 = A_Space && char1 char2 ~= "OF|TO|IN|IT|IS|AS|AT|WE|HE|BY|ON|BE|NO") && Config.CapFixTwoLetterWords)
+			|| ((char3 = A_Space && char1 char2 ~= "i)^(" RegExReplace(Config.CapFixTwoLetterList, "[\s,]+", "|") ")$") && Config.CapFixTwoLetterWords)
 			{	SendInput("{BS 2}" StrLower(char2) char3)
                 If Config.BeepOnCapFix {
                     SoundBeep(800, 80) ; Case fix announcent. 
                 }
+                ; Log it like any other correction.  The rule text is synthetic
+                ; (there is no :*?C:TH::Th line in the library) but it is a valid
+                ; hotstring, so the log tools parse it and the Backspace watch
+                ; in keepText() gives it << / -- like everything else.
+                If (Config.EnableLogging = 1 && Config.LogCapFixes)
+                    SetTimer(keepText.bind(":*?C:" char1 char2 "::" char1 StrLower(char2)
+                        , Trim(char1 char2 char3), Trim(char1 StrLower(char2) char3), activeExe
+                        , "", ":*?C:" char1 char2, "SYS:" A_LineNumber), -1) ; SYS = this file
 			}
 		}
 	}

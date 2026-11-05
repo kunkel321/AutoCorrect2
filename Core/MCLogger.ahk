@@ -210,7 +210,7 @@ mclMenu.Add("Log and Reload Script", (*) => Reload())
 mclMenu.SetIcon("Log and Reload Script", "..\Resources\Icons\data_backup-Brown.ico")
 mclMenu.Add("Edit This Script", EditThisScript)
 mclMenu.SetIcon("Edit This Script", "..\Resources\Icons\edit-Brown.ico")
-mclMenu.Add("Open " MCLogFile, (*) => Run(MCLogFile))
+mclMenu.Add("Open " MCLogFile, (*) => OpenLogAtEnd(MCLogFile, settingsFile))
 mclMenu.SetIcon("Open " MCLogFile, "..\Resources\Icons\TxtFile-Brown.ico")
 If FileExist(SettingsManager) { ; Only add to menu if SM found.
    mclMenu.Add("Open " SettingsManager, (*) => Run(SettingsManager))
@@ -255,7 +255,7 @@ StartUpMCL(*) { ; Start with windows?
 }
 
 ; Make sure AHK editor is assigned.  Use Notepad otherwise.
-If not FileExist(MyAhkEditorPath) {
+If (MyAhkEditorPath != "Notepad.exe" && !FileExist(MyAhkEditorPath)) { ; Notepad = the fallback already chosen above
 	acMsgBox.show("This error means that the variable 'MyAhkEditorPath' has"
 	"`nnot been assigned a valid path for an editor."
 	"`nTherefore Notepad will be used as a substite.")
@@ -1713,3 +1713,24 @@ Class ToolTipOptions {
    }
 }
 ; ============= Bottom of TOOLTIP OPTIONS CLASS ===============
+
+; Open a log that grows at the bottom at its last line (the newest entry), using the
+; [Shared] EditorCmd template ({file}/{line}) from acSettings.ini.  Without one,
+; open it the old way (top).  Mirrors Utils.OpenFileAtEnd in AutoCorrect2.ahk.
+OpenLogAtEnd(logFile, iniFile) {
+    editorCmd := IniRead(iniFile, "Shared", "EditorCmd", "")
+    if (editorCmd = "" || !FileExist(logFile)) {
+        Run(logFile)
+        return
+    }
+    ; IniRead strips one pair of outer quotes; if those were missing from the ini,
+    ; it ate the exe path's pair instead -- put it back (same repair as Config).
+    if (SubStr(editorCmd, 1, 1) != '"' && SubStr(editorCmd, -1) != '"' && InStr(editorCmd, '"'))
+        editorCmd := '"' editorCmd '"'
+    lineCount := 1
+    loop read logFile
+        lineCount := A_Index
+    loop files logFile
+        fullPath := A_LoopFileFullPath
+    Run(StrReplace(StrReplace(editorCmd, "{file}", fullPath), "{line}", lineCount))
+}

@@ -1,20 +1,20 @@
 {
   "Files.HotstringLibrary": {
-    "verion_date_for_this_json_file": "8-8-2026",
+    "version_date_for_this_json_file": "8-8-2026",
     "label": "Hotstring Library",
-    "help": "Select the AHK file containing your custom hotstrings.This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
+    "help": "Select the AHK file containing your custom hotstrings. This file is loaded by AutoCorrect2 on startup.  It is also read and used by several other tools.\n\nNOTE: This string is hard-coded as an '#Include' item in AutoCorrect2.ahk.  Edit with caution.",
     "type": "file",
     "filter": "AHK Files (*.ahk)|*.ahk"
   },
   "Files.NewTemporaryHotstrLib": {
     "label": "New Temporary Hotstring Library",
-    "help": "Name of file for the Updater Tool to write to.  Used for comparison and merging, when updating to a newly-released verions of the hotstring library.  Having a file name defined here will allow the Unique String Extrator to instantly run its scan without the need to manually choose the file each time.",
+    "help": "Name of file for the Updater Tool to write to.  Used for comparison and merging, when updating to a newly-released versions of the hotstring library.  Having a file name defined here will allow the Unique String Extractor to instantly run its scan without the need to manually choose the file each time.",
     "type": "file",
     "filter": "AHK Files (*.ahk)|*.ahk"
   },
   "Files.BoilerplateHotstringLibrary": {
     "label": "Separate Library For Boilerplate Hotstrings",
-    "help": "If the HotstringHelper.SeparateLibForBoilerplates=1, then radio buttons ()AC ()BP will appear on the HH gui.  When BP is selected, then the Append button will append the new hotstring to this file.\n\nNOTE: This string is hard-coded as an '#Include' item in AutocCorrect2.ahk.  Edit with caution.",
+    "help": "If the HotstringHelper.SeparateLibForBoilerplates=1, then radio buttons ()AC ()BP will appear on the HH gui.  When BP is selected, then the Append button will append the new hotstring to this file.\n\nNOTE: This string is hard-coded as an '#Include' item in AutoCorrect2.ahk.  Edit with caution.",
     "type": "file",
     "filter": "AHK Files (*.ahk)|*.ahk"
   },
@@ -147,7 +147,7 @@
   },
   "Hotkeys.ACLogAnalyzerHk": {
     "label": "ACLog Analyzer Hotkey",
-    "help": "The ACLogAnalyzer tool doesn't always run in the background, so this hotkey assignment is actually in the AutoCorrect2.ahk code.  This will initial an analysis of the AutoCorrections Log.",
+    "help": "The ACLogAnalyzer tool doesn't always run in the background, so this hotkey assignment is actually in the AutoCorrect2.ahk code.  This will initiate an analysis of the AutoCorrections Log.",
     "type": "hotkey"
   },
   "Hotkeys.HotkeyHubHotkey": {
@@ -203,7 +203,7 @@
   },
   "HotstringHelper.CODE_ERROR_LOG": {
     "label": "Error Logging",
-    "help": "If enabled, errors and exceptions for the AutoCorrect2.ahk script are logged to a filein the Data folder.",
+    "help": "If enabled, errors and exceptions for the AutoCorrect2.ahk script are logged to a file in the Data folder.",
     "type": "boolean",
     "options": [
       "0=Disabled",
@@ -213,7 +213,7 @@
   },
   "HotstringHelper.EnableHotStrQuickLookup": {
     "label": "Enable HotStrQuickLookup",
-    "help": "The Hotstring Quick Lookup Tool suplements the ACLogAnalyzer and the HotstringLibStats tools.  (If enabled) Select an entire hotstring (including the colons) and press Ctrl+Shift+Q.  Log data will be retrieved for the selected hotstring. Try it with this one:\n\n:B0X*?:cuas::f(\"caus\") ; Web Freq 415.77 | Fixes 61 words",
+    "help": "The Hotstring Quick Lookup Tool supplements the ACLogAnalyzer and the HotstringLibStats tools.  (If enabled) Select an entire hotstring (including the colons) and press Ctrl+Shift+Q.  Log data will be retrieved for the selected hotstring. Try it with this one:\n\n:B0X*?:cuas::f(\"caus\") ; Web Freq 415.77 | Fixes 61 words",
     "type": "boolean",
     "options": [
       "0=Disable Quick Lookup",
@@ -332,11 +332,27 @@
   },
   "HotstringHelper.MinWordLength": {
     "label": "Minimum Word Length",
-    "help": "Minimum length a word must be to include its first letters in boilerplate acronyms.  This allows us to exclude short words like 'of', 'in', 'a', etc.  If the min lengh is 2, then the acronym for the preceding sentence is 'mlwmi'.",
+    "help": "Minimum length a word must be to include its first letters in boilerplate acronyms.  This allows us to exclude short words like 'of', 'in', 'a', etc.  If the min length is 2, then the acronym for the preceding sentence is 'mlwmi'.",
     "type": "integer",
     "min": 1,
     "max": 10,
     "default": "2",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.MaxClipLength": {
+    "label": "Max Clipboard Length",
+    "help": "When HotstringHelper opens (Win+H) it pre-fills the form from the clipboard.  If the clipboard holds more than this many characters, open a blank form instead -- handy if you mostly add short autocorrects and keep finding a paragraph pasted into the Trigger box.  0 = no limit (boilerplate users paste long text on purpose).",
+    "type": "integer",
+    "min": 0,
+    "max": 10000,
+    "default": "0",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.RememberWindowPosition": {
+    "label": "Remember Window Position",
+    "help": "If enabled, HotstringHelper reopens where you last dragged it (saved in Data\\hhWindowPos.ini when you let go of the title bar) and stays put when panes open or the size toggles.  If the saved spot is no longer on any monitor, or this is disabled, it opens centered as before.  The tray menu's 'Reset HH Window Position' forgets the saved spot.",
+    "type": "boolean",
+    "default": "1",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.SeparateLibForBoilerplates": {
@@ -358,22 +374,43 @@
       "1=Beep on startup"
     ]
   },
+  "HotstringHelper.BeepOnAppend": {
+    "label": "Beep When a New Rule Is Ready",
+    "help": "Adding a single-line rule switches it on immediately, without reloading the script -- so the startup double-beep no longer plays.  If enabled, a single beep confirms the new rule is live.  Multi-line rules still reload the script, so they give the startup beep instead (if Startup Announcement is on), never both.",
+    "type": "boolean",
+    "default": "1",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.SpellCheckReplacement": {
+    "label": "Spell Check the Replacement Box",
+    "help": "Uses the Windows spell checker (offline, the same dictionary as Windows' red underlines) on the Replacement box.  Misspelled text turns red; right-click a misspelled word for Windows' suggestions, or to add it to the dictionary.  Right-clicking anywhere else shows the normal Cut/Copy/Paste menu.",
+    "type": "boolean",
+    "default": "1",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.EmptyFormDefaults": {
+    "label": "Defaults on an Empty Form",
+    "help": "When HotstringHelper opens with nothing usable on the clipboard (empty, or longer than Max Clipboard Length), the original script clears every box and checkbox.  If enabled, the empty form starts like a new AutoCorrect entry instead: the Default AutoCorrect Options in the Options box, Function and Log ticked per Make AC Function By Default, and the AC library selected.  Trigger and Replacement stay empty.",
+    "type": "boolean",
+    "default": "0",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
   "HotstringHelper.MakeAcFuncByDefault": {
     "label": "Make AC Function By Default",
-    "help": "If enabled, new AutoCorrect entries will use the f() function wrapper by default (allows logging and context capture). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in and f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
+    "help": "If enabled, new AutoCorrect entries will use the f() function wrapper by default (allows logging and context capture). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in an f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
     "type": "boolean",
     "options": [
-      "0=Unchecked by default'",
+      "0=Unchecked by default",
       "1=Use f() function by default"
     ],
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotstringHelper.MakeBpFuncByDefault": {
     "label": "Make BP Function By Default",
-    "help": "If enabled, new BoilerPlate entries in the PersonalHotstrings.ahk file will use the f() function wrapper by default (allows inputBuffering and option to paste the test). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in and f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
+    "help": "If enabled, new BoilerPlate entries in the PersonalHotstrings.ahk file will use the f() function wrapper by default (allows inputBuffering and option to paste the text). If disabled, entries are added as 'plain vanilla' hotstrings, ::trigger::replacement.  The option can be turned on/off for each hotstring at runtime.  This just determines whether the '[ ] Function' checkbox is checked by default.  If this is set to true/1, then it makes sense to include 'B0X' to the DefaultAutoCorrectOptions.  Note however, that when a hotstring is wrapped in an f() function, 'B0X' will be added to the hotstring options automatically, even if the user doesn't include them in the Option box.",
     "type": "boolean",
     "options": [
-      "0=Unchecked by default'",
+      "0=Unchecked by default",
       "1=Use f() function by default"
     ],
     "restart": "..\\Core\\AutoCorrect2.exe"
@@ -457,7 +494,7 @@
   },
   "ACSystem.EnableLogging": {
     "label": "Enable Logging",
-    "help": "Master switch - if disabled, no logging occurs for any autocorrections made by the f() function; this include the error context logger.  The Manual Correction Logger is a seprate independent tool and this setting does not affect it.\n\nIf vanilla hotstrings are used (instead of f() functions) then this setting is moot.",
+    "help": "Master switch - if disabled, no logging occurs for any autocorrections made by the f() function; this includes the error context logger.  The Manual Correction Logger is a separate independent tool and this setting does not affect it.\n\nIf vanilla hotstrings are used (instead of f() functions) then this setting is moot.",
     "type": "boolean",
     "options": [
       "0=Disable AutoCorrection Logging",
@@ -477,7 +514,7 @@
   },
   "ACSystem.BackspaceWindow": {
     "label": "Backspace Timeout Window",
-    "help": "When an autocorrection is make via the f() function, if the user presses Backspace, within this number of millisecons, the autocorrection gets flagged as errant in the autocorrection log.  Use a smaller number if you type fast and make a lot of errors.  (See user manual for more discussion.)",
+    "help": "When an autocorrection is made via the f() function, if the user presses Backspace, within this number of milliseconds, the autocorrection gets flagged as errant in the autocorrection log.  Use a smaller number if you type fast and make a lot of errors.  (See user manual for more discussion.)",
     "type": "integer",
     "min": 100,
     "max": 3000,
@@ -495,7 +532,7 @@
   },
   "ACSystem.PrecedingWordCount": {
     "label": "Preceding Word Count",
-    "help": "Number of words to keep cached before the autocorrection to capture in context logging. Used to understand what the user was typing when the errant autocorrection occured.  Note: digits and symbols other than period are ignored and never cached.",
+    "help": "Number of words to keep cached before the autocorrection to capture in context logging. Used to understand what the user was typing when the errant autocorrection occurred.  Note: digits and symbols other than period are ignored and never cached.",
     "type": "integer",
     "min": 0,
     "max": 20,
@@ -503,7 +540,7 @@
   },
   "ACSystem.FollowingWordCount": {
     "label": "Following Word Count",
-    "help": "Number of words after the autocorrection to wait for and capture in context logging.  Used to understand what the user was typing when the errant autocorrection occured.  Note: digits and symbols other than period are ignored and never cached.",
+    "help": "Number of words after the autocorrection to wait for and capture in context logging.  Used to understand what the user was typing when the errant autocorrection occurred.  Note: digits and symbols other than period are ignored and never cached.",
     "type": "integer",
     "min": 0,
     "max": 20,
@@ -543,6 +580,77 @@
     "type": "boolean",
     "default": "",
     "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.CapFixTwoLetterList": {
+    "label": "Two Letter Words to Fix",
+    "help": "Comma-separated list of the two-letter words that Auto Fix Double Caps on Two Letter Words fixes (MY --> My) when a space follows.  Two capitals followed by anything else (punctuation, Enter) are left alone.  Leave out words you type in capitals on purpose (IT, US, OK).  The original script's list is OF,TO,IN,IT,IS,AS,AT,WE,HE,BY,ON,BE,NO.",
+    "type": "text",
+    "default": "OF,TO,IN,IT,IS,AS,AT,WE,HE,BY,ON,BE,NO",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.CapFixTimeoutMs": {
+    "label": "Double-Cap Fix Wait (ms)",
+    "help": "After two capitals in a row (THe), the fix waits this long for the third letter; if it is lowercase, the second capital is lowered.  If you let go of Shift slowly, the third letter can arrive after the wait has ended and the fix silently does nothing -- raise this if double capitals slip through.  The original script used 300.",
+    "type": "integer",
+    "min": 100,
+    "max": 3000,
+    "default": "300",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.LogActiveExe": {
+    "label": "Log Active .exe on Correction",
+    "help": "If enabled, the name of the program that had focus (e.g. [chrome.exe]) is appended to every line of the AutoCorrect log.  Useful for finding the real process name of a game or app that fights with AutoCorrect, so you can add it to the App Skiplist.",
+    "type": "boolean",
+    "default": "0",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.LogExtendedDetail": {
+    "label": "Log Extended Detail",
+    "help": "If enabled, each AutoCorrect log line gets the time of day and the whole word that changed (e.g. nothign -> nothing) after the hotstring, separated by tabs.  The classic part of the line (date, << or --, hotstring) is unchanged, so the log tools keep working either way.  Disable for the plain one-field-per-line format.",
+    "type": "boolean",
+    "default": "1",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.LogCapFixes": {
+    "label": "Log Double-Cap Fixes",
+    "help": "If enabled, the automatic double-capital fixes (THe -> The) are written to the AutoCorrect log like any other correction, as a synthetic rule such as :*?C:TH::Th, with the same << / -- backspace flag.  Disable to keep them out of the log and the analysis tools.",
+    "type": "boolean",
+    "default": "1",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.LogRuleLocation": {
+    "label": "Log the Rule's Library and Line",
+    "help": "If enabled, each AutoCorrect log line gets the library and line number of the rule that fired, right after the hotstring: BP:311 is line 311 of the BP (personal) library, AC:4146 line 4146 of the AC library -- the same AC/BP as HotstringHelper's library buttons.  It goes after the first tab, so the log tools keep working either way.  Double-capital fixes have no library line and get none.",
+    "type": "boolean",
+    "default": "1",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.SuppressAfterBackspace": {
+    "label": "Mute a Rule After Backspacing It",
+    "help": "If enabled, backspacing an autocorrection (within the Backspace Timeout Window) mutes that one rule for a few seconds, so you can retype the word the way you meant it -- e.g. typing UE4SS past a ue-->eu rule.  Other rules still fire normally.  See Suppress Seconds for the duration.",
+    "type": "boolean",
+    "default": "1",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.SuppressSeconds": {
+    "label": "Suppress Seconds",
+    "help": "How long a rule stays muted after you backspace its correction, counted from the Backspace keypress.  Only used when 'Mute a Rule After Backspacing It' is enabled.",
+    "type": "integer",
+    "min": 1,
+    "max": 60,
+    "default": "5",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ACSystem.ShowTrayExtras": {
+    "label": "Show Tray Extras",
+    "help": "In the Windows System Tray Menu for AutoCorrect2, should we show the menu items for\n\t-Printer Tool\n\t-Date Tool\n\t-UpTime\nor should they be hidden?",
+    "type": "boolean",
+    "options": [
+      "0=Hide Them",
+      "1=Show Them"
+    ]
+  ,
+  "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "MCLogger.ShowEachHotString": {
     "label": "Show Each Hotstring",
@@ -585,7 +693,7 @@
     "help": "If enabled, The 'Append' buttons in MCLogger will export to the HotstringHelper2 GUI. If disabled, append directly to the AutoCorrectHotstrings.ahk file.",
     "type": "boolean",
     "options": [
-      "0=Append to directly to Library",
+      "0=Append directly to Library",
       "1=Send to HotstringHelper"
     ],
     "restart": "..\\Core\\MCLogger.exe"
@@ -602,7 +710,7 @@
   },
   "MCLogger.AgeOfOldSingles": {
     "label": "Age of Old Singles",
-    "help": "It's not a filter for a dating website...  When removing old single-occurrence items from the Mannual Correction Log, only remove hotstrings older than this many days.",
+    "help": "It's not a filter for a dating website...  When removing old single-occurrence items from the Manual Correction Log, only remove hotstrings older than this many days.",
     "type": "integer",
     "min": 30,
     "max": 365,
@@ -663,7 +771,7 @@
   },
   "ACLogAnalyzer.IgnoreFewerThan": {
     "label": "Ignore Fewer Than",
-    "help": "Minimum threshold for consideration when weighing items. Zero means consider all items regardless of frequency. For example if the value is 3, then then autocorrections which were only logged twice, won't appear on the Analysis report at all.",
+    "help": "Minimum threshold for consideration when weighing items. Zero means consider all items regardless of frequency. For example if the value is 3, then autocorrections which were only logged twice, won't appear on the Analysis report at all.",
     "type": "integer",
     "min": 0,
     "max": 5
@@ -801,7 +909,7 @@
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
-  "ControlButtons.HotkeyHub": {
+  "ControlButtons.HotkeyRef": {
     "label": "Hotkey Reference Tool",
     "help": "This is the setting for the \"Hotkey Reference Tool\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
@@ -818,6 +926,13 @@
   "ControlButtons.HsAnalyzer": {
     "label": "Hotstring Analyzer Tool",
     "help": "This is the setting for the \"Hotstring Analyzer Tool\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.HsAuditor": {
+    "label": "Hotstring Auditor Tool",
+    "help": "This is the setting for the \"Hotstring Auditor (firing-order scan)\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
@@ -883,9 +998,8 @@
     "help": "This is the setting for the \"Change Color Theme\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
-    "restart": "..\\Core\\AutoCorrect2.exe"
-  },
-  "HotkeyHub.ShowHidden": {
+    "restart": "..\\Core\\AutoCorrect2.exe",
+      "HotkeyHub.ShowHidden": {
     "label": "Show hidden hotkeys",
     "help": "Include hotkeys whose in-line comment contains the word 'hide',\nplus commented-out hotkey stubs such as  ; ^!d::Something()\n\nAlso toggled by the 'Show hidden' checkbox in the window, which\nwrites this key straight back.",
     "type": "boolean",
@@ -927,16 +1041,10 @@
   },
   "HotkeyHub.SortCol": {
     "label": "Sort column",
-    "help": "Which column the list is sorted by.\n\nSet by clicking a column header in the window -- click once to\nsort, again to reverse, a third time to return to scan order.\nRarely worth editing by hand.",
+    "help": "Which column the list is sorted by.\n\nSet by clicking a column header in the window -- click once to\nsort, again to reverse, a third time to return to scan order.\nRarely worth editing by hand.\n\n0=Scan order (unsorted)\n1=Hotkey\n2=Action\n3=Context\n4=Source\n5=Used",
     "type": "integer",
-    "options": [
-      "0=Scan order (unsorted)",
-      "1=Hotkey",
-      "2=Action",
-      "3=Context",
-      "4=Source",
-      "5=Used"
-    ],
+    "min":  0,
+    "max":  5,
     "restart": "..\\Tools\\HotkeyHub.exe"
   },
   "HotkeyHub.SortDesc": {
@@ -973,4 +1081,15 @@
     "type": "integer",
     "restart": "..\\Tools\\HotkeyHub.exe"
   }
+},
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  ,
+  
 }
