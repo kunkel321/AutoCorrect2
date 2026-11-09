@@ -870,7 +870,13 @@ StringAndFixReport(caller := "Button") {
 ;       AUto-COrrect TWo COnsecutive CApitals
 ; This version by forum user Ntepa. Updated 8-7-2023.
 ; https://www.autohotkey.com/boards/viewtopic.php?p=533067#p533067
-; Minor edits added by kunkel321 2-7-2024
+; Edits added by kunkel321 2024, and VitaKaninen 2026, both using Claude AI.
+
+
+; Shift+Backspace doesn't remove a char from the hotstring buffer, so stale
+; capitals stay behind (I, Shift+BS, The -> "IT" fires the cap fixer -> "the").
+; Clearing the buffer is safe: at worst one rule misses on the current word.
+~+Backspace::Hotstring("Reset")
 
 #Hotstring Z0 ; <--- Experimental.  Turns off allowing key presses to count toward multiple hotstring triggers. 
 
@@ -896,7 +902,7 @@ fix_consecutive_caps() {
 	fix(char1, char2, *) {
 		activeExe := Config.LogActiveExe ? ActiveExeName() : ""
 		; ih := InputHook("V I101 L1")
-		ih := InputHook("V I101 L1 T" Config.CapFixTimeoutMs / 1000) ; upstream: fixed T.3
+		ih := InputHook("V I101 L1 T" Config.CapFixTimeoutMs / 1000, "{Backspace}")
 		ih.OnEnd := OnEnd
 		ih.Start()
 		OnEnd(ih) {
