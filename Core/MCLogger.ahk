@@ -6,7 +6,7 @@ MCLoggerHelpText := "
 (
 MCLogger — The Manual Correction Logger
 Part of the AutoCorrect2 suite.
-Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 6-10-2026
+Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 11-10-2026
 Repository: https://github.com/kunkel321/AutoCorrect2
 
 OVERVIEW
@@ -102,7 +102,7 @@ MCLogContinuous := "..\Data\" IniRead(settingsFile, "Files", "MCLogContinuous", 
 myAutoCorrectLibrary := IniRead(settingsFile, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
 RemovedHsFile := "..\Data\" IniRead(settingsFile, "Files", "RemovedHsFile", "Data\RemovedHotstrings.txt")
 myAutoCorrectScript := IniRead(settingsFile, "Files", "MyAutoCorrectScript", "AutoCorrect2.ahk")
-WordListFile := "..\Data\" IniRead(settingsFile, "Files", "WordListFile", "GitHubComboList249k.txt")
+WordListFile := "..\Data\" IniRead(settingsFile, "Files", "WordListFile", "ExamPaneWordList253k.txt")
 
 MCLoggerRunAnalysisHotkey := IniRead(settingsFile, "HotKeys", "MCLoggerRunAnalysisHotkey", "#^+q")
 MCLoggerSneakPeekHotkey := IniRead(settingsFile, "HotKeys", "MCLoggerSneakPeekHotkey", "#+q")

@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 8-8-2026 
+; Version: 11-10-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Inspired by: AutoCorrect.ahk (Jim Biancolo) https://www.biancolo.com/blog/autocorrect/
@@ -123,7 +123,7 @@ class Config {
     static AutoBigCharLimit := 40
     
     ; Word Lists
-    static WordListFile := "..\Data\GitHubComboList249k.txt"
+    static WordListFile := "..\Data\ExamPaneWordList253k.txt"
     static FrequencyListFile := "..\Data\unigram_freq_list_filtered_89k.csv"
     
     ; Editor
@@ -242,7 +242,7 @@ class Config {
         this.AutoCorrectsLogFile        := "..\Data\" this.ReadIni("Files", "AutoCorrectsLogFile", "AutoCorrectsLog.txt")
         this.ACLogContinuousFile        := "..\Data\" this.ReadIni("Files", "ACLogContinuousFile", "ACLogContinuous.txt")
         this.ErrContextLog              := "..\Data\" this.ReadIni("Files", "ErrContextLog", "ErrContextLog.txt")
-        this.WordListFile               := "..\Data\" this.ReadIni("Files", "WordListFile", "GitHubComboList249k.txt")
+        this.WordListFile               := "..\Data\" this.ReadIni("Files", "WordListFile", "ExamPaneWordList253k.txt")
         this.FrequencyListFile          := "..\Data\" this.ReadIni("Files", "FrequencyListFile", "unigram_freq_list_filtered_89k.csv")
         this.ACLogAnalyzer              := "..\Tools\" this.ReadIni("Files", "ACLogAnalyzer", "ACLogAnalyzer.exe")
         this.SettingsManager            := "..\Tools\" this.ReadIni("Files", "SettingsManager", "SettingsManager.exe")

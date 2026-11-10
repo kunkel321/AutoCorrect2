@@ -3,6 +3,7 @@
 ; Part of the AutoCorrect2 Suite.  No dependencies beyond AutoHotkey v2.
 ; AHK port of AuditHotstringLib.py (VitaKaninen, 2026-09).
 ; ============================================================
+; Version Date: 11-10-2026 
 ;
 ; Simulates AutoHotkey's hotstring firing order across every correctly-spelled
 ; word in the word list and reports what actually breaks.  Reads BOTH libraries
@@ -25,7 +26,7 @@
 ;   3  no-op rules                                  4  unreachable (shadowed) rules
 ;   5  dead nullifiers                              6  broken replacements
 ;
-; Output: ..\Data\HotstringAudit.txt (opened when done).  ~20-40 s for 249k words.
+; Output: ..\Debug\HotstringAudit.txt (opened when done).  ~20-40 s for 249k words.
 ; ============================================================
 #Requires AutoHotkey v2.0
 #SingleInstance Force
@@ -38,9 +39,9 @@ if (A_Args.Length && A_Args[1] = "all")
 settings := "..\Data\acSettings.ini"
 libAC  := "..\Core\" IniRead(settings, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
 libBP  := "..\Core\" IniRead(settings, "Files", "BoilerplateHotstringLibrary", "PersonalHotstrings.ahk")
-wlFile := "..\Data\" IniRead(settings, "Files", "WordListFile", "GitHubComboList249k.txt")
+wlFile := "..\Data\" IniRead(settings, "Files", "WordListFile", "ExamPaneWordList253k.txt")
 fqFile := "..\Data\" IniRead(settings, "Files", "FrequencyListFile", "unigram_freq_list_filtered_89k.csv")
-outFile := "..\Data\HotstringAudit.txt"
+outFile := "..\Debug\HotstringAudit.txt"
 
 ; ---------------------------------------------------------------- progress GUI
 prog := Gui("+AlwaysOnTop -MinimizeBox", "Hotstring Auditor")

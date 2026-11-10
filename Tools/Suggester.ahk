@@ -1,7 +1,7 @@
 ﻿/*
 =====================================================
             HOTSTRING SUGGESTER TOOL
-                Updated:  11-15-2025 
+                Updated:  11-10-2026 
 =====================================================
 Analyzes hotstrings and suggests lengthened/modified alternatives
 that might be better matches. This standalone tool can be called
@@ -31,7 +31,7 @@ class Config {
     static ScriptFiles := {
         ACScript: "..\Core\AutoCorrect2.ahk",
         HSLibrary: "..\Core\AutoCorrectHotstrings.ahk",
-        WordListFile: "..\Data\GitHubComboList249k.txt",
+        WordListFile: "..\Data\ExamPaneWordList253k.txt",
         FreqDataFile: "..\Data\unigram_freq_list_filtered_89k.csv" 
     }
     
@@ -64,9 +64,16 @@ class Config {
         try {
             if FileExist("..\Data\colorThemeSettings.ini") {
                 settingsFile := "..\Data\colorThemeSettings.ini"
-                this.FontColor := IniRead(settingsFile, "ColorSettings", "fontColor")
-                this.ListColor := IniRead(settingsFile, "ColorSettings", "listColor")
-                this.FormColor := IniRead(settingsFile, "ColorSettings", "formColor")
+                ; Only overwrite the defaults when the INI actually has a value
+                v := IniRead(settingsFile, "ColorSettings", "fontColor", "")
+                if (v != "")
+                    this.FontColor := v
+                v := IniRead(settingsFile, "ColorSettings", "listColor", "")
+                if (v != "")
+                    this.ListColor := v
+                v := IniRead(settingsFile, "ColorSettings", "formColor", "")
+                if (v != "")
+                    this.FormColor := v
 
                 ; Calculate contrasting colors based on background brightness
                 formColor := "0x" SubStr(this.FormColor, -6)
@@ -107,66 +114,59 @@ class HotstringSuggester {
         this.WordListFile := Config.ScriptFiles.WordListFile
         this.FreqDataFile := Config.ScriptFiles.FreqDataFile
 
-        ; Check for command line arguments
+        ; Step 1: try to obtain a hotstring from the command line.
+        ; Only the *reading* of the hotstring is wrapped in try/catch. The analysis
+        ; itself runs outside any try, so real errors surface instead of being
+        ; swallowed and followed by an unexpected input form.
+        hotstring := ""
         if A_Args.Length > 0 {
             Debug("Command line arguments received: " A_Args.Length)
-            
-            ; Check if using the file-based parameter method
+
+            ; File-based parameter method
             if A_Args.Length >= 2 && A_Args[1] = "/fromfile" {
                 Debug("Using file-based parameter method")
-                
-                ; Read the hotstring from the temporary file
                 tempFile := A_Args[2]
                 if FileExist(tempFile) {
                     try {
                         hotstring := FileRead(tempFile)
                         Debug("Hotstring read from file: " hotstring)
-                        
-                        ; Clean up the temporary file
                         try {
                             FileDelete(tempFile)
                             Debug("Temporary file deleted")
                         } catch {
                             Debug("Failed to delete temporary file")
                         }
-                        
-                        ; Process the hotstring
-                        this.AnalyzeHotstring(hotstring)
-                        return
                     } catch Error as err {
                         Debug("Error reading from temp file: " err.Message)
-                        ; Fall back to input form if file reading fails
+                        hotstring := ""
                     }
                 } else {
                     Debug("Temp file not found: " tempFile)
                 }
-            } 
+            }
             ; Standard parameter passing
-            else if A_Args[1] {
+            else if A_Args[1] != "" && A_Args[1] != "/fromfile" {
                 hotstring := A_Args[1]
                 Debug("Direct command line parameter: " hotstring)
-                
-                ; Process the hotstring
-                this.AnalyzeHotstring(hotstring)
-                return
             }
-            
-            ; Fall back to input form if no valid parameter found
-            this.ShowInputForm()
         }
-        else {
+
+        ; Step 2: analyze if we have a hotstring, otherwise ask for one.
+        hotstring := Trim(hotstring, " `t`r`n")
+        if (hotstring != "")
+            this.AnalyzeHotstring(hotstring)
+        else
             this.ShowInputForm()
-        }
     }
     
     ; Show the input form when no arguments are provided
     static ShowInputForm() {
         inputGui := Gui("", "Hotstring Suggester - Input")
         inputGui.BackColor := this.Config.FormColor
-        inputGui.SetFont("s12 " (this.Config.FontColor ? "c" this.Config.FontColor : ""))
-        
+        inputGui.SetFont("s12 " (this.Config.FontColor != "" ? "c" this.Config.FontColor : ""))
+
         inputGui.AddText("w400", "Enter a hotstring to analyze:")
-        inputEdit := inputGui.AddEdit("w400 " (this.Config.ListColor ? "Background" this.Config.ListColor : ""), "")
+        inputEdit := inputGui.AddEdit("w400 " (this.Config.ListColor != "" ? "Background" this.Config.ListColor : ""), "")
         inputEdit.Focus()
         
         analyzeBtn := inputGui.AddButton("w200", "Analyze")
@@ -886,7 +886,7 @@ class HotstringSuggester {
         
         ; Use theme colors
         progressGui.BackColor := this.Config.FormColor
-        progressGui.SetFont("s12 c" (this.Config.FontColor ? this.Config.FontColor : ""))
+        progressGui.SetFont("s12 " (this.Config.FontColor != "" ? "c" this.Config.FontColor : ""))
         progressGui.Title := title
         
         progressGui.Add("Text", "w300 Center", message)
@@ -903,7 +903,7 @@ class HotstringSuggester {
     static _ShowSuggestionDashboard(hsInfo) {
         ; Create new suggestion window
         this.SuggestGui := Gui("+AlwaysOnTop", "Hotstring Suggester - Results")
-        this.SuggestGui.SetFont("s12 c" (this.Config.FontColor ? this.Config.FontColor : ""))
+        this.SuggestGui.SetFont("s12 " (this.Config.FontColor != "" ? "c" this.Config.FontColor : ""))
         this.SuggestGui.BackColor := this.Config.FormColor
         
         ; Add "Keep window on top" checkbox at the top
@@ -924,7 +924,7 @@ class HotstringSuggester {
         
         ; Use list color for ListView background
         listViewOpts := "w" totalWidth " r20 Grid"  ; Increased rows from 15 to 20
-        if (this.Config.ListColor)
+        if (this.Config.ListColor != "")
             listViewOpts .= " Background" this.Config.ListColor
             
         listView := this.SuggestGui.Add("ListView", listViewOpts, columnHeaders)
@@ -961,7 +961,7 @@ class HotstringSuggester {
         
         ; Use theme color for edit control background - same width as ListView
         editOpts := "x+10 ReadOnly w500"
-        if (this.Config.ListColor)
+        if (this.Config.ListColor != "")
             editOpts .= " Background" this.Config.ListColor
             
         selectedHs := this.SuggestGui.Add("Edit", editOpts, "")
