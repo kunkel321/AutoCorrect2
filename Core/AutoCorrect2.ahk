@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-14-2026 
+; Version: 11-14-2026 B
 ; Author: kunkel321
 ; AI Used: Claude
 ; Inspired by: AutoCorrect.ahk (Jim Biancolo) https://www.biancolo.com/blog/autocorrect/
@@ -60,6 +60,7 @@ class Config {
     static HotstringLibrary := "AutoCorrectHotstrings.ahk"
     static BoilerplateHotstringLibrary := "PersonalHotstrings.ahk"
     static NewTemporaryHotstrLib := "AutoCorrectHotstrings (1).ahk"
+    static DiacriticHotstringLibrary := "..\Includes\DiacriticHotstrings.ahk" ; Fixed: must match the #Include path below
     static RemovedHsFile := "..\Data\RemovedHotstrings.txt" ; At iniRead, gets replaced with 'RemovedHotstrings.txt'.
     static AutoCorrectsLogFile := "..\Data\AutoCorrectsLog.txt"
     static ACLogContinuousFile := "..\Data\ACLogContinuous.txt"
@@ -88,7 +89,8 @@ class Config {
     static EnableHotStrQuickLookup := 1
     static EnableDragTools := 1
     static EnableMoveResizeTools := 1
-    
+    static EnableDiacriticHotstrings := 1   ; 0 = turn off every item in Includes\DiacriticHotstrings.ahk
+
     ; UI Settings
     static DefaultFontSize := "s11" ; At iniRead, gets replaced with '11'.
     static LargeFontSize := "s15"
@@ -287,6 +289,7 @@ class Config {
         this.EnableHotStrQuickLookup    := this.ReadIni("HotstringHelper", "EnableHotStrQuickLookup", 1)
         this.EnableDragTools            := this.ReadIni("HotstringHelper", "EnableDragTools", 1)
         this.EnableMoveResizeTools      := this.ReadIni("HotstringHelper", "EnableMoveResizeTools", 1)
+        this.EnableDiacriticHotstrings  := this.ReadIni("HotstringHelper", "EnableDiacriticHotstrings", 1)
         this.BeepOnStartup              := this.ReadIni("HotstringHelper", "BeepOnStartup", 1)
         this.BeepOnFunctionCheck        := this.ReadIni("HotstringHelper", "BeepOnFunctionCheck", 1)
         ; UI
@@ -406,6 +409,22 @@ class Config {
         return value
     }
     
+    ; Library file for a validation source tag: "AC", "BP" or "DI".
+    static LibraryForSource(source) {
+        switch source {
+            case "BP": return this.BoilerplateHotstringLibrary
+            case "DI": return this.DiacriticHotstringLibrary
+            default:   return this.HotstringLibrary
+        }
+    }
+
+    ; Diacritic items are scanned during validation only when they are actually loaded.
+    static DiacriticsActive() => (this.EnableDiacriticHotstrings && FileExist(this.DiacriticHotstringLibrary))
+
+    ; More than one library is scanned, so conflict tags need an AC/BP/DI prefix.
+    ; With only the main library, tags stay in the original "[line 489]" form.
+    static MultiLibActive() => (this.SeparateLibForBoilerplates = 1 || this.DiacriticsActive())
+
     ; Calculate brightness from form color
     static CalculateBrightness() {
         formColor := this.FormColor
@@ -468,6 +487,15 @@ IsSkiplistedFocused() {
 
 #HotIf AutoCorrectionsActivelyRunning() ; Only if no Skiplisted apps are active and autocorrections are enabled.
     #Include "AutoCorrectHotstrings.ahk"       ;  Library of hotstrings -- REQUIRED
+#HotIf
+
+; Words with diacritics (:B0X:Bjorn::f("Bjørn") etc.).  Included AFTER the main library
+; so the main library's items take precedence.  Same skiplist / tray-toggle rules, plus its own on/off
+; switch: EnableDiacriticHotstrings in [HotstringHelper].  The extra "&& ..." also makes
+; this a different #HotIf from the one above, so a trigger that is in both files is a
+; second variant (the main library's wins), not a "duplicate hotstring" load error.
+#HotIf AutoCorrectionsActivelyRunning() && Config.EnableDiacriticHotstrings
+    #Include "*i ..\Includes\DiacriticHotstrings.ahk"  ;  Diacritic corrections -- Optional
 #HotIf
 
 #Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. -- REQUIRED
@@ -2340,92 +2368,28 @@ class UIActions {
             }
         }
         
-        ; --- Single-pass wordlist filter -------------------------------------
-        ; Historical note: this function used to read Config.WordListFile TWICE
-        ; (once for trigger, once for replacement) with ~500K GUI property reads
-        ; per call. The loop below reads the file once and caches all GUI/state
-        ; reads as plain locals, which is dramatically faster on the 249k list.
-        ; The matching logic is unchanged and must stay bit-for-bit identical
-        ; to the old two-loop version.
-        ;
-        ; Cache everything we'll need inside the tight loop so the GUI isn't
-        ; probed 249k times per pass.
+        ; --- Word list filter ------------------------------------------------
+        ; The word list is held in memory (see class WordList) and searched with
+        ; native InStr() calls, instead of reading the 253k-line file from disk on
+        ; every keystroke.  Same matches as the old Loop Read version: whole word,
+        ; beginning (*), ending (?) or middle (*?), case-insensitive, each word
+        ; counted once, results in list order.
         isMiddle    := UI.Controls["MiddleRadio"].Value = 1
         isEnding    := UI.Controls["EndingRadio"].Value = 1
         isBeginning := UI.Controls["BeginningRadio"].Value = 1
-        trigLen     := StrLen(triggerText)
-        replLen     := StrLen(replacementText)
+        mode := isMiddle ? "mid" : isEnding ? "end" : isBeginning ? "begin" : "whole"
         
         triggerMatches      := 0
-        triggerFilteredList := ""
-        replacementMatches      := 0
-        replacementFilteredList := ""
-        
-        if FileExist(Config.WordListFile) {
-            Loop Read, Config.WordListFile {
-                line := A_LoopReadLine
-                
-                ; ---- Trigger side ----
-                ; Cheap InStr gate first (same as original); only do the
-                ; position-specific checks when the substring is present.
-                if InStr(line, triggerText) {
-                    if isMiddle {
-                        triggerFilteredList .= line '`n'
-                        triggerMatches++
-                    }
-                    else if isEnding {
-                        if InStr(SubStr(line, -trigLen), triggerText) {
-                            triggerFilteredList .= line '`n'
-                            triggerMatches++
-                        }
-                    }
-                    else if isBeginning {
-                        if InStr(SubStr(line, 1, trigLen), triggerText) {
-                            triggerFilteredList .= line '`n'
-                            triggerMatches++
-                        }
-                    }
-                    else {
-                        ; Whole-word comparison (no wildcards)
-                        if line = triggerText {
-                            triggerFilteredList .= line '`n'
-                            triggerMatches++
-                        }
-                    }
-                }
-                
-                ; ---- Replacement side ----
-                if InStr(line, replacementText) {
-                    if isMiddle {
-                        replacementFilteredList .= line '`n'
-                        replacementMatches++
-                    }
-                    else if isEnding {
-                        if InStr(SubStr(line, -replLen), replacementText) {
-                            replacementFilteredList .= line '`n'
-                            replacementMatches++
-                        }
-                    }
-                    else if isBeginning {
-                        if InStr(SubStr(line, 1, replLen), replacementText) {
-                            replacementFilteredList .= line '`n'
-                            replacementMatches++
-                        }
-                    }
-                    else {
-                        if line = replacementText {
-                            replacementFilteredList .= line '`n'
-                            replacementMatches++
-                        }
-                    }
-                }
-            }
+        replacementMatches  := 0
+        if WordList.Load() {
+            triggerFilteredList     := WordList.Filter(triggerText, mode, &triggerMatches)
+            replacementFilteredList := WordList.Filter(replacementText, mode, &replacementMatches)
         }
         else {
             triggerFilteredList     := "Comparison`nword list`nnot found"
             replacementFilteredList := "Comparison`nword list`nnot found"
         }
-        ; --- End single-pass filter ------------------------------------------
+        ; --- End word list filter --------------------------------------------
         
         ; Update options based on radio selection
         if isMiddle {
@@ -2482,12 +2446,9 @@ class UIActions {
         State.ReplacementMatches := replacementMatches
 
         ; Calculate and display word frequencies
+        ; CalculateFrequency() answers right away even before the frequency Map is
+        ; built (it searches the raw CSV text instead), so no LoadSync() wait here.
         if (triggerFilteredList != "" && triggerFilteredList != "Comparison`nword list`nnot found") {
-            ; Ensure data is loaded
-            if (!WordFrequency.isLoaded) {
-                WordFrequency.LoadSync()
-            }
-            
             triggerFreq := WordFrequency.CalculateFrequency(triggerFilteredList)
             UI.Controls["TriggerFreqLabel"].Text := "Web Freq [" WordFrequency.FormatFrequency(triggerFreq) "]"
         } else {
@@ -2495,11 +2456,6 @@ class UIActions {
         }
 
         if (replacementFilteredList != "" && replacementFilteredList != "Comparison`nword list`nnot found") {
-            ; Ensure data is loaded
-            if (!WordFrequency.isLoaded) {
-                WordFrequency.LoadSync()
-            }
-            
             replacementFreq := WordFrequency.CalculateFrequency(replacementFilteredList)
             UI.Controls["ReplacementFreqLabel"].Text := "Web Freq [" WordFrequency.FormatFrequency(replacementFreq) "]"
         } else {
@@ -2897,9 +2853,9 @@ class UIActions {
 		
 		; Add lookup button if needed
 		if messageItems[4] = 1 {
-			; Determine which file to open: AC = HotstringLibrary, BP = BoilerplateHotstringLibrary
+			; Determine which file to open: AC = HotstringLibrary, BP = BoilerplateHotstringLibrary, DI = DiacriticHotstringLibrary
 			lookupSource := (messageItems.Length >= 5) ? messageItems[5] : "AC"
-			lookupFile := (lookupSource = "BP") ? Config.BoilerplateHotstringLibrary : Config.HotstringLibrary
+			lookupFile := Config.LibraryForSource(lookupSource)
 
 			; The button defaults to the FIRST conflict listed, so a plain click always
 			; goes somewhere useful. Selecting a line number or some hotstring text in
@@ -2929,7 +2885,7 @@ class UIActions {
 		targets := []
 		seen := Map()
 		pos := 1
-		while (pos := RegExMatch(msgText, "\[(?:(AC|BP)\h)?line\h+(\d+)\]", &m, pos)) {
+		while (pos := RegExMatch(msgText, "\[(?:(AC|BP|DI)\h)?line\h+(\d+)\]", &m, pos)) {
 			src := (m[1] != "") ? m[1] : "AC"
 			key := src ":" m[2]
 			if !seen.Has(key) {
@@ -2948,7 +2904,7 @@ class UIActions {
 		if (conflictTargets.Length = 0)
 			return "Look Up"
 		first := conflictTargets[1]
-		where := Config.SeparateLibForBoilerplates ? first.source " line " first.lineNum : "line " first.lineNum
+		where := Config.MultiLibActive() ? first.source " line " first.lineNum : "line " first.lineNum
 		return (conflictTargets.Length > 1) ? "Look Up (top: " where ")" : "Look Up (" where ")"
 	}
 
@@ -2970,7 +2926,7 @@ class UIActions {
 			return
 
 		if IsObject(defaultTarget) {
-			targetFile := (defaultTarget.source = "BP") ? Config.BoilerplateHotstringLibrary : Config.HotstringLibrary
+			targetFile := Config.LibraryForSource(defaultTarget.source)
 			Utils.OpenFileAtLine(targetFile, defaultTarget.lineNum)
 			return
 		}
@@ -2990,10 +2946,7 @@ class UIActions {
         ; Generate auto-comment about fixes and misspellings if enabled and this is an AC item
         isBpItem := Config.SeparateLibForBoilerplates && UI.Controls.Has("BPRadio") && UI.Controls["BPRadio"].Value = 1
         if Config.AutoCommentWithFreqAndStats = 1 && !isBpItem {
-            ; Ensure word frequency data is loaded
-            if !WordFrequency.isLoaded {
-                WordFrequency.Initialize()
-            }
+            ; (CalculateFrequency works before the frequency Map is ready -- no wait here)
             ; Calculate web frequency for replacement matches
             replacementFreq := 0
             if UI.Controls["ReplacementMatchesEdit"].Value != "" {
@@ -3146,7 +3099,9 @@ class UIActions {
             }
             
             ; Append to library file
-            FileAppend("`n" wholeString, targetLibrary)
+            ; UTF-8 explicitly: AHK loads the libraries as UTF-8, but FileAppend's default
+            ; is the ANSI code page, which would write a diacritic (ø) as a byte AHK can't read.
+            FileAppend("`n" wholeString, targetLibrary, "UTF-8")
             
             ; Both normal and Ctrl+Click register the hotstring live (no restart needed).
             ; Normal click: also runs AutoEnterNewReplacement and hides the form.
@@ -3324,7 +3279,7 @@ class Validation {
             validHot: "",
             validRep: "",
             showLookupBox: 0,
-            lookupSource: "AC",   ; "AC" or "BP" — which file the last conflict came from
+            lookupSource: "AC",   ; "AC", "BP" or "DI" — which file the last conflict came from
             combinedMsg: ""
         }
         
@@ -3430,7 +3385,7 @@ class Validation {
         ; so that each conflict can report its REAL file line number and which file it came from.
         try {
             entries := this._GetCombinedHotstringContent()
-            separateLibs := Config.SeparateLibForBoilerplates = 1
+            multiLib := Config.MultiLibActive()
 
             ; Strip B0 and X from proposed options before comparisons —
             ; these are f() function mechanics only, not conflict-relevant.
@@ -3439,12 +3394,12 @@ class Validation {
             for entry in entries {
                 currentLine := entry.line
                 currentLineNum := entry.lineNum
-                currentSource := entry.source   ; "AC" or "BP"
+                currentSource := entry.source   ; "AC", "BP" or "DI"
 
                 ; Build the location tag shown in conflict messages.
-                ; When only one library is active, omit the AC/BP prefix to keep
+                ; When only one library is scanned, omit the AC/BP/DI prefix to keep
                 ; messages identical to the pre-dual-library format.
-                if separateLibs
+                if multiLib
                     locTag := "[" currentSource " line " currentLineNum "]"
                 else
                     locTag := "[line " currentLineNum "]"
@@ -3549,14 +3504,15 @@ class Validation {
     ; Returns an array of objects: { line, lineNum, source }
     ;   line    - the raw hotstring line text
     ;   lineNum - the REAL line number in the source file (for Ctrl+G navigation)
-    ;   source  - "AC" for HotstringLibrary, "BP" for BoilerplateHotstringLibrary
+    ;   source  - "AC" for HotstringLibrary, "BP" for BoilerplateHotstringLibrary,
+    ;             "DI" for DiacriticHotstringLibrary
     static _GetCombinedHotstringContent() {
         entries := []
 
         ; --- Read main hotstring library (AC) ---
         if FileExist(Config.HotstringLibrary) {
             try {
-                fullContent := FileRead(Config.HotstringLibrary)
+                fullContent := FileRead(Config.HotstringLibrary, "UTF-8")
                 scanning := false
                 loop parse, fullContent, "`n", "`r" {
                     if !scanning {
@@ -3580,7 +3536,7 @@ class Validation {
         ; --- Read boilerplate library (BP) only when SeparateLibForBoilerplates is on ---
         if Config.SeparateLibForBoilerplates = 1 && FileExist(Config.BoilerplateHotstringLibrary) {
             try {
-                fullContent := FileRead(Config.BoilerplateHotstringLibrary)
+                fullContent := FileRead(Config.BoilerplateHotstringLibrary, "UTF-8")
                 scanning := false
                 loop parse, fullContent, "`n", "`r" {
                     if !scanning {
@@ -3597,6 +3553,18 @@ class Validation {
                         if SubStr(Trim(A_LoopField, " `t"), 1, 1) = ":"
                             entries.Push({ line: A_LoopField, lineNum: A_Index, source: "BP" })
                     }
+                }
+            }
+        }
+
+        ; --- Read diacritic library (DI) only when it is loaded (file present and
+        ; EnableDiacriticHotstrings=1).  No MARK line: every hotstring line is scanned.
+        if Config.DiacriticsActive() {
+            try {
+                fullContent := FileRead(Config.DiacriticHotstringLibrary, "UTF-8")
+                loop parse, fullContent, "`n", "`r" {
+                    if SubStr(Trim(A_LoopField, " `t"), 1, 1) = ":"
+                        entries.Push({ line: A_LoopField, lineNum: A_Index, source: "DI" })
                 }
             }
         }
@@ -4076,11 +4044,14 @@ class Utils {
     ; number. Note that Enter is deliberately NOT sent -- this matches the old
     ; behavior, where the user confirms the jump in the editor's goto box.
     static _OpenFileAtLineLegacy(filePath, lineNum := 1) {
+        ; Editor title bars show the bare file name, so match on that.  (The diacritic
+        ; library is "..\Includes\DiacriticHotstrings.ahk", which no title contains.)
+        SplitPath(filePath, &winName)
         try {
-            if !WinExist(filePath) {
-                Run(Config.EditorPath " " filePath)
+            if !WinExist(winName) {
+                Run(Config.EditorPath ' "' filePath '"')
                 counter := 0
-                while !WinExist(filePath) {
+                while !WinExist(winName) {
                     Sleep(50)
                     if (++counter > 100) {
                         LogError("Timed out waiting for editor window: " filePath)
@@ -4088,7 +4059,7 @@ class Utils {
                     }
                 }
             }
-            WinActivate(filePath)
+            WinActivate(winName)
             Sleep(300)
             if (lineNum > 1)
                 SendInput("^g" lineNum)
@@ -4111,7 +4082,7 @@ class Utils {
             return 0
 
         try
-            content := FileRead(filePath)
+            content := FileRead(filePath, "UTF-8") ; the libraries are UTF-8 (BOM or not)
         catch as err {
             LogError("FindLineInFile could not read " filePath ": " err.Message)
             return 0
@@ -4295,8 +4266,11 @@ class Utils {
 
         if RegExMatch(text, "^\d{2,}$")
             lineNum := Integer(text)                       ; bare line number
-        else if RegExMatch(text, "i)^\[?\h*(?:AC|BP)?\h*line\h+(\d+)\h*\]?$", &m)
-            lineNum := Integer(m[1])                       ; a pasted "[AC line 489]" tag
+        else if RegExMatch(text, "i)^\[?\h*(AC|BP|DI)?\h*line\h+(\d+)\h*\]?$", &m) {
+            lineNum := Integer(m[2])                       ; a pasted "[AC line 489]" tag
+            if (m[1] != "")                                ; the tag names its own library
+                targetFile := Config.LibraryForSource(StrUpper(m[1]))
+        }
         else
             lineNum := this.FindLineInFile(targetFile, text)
 
@@ -4762,10 +4736,93 @@ class Utils {
     }
 }
 
+; =============== WORD LIST (Exam Pane matching) ===============
+
+; The word list lives in memory as one string, "`nword1`nword2`n...`n", plus a
+; lowercased copy with identical character positions.  Searching the lowercased
+; copy case-sensitively gives the same case-insensitive matches as the old
+; Loop Read + InStr version, in a few native InStr() calls per lookup.
+; GLOBALS on purpose: reading a big string out of a class property can copy it,
+; and a multi-MB copy per InStr() call is exactly the slowdown we're avoiding.
+global HH_WordsLower := ""
+global HH_WordsOrig  := ""
+
+class WordList {
+    static isLoaded := false
+
+    ; Fast (one FileRead + one StrLower), so it's safe to call on demand.  The
+    ; globals are assigned only once both strings are complete, so a load that is
+    ; interrupted by a Win+H hotkey thread (which then loads it first) is harmless.
+    static Load() {
+        global HH_WordsLower, HH_WordsOrig
+        if this.isLoaded
+            return true
+        if !FileExist(Config.WordListFile)
+            return false
+        try txt := FileRead(Config.WordListFile)   ; default encoding, same as the old Loop Read
+        catch as err {
+            LogError("Could not read word list " Config.WordListFile ": " err.Message)
+            return false
+        }
+        orig  := "`n" Trim(StrReplace(txt, "`r"), "`n") "`n"
+        lower := StrLower(orig)
+        HH_WordsOrig  := orig
+        HH_WordsLower := lower
+        this.isLoaded := true
+        Debug("WordList loaded: " StrLen(orig) " chars")
+        return true
+    }
+
+    ; Words matching needle, as "word`nword`n..." (the same format the Exam Pane
+    ; boxes always got), with the number of words in &count.
+    ;   mode: "whole" | "begin" (*) | "end" (?) | "mid" (*?)
+    static Filter(needle, mode, &count) {
+        global HH_WordsLower, HH_WordsOrig
+        count := 0
+        out := ""
+        ; A multi-line replacement (boilerplate) can't match a single word -- and
+        ; would match ACROSS lines of the in-memory list, so stop here.
+        if (needle = "" || InStr(needle, "`n") || InStr(needle, "`r"))
+            return ""
+        nl := StrLower(needle)
+        if (mode = "whole")
+            pat := "`n" nl "`n"
+        else if (mode = "begin")
+            pat := "`n" nl
+        else if (mode = "end")
+            pat := nl "`n"
+        else
+            pat := nl
+        lead := (mode = "whole" || mode = "begin")   ; pattern starts at the line's leading `n
+        len := StrLen(HH_WordsLower)
+        start := 1
+        while (pos := InStr(HH_WordsLower, pat, true, start)) {
+            if lead
+                ls := pos + 1
+            else    ; right-to-left from pos-1 for the newline that starts this line
+                ls := InStr(HH_WordsLower, "`n", true, pos - len - 2) + 1
+            le := InStr(HH_WordsLower, "`n", true, ls)
+            out .= SubStr(HH_WordsOrig, ls, le - ls) "`n"
+            count++
+            start := le     ; next match must be on a later line (each word counted once)
+        }
+        return out
+    }
+}
+
 ; =============== WORD FREQUENCY FUNCTIONALITY ===============
+
+; Raw frequency CSV, lowercased, as "`nword,count`n...`n".  Lets Web Freq be
+; answered the moment HH opens, while the Map below is still being built.
+; A global for the same reason as HH_WordsLower: no big-string copies per InStr().
+global HH_FreqLower := ""
 
 class WordFrequency {
     static wordFreqMap := Map()
+    static textLoaded := false
+    ; Above this many words, a not-yet-loaded lookup waits for the full Map
+    ; instead (one CSV search per word gets slow for very long lists).
+    static TEXT_LOOKUP_MAX := 400
     static isLoaded := false
     static isLoading := false
     static EXPECTED_WORD_COUNT := 88916
@@ -4784,11 +4841,18 @@ class WordFrequency {
         return this.isLoaded
     }
     
-    ; Load word frequencies from CSV file
+    ; Load word frequencies from CSV file.
+    ; Re-entrancy: the startup load runs on a timer thread, and AHK lets a hotkey
+    ; thread (Win+H -> FilterWordLists -> LoadSync) interrupt it.  The interrupting
+    ; call then runs this method AGAIN, to completion, before the first one resumes.
+    ; So each call builds its own local Map and swaps it in only at the end; the
+    ; old version cleared and filled the shared map, and the resumed startup load
+    ; then added its remaining lines on top of the finished map (doubled counts).
+    ; A resumed load that finds the data already live just stops.
     static LoadWordFrequencies() {
+        global HH_FreqLower
         try {
-            ; Clear existing data
-            this.wordFreqMap.Clear()
+            newMap := Map()
             
             filePath := Config.FrequencyListFile
             Debug("Reading word frequency CSV file: " filePath)
@@ -4805,20 +4869,22 @@ class WordFrequency {
                 return false
             }
             
-            ; Open the file for reading
-            file := FileOpen(filePath, "r")
-            if (!file) {
+            ; The file is read and lowercased once, by LoadText(); parse that copy.
+            if !this.LoadText() {
                 LogError("Could not open word frequency file: " filePath)
                 this.isLoading := false
                 return false
             }
+            newMap.Capacity := 120000   ; pre-size: no rehashing while 100k entries go in
             
-            ; Read line by line
-            while !file.AtEOF {
-                line := file.ReadLine()
+            Loop Parse, HH_FreqLower, "`n" {
+                ; Interrupted and finished by LoadSync() meanwhile: nothing left to do.
+                if this.isLoaded
+                    return true
+                line := A_LoopField
                 
                 ; Skip empty lines
-                if (line = "" || line = "`r")
+                if (line = "")
                     continue
                 
                 ; Split the line into word and frequency
@@ -4844,29 +4910,28 @@ class WordFrequency {
                         continue
                     }
                     
-                    ; Convert word to lowercase for consistency
-                    word := StrLower(word)
+                    ; (word is already lowercase: the whole file was lowered above)
                     
                     ; Check for duplicates
-                    if (this.wordFreqMap.Has(word)) {
+                    if (newMap.Has(word)) {
                         duplicateCount++
                         ; For duplicates, add the frequencies together
-                        this.wordFreqMap[word] += freq
+                        newMap[word] += freq
                     } else {
                         ; Add new word
-                        this.wordFreqMap[word] := freq
+                        newMap[word] := freq
                         wordCount++
                     }
                 }
             }
             
-            ; Close the file
-            file.Close()
-            
             Debug("Word frequency data loaded - Unique words: " wordCount)
             Debug("Duplicate entries found: " duplicateCount)
             Debug("Skipped lines: " skippedLines)
             
+            if this.isLoaded        ; an interrupting load finished first; keep its map
+                return true
+            this.wordFreqMap := newMap ; swap in the complete map in one step
             this.isLoaded := true
             this.isLoading := false
             return true
@@ -4893,15 +4958,6 @@ class WordFrequency {
     
     ; Calculate total frequency for a list of words
     static CalculateFrequency(wordList) {
-        ; Ensure data is loaded
-        if (!this.isLoaded) {
-            Debug("WordFrequency: Data not loaded when CalculateFrequency was called")
-            if (!this.LoadSync()) {
-                LogError("Failed to initialize frequency data for calculation")
-                return 0
-            }
-        }
-        
         ; Handle empty input
         if (wordList = "") {
             Debug("WordFrequency: Empty word list provided to CalculateFrequency")
@@ -4918,6 +4974,26 @@ class WordFrequency {
         
         ; Split by newlines
         words := StrSplit(wordList, "`n")
+        
+        ; Map not built yet (HH opened right after a reload): look each word up in
+        ; the raw CSV text instead of waiting seconds for the Map.  Very long lists
+        ; still wait for the Map, which is faster for them.
+        if (!this.isLoaded) {
+            if (words.Length <= this.TEXT_LOOKUP_MAX && this.LoadText()) {
+                for word in words {
+                    cleanWord := StrLower(Trim(word))
+                    if (cleanWord != "")
+                        totalFreq += this.TextFreq(cleanWord)
+                }
+                Debug("WordFrequency: answered from CSV text (Map not ready yet): " totalFreq)
+                return totalFreq
+            }
+            Debug("WordFrequency: Data not loaded when CalculateFrequency was called")
+            if (!this.LoadSync()) {
+                LogError("Failed to initialize frequency data for calculation")
+                return 0
+            }
+        }
         
         ; Process each word
         for word in words {
@@ -4947,6 +5023,39 @@ class WordFrequency {
         return totalFreq
     }
         
+    ; Read the CSV into HH_FreqLower: one FileRead + one StrLower, a few tens of ms.
+    ; The global is assigned only when complete, so an interrupted call is harmless.
+    static LoadText() {
+        global HH_FreqLower
+        if this.textLoaded
+            return true
+        try txt := FileRead(Config.FrequencyListFile)
+        catch
+            return false
+        txt := "`n" Trim(StrReplace(StrLower(txt), "`r"), "`n") "`n"
+        HH_FreqLower := txt
+        this.textLoaded := true
+        return true
+    }
+
+    ; Frequency of one lowercase word, straight from the CSV text.  Same rules as
+    ; the Map: duplicate rows are summed, rows with a non-numeric count are ignored.
+    static TextFreq(w) {
+        global HH_FreqLower
+        needle := "`n" w ","
+        total := 0
+        start := 1
+        while (pos := InStr(HH_FreqLower, needle, true, start)) {
+            s := pos + StrLen(needle)
+            e := InStr(HH_FreqLower, "`n", true, s)
+            f := Trim(SubStr(HH_FreqLower, s, e - s))
+            if IsNumber(f)
+                total += Number(f)
+            start := e
+        }
+        return total
+    }
+
     ; Format frequency in millions with 2 decimal places
     static FormatFrequency(freq) {
         return Format("{:.2f}", freq / 1000000)
@@ -4962,7 +5071,7 @@ TraySetIcon(A_ScriptDir "\..\Resources\Icons\AhkBluePsicon.ico")
 UI.Init()
 
 ; Initialize word frequency data in the background
-SetTimer(() => WordFrequency.Initialize(), -500)  ; Start loading x seconds after script startup
+SetTimer(() => (WordList.Load(), WordFrequency.Initialize()), -500)  ; Start loading x seconds after script startup
 
 ; Set up form-specific hotkeys
 UI.SetupFormHotkeys()
@@ -5015,8 +5124,9 @@ InitCPTypeAhead()
 ;===============================================================================
 #HotIf WinActive(Config.ScriptName) ; AC2, etc, open in editor
 || WinActive(Config.HotstringLibrary) 
-|| WinActive("AutoCorrectSystem.ahk" ) 
-|| WinActive("acSettings.ini" ) 
+|| WinActive("AutoCorrectSystem.ahk" )
+|| WinActive("DiacriticHotstrings.ahk" )
+|| WinActive("acSettings.ini" )
 ^s:: ; When you press Ctrl+s, this scriptlet will save the file, then reload it to RAM.  ; hide
 {
 	Send("^s") ; Save me.

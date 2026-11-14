@@ -1,7 +1,7 @@
-﻿; This is AutoCorrectSystem.ahk
+; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 8-5-2026
+; Version: 11-14-2026
 ; 8-3-2026 restructure: keepText() is now the single source of truth for
 ; "Backspace pressed after autocorrection."  When its InputHook ends with
 ; Backspace, it calls BackspaceContextLogger.NotifyBackspaced() directly.
@@ -159,6 +159,7 @@ f(replace := "", log := 1, paste := 0) {
 ; hotstring from column 15 up to the first TAB.  Everything after that TAB is
 ; optional detail those tools ignore (LogRuleLocation / LogExtendedDetail / LogActiveExe):
 ;   YYYY-MM-DD -- :opts:trig::repl<TAB>BP:311<TAB>HH:MM:SS<TAB>typed -> result<TAB>[exe]
+; Location prefixes: BP / AC / DI (DiacriticHotstrings.ahk) / SYS (this file).
 ; Markers:  --  kept   <<  backspaced within BackspaceWindow   ~~  suppressed
 ; (rule skipped because the user backspaced it moments ago, see f()).
 ; trigText / replText are the bare trigger and full replacement, used to work
@@ -214,7 +215,7 @@ keepText(KeepForLog, trigText := "", replText := "", activeExe := "", marker := 
     else if (location = "" && ruleHotkey != "") {
         location := RuleLocation(ruleHotkey)
         if (location = "")
-            location := "unknown" ; in neither library -- still says so, rather than a missing field
+            location := "unknown" ; in no library -- still says so, rather than a missing field
     }
     detail := location != "" ? "`t" location : ""
     if Config.LogExtendedDetail
@@ -268,25 +269,33 @@ WatchBackspace(ruleKey) {
         SuppressedRules[ruleKey] := A_TickCount
 }
 
-; Where a rule lives, for the log: ":opts:trig" -> "BP:311" / "AC:4146" ("" if not
-; found, e.g. the caps fix's synthetic rules).  BP is scanned first -- it is included
-; first, so its copy of a duplicate is the one that fires.  The index is rebuilt only
-; when either library changes on disk (HH appends new rules), so this runs from
-; keepText()'s timer, after the correction has been sent.
+; Where a rule lives, for the log: ":opts:trig" -> "BP:311" / "AC:4146" / "DI:15"
+; ("" if not found, e.g. the caps fix's synthetic rules).  Scanned in include order
+; -- BP, AC, then DI -- so the copy of a duplicate that actually fires is the one
+; reported.  DI is scanned only while it is loaded (Config.DiacriticsActive()).
+; The index is rebuilt only when a library changes on disk (HH appends new rules),
+; so this runs from keepText()'s timer, after the correction has been sent.
 RuleLocation(ruleHotkey) {
     static index := Map(), loose := Map(), stamp := ""
     libs := [["BP", Config.BoilerplateHotstringLibrary], ["AC", Config.HotstringLibrary]]
+    if Config.DiacriticsActive()
+        libs.Push(["DI", Config.DiacriticHotstringLibrary])
     now := ""
     for lib in libs
-        try now .= FileGetTime(lib[2]) FileGetSize(lib[2]) "|"
+        try now .= lib[1] FileGetTime(lib[2]) FileGetSize(lib[2]) "|" ; lib[1]: DI toggling on/off also rebuilds
     if (now != stamp) {
         index := Map(), loose := Map(), stamp := now
         for lib in libs {
-            try Loop Read lib[2] {
-                if RegExMatch(A_LoopReadLine, "^\s*(:[^:\s]*:.+?)::", &m) && !index.Has(m[1]) {
-                    index[m[1]] := lib[1] ":" A_Index
-                    if !loose.Has(k := RuleLooseKey(m[1]))
-                        loose[k] := lib[1] ":" A_Index
+            ; FileRead with "UTF-8", not Loop Read: Loop Read uses the ANSI default,
+            ; so a trigger with a non-ASCII letter would never match A_ThisHotkey.
+            try {
+                text := FileRead(lib[2], "UTF-8")
+                Loop Parse text, "`n", "`r" {
+                    if RegExMatch(A_LoopField, "^\s*(:[^:\s]*:.+?)::", &m) && !index.Has(m[1]) {
+                        index[m[1]] := lib[1] ":" A_Index
+                        if !loose.Has(k := RuleLooseKey(m[1]))
+                            loose[k] := lib[1] ":" A_Index
+                    }
                 }
             }
         }
