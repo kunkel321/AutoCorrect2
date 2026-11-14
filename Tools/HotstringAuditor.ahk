@@ -40,7 +40,7 @@ settings := "..\Data\acSettings.ini"
 libAC  := "..\Core\" IniRead(settings, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
 libBP  := "..\Core\" IniRead(settings, "Files", "BoilerplateHotstringLibrary", "PersonalHotstrings.ahk")
 wlFile := "..\Data\" IniRead(settings, "Files", "WordListFile", "ExamPaneWordList253k.txt")
-fqFile := "..\Data\" IniRead(settings, "Files", "FrequencyListFile", "unigram_freq_list_filtered_89k.csv")
+fqFile := "..\Data\" IniRead(settings, "Files", "FrequencyListFile", "unigram_freq_list_filtered_102k.csv")
 outFile := "..\Debug\HotstringAudit.txt"
 
 ; ---------------------------------------------------------------- progress GUI

@@ -32,7 +32,7 @@ class Config {
         ACScript: "..\Core\AutoCorrect2.ahk",
         HSLibrary: "..\Core\AutoCorrectHotstrings.ahk",
         WordListFile: "..\Data\ExamPaneWordList253k.txt",
-        FreqDataFile: "..\Data\unigram_freq_list_filtered_89k.csv" 
+        FreqDataFile: "..\Data\unigram_freq_list_filtered_102k.csv" 
     }
     
     ; Behavior options
