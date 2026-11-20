@@ -1140,5 +1140,56 @@
     "help": "Client height of the window, in pixels.\n\nSaved automatically when the window is hidden.  Set WinW to 0 to\nreturn both dimensions to their defaults.",
     "type": "integer",
     "restart": "..\\Tools\\HotkeyHub.exe"
+  },
+  "HotstringAuditor.Sections": {
+    "label": "Report Sections",
+    "help": "Comma-separated list of the report sections Hotstring Auditor includes. 1a = real word -> non-word (definite defects), 1b = real word -> other real word, 1c = worst offending rules, 2 = duplicate trigger+options, 3 = no-op rules, 4 = unreachable (shadowed) rules, 5 = dead nullifiers, 6 = broken replacements. Example: 1a,1b,1c,2,3,4,5,6. Normally set with the checkboxes in the Auditor's startup window.",
+    "type": "text"
+  },
+  "HotstringAuditor.RowsPerSection": {
+    "label": "Rows Per Section",
+    "help": "Maximum number of items listed in each report section. Each section heading still shows the full count, and a '... N more' line marks anything left out. Use 0 to list everything.",
+    "type": "integer",
+    "min": 0,
+    "max": 9999
+  },
+  "HotstringAuditor.CutLongLines": {
+    "label": "Cut Long Lines",
+    "help": "When enabled, report lines longer than Line Width are cut off and end with an ellipsis, so the report doesn't wrap in a text editor. Disable to see each hotstring's full comment.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "HotstringAuditor.LineWidth": {
+    "label": "Line Width",
+    "help": "Maximum number of characters per report line when Cut Long Lines is enabled. Values below 60 are treated as 60.",
+    "type": "integer",
+    "min": 60,
+    "max": 500
+  },
+  "HotstringAuditor.HideNoted": {
+    "label": "Hide Noted Problems",
+    "help": "When enabled, a broken word is left out of sections 1a/1b when the hotstring's own comment already names it (e.g. ':B0XC:thru::f(\"through\") ; ... but misspells thru'). Section 6 also hides rules whose comment already says 'CHECK REPLACEMENT'. The section heading shows how many items were hidden.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "HotstringAuditor.HideDerivatives": {
+    "label": "Hide Derivatives",
+    "help": "Works only when Hide Noted Problems is enabled. Also hides words typed exactly like a word named after 'misspells' in the comment, up to the keystroke where the hotstring fires. Example: :*?:beng::being noting 'benga' also hides bengal, bengals and benghazi. Hotstrings that fire on the end character (:?: and plain) only hide exact matches.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "HotstringAuditor.Libraries": {
+    "label": "Libraries",
+    "help": "Comma-separated list of the hotstring libraries to audit: BP = PersonalHotstrings.ahk (boilerplates), AC = AutoCorrectHotstrings.ahk, DI = Includes\\DiacriticHotstrings.ahk. They are always read in include order (BP, AC, DI), because earlier files win ties. Example: BP,AC,DI. Normally set with the checkboxes in the Auditor's startup window.",
+    "type": "text"
   }
 }
