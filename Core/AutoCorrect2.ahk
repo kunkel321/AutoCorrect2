@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-14-2026 B
+; Version: 11-20-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Inspired by: AutoCorrect.ahk (Jim Biancolo) https://www.biancolo.com/blog/autocorrect/
@@ -20,6 +20,7 @@ SetWorkingDir(A_ScriptDir)
 #Include "*i ..\Includes\DateTool.ahk"              ;  Calendar tool with holidays -- Optional
 #Include "*i ..\Includes\PrinterTool.ahk"           ;  Shows list of installed printers -- Optional 
 #Include "*i ..\Includes\ChatGptWordLookup.ahk"     ;  ChatGPT-based word definitions -- Optional
+#Include "*i ..\Includes\NonWordList.ahk"           ;  Flag non-words for removal from the Exam Pane word list -- Optional
 
 #HotIf Config.EnableHotStrQuickLookup ;  So users can permanently disable HQL via acSettings.ini
     #Include "*i ..\Includes\HotstringQuickLookup.ahk"  ;  Get usage stats for selected hotstring --Optional
@@ -771,6 +772,10 @@ class State {
 class UI {
     static MainForm := 0
     static Controls := Map()
+    ; Control Panel buttons added by optional #Include modules (e.g. NonWordList.ahk).
+    ; Same fields as the built-in entries in _CreateControlPane(), plus an optional
+    ; 'help' string for F1.  Modules push here at #Include time, before UI.Init().
+    static ExtraControlButtons := []
     static ListBackground := ""
     static DeltaColor := ""
     static CommentColor := ""
@@ -1097,7 +1102,8 @@ class UI {
             "ConflictLocator",       "Conflict Locator",
             "Updater",               "Check for Updates",
             "UniqueStringExtractor", "Compare Libraries",
-            "Defunctionizer",        "Defunctionize",
+            "BulkFunctionizer",      "Bulk Functionizer",
+            "NonWords",              "Non-Word List",
             "OpenFolder",            "AutoCorrect2 Folder",
             "GitHub",                "GitHub Repository"
         )
@@ -1339,14 +1345,18 @@ class UI {
         }
         
         ; Check if tool is present, add button.
-        if FileExist("..\Tools\Defunctionizer.exe") {
+        if FileExist("..\Tools\BulkFunctionizer.exe") {
             this.controlButtons.Push({
-                name: "Defunctionizer",
-                text: " Defunctionize Hotstrings", 
-                action: (*) => Run("..\Tools\Defunctionizer.exe"),
+                name: "BulkFunctionizer",
+                text: " Functionize Hotstrings", 
+                action: (*) => Run("..\Tools\BulkFunctionizer.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\function-Blue.ico"
             })
         }
+
+        ; Buttons from optional #Include modules
+        for extraBtn in this.ExtraControlButtons
+            this.controlButtons.Push(extraBtn)
 
         ; Open containing folder
         SplitPath(A_ScriptDir,, &parentDir)
@@ -3593,10 +3603,17 @@ class Dictionary {
     static loadingStatus := ""
     static WORDNET_PATH := "..\Resources\Dictionary\WordNet-3.0\dict\"
     
-    ; Optional callback after Dictionary GUI is created (used by ChatGptWordLookup module).
+    ; Callbacks run after the Definition GUI's buttons are built, before it is shown.
+    ; Each is called as callback(dictGui, word, defEdit) and may add its own button.
+    ; #Include modules PUSH onto this list (ChatGptWordLookup adds [Try ChatGPT],
+    ; NonWordList adds [Non-word]).  It used to be one slot, so a second module
+    ; assigning to it would silently knock the first module's button off.
     ; (Earlier _DefinitionGui / _DefinitionWord / _DefinitionEdit static properties
     ;  have been removed — they were relics of a polling-timer approach that was
     ;  replaced by this callback. They were only ever written to, never read.)
+    static _PostShowCallbacks := []
+    ; Old single-slot hook, still honored so an older ChatGptWordLookup.ahk that
+    ; assigns to it keeps working.
     static _PostShowCallback := ""
     
     ; Start loading dictionary in background
@@ -3779,7 +3796,7 @@ class Dictionary {
             if !this.isLoading {
                 this.StartBackgroundLoad()
             }
-            definition := "Dictionary is still loading...`n`nCurrent status: " this.loadingStatus "`n`nYou can still use 'Try GCIDE' or 'Try ChatGPT' (if ChatGPT module #Include file present) while waiting, or close this window and try again in a moment."
+            definition := "Dictionary is still loading...`n`nCurrent status: " this.loadingStatus "`n`nYou can still use 'Try GCIDE' or 'Ask AI' (if the ChatGptWordLookup.ahk module is present) while waiting, or close this window and try again in a moment."
         } else {
             definition := this.LookupWord(word)
         }
@@ -3792,7 +3809,7 @@ class Dictionary {
         dictGui.Add("Text", "y10", "Definition for: " word)
         
         ; Use Edit control styled as text for the definition
-        defEdit := dictGui.Add("Edit", "xm y+10 w500 r10 ReadOnly -E0x200 -WantReturn -TabStop", definition)
+        defEdit := dictGui.Add("Edit", "xm y+10 w580 r10 ReadOnly -E0x200 -WantReturn -TabStop", definition)
         defEdit.Opt("Background" Config.FormColor)
         
         ; Add buttons
@@ -3804,11 +3821,11 @@ class Dictionary {
         closeBtn.OnEvent("Click", (*) => dictGui.Destroy())
         dictGui.OnEvent("Escape", (*) => dictGui.Destroy())
         
-        ; Call optional post-show callback (for ChatGPT module, etc.)
-        callback := this._PostShowCallback
-        if (callback != "") {
-            callback(dictGui, word, defEdit)
-        }
+        ; Let #Include modules add their buttons (ChatGPT, Non-word, ...).
+        if (this._PostShowCallback != "")
+            this._PostShowCallback.Call(dictGui, word, defEdit)
+        for callback in this._PostShowCallbacks
+            callback.Call(dictGui, word, defEdit)
         
         dictGui.Show("AutoSize")
         closeBtn.Focus()
@@ -5267,7 +5284,7 @@ class HelpSystem {
         this.helpTexts["FuncHelperButton"] := "Opens or closes the Options Reference pane on the right of the form.`n`nThis button is also the caption of the Options box.  The pane has one radio button per option combination (Plain, B0X, B0X?, B0X*, ...).  Picking one fills the Options box and sets the f() checkbox to match.  It works both ways: typing in the Options box, ticking the Function checkbox, or picking Beginnings/Middles/Endings in the Exam pane moves the radio buttons to match.  Hover a radio button for an explanation of that option with examples."
         this.helpTexts["SideCPToggle"] := "Opens or closes the Control Panel under the Options Reference pane: the same buttons as the Secret Control Panel that Shift+click on Exam opens under the form, with shorter captions (hover one for its full name).`n`nOn the right it fits beside the Exam pane, so both can be open at once.  Only one of the two Control Panels is open at a time: opening either closes the other."
         
-        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above.`n`nThe `"Paste`" and `"Log`" checkboxes require Function to be enabled. Unchecking Function will also uncheck both.`n`nTip: If you never want function calls by default, set `"MakeAcFuncByDefault`" and/or `"MakeBpFuncByDefault`" to 0 in the `"HotstringHelper`" section of the Settings Manager. Also checkout the Defunctionizer script in the Control Pane."
+        this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above.`n`nThe `"Paste`" and `"Log`" checkboxes require Function to be enabled. Unchecking Function will also uncheck both.`n`nTip: If you never want function calls by default, set `"MakeAcFuncByDefault`" and/or `"MakeBpFuncByDefault`" to 0 in the `"HotstringHelper`" section of the Settings Manager. Also checkout the BulkFunctionizer script in the Control Pane."
         
         this.helpTexts["LogCheck"] := "When checked, the f() function will log this hotstring's usage to the AutoCorrections log file each time it fires.`n`nLogging is useful for tracking which hotstrings are actively correcting your typos, and for feeding the ACLogAnalyzer and related statistics tools.`n`nThis checkbox is on by default for AutoCorrect items and off by default for boilerplate items, since boilerplate expansions are typically intentional and less useful to track.`n`nRequires the `"Function`" checkbox to be enabled. Checking this box will auto-enable Function if it is currently off, and unchecking the Function box will uncheck log and paste.`n`nLogging can be globally disabled via `"EnableLogging`" in the `"ACSystem`" section of the Settings Manager, which overrides this per-hotstring setting.`n`nNote: Log and Paste are (optional) second and third parameters of the f() function.  Log=Yes and Paste=No are the defaults, so when this is the case, the hotstring function call is created without those parameters."
         
@@ -5285,7 +5302,7 @@ class HelpSystem {
         
         this.helpTexts["SpellButton"] := "Uses the free LanguageTool.org's AI to check spelling of the replacement text.  If a suggested correction is found, it will offer to fix the word in the replacement text box.  It will check sentences for grammar mistakes as well.  It works well, but is not perfect.`n`nTip:  If it doesn't correct the grammar of a short phrase, try temporarily making the phrase into a complete sentence, and try again.`n`nIt is okay to select only a part of the text.  If no text is selected, the entire contents of the replacement box will be checked.`n`nNote: Your text is sent to LanguageTools.org for this, so it takes a couple of seconds."
         
-        this.helpTexts["LookButton"] := "Looks up selected text in the onboard WordNet dictionary (https://wordnet.princeton.edu/).`n`nRight-click to search the GNU Collaborative International Dictionary of English (GCIDE; https://gcide.gnu.org.ua/) online.`n`nThe Spell button checks only the text in the replacement edit box, but definitions can be looked up for words in the replacement box or in the Misspells or Fixes Exam Pane lists.  HOWEVER the words must be selected with your mouse first.`n`t---> Select word.  Press [Look] button.`n`nNote: It takes several seconds for WordNet to load in the background of AutoCorrect2, which happens automatically each time the script is restarted.`n`nIf the `"ChatGptWordLookup.ahk`" file is #Include'd in AutoCorrect2.ahk, then a [Try ChatGPT] button will appear.  This can be useful if the word is not found in WordNet or GCIDE.`n`nAs indicated in the onboard message: `"Please note that the OpenAI service is not free.  Also note, kunkel321 (the author of AutoCorrect2.ahk) does not receive any compensation or benefit from your transactions with OpenAI.  I've only added this integration because I use it, and I thought others might like to as well.`" Please see onboard message for more information."
+        this.helpTexts["LookButton"] := "Looks up selected text in the onboard WordNet dictionary (https://wordnet.princeton.edu/).`n`nRight-click to search the GNU Collaborative International Dictionary of English (GCIDE; https://gcide.gnu.org.ua/) online.`n`nThe Spell button checks only the text in the replacement edit box, but definitions can be looked up for words in the replacement box or in the Misspells or Fixes Exam Pane lists.  HOWEVER the words must be selected with your mouse first.`n`t---> Select word.  Press [Look] button.`n`nNote: It takes several seconds for WordNet to load in the background of AutoCorrect2, which happens automatically each time the script is restarted.`n`nIf the `"ChatGptWordLookup.ahk`" file is #Include'd in AutoCorrect2.ahk, then an [Ask AI] button will appear.  It opens a window where you can send the word to OpenAI with a saved or freeform prompt; the token [word] in a prompt is replaced with the word being looked up.  This can be useful if the word is not found in WordNet or GCIDE.`n`nAs indicated in the onboard message: `"Please note that the OpenAI service is not free.  Also note, kunkel321 (the author of AutoCorrect2.ahk) does not receive any compensation or benefit from your transactions with OpenAI.  I've only added this integration because I use it, and I thought others might like to as well.`" Please see onboard message for more information."
         
         this.helpTexts["CancelButton"] := "Closes the form without saving changes.`n`nThis will also replace the previous clipboard content.`n`nPressing the Esc key will have the same effect."
         
@@ -5370,8 +5387,8 @@ class HelpSystem {
                 case "UniqueStringExtractor":
                     this.helpTexts["ControlButton_UniqueStringExtractor"] := "This runs an INTER-script scan to compare two versions of the hotstring library:`n`n" Config.HotstringLibrary "`n" Config.NewTemporaryHotstrLib "`n`nIt will alert the user of hotstrings that are unique to each version.  This is meant to facilitate merging two versions of the library. It is recommended to choose a convenient temporary name for one the new version, such as `"AutoCorrectHotstrings (1).ahk`" then program that into the acSettings.ini file (current name is shown above) and use the same temporary name each time.  The tool will default to those paths.  If either is not found, a file chooser dialog will appear. A report document is created in the \Data\ folder and the report is opened upon completion of the scan."
 
-                case "Defunctionizer":
-                    this.helpTexts["ControlButton_Defunctionizer"] := "This is for users who do not want their AutoCorrect items embedded in the f() function calls. The `"Defunctionizer`" tool removes them."
+                case "BulkFunctionizer":
+                    this.helpTexts["ControlButton_BulkFunctionizer"] := "This is for users who want to apply f() functions to multiple plain hotstrings at once, or to update the`n`n`"Web Freq | Fixes X Words`" metrics.`n`nThis tool is also for users who do not want their AutoCorrect items embedded in the f() function calls, so want to remove them.`n`nThe `"BulkFunctionizer`" tool adds or removes them."
 
                 case "HotkeyHub":
                     this.helpTexts["ControlButton_HotkeyHub"] := "Launches the AC2 Hotkey Reference tool.`n`nThis tool scans your running AutoHotkey scripts and displays all defined hotkeys in a filterable, sortable ListView.`n`nColumns show the Hotkey, its Action/description, the Context it applies in, and which Script it came from.`n`nYou can filter the list by typing in the search box, and export the full list to a printable HTML file.`n`nThe tool reads hotkey definitions from the running scripts and from acSettings.ini.`n`nThere are several user config options and a list of files to skip in the Tools\HotkeyHub.ahk file.  Recenter versions add the apbility to display apps on your computer and hotkey filtering options."
@@ -5384,6 +5401,11 @@ class HelpSystem {
                     
                 case "Theme":
                     this.helpTexts["ControlButton_Theme"] := "Opens the Color Theme Integrator customization tool.`n`nThis allows you to change the colors of the HotstringHelper interface (as well as other apps) to match your preferences.  See the ColorThemeIntegrator.ahk code to customize which apps (other than these in the AutoCorrect2 repository) should get colorized."
+
+                default:
+                    ; Buttons from #Include modules bring their own help text.
+                    if buttonConfig.HasOwnProp("help")
+                        this.helpTexts["ControlButton_" buttonConfig.name] := buttonConfig.help
             }
         }
     }

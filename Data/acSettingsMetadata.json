@@ -240,6 +240,15 @@
       "1=Use Move/Resize Tools"
     ]
   },
+  "HotstringHelper.EnableDiacriticHotstrings": {
+    "label": "Enable Diacritic Hotstrings",
+    "help": "There are a bunch of accented non-English word hotstrings, such as 'uber -> über'.\n\nSome users might not want those, so they are now grouped in a separate library that users can opt out of.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
   "HotstringHelper.DefaultFontSize": {
     "label": "Default Font Size",
     "help": "Font size (in points) for normal text in the HotstringHelper window and several other tools. Usually 10-12. Don't include the 's' at the beginning.",
@@ -816,13 +825,63 @@
     "type": "text",
     "default": "MM-dd-yyyy"
   },
-  "Defunctionizer.keepComments": {
-    "label": "Keep Comments",
-    "help": "If enabled (1), frequency/stats comments are preserved during defunctionization. If disabled (0), comments are removed. \nNotes:\n - Removing comments will break AutoCorrect2's Ctrl-F3 stats dialog\n - Comments with '...but misspells...' flags are always kept",
+  "BulkFunctionizer.BigChangePercent": {
+    "label": "BigChangePercent",
+    "help": "Used when FlagBigChanges is enabled: how much a hotstring's 'Fixes n words' count must change, in percent, before it is flagged. For example, with 20, an item going from 100 to 79 or 121 fixes is flagged, but 100 to 85 is not. Changes can exceed 100% (10 -> 30 is +200%), so values up to 1000 are allowed. Default: 20.",
+    "type": "integer",
+    "min": 1,
+    "max": 1000
+  },
+  "BulkFunctionizer.Mode": {
+    "label": "Mode",
+    "help": "The mode BulkFunctionizer starts in: your last-used choice is saved here automatically.\n1 = Functionize: wrap bare hotstrings in f() calls.\n2 = Rebuild metrics: also recalculate the Web Freq, Fixes and 'but misspells' comments from the current word list and frequency CSV.\n3 = Defunctionize: remove f() wrappers, turning items back into plain hotstrings.",
+    "type": "integer",
+    "min": 1,
+    "max": 3
+  },
+  "BulkFunctionizer.GroupFlagged": {
+    "label": "GroupFlagged",
+    "help": "Items that need a human look get a '; [REVIEW] ...' comment line above them saying why. When enabled, flagged items are moved to the end of the output in two sections (misspell problems first, then other changes), so you can work through them in one place. When disabled, they stay where they were, with their [REVIEW] line above them.",
     "type": "boolean",
     "options": [
-      "0=Remove comments",
-      "1=Keep comments"
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "BulkFunctionizer.RebuildMisspells": {
+    "label": "RebuildMisspells",
+    "help": "Rebuild metrics mode only. When enabled, the whole auto-comment is rebuilt: newly misspelled words are added as 'word ()' for you to define, and words that are no longer misspelled are flagged. Definitions you already wrote, and the rest of your comment text, are always kept. When disabled, ONLY the 'Web Freq n | Fixes n words' part is replaced, and the rest of each comment is left exactly as it was.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "BulkFunctionizer.GroupVariations": {
+    "label": "GroupVariations",
+    "help": "Rebuild metrics mode, with RebuildMisspells on. Many misspelled words are just forms of one word: a hotstring that misspells 'benga' also misspells 'bengaline' and 'bengalines'. When enabled, only the root word is listed and flagged, and the flag notes how many variations it covers. A variation is a longer word that starts with a shorter misspelled word (or, for word-ending ? items, ends with it). A variation that already has a definition is always kept. Note: 'starts with' can also group unrelated words, so give flagged lists a glance.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "BulkFunctionizer.HonorCaseOption": {
+    "label": "HonorCaseOption",
+    "help": "Rebuild metrics mode, with RebuildMisspells on. A hotstring with the C option is case-sensitive: it only fires when the trigger is typed in exactly that case, so :B0X*?C:beng:: can never change 'Bengal' or 'Bengali'. When enabled, a word only counts as misspelled by a C item if the trigger matches it in its exact case. When disabled, words are matched case-insensitively, the way HotstringHelper's Exam Pane does it. C0 and C1 are not treated as case-sensitive.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "BulkFunctionizer.FlagBigChanges": {
+    "label": "FlagBigChanges",
+    "help": "Rebuild metrics mode only. When enabled, an item is flagged for review when its new 'Fixes n words' count differs from the old one in its comment by at least BigChangePercent (or goes up from 0). This is useful after a big update to the word list. When disabled, Fixes changes are applied without flagging.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
     ]
   },
   "ControlButtons.OpenLibrary": {
@@ -998,8 +1057,9 @@
     "help": "This is the setting for the \"Change Color Theme\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
-    "restart": "..\\Core\\AutoCorrect2.exe",
-      "HotkeyHub.ShowHidden": {
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotkeyHub.ShowHidden": {
     "label": "Show hidden hotkeys",
     "help": "Include hotkeys whose in-line comment contains the word 'hide',\nplus commented-out hotkey stubs such as  ; ^!d::Something()\n\nAlso toggled by the 'Show hidden' checkbox in the window, which\nwrites this key straight back.",
     "type": "boolean",
@@ -1081,15 +1141,4 @@
     "type": "integer",
     "restart": "..\\Tools\\HotkeyHub.exe"
   }
-},
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
-  ,
-  
 }
