@@ -1191,5 +1191,82 @@
     "label": "Libraries",
     "help": "Comma-separated list of the hotstring libraries to audit: BP = PersonalHotstrings.ahk (boilerplates), AC = AutoCorrectHotstrings.ahk, DI = Includes\\DiacriticHotstrings.ahk. They are always read in include order (BP, AC, DI), because earlier files win ties. Example: BP,AC,DI. Normally set with the checkboxes in the Auditor's startup window.",
     "type": "text"
+  },
+  "ConflictingStringLocator.LibBP": {
+    "label": "Scan PersonalHotstrings (BP)",
+    "help": "Include PersonalHotstrings.ahk in the conflict scan. It loads first, so its items count as 'above' anything in the AC and DI libraries. Ignored if the file doesn't exist. This is the same as the BP checkbox in the tool's start window.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ConflictingStringLocator.LibAC": {
+    "label": "Scan AutoCorrectHotstrings (AC)",
+    "help": "Include the main hotstring library (the HotstringLibrary file in the [Files] section) in the conflict scan. Only the lines between the ACitemsStartAt and ACitemsEndAt markers are scanned. This is also the only library where 'Move to no-sort' can be applied. This is the same as the AC checkbox in the tool's start window.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ConflictingStringLocator.LibDI": {
+    "label": "Scan DiacriticHotstrings (DI)",
+    "help": "Include Includes\\DiacriticHotstrings.ahk in the conflict scan. It loads last, so the AC library takes precedence over it. Ignored if the file doesn't exist. This is the same as the DI checkbox in the tool's start window.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ConflictingStringLocator.ShowDead": {
+    "label": "Report items that never fire",
+    "help": "Report pairs where the shorter item always fires first, so the longer item can never fire, whatever the order. Example: ':*:over hea' fires partway through 'come over hear'. These are set to 'No action' by default because they usually need a manual fix.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ConflictingStringLocator.ShowDup": {
+    "label": "Report duplicates",
+    "help": "Report pairs with the same trigger and the same options. The C option is taken into account, so ':C:Danial' and ':C:danial' are not duplicates. The later item is set to 'Delete' by default.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ConflictingStringLocator.ShowOrder": {
+    "label": "Report wrong-order items",
+    "help": "Report pairs that fire on the same keystroke where the shorter item is above the longer one, which blocks the longer one. Example: 'iseh' above 'ouiseh'. Moving the longer item into the no-sort section fixes it, so it is set to 'Move to no-sort' by default (AC items only).",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ConflictingStringLocator.ShowRedundant": {
+    "label": "Report redundant items",
+    "help": "Report longer items that aren't needed because the shorter item already gives the same final text. Example: 'thgad' -> 'thad' is covered by 'hgad' -> 'had'. The longer item is set to 'Delete' by default.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ConflictingStringLocator.SaveTextReport": {
+    "label": "Also save a text report",
+    "help": "After each scan, also save the findings as a text file (Conflict_Report_<date>.txt) in the Debug folder. The Review window's 'Save report' button does the same thing on demand and opens the file.",
+    "type": "boolean",
+    "options": [
+      "0=Disabled",
+      "1=Enabled"
+    ]
+  },
+  "ConflictingStringLocator.EditorCmd": {
+    "label": "Editor command",
+    "help": "Command used by 'Open target' and 'Open other' (and double-clicking a row) to open a library at a line. {file} becomes the full path of the library and {line} the line number. The default opens VS Code: code -g \"{file}:{line}\". For Notepad++ use: \"C:\\Program Files\\Notepad++\\notepad++.exe\" -n{line} \"{file}\"",
+    "type": "text"
   }
 }
