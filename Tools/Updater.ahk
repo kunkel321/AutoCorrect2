@@ -8,942 +8,1238 @@
 AutoCorrect2 Updater Tool
 Author: kunkel321
 Tool Used: Claude
-Version: 3-27-2026
-Intended to use with AutoCorrect2 repo. Run the script, and it will download a temporary copy of the repository, then look for files that have been updated.  The script makes this faster by saving a 'LastUpdateCheck.ini' file in the Core\ folder.  Then it checks the github commits page, and compares to the ini date.  If a newer version is found, only then is the zip downloaded and opened.  The script will then offer to replace the old files with the newer versions.  The files listed below as "RarelyUpdatedFolders" will be unchecked by default.  Any file inside those folders (e.g. all Data\ files) will be unchecked.  The user must check them to update them.  Any new files will be listed in a separate dialog.  
+Version: 11-23-2026 d  (also set UpdaterVersion below)
+Intended to use with AutoCorrect2 repo.
 
-AutoCorrectHotstrings.ahk is a special case and never gets over-written by default. Instead, a copy called  "HotstringLib (1).ahk" is saved to the Core\ folder.  The user must then use the UniueStringExtracter to compare that file with their own.  If the user NEVER customizes their AutoCorrectHotstrings.ahk file, and only wants to adopt the newer version, they can select the radio button to *Overwrite* their existing lib file.  The font is made red to ensure that the user sees what they are doing. 
+HOW IT WORKS
+- Asks GitHub for the latest commit and compares it with Data\LastUpdateCheck.ini.  If nothing
+  is new (and nothing was left unticked last time), it stops there without downloading.
+- Asks GitHub which files changed since your last update, and shows the commit messages for
+  those changes in a "What's new" list.  (Double-click a commit to open it on GitHub.)
+- Downloads the zip, then compares file CONTENTS (not dates) with your copies.  Text files that
+  differ only in line endings count as the same.
+- Only files that changed on GitHub since your last update are ticked.  Files that differ from
+  GitHub but did not change there are probably your own edits; they are listed last, unticked.
+- Files removed from (or renamed in) the repository are offered for removal.  "Removed" means
+  moved into the backup folder, so it can be undone.
+
+YOUR FILES ARE NEVER OVERWRITTEN
+- ProtectedFiles (below) are only copied if you don't have them yet: your settings, your
+  Personal (boilerplate) library, color theme, API key, window positions and so on.
+- IgnoredFiles are never copied at all: logs, Debug\, Backup\, LastUpdateCheck.ini, etc.
+- AutoCorrectHotstrings.ahk is never replaced unless you pick that option (shown in red).  By
+  default the new library is saved under the "NewTemporaryHotstrLib" name from acSettings.ini,
+  for comparing with the Unique String Extractor.
+
+BACKUP AND UNDO
+- Before any file is replaced or removed, the old copy is saved to Backup\<date_time>\, along
+  with UpdateManifest.ini, a record of what the update did.
+- "Undo a previous update" (or running Updater with /undo) puts those files back, moves out the
+  files the update added, and resets LastUpdateCheck.ini so the update is offered again.
+
+PENDING FILES
+- Files you leave unticked are remembered (if the box is ticked) and offered again next time,
+  UNTICKED, so a deliberate "no" stays a "no" unless you change it.
 */
 
 ; --- CONFIG ---------------------------------------------------------------
-; GitHub API endpoint for checking latest commit
-GitHubApiUrl  := "https://api.github.com/repos/kunkel321/AutoCorrect2/commits?per_page=1"
+RepoOwner := "kunkel321"
+RepoName  := "AutoCorrect2"
+Branch    := "main"
+ApiBase   := "https://api.github.com/repos/" RepoOwner "/" RepoName
+LatestZipUrl := "https://github.com/" RepoOwner "/" RepoName "/archive/refs/heads/" Branch ".zip"
+ZipRootFolderName := RepoName "-" Branch   ; Name of root folder inside the zip
 
-; URL of zip containing the latest version of your repo
-LatestZipUrl  := "https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/main.zip"
+EnableDebugLog := 1          ; Log to Debug\Updater_debug.txt
+CommitListLength := 15       ; How many recent commits to show when "new since last update" is unknown
+ShowLocallyDifferentFiles := true  ; List files that differ from GitHub but didn't change there (unticked)
 
-; Name of root folder inside the zip
-ZipRootFolderName := "AutoCorrect2-main"
-
-; Optional: Enable debug logging to file
-EnableDebugLog := 1
-
-; Folders whose files will appear in update dialog but unchecked by default
+; Folders whose updated files appear unticked by default
 RarelyUpdatedFolders := ["Data\"]
-; -----------------------------------------------------------------------
 
-; Setup debug logging
-SplitPath(A_ScriptDir, , &parentDir)
-debugDir := parentDir "\Debug"
-debugFile := debugDir "\Updater_debug.txt"
+; Never copied, even if missing.  Paths are relative to the AutoCorrect2 folder; * and ? are wildcards.
+IgnoredFiles := [
+    "Debug\*",
+    "Backup\*",
+    ".git*",
+    "Data\LastUpdateCheck.ini",
+    "Data\*Log*.txt",            ; AutoCorrectsLog, ManualCorrectionsLog, ErrContextLog, ACLog/MCLogContinuous
+    "Data\RemovedHotstrings.txt"
+]
 
-LogDebug(msg) {
-    if EnableDebugLog {
-        ; Ensure Debug folder exists before attempting to write
-        if !DirExist(debugDir) {
-            try {
-                DirCreate(debugDir)
-            } catch Error as e {
-                ; Silently fail if we can't create debug folder
-                return
-            }
-        }
-        
-        timestamp := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
-        try {
-            FileAppend("[" timestamp "] " msg "`n", debugFile)
-        } catch Error as e {
-            ; Silently fail if we can't write debug log
-        }
-    }
-}
+; Copied only if the user doesn't have the file yet; never replaced or removed.
+; (The Personal library and NewTemporaryHotstrLib names from acSettings.ini are added below.)
+ProtectedFiles := [
+    "Data\acSettings.ini",
+    "Data\colorThemeSettings.ini",
+    "Data\PersonalApiKey.ini",
+    "Data\hhWindowPos.ini",
+    "Data\HotkeyHub_usage.ini",
+    "Data\PersonalHolidays.txt"
+]
 
-CheckGitHubForUpdates() {
-    ; Checks GitHub API for the latest commit info.
-    ; Returns an object with {sha, date} on success, or error string on failure
-    try {
-        LogDebug("Checking GitHub API for latest commit...")
-        
-        ; Create HTTP request
-        http := ComObject("MSXML2.XMLHTTP")
-        http.Open("GET", GitHubApiUrl, false)
-        http.SetRequestHeader("User-Agent", "AutoCorrect2-Updater")
-        http.Send()
-        
-        if http.Status != 200 {
-            return "GitHub API returned status " http.Status
-        }
-        
-        ; Parse JSON response
-        responseText := http.ResponseText
-        LogDebug("GitHub API response received, parsing JSON...")
-        LogDebug("Response length: " StrLen(responseText))
-        LogDebug("First 500 chars: " SubStr(responseText, 1, 500))
-        
-        ; Extract sha and date using simple string parsing
-        ; GitHub API format: "sha": "abcd1234...", "author": {"date": "2025-01-15T12:34:56Z"}
-        sha := ""
-        date := ""
-        
-        ; Extract SHA (commit hash)
-        shaPos := InStr(responseText, '"sha"')
-        LogDebug("shaPos: " shaPos)
-        if shaPos > 0 {
-            quotePos := InStr(responseText, '"',, shaPos + 5)
-            LogDebug("First quote after sha: " quotePos)
-            if quotePos > 0 {
-                startPos := quotePos + 1
-                endQuotePos := InStr(responseText, '"',, startPos)
-                LogDebug("End quote: " endQuotePos)
-                if endQuotePos > 0 {
-                    sha := SubStr(responseText, startPos, endQuotePos - startPos)
-                }
-            }
-        }
-        
-        ; Extract commit date
-        ; JSON format: "date":"2025-11-17T..."
-        datePos := InStr(responseText, '"date"')
-        LogDebug("datePos: " datePos)
-        if datePos > 0 {
-            ; Find the colon after "date"
-            colonPos := InStr(responseText, ":",, datePos)
-            LogDebug("colonPos: " colonPos)
-            ; Find the quote after the colon
-            if colonPos > 0 {
-                quotePos := InStr(responseText, '"',, colonPos)
-                LogDebug("Quote after colon: " quotePos)
-                if quotePos > 0 {
-                    startPos := quotePos + 1
-                    endQuotePos := InStr(responseText, '"',, startPos)
-                    LogDebug("End quote: " endQuotePos)
-                    if endQuotePos > 0 {
-                        date := SubStr(responseText, startPos, endQuotePos - startPos)
-                    }
-                }
-            }
-        }
-        
-        LogDebug("Extracted SHA: " sha)
-        LogDebug("Extracted date: " date)
-        
-        if sha = "" or date = "" {
-            return "Could not parse GitHub API response"
-        }
-        
-        LogDebug("Latest commit: SHA=" sha ", Date=" date)
-        result := Map()
-        result["sha"] := sha
-        result["date"] := date
-        return result
-        
-    } catch Error as e {
-        return e.Message
-    }
-}
+; File types compared as text (line-ending differences ignored)
+TextExtensions := ["ahk", "txt", "ini", "json", "md", "csv", "tsv"]
+; --------------------------------------------------------------------------
 
-GetLastUpdateCheckInfo() {
-    ; Reads the stored update check info from Data\LastUpdateCheck.ini
-    ; Returns a Map with {sha, date} or empty Map if file doesn't exist
-    checkFile := A_ScriptDir "\..\Data\LastUpdateCheck.ini"
-    
-    if !FileExist(checkFile) {
-        LogDebug("LastUpdateCheck.ini not found - first run or data file missing")
-        return Map()
-    }
-    
-    try {
-        lastSha := IniRead(checkFile, "UpdateCheck", "LastCommitHash", "")
-        lastDate := IniRead(checkFile, "UpdateCheck", "LastCommitDate", "")
-        
-        if lastSha = "" or lastDate = "" {
-            LogDebug("LastUpdateCheck.ini exists but is empty")
-            return Map()
-        }
-        
-        ; Read pipe-delimited pending files list (empty string if key absent)
-        pendingRaw := IniRead(checkFile, "UpdateCheck", "PendingFiles", "")
-        pendingFiles := []
-        if pendingRaw != "" {
-            for item in StrSplit(pendingRaw, "|")
-                if Trim(item) != ""
-                    pendingFiles.Push(Trim(item))
-        }
+UpdaterVersion := "11-23-2026 d"    ; Shown in title bars and the debug log
+AppTitle := "AutoCorrect2 Updater (" UpdaterVersion ")"
+SplitPath(A_ScriptDir, , &InstallDir)
+DebugDir   := InstallDir "\Debug"
+DebugFile  := DebugDir "\Updater_debug.txt"
+CheckFile  := InstallDir "\Data\LastUpdateCheck.ini"
+SettingsFile := InstallDir "\Data\acSettings.ini"
+BackupDir  := InstallDir "\Backup"
+UpstreamLibRel := "Core\AutoCorrectHotstrings.ahk"
 
-        LogDebug("Last update check: SHA=" lastSha ", Date=" lastDate ", Pending=" pendingFiles.Length " file(s)")
-        result := Map()
-        result["sha"] := lastSha
-        result["date"] := lastDate
-        result["pendingFiles"] := pendingFiles
-        return result
-        
-    } catch Error as e {
-        LogDebug("Error reading LastUpdateCheck.ini: " e.Message)
-        return Map()
-    }
-}
-
-StoreUpdateCheckInfo(sha, date, pendingFiles := "") {
-    ; Stores the latest commit info to Data\LastUpdateCheck.ini
-    ; pendingFiles: Array of relPaths the user skipped, or "" to clear the list
-    checkFile := A_ScriptDir "\..\Data\LastUpdateCheck.ini"
-    checkDir := A_ScriptDir "\..\Data"
-    
-    try {
-        if !DirExist(checkDir) {
-            DirCreate(checkDir)
-            LogDebug("Created Data directory")
-        }
-        
-        IniWrite(sha, checkFile, "UpdateCheck", "LastCommitHash")
-        IniWrite(date, checkFile, "UpdateCheck", "LastCommitDate")
-        IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), checkFile, "UpdateCheck", "LastCheckTime")
-
-        ; Write pipe-delimited list of files the user chose not to update
-        pendingStr := ""
-        if Type(pendingFiles) = "Array" {
-            for item in pendingFiles
-                pendingStr .= (pendingStr = "" ? "" : "|") item
-        }
-        IniWrite(pendingStr, checkFile, "UpdateCheck", "PendingFiles")
-        LogDebug("Stored update check info: SHA=" sha ", Date=" date ", Pending=" pendingStr)
-        
-    } catch Error as e {
-        LogDebug("Error writing LastUpdateCheck.ini: " e.Message)
-    }
-}
-
-UpdateProgress(gui, textCtrl, progressBar, statusText, progressValue := 0) {
-    gui.Title := "AutoCorrect2 Updater - " statusText
-    textCtrl.Value := statusText
-    progressBar.Value := progressValue
-}
+Cfg := LoadSettings()
+ProtectedFiles.Push("Core\" Cfg.PersonalLibName, "Core\" Cfg.CopyLibName)
+IgnoredRx   := GlobsToRegex(IgnoredFiles)
+ProtectedRx := GlobsToRegex(ProtectedFiles)
+TextExts := NewMap()
+for ext in TextExtensions
+    TextExts[ext] := true
+Prog := ""
+DeferredCopies := []
+OnExit(RunDeferredCopies)
 
 try {
-    LogDebug("=== Update Started ===")
-    LogDebug("Script Directory: " A_ScriptDir)
-    
-    ; --- Read configuration from settings file ---
-    settingsFile := A_ScriptDir "\..\Data\acSettings.ini"
-    fontSize := IniRead(settingsFile, "HotstringHelper", "DefaultFontSize", "11")
-    largeFontSize := IniRead(settingsFile, "HotstringHelper", "LargeFontSize", "13")
-    hotstringLibName := IniRead(settingsFile, "Files", "NewTemporaryHotstrLib", "HotstringLib (1).ahk")
-    
-    ; Read colors from color theme settings (with defaults)
-    formColor := "0xE5E4E2"
-    fontColor := "c0x1F1F1F"
-    listColor := "0xFFFFFF"
-    
-    if FileExist(A_ScriptDir "\..\Data\colorThemeSettings.ini") {
-        ctSettingsFile := A_ScriptDir "\..\Data\colorThemeSettings.ini"
-        formColor := IniRead(ctSettingsFile, "ColorSettings", "formColor", formColor)
-        fontColor := "c" IniRead(ctSettingsFile, "ColorSettings", "fontColor", "0x1F1F1F")
-        listColor := IniRead(ctSettingsFile, "ColorSettings", "listColor", listColor)
+    Main()
+} catch as e {
+    LogDebug("ERROR: " e.Message " (line " e.Line ")")
+    CloseProgress()
+    errorMsg := e.Message
+    if InStr(e.Message, "internet connection") or InStr(e.Message, "Failed to download")
+        errorMsg := "Unable to connect to GitHub. Please check your internet connection and try again."
+    else if InStr(e.Message, "not found in extracted zip")
+        errorMsg := "The downloaded file appears to be corrupted or incomplete. Please try again."
+    AcMsgBox.Show(errorMsg, AppTitle)
+    ExitApp
+}
+
+; ==========================================================================
+; MAIN FLOW
+; ==========================================================================
+Main() {
+    global Prog
+    LogDebug("=== Updater " UpdaterVersion " started (" A_ScriptDir ") ===")
+
+    if A_Args.Length && (A_Args[1] = "/undo" || A_Args[1] = "-undo") {
+        ShowUndoGui()
+        return
     }
-    
-    ; Create Config class for AcMsgBox
-    class Config {
-        static FormColor := formColor
-        static FontColor := fontColor
-        static LargeFontSize := "s" . largeFontSize
-    }
-    
-    LogDebug("HotstringLib name: " hotstringLibName)
-    
-    ; --- Create progress GUI ---
-    progressGui := Gui()
-    progressGui.Title := "AutoCorrect2 Updater"
-    progressGui.Opt("+AlwaysOnTop")
-    progressGui.BackColor := formColor
-    progressGui.SetFont("s" fontSize " " fontColor)
-    
-    statusTextCtrl := progressGui.Add("Text", "w400 h30 cBlue", "Checking for updates...")
-    progressBarCtrl := progressGui.Add("Progress", "w400 h20 vMyProgress Range0-100", 0)
-    progressGui.Show("w420 h100")
-    
-    UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Checking GitHub for updates...", 10)
-    
-    ; --- Check GitHub API for latest commit ---
-    latestInfo := CheckGitHubForUpdates()
-    
-    if Type(latestInfo) = "String" {
-        progressGui.Destroy()
-        AcMsgBox.Show("Unable to check GitHub for updates:`n" latestInfo "`n`nPlease check your internet connection and try again.", "AutoCorrect2 Updater")
-        LogDebug("GitHub API check failed: " latestInfo)
+
+    Prog := MakeProgressGui()
+    SetProgress("Checking GitHub for updates...", 10)
+
+    recent := GetRecentCommits()
+    if Type(recent) = "String" {
+        CloseProgress()
+        LogDebug("GitHub check failed: " recent)
+        AcMsgBox.Show("Unable to check GitHub for updates:`n" recent "`n`nPlease check your internet connection and try again.", AppTitle)
         ExitApp
     }
-    
-    ; --- Compare with stored update check info ---
-    lastCheckInfo := GetLastUpdateCheckInfo()
-    lastSha := ""
-    try {
-        lastSha := lastCheckInfo["sha"]
-    }
-    
-    if lastSha != "" and lastSha = latestInfo["sha"] {
-        ; SHA matches - but check if the user left pending files from a previous run
-        pendingFromLast := lastCheckInfo.Has("pendingFiles") ? lastCheckInfo["pendingFiles"] : []
+    latest := recent[1]
+    last := ReadLastCheck()
+    LogDebug("Latest: " latest.sha " | Last: " last.sha " | Pending: " last.pending.Length)
 
-        if pendingFromLast.Length > 0 {
-            LogDebug("SHA matches but " pendingFromLast.Length " pending file(s) from last run - showing pending dialog")
-            progressGui.Destroy()
-            ShowPendingGui(pendingFromLast, lastCheckInfo, fontSize, formColor, fontColor, listColor)
+    if (last.sha != "" && last.sha = latest.sha && last.pending.Length = 0) {
+        CloseProgress()
+        NoUpdatesMessage("No updates available. You have the latest version!")
+        return
+    }
+
+    ctx := {haveCompare: false, changed: NewMap(), removedUp: [], pending: NewMap()
+        , commits: [], header: "", last: last, latest: latest}
+    for p in last.pending
+        ctx.pending[p] := true
+
+    if last.sha = "" {
+        ctx.commits := recent
+        ctx.header := "Recent changes on GitHub:"
+    } else if last.sha = latest.sha {
+        ctx.haveCompare := true
+        ctx.header := "No new changes on GitHub since your last update."
+    } else {
+        SetProgress("Reading what changed since your last update...", 20)
+        cmp := GetCompare(last.sha, latest.sha)
+        if Type(cmp) = "String" {
+            LogDebug("Compare failed: " cmp)
+            ctx.commits := recent
+            ctx.header := "Recent changes on GitHub (couldn't tell which ones are new to you):"
         } else {
-            LogDebug("No updates available - commit hash matches, no pending files")
-            progressGui.Destroy()
-            AcMsgBox.Show("No updates available. You have the latest version!", "AutoCorrect2 Updater")
-            ExitApp
+            ctx.commits := cmp.commits
+            ctx.changed := cmp.changed
+            ctx.removedUp := cmp.removed
+            ctx.haveCompare := !cmp.truncated
+            n := cmp.commits.Length
+            ctx.header := n " change" (n = 1 ? "" : "s") " since your last update"
+                . (cmp.total > n ? " (showing " n " of " cmp.total ")" : "") ":"
+            LogDebug("Compare: " n " commits, " cmp.changed.Count " changed, " cmp.removed.Length " removed, truncated=" cmp.truncated)
+        }
+    }
+
+    SetProgress("Downloading from GitHub...", 40)
+    srcRoot := DownloadAndExtract()
+
+    SetProgress("Comparing files...", 90)
+    scan := ScanForUpdates(srcRoot, ctx)
+    CloseProgress()
+    LogDebug("Scan: " scan.items.Length " item(s), library: " (IsObject(scan.lib) ? "yes" : "no"))
+
+    if scan.items.Length = 0 && !IsObject(scan.lib) {
+        StoreLastCheck(latest.sha, latest.date, [])
+        NoUpdatesMessage("No files need updating. You have the latest version!")
+        return
+    }
+    ShowUpdateGui(scan, ctx)
+}
+
+NoUpdatesMessage(msg) {
+    ; Offers Undo when there is an update that can still be undone.
+    if IsObject(LatestUndoableSession()) {
+        if AcMsgBox.Show(msg, AppTitle, ["OK", "Undo last update"]) = "Undo last update" {
+            ShowUndoGui()
+            return
         }
     } else {
-
-    LogDebug("Update available! Proceeding with file comparison...")
-    
-    UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Connecting to GitHub...", 20)
-
-    installDir   := parentDir
-    tempDir      := A_Temp "\AutoCorrect2_Update"
-    zipFile      := tempDir "\AutoCorrect2_latest.zip"
-    extractDir   := tempDir "\extracted"
-
-    LogDebug("Install Dir: " installDir)
-    LogDebug("Temp Dir: " tempDir)
-
-    ; Clean temp directory
-    LogDebug("Cleaning temp directory...")
-    UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Cleaning temporary files...", 40)
-    if DirExist(tempDir)
-        DirDelete tempDir, 1
-    DirCreate tempDir
-    DirCreate extractDir
-    LogDebug("Temp directory created.")
-
-    ; --- Download latest zip ---
-    LogDebug("Downloading from: " LatestZipUrl)
-    UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Downloading from GitHub...", 60)
-    
-    try {
-        Download(LatestZipUrl, zipFile)
-    } catch Error as e {
-        progressGui.Destroy()
-        throw Error("Failed to download from GitHub. Please check your internet connection.`n`nError: " e.Message)
+        AcMsgBox.Show(msg, AppTitle)
     }
-    LogDebug("Download completed.")
+    ExitApp
+}
 
-    ; --- Extract zip using Shell.Application COM ---
-    LogDebug("Starting zip extraction...")
-    UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Extracting files from zip...", 80)
+; ==========================================================================
+; GITHUB
+; ==========================================================================
+HttpGet(url) {
+    try {
+        http := ComObject("MSXML2.XMLHTTP")
+        http.Open("GET", url, false)
+        http.SetRequestHeader("User-Agent", "AutoCorrect2-Updater")
+        http.SetRequestHeader("Accept", "application/vnd.github+json")
+        http.SetRequestHeader("Cache-Control", "no-cache")
+        http.Send()
+        return {status: http.Status, text: http.ResponseText}
+    } catch as e {
+        return {status: 0, text: e.Message}
+    }
+}
+
+HttpErrorText(r) {
+    if r.status = 0
+        return "Could not connect to GitHub (" Trim(r.text) ")"
+    if (r.status = 403 || r.status = 429) && InStr(r.text, "rate limit")
+        return "GitHub's hourly limit for update checks was reached. Please try again in an hour."
+    return "GitHub returned status " r.status
+}
+
+GetRecentCommits() {
+    ; Returns an Array of commits (newest first), or an error string.
+    r := HttpGet(ApiBase "/commits?sha=" Branch "&per_page=" CommitListLength)
+    if r.status != 200
+        return HttpErrorText(r)
+    body := r.text
+    try data := JsonParse(&body)
+    catch as e
+        return "Could not read GitHub's reply (" e.Message ")"
+    if !(data is Array) || data.Length = 0
+        return "GitHub returned no commits"
+    out := []
+    for c in data
+        out.Push(CommitFromJson(c))
+    if out[1].sha = ""
+        return "Could not read GitHub's reply"
+    return out
+}
+
+GetCompare(baseSha, headSha) {
+    ; Returns {commits (newest first), changed (Map relPath -> status), removed (Array), total, truncated}
+    ; or an error string.  One call gives both the commit messages and the list of changed files.
+    r := HttpGet(ApiBase "/compare/" baseSha "..." headSha)
+    if r.status != 200
+        return HttpErrorText(r)
+    body := r.text
+    try data := JsonParse(&body)
+    catch as e
+        return "Could not read GitHub's reply (" e.Message ")"
+    commitsJ := JGet(data, "commits")
+    filesJ := JGet(data, "files")
+    if !(commitsJ is Array)
+        return "Unexpected reply from GitHub"
+
+    commits := []
+    i := commitsJ.Length
+    while i >= 1 {
+        commits.Push(CommitFromJson(commitsJ[i]))
+        i--
+    }
+
+    status := JGet(data, "status")      ; ahead, behind, diverged or identical
+    changed := NewMap(), removed := []
+    files := (filesJ is Array) ? filesJ : []
+    for f in files {
+        name := StrReplace(JGet(f, "filename"), "/", "\")
+        if JGet(f, "status") = "removed"
+            removed.Push(name)
+        else
+            changed[name] := JGet(f, "status")
+        prev := JGet(f, "previous_filename")
+        if prev != ""
+            removed.Push(StrReplace(prev, "/", "\"))
+    }
+    ; History was rewritten (e.g. force-push): the file list can't be trusted for removals.
+    if status != "ahead" && status != "identical"
+        removed := []
+    total := JGet(data, "total_commits")
+    return {commits: commits, changed: changed, removed: removed
+        , total: (total = "" ? commits.Length : total)
+        , truncated: (status != "ahead" && status != "identical") || !(filesJ is Array) || files.Length >= 300}
+}
+
+CommitFromJson(c) {
+    date := JGet(c, "commit", "author", "date")
+    if date = ""
+        date := JGet(c, "commit", "committer", "date")
+    return {sha: JGet(c, "sha"), date: date
+        , msg: Trim(StrReplace(JGet(c, "commit", "message"), "`r", ""), "`n ")
+        , url: JGet(c, "html_url")}
+}
+
+DownloadAndExtract() {
+    tempDir    := A_Temp "\AutoCorrect2_Update"
+    zipFile    := tempDir "\AutoCorrect2_latest.zip"
+    extractDir := tempDir "\extracted"
+
+    if DirExist(tempDir)
+        DirDelete(tempDir, 1)
+    DirCreate(extractDir)
+
+    LogDebug("Downloading from: " LatestZipUrl)
+    try Download(LatestZipUrl, zipFile)
+    catch as e
+        throw Error("Failed to download from GitHub. Please check your internet connection.`n`nError: " e.Message)
+
+    SetProgress("Extracting files from zip...", 70)
     sh  := ComObject("Shell.Application")
     zip := sh.NameSpace(zipFile)
     if !zip
         throw Error("Failed to open downloaded zip file.")
-    
     dest := sh.NameSpace(extractDir)
     if !dest
         throw Error("Failed to open extraction folder.")
-    
     dest.CopyHere(zip.Items, 0x10|0x4)
-    LogDebug("Zip extraction completed.")
 
-    ; Verify source root exists
     srcRoot := extractDir "\" ZipRootFolderName
     if !DirExist(srcRoot)
         throw Error("Expected root folder '" ZipRootFolderName "' not found in extracted zip.")
-    LogDebug("Source root directory found.")
+    LogDebug("Zip extracted to " srcRoot)
+    return srcRoot
+}
 
-    ; --- Analyze changes ---
-    UpdateProgress(progressGui, statusTextCtrl, progressBarCtrl, "Analyzing changes...", 100)
+; ==========================================================================
+; SCAN
+; ==========================================================================
+ScanForUpdates(srcRoot, ctx) {
+    updated := [], added := [], removedItems := [], differs := []
+    lib := ""
 
-    ; --- Scan for updated and new files ---
-    LogDebug("Scanning for updated and new files...")
-    updatedFiles := []
-    rarelyUpdatedFiles := []
-    newFiles := []
-    hotstringLibUpdate := ""  ; Special handling for AutoCorrectHotstrings.ahk
-    
-    loop Files, srcRoot "\*", "FR"
-    {
-        srcFile := A_LoopFileFullPath
-
-        ; Skip directories
-        if InStr(A_LoopFileAttrib, "D")
+    loop Files, srcRoot "\*", "FR" {
+        src := A_LoopFileFullPath
+        rel := SubStr(src, StrLen(srcRoot) + 2)
+        if MatchesAny(rel, IgnoredRx)
             continue
-
-        ; Compute relative path from srcRoot
-        relPath := SubStr(srcFile, StrLen(srcRoot) + 2)
-        destPath := installDir "\" relPath
-
-        ; Special handling for AutoCorrectHotstrings.ahk
-        if (relPath = "Core\AutoCorrectHotstrings.ahk") {
-            LogDebug("Found AutoCorrectHotstrings.ahk in GitHub")
-            ; Always save with the configured name, never replace user's original
-            destPath := installDir "\Core\" hotstringLibName
-            
-            ; Check if it differs from existing version
-            if FileExist(destPath) {
-                srcSize := FileGetSize(srcFile)
-                destSize := FileGetSize(destPath)
-                srcTime := FileGetTime(srcFile)
-                destTime := FileGetTime(destPath)
-                
-                if (srcTime > destTime) and (srcSize != destSize) {
-                    hotstringLibUpdate := {path: destPath, relPath: "Core\" hotstringLibName, srcPath: srcFile}
-                    LogDebug("AutoCorrectHotstrings.ahk update available - will save as: " hotstringLibName)
-                }
-            } else {
-                hotstringLibUpdate := {path: destPath, relPath: "Core\" hotstringLibName, srcPath: srcFile}
-                LogDebug("AutoCorrectHotstrings.ahk (" hotstringLibName ") is new/missing")
-            }
+        if (rel = UpstreamLibRel) {
+            lib := CheckLibrary(src, ctx, added)
             continue
         }
 
-        ; Check if file is new or updated
-        if !FileExist(destPath) {
-            ; Skip AutoCorrectHotstrings.ahk - it's handled specially above
-            if (relPath = "Core\AutoCorrectHotstrings.ahk") {
-                LogDebug("Skipping AutoCorrectHotstrings.ahk from new files (handled specially)")
-                continue
-            }
-            ; New file
-            newFiles.Push({path: destPath, relPath: relPath, srcPath: srcFile})
-            LogDebug("New file found: " relPath)
+        dest := InstallDir "\" rel
+        isPending := ctx.pending.Has(rel)
+        changedUpstream := !ctx.haveCompare || ctx.changed.Has(rel) || isPending
+
+        if !FileExist(dest) {
+            if MatchesAny(rel, ProtectedRx)
+                added.Push(MakeItem(rel, src, rel, "copy", "New - you don't have this file", true))
+            else if changedUpstream
+                added.Push(MakeItem(rel, src, rel, "copy", isPending ? "New - skipped last time" : "New", !isPending))
+            ; else: it didn't change on GitHub, so you removed it yourself - leave it gone
+            continue
+        }
+        if MatchesAny(rel, ProtectedRx)
+            continue
+        if SameContent(src, dest)
+            continue
+
+        if !changedUpstream {
+            if ShowLocallyDifferentFiles
+                differs.Push(MakeItem(rel, src, rel, "copy", "Differs from GitHub - your own edit?", false))
+            continue
+        }
+
+        status := "Updated", check := true
+        if isPending
+            status := "Updated - skipped last time", check := false
+        else if IsRarelyUpdated(rel)
+            status := "Updated - rarely needed", check := false
+        deferred := false
+        if (dest = A_AhkPath) {
+            ; This is the .exe running the Updater right now: it's copied a moment after the Updater closes.
+            status := (isPending ? "Skipped last time" : "Updated") " - replaced on close", deferred := true
+        } else if IsLocked(dest) {
+            status .= " - in use, close it first"
+        }
+        item := MakeItem(rel, src, rel, "copy", status, check)
+        item.deferred := deferred
+        updated.Push(item)
+        LogDebug("Offer: " rel " [" status "]")
+    }
+
+    ; Files removed or renamed on GitHub (plus removals skipped last time)
+    removeList := ctx.removedUp.Clone()
+    for token in ctx.pending
+        if SubStr(token, 1, 1) = "-"
+            removeList.Push(SubStr(token, 2))
+    seen := NewMap()
+    for rel in removeList {
+        if seen.Has(rel)
+            continue
+        seen[rel] := true
+        if MatchesAny(rel, IgnoredRx) || MatchesAny(rel, ProtectedRx) || rel = UpstreamLibRel
+            continue
+        dest := InstallDir "\" rel
+        attr := FileExist(dest)
+        if attr = "" || InStr(attr, "D") || FileExist(srcRoot "\" rel)
+            continue
+        wasPending := ctx.pending.Has("-" rel)
+        removedItems.Push(MakeItem(rel, "", rel, "remove"
+            , wasPending ? "Removed from GitHub - skipped last time" : "Removed from GitHub", !wasPending))
+        LogDebug("Offer removal: " rel)
+    }
+
+    items := []
+    for group in [updated, added, removedItems, differs]
+        for it in group
+            items.Push(it)
+    return {items: items, lib: lib}
+}
+
+CheckLibrary(src, ctx, added) {
+    ; Returns a library-update object for the GUI, or "" when there's nothing to offer.
+    mainDest := InstallDir "\Core\" Cfg.MainLibName
+    copyDest := InstallDir "\Core\" Cfg.CopyLibName
+
+    if !FileExist(mainDest) {
+        added.Push(MakeItem(UpstreamLibRel, src, "Core\" Cfg.MainLibName, "copy", "New - AutoCorrect library", true))
+        return ""
+    }
+    if SameContent(src, mainDest)
+        return ""
+    if FileExist(copyDest) && SameContent(src, copyDest) {
+        LogDebug("Library: GitHub version already saved as " Cfg.CopyLibName)
+        return ""
+    }
+    isPending := ctx.pending.Has(UpstreamLibRel)
+    if ctx.haveCompare && !ctx.changed.Has(UpstreamLibRel) && !isPending {
+        LogDebug("Library: unchanged on GitHub since last update (differences are your own)")
+        return ""
+    }
+    LogDebug("Library: update available")
+    return {src: src, checked: !isPending, pending: isPending}
+}
+
+MakeItem(rel, src, destRel, action, status, checked) {
+    return {rel: rel, src: src, destRel: destRel, action: action, status: status, checked: checked
+        , token: (action = "remove" ? "-" rel : rel), deferred: false}
+}
+
+; ==========================================================================
+; UPDATE GUI
+; ==========================================================================
+ShowUpdateGui(scan, ctx) {
+    ; Layout: commit list (top left) and its message (top right); files across the full width below;
+    ; options and buttons along the bottom.
+    ; Controls are created roughly here and positioned by UpdateGuiSize, so the window can be resized.
+    g := Gui("+AlwaysOnTop +Resize +MinSize820x560", "AutoCorrect2 - Select Updates (" UpdaterVersion ")")
+    g.BackColor := Cfg.FormColor
+    g.SetFont("s" Cfg.FontSize " " Cfg.FontColor)
+    g.OnEvent("Close", (*) => ExitApp())
+    g.OnEvent("Escape", (*) => ExitApp())
+    st := {scan: scan, ctx: ctx, g: g, lvF: "", lvC: "", edMsg: "", hint: ""
+        , cbLib: "", radCopy: "", radReplace: "", bottom: [], buttons: []}
+
+    ; --- Files (left) ---
+    n := scan.items.Length
+    st.fHead := g.Add("Text", "x10 y10 w400 cBlue", n ? "Files (" n "). Ticked files will be updated:" : "No other files need updating.")
+    st.fHead.GetPos(, , , &th)
+    st.textH := th
+    if n {
+        st.lvF := g.Add("ListView", "w400 r5 Checked -Multi NoSort NoSortHdr +Background" Cfg.ListColor, ["File", "Status", "Folder"])
+        for it in scan.items {
+            SplitPath(it.destRel, &fname, &fdir)
+            st.lvF.Add(it.checked ? "Check" : "", fname, it.status, fdir = "" ? "(main folder)" : fdir)
+        }
+        lvF := st.lvF
+        st.btnTick := g.Add("Button", "w100", "Tick all")
+        st.btnTick.OnEvent("Click", (*) => lvF.Modify(0, "+Check"))
+        st.btnUntick := g.Add("Button", "w100", "Untick all")
+        st.btnUntick.OnEvent("Click", (*) => lvF.Modify(0, "-Check"))
+    }
+
+    ; --- What's new (right) ---
+    st.cHead := g.Add("Text", "w400 cBlue", ctx.header)
+    if ctx.commits.Length {
+        st.lvC := g.Add("ListView", "w400 r5 -Multi NoSort NoSortHdr +Background" Cfg.ListColor, ["Date", "Change"])
+        for c in ctx.commits
+            st.lvC.Add(, SubStr(c.date, 1, 10), StrSplit(c.msg, "`n")[1])
+        st.lvC.ModifyCol(1, 100)
+        st.edMsg := g.Add("Edit", "w400 r3 ReadOnly +Background" Cfg.ListColor, StrReplace(ctx.commits[1].msg, "`n", "`r`n"))
+        st.lvC.Modify(1, "Select Focus")
+        st.lvC.OnEvent("ItemSelect", CommitSelected.Bind(ctx.commits, st.edMsg))
+        st.lvC.OnEvent("DoubleClick", CommitDoubleClick.Bind(ctx.commits))
+        st.hint := g.Add("Text", "w400", "Double-click a change to open it on GitHub.")
+    }
+
+    ; --- Bottom: library, options, buttons ---
+    if IsObject(scan.lib) {
+        AddBottom(st, g.Add("Text", "w400 cBlue", "AutoCorrect library" (scan.lib.pending ? " (skipped last time)" : "") ":"), 0)
+        st.cbLib := AddBottom(st, g.Add("Checkbox", "w400" (scan.lib.checked ? " Checked" : ""), "Get the new AutoCorrectHotstrings.ahk from GitHub"), 0)
+        st.radCopy := AddBottom(st, g.Add("Radio", "w400 h40 Checked", "Save it as Core\" Cfg.CopyLibName ". Your " Cfg.MainLibName " is not changed. Compare the two afterward with the Unique String Extractor."), 20)
+        st.radReplace := AddBottom(st, g.Add("Radio", "w400 h40", "WARNING: Replace your " Cfg.MainLibName ". Any rules you added, fixed or removed will be lost. (The old file is backed up.)"), 20)
+        st.radCopy.OnEvent("Click", LibModeChanged.Bind(st))
+        st.radReplace.OnEvent("Click", LibModeChanged.Bind(st))
+        st.cbLib.OnEvent("Click", LibModeChanged.Bind(st))
+        LibModeChanged(st)
+    }
+    st.cbRemember := AddBottom(st, g.Add("Checkbox", "w400 Checked", "Remind me next time about files I leave unticked"), 0)
+    AddBottom(st, g.Add("Text", "w400", "Old copies are saved in the Backup folder first, so the update can be undone."), 0)
+
+    btn := g.Add("Button", "w100 Default", "Update")
+    btn.OnEvent("Click", PerformUpdate.Bind(st))
+    st.buttons.Push(btn)
+    if IsObject(LatestUndoableSession()) {
+        btn := g.Add("Button", "w220", "Undo a previous update...")
+        btn.OnEvent("Click", (*) => (g.Destroy(), ShowUndoGui()))
+        st.buttons.Push(btn)
+    }
+    btn := g.Add("Button", "w100", "Cancel")
+    btn.OnEvent("Click", (*) => ExitApp())
+    st.buttons.Push(btn)
+    st.buttons[1].GetPos(, , , &bh)
+    st.btnH := bh
+
+    ; --- Size to fit the screen ---
+    g.OnEvent("Size", UpdateGuiSize.Bind(st))
+    MonitorGetWorkArea(MonitorGetPrimary(), &wl, &wt, &wr, &wb)
+    scale := A_ScreenDPI / 96          ; Show() sizes are scaled by DPI; the work area is in pixels
+    w := Min(1200, Round((wr - wl) / scale) - 40)
+    h := Min(860, Round((wb - wt) / scale) - 60)
+    g.Show("w" w " h" h)
+}
+
+AddBottom(st, ctrl, indent) {
+    ctrl.GetPos(, , , &ch)
+    st.bottom.Push({ctrl: ctrl, h: ch, indent: indent})
+    return ctrl
+}
+
+UpdateGuiSize(st, g, minMax, w, h) {
+    if minMax = -1
+        return
+    static WM_SETREDRAW := 0x000B
+    DllCall("user32\SendMessageW", "Ptr", g.Hwnd, "UInt", WM_SETREDRAW, "Ptr", 0, "Ptr", 0)
+
+    m := 10, gap := 16, th := st.textH, bh := st.btnH
+
+    ; Buttons along the very bottom, then the bottom block stacked upward.
+    y := h - m - bh
+    x := m
+    for b in st.buttons {
+        b.GetPos(, , &bw)
+        b.Move(x, y)
+        x += bw + 10
+    }
+    y -= 6
+    i := st.bottom.Length
+    while i >= 1 {
+        b := st.bottom[i]
+        i--
+        y -= b.h + 2
+        b.ctrl.Move(m + b.indent, y, w - 2 * m - b.indent)
+    }
+    areaBottom := y - 10
+    fullW := w - 2 * m
+    top := m
+
+    ; Top: commit list (left) and the selected commit's message (right)
+    if IsObject(st.lvC) {
+        leftW := Round((fullW - gap) * 0.45)
+        rx := m + leftW + gap
+        rw := w - m - rx
+        topH := Max(140, Round((areaBottom - m) * 0.40))
+        st.cHead.Move(m, top, leftW)
+        st.hint.Move(rx, top, rw)
+        st.lvC.Move(m, top + th + 4, leftW, topH - th - 4)
+        st.lvC.ModifyCol(2, leftW - 100 - 30)
+        st.edMsg.Move(rx, top + th + 4, rw, topH - th - 4)
+        top += topH + 12
+    } else {
+        st.cHead.Move(m, top, fullW)
+        top += th + 8
+    }
+
+    ; Below, full width: files
+    st.fHead.Move(m, top, fullW)
+    if IsObject(st.lvF) {
+        lvTop := top + th + 4
+        tickY := areaBottom - bh
+        st.lvF.Move(m, lvTop, fullW, tickY - 6 - lvTop)
+        st.btnTick.Move(m, tickY)
+        st.btnTick.GetPos(, , &tw)
+        st.btnUntick.Move(m + tw + 6, tickY)
+        cw := fullW - 30                ; room for the scrollbar
+        c1 := Round(cw * 0.32), c2 := Round(cw * 0.43)
+        st.lvF.ModifyCol(1, c1)
+        st.lvF.ModifyCol(2, c2)
+        st.lvF.ModifyCol(3, cw - c1 - c2)
+    }
+
+    DllCall("user32\SendMessageW", "Ptr", g.Hwnd, "UInt", WM_SETREDRAW, "Ptr", 1, "Ptr", 0)
+    DllCall("RedrawWindow", "Ptr", g.Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 0x0001 | 0x0004 | 0x0080)
+}
+
+CommitSelected(commits, edMsg, lv, row, selected, *) {
+    if selected && row
+        edMsg.Value := StrReplace(commits[row].msg, "`n", "`r`n")
+}
+
+CommitDoubleClick(commits, lv, row, *) {
+    if row && commits[row].url != ""
+        Run(commits[row].url)
+}
+
+LibModeChanged(st, *) {
+    enabled := st.cbLib.Value
+    st.radCopy.Enabled := enabled
+    st.radReplace.Enabled := enabled
+    st.radReplace.SetFont((enabled && st.radReplace.Value) ? "cRed" : Cfg.FontColor)
+}
+
+PerformUpdate(st, *) {
+    scan := st.scan, ctx := st.ctx
+    checked := st.lvF ? CheckedRows(st.lvF) : Map()
+    remember := st.cbRemember.Value
+    st.g.Hide()
+
+    stamp := FormatTime(A_Now, "yyyy-MM-dd_HHmmss")
+    sessionDir := BackupDir "\" stamp
+    manifest := [], failed := [], pending := []
+    counts := Map("replaced", 0, "added", 0, "removed", 0)
+
+    for i, it in scan.items {
+        if !checked.Has(i) {
+            if remember
+                pending.Push(it.token)
+            continue
+        }
+        r := it.deferred ? DeferItem(it.src, it.destRel, sessionDir) : ApplyItem(it.action, it.src, it.destRel, sessionDir)
+        if r.ok {
+            manifest.Push(r.kind "|" it.destRel)
+            counts[r.kind] += 1
         } else {
-            ; File exists - compare size and modification time
-            srcSize := FileGetSize(srcFile)
-            destSize := FileGetSize(destPath)
-            srcTime := FileGetTime(srcFile)
-            destTime := FileGetTime(destPath)
-            
-            ; Only consider updated if BOTH timestamp is newer AND file size changed
-            if (srcTime > destTime) and (srcSize != destSize) {
-                ; Check if this is a rarely-updated file
-                if IsRarelyUpdated(relPath, RarelyUpdatedFolders) {
-                    rarelyUpdatedFiles.Push({path: destPath, relPath: relPath, srcPath: srcFile})
-                    LogDebug("Rarely-updated file found (unchecked by default): " relPath)
-                } else {
-                    SplitPath(destPath, , , &ext, &nameNoExt)
-                    isInUse := (StrLower(nameNoExt) = "updater") and (StrLower(ext) = "exe")
-                    updatedFiles.Push({path: destPath, relPath: relPath, srcPath: srcFile, isInUse: isInUse})
-                    LogDebug("Updated file found: " relPath " (size: " destSize " → " srcSize (isInUse ? " [flagged as in-use]" : "") ")")
-                }
-            }
+            failed.Push(it.destRel)
+            pending.Push(it.token)
         }
     }
 
-    LogDebug("Found " updatedFiles.Length " updated files, " rarelyUpdatedFiles.Length " rarely-updated files, " newFiles.Length " new files, and HotstringLib update: " (hotstringLibUpdate != "" ? "yes" : "no"))
+    libNote := ""
+    if IsObject(scan.lib) {
+        if st.cbLib.Value {
+            replaceMode := st.radReplace.Value
+            destRel := "Core\" (replaceMode ? Cfg.MainLibName : Cfg.CopyLibName)
+            r := ApplyItem("copy", scan.lib.src, destRel, sessionDir)
+            if r.ok {
+                manifest.Push(r.kind "|" destRel)
+                counts[r.kind] += 1
+                if !replaceMode
+                    libNote := "The new library was saved as Core\" Cfg.CopyLibName ". Use the Unique String Extractor to compare it with your " Cfg.MainLibName ".`n`n"
+            } else {
+                failed.Push(destRel)
+                pending.Push(UpstreamLibRel)
+            }
+        } else if remember {
+            pending.Push(UpstreamLibRel)
+        }
+    }
 
-    ; Check if there are any updates
-    if updatedFiles.Length = 0 and rarelyUpdatedFiles.Length = 0 and newFiles.Length = 0 and hotstringLibUpdate = "" {
-        LogDebug("No updates available.")
-        progressGui.Destroy()
-        AcMsgBox.Show("No updates available.", "AutoCorrect2 Updater")
+    if manifest.Length
+        WriteManifest(sessionDir, manifest, ctx)
+    StoreLastCheck(ctx.latest.sha, ctx.latest.date, pending)
+    LogDebug("Update done: " counts["replaced"] " replaced, " counts["added"] " added, " counts["removed"] " removed, "
+        . failed.Length " failed, " pending.Length " pending")
+
+    ; --- Summary ---
+    if manifest.Length = 0 && failed.Length = 0 {
+        AcMsgBox.Show("Nothing was changed."
+            . (pending.Length ? "`n`nThe " pending.Length " unticked item(s) will be offered again next time." : ""), AppTitle)
         ExitApp
     }
-
-    ; Close progress GUI and show update selection GUI
-    progressGui.Destroy()
-    ; Show GUI with checkboxes
-    ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir, latestInfo, fontSize, formColor, fontColor, listColor)
-
-    } ; end else (SHA mismatch - new updates available)
-
-} catch Error as e {
-    LogDebug("ERROR: " e.Message)
-    try progressGui.Destroy()  ; Try to close if it exists
-    
-    ; Provide user-friendly error messages
-    errorMsg := "Update failed"
-    if InStr(e.Message, "internet connection") or InStr(e.Message, "Failed to download") {
-        errorMsg := "Unable to connect to GitHub. Please check your internet connection and try again."
-    } else if InStr(e.Message, "not found in extracted zip") {
-        errorMsg := "The downloaded file appears to be corrupted or incomplete. Please try again."
+    msg := "AutoCorrect2 has been updated: " counts["replaced"] " replaced, " counts["added"] " added, " counts["removed"] " removed.`n`n"
+    msg .= libNote
+    if failed.Length {
+        msg .= "These could not be updated (probably in use). Close AutoCorrect2 and its tools, then run the Updater again:`n"
+        for f in failed
+            msg .= "  - " f "`n"
+        msg .= "`n"
+    }
+    if pending.Length > failed.Length
+        msg .= "Unticked items will be offered again next time.`n`n"
+    if manifest.Length
+        msg .= "Previous versions were saved in Backup\" stamp ". You can undo this update from the Updater.`n`n"
+    msg .= "Restart AutoCorrect2 so the changes take effect."
+    if manifest.Length {
+        if AcMsgBox.Show(msg, AppTitle, ["OK", "Open backup folder"]) = "Open backup folder"
+            Run(sessionDir)
     } else {
-        errorMsg := e.Message
-    }
-    
-    AcMsgBox.Show(errorMsg, "AutoCorrect2 Updater")
-    ExitApp
-}
-
-ShowPendingGui(pendingFiles, lastCheckInfo, fontSize, formColor, fontColor, listColor) {
-    ; Shows a dialog listing files skipped in a previous update run.
-    ; User can update them now, clear the list, or cancel.
-    pendingGui := Gui()
-    pendingGui.Title := "AutoCorrect2 Updater - Pending Files"
-    pendingGui.Opt("+AlwaysOnTop")
-    pendingGui.BackColor := formColor
-    pendingGui.SetFont("s" fontSize " " fontColor)
-
-    pendingGui.Add("Text", "w700 cBlue", "These files were skipped during your last update (" pendingFiles.Length " item(s)):")
-    pendingGui.Add("Text", "w700", "Check the items you want to update now, then click Update.")
-
-    lv := pendingGui.Add("ListView", "w700 r10 Checked -Multi +Background" listColor " y+5", ["Filename", "Path"])
-    for relPath in pendingFiles {
-        SplitPath(relPath, &fname)
-        lv.Add("Check", fname, relPath)
-    }
-    lv.ModifyCol(1, 200)
-    lv.ModifyCol(2, 500)
-
-    ; Pre-check all rows
-    loop lv.GetCount()
-        lv.Modify(A_Index, "+Check")
-
-    pendingGui.Add("Button", "w100 y+8", "Update").OnEvent("Click", ApplyPendingUpdate.Bind(lv, pendingFiles, lastCheckInfo, pendingGui))
-    pendingGui.Add("Button", "x+10 w130", "Clear && Dismiss").OnEvent("Click", ClearPendingAndExit.Bind(lastCheckInfo, pendingGui))
-    pendingGui.Add("Button", "x+10 w100", "Cancel").OnEvent("Click", (*) => ExitApp())
-
-    pendingGui.Show()
-}
-
-ApplyPendingUpdate(lv, pendingFiles, lastCheckInfo, pendingGui, *) {
-    ; Copies whichever pending files the user has checked.
-    ; Resolves srcPath from the still-present temp extract folder.
-    SplitPath(A_ScriptDir, , &parentDir)
-    installDir := parentDir
-    srcRoot    := A_Temp "\AutoCorrect2_Update\extracted\" ZipRootFolderName
-
-    if !DirExist(srcRoot) {
-        AcMsgBox.Show(
-            "The temporary update files are no longer available (Windows may have cleared the temp folder).`n`n"
-            "Please run the Updater again to re-download the latest version.",
-            "AutoCorrect2 Updater")
-        ExitApp
-    }
-
-    skippedNow   := []
-    stillPending := []
-
-    ; Build set of checked rows
-    checkedSet := Map()
-    rowNum := 0
-    loop {
-        rowNum := lv.GetNext(rowNum, "C")
-        if rowNum = 0
-            break
-        checkedSet[rowNum] := true
-    }
-
-    loop lv.GetCount() {
-        relPath := lv.GetText(A_Index, 2)
-        if checkedSet.Has(A_Index) {
-            srcFile  := srcRoot "\" relPath
-            destPath := installDir "\" relPath
-            if !FileExist(srcFile) {
-                LogDebug("Pending src not found in temp: " srcFile)
-                skippedNow.Push(relPath)
-                continue
-            }
-            result := CopyFileWithDirCreation(srcFile, destPath)
-            if result.skipped {
-                skippedNow.Push(relPath)
-                LogDebug("Pending copy failed (locked): " relPath)
-            } else {
-                LogDebug("Pending updated: " relPath)
-            }
-        } else {
-            stillPending.Push(relPath)
-        }
-    }
-
-    ; Remaining pending = user-unchecked rows + anything that failed to copy
-    remainingPending := []
-    for f in stillPending
-        remainingPending.Push(f)
-    for f in skippedNow
-        remainingPending.Push(f)
-
-    if Type(lastCheckInfo) = "Map" and lastCheckInfo.Has("sha")
-        StoreUpdateCheckInfo(lastCheckInfo["sha"], lastCheckInfo["date"], remainingPending)
-
-    pendingGui.Hide()
-
-    if skippedNow.Length > 0 {
-        skippedList := ""
-        for f in skippedNow
-            skippedList .= "  - " f "`n"
-        AcMsgBox.Show(
-            "Update applied.`n`n"
-            "The following file(s) could not be updated (still in use):`n`n"
-            skippedList "`n"
-            "They remain in your pending list for next time.",
-            "AutoCorrect2 Updater")
-    } else if remainingPending.Length > 0 {
-        AcMsgBox.Show(
-            "Selected files updated.`n`n"
-            "You still have " remainingPending.Length " pending file(s). Run the Updater again to review them.",
-            "AutoCorrect2 Updater")
-    } else {
-        AcMsgBox.Show("All pending files have been updated successfully!", "AutoCorrect2 Updater")
+        AcMsgBox.Show(msg, AppTitle)
     }
     ExitApp
 }
 
-ClearPendingAndExit(lastCheckInfo, pendingGui, *) {
-    ; Clears the pending list without copying any files.
-    if Type(lastCheckInfo) = "Map" and lastCheckInfo.Has("sha")
-        StoreUpdateCheckInfo(lastCheckInfo["sha"], lastCheckInfo["date"], [])
-    LogDebug("Pending list cleared by user.")
-    pendingGui.Hide()
-    AcMsgBox.Show("Pending update list cleared. The Updater will not remind you about these files again.", "AutoCorrect2 Updater")
-    ExitApp
-}
-
-ShowUpdateGui(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, hotstringLibName, installDir, latestInfo, fontSize, formColor, fontColor, listColor) {
-    updateGui := Gui()
-    updateGui.Title := "AutoCorrect2 - Select Updates"
-    updateGui.Opt("+AlwaysOnTop")
-    updateGui.BackColor := formColor
-    
-    ; Apply font size from settings
-    updateGui.SetFont("s" fontSize " " fontColor)
-
-    lvUpdated := ""
-    lvNew := ""
-    lvHotstringLib := ""
-    
-    ; Track HotstringLib state (true = append (1), false = replace)
-    hotstringLibMode := Map()  ; Will store which radio is selected
-    
-    ; Build a combined list of all updated files with checked state info
-    allUpdatedFiles := []
-    rarelyUpdatedMap := Map()
-    
-    ; Add regularly updated files (will be checked)
-    for item in updatedFiles {
-        allUpdatedFiles.Push({data: item, shouldCheck: true})
-    }
-    
-    ; Add rarely updated files (will be unchecked) and track them
-    for item in rarelyUpdatedFiles {
-        allUpdatedFiles.Push({data: item, shouldCheck: false})
-        rarelyUpdatedMap[item.path] := true
-    }
-
-    ; Show all updated files in one ListView
-    if allUpdatedFiles.Length > 0 {
-        updateGui.Add("Text", "w700 cBlue", "Updated files (" allUpdatedFiles.Length "):")
-        lvUpdated := updateGui.Add("ListView", "w700 r8 Checked -Multi +Background" listColor, ["Filename", "Path"])
-        
-        for item in allUpdatedFiles {
-            displayName := SubStr(item.data.relPath, InStr(item.data.relPath, "\") + 1)
-            if item.data.HasOwnProp("isInUse") and item.data.isInUse
-                displayName .= "  [in use - cannot self-update]"
-            ; Uncheck if rarely-updated OR flagged as in-use
-            shouldCheck := item.shouldCheck and !(item.data.HasOwnProp("isInUse") and item.data.isInUse)
-            if shouldCheck
-                lvUpdated.Add("Check", displayName, item.data.relPath)
-            else
-                lvUpdated.Add("", displayName, item.data.relPath)
-        }
-        
-        lvUpdated.ModifyCol(1, 200)
-        lvUpdated.ModifyCol(2, 500)
-        
-        ; Pre-check only the regularly updated items
-        rowNum := 0
-        loop {
-            rowNum := lvUpdated.GetNext(rowNum)
-            if rowNum = 0
-                break
-            
-            if rowNum <= updatedFiles.Length {
-                lvUpdated.Modify(rowNum, "+Check")
-            }
-        }
-    }
-
-    ; Show new files with checkboxes (checked by default)
-    if newFiles.Length > 0 {
-        updateGui.Add("Text", "w700 cGreen y+8", "New files (" newFiles.Length "):")
-        lvNew := updateGui.Add("ListView", "w700 r8 Checked -Multi +Background" listColor, ["Filename", "Path"])
-        
-        for item in newFiles {
-            lvNew.Add("Check", SubStr(item.relPath, InStr(item.relPath, "\") + 1), item.relPath)
-        }
-        
-        lvNew.ModifyCol(1, 200)
-        lvNew.ModifyCol(2, 500)
-        
-        ; Pre-check all new items
-        loop lvNew.GetCount()
-            lvNew.Modify(A_Index, "+Check")
-    }
-
-    ; Show HotstringLib update with radio button options
-    if hotstringLibUpdate != "" {
-        updateGui.Add("Text", "w700 cBlack y+8", "HotstringLib Update Available")
-        
-        ; Radio button option 1: Keep as (1), safe for customizers
-        radAppend := updateGui.Add("Radio", "w700 h38 Checked vHotstringLibMode", "Save new library as: Core\HotstringLib (1).ahk. Your current AutoCorrectHotstrings.ahk will not be modified. Use UniqueStringExtractor tool to compare and merge.")
-        
-        ; Radio button option 2: Replace existing, no merge needed
-        radReplace := updateGui.Add("Radio", "w700 h38", "WARNING: Replaces your existing AutoCorrectHotstrings.ahk file. Any customizations you've made will be lost, but you won't have to bother merging the old and new versions.")
-        
-        ; ListView for HotstringLib - initially shows merge mode
-        lvHotstringLib := updateGui.Add("ListView", "w700 r2 Checked -Multi +Background" listColor " y+5", ["Filename", "Path"])
-        lvHotstringLib.Add("", "HotstringLib (1).ahk", "Core\HotstringLib (1).ahk")
-        lvHotstringLib.ModifyCol(1, 200)
-        lvHotstringLib.ModifyCol(2, 500)
-        
-        ; Store the ListView reference in the GUI object for access in event handlers
-        updateGui.lvHotstringLib := lvHotstringLib
-        updateGui.radReplace := radReplace
-        updateGui.fontColor := fontColor
-        
-        ; Add event handlers to update the ListView filename and color when radio button changes
-        radAppend.OnEvent("Click", HotstringLibModeChanged.Bind(updateGui, 1))
-        radReplace.OnEvent("Click", HotstringLibModeChanged.Bind(updateGui, 0))
-    }
-
-    ; Buttons
-    updateGui.Add("Button", "w100 y+8", "Update").OnEvent("Click", (*) => PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, updateGui, lvUpdated, lvNew, lvHotstringLib, latestInfo))
-    updateGui.Add("Button", "x+10 w100", "Cancel").OnEvent("Click", (*) => ExitApp())
-
-    updateGui.Show()
-}
-
-; Event handler for HotstringLib radio button changes
-HotstringLibModeChanged(updateGui, mode, GuiCtrlObj, Info) {
-    ; Update ListView
-    if updateGui.lvHotstringLib != "" {
-        updateGui.lvHotstringLib.Delete(1)  ; Delete the existing row
-        if mode = 1 {
-            ; Mode 1: Append as (1) - merge mode
-            updateGui.lvHotstringLib.Add("", "HotstringLib (1).ahk", "Core\HotstringLib (1).ahk")
-            LogDebug("Radio mode changed to: MERGE (1)")
-        } else {
-            ; Mode 2: Replace existing - simple mode
-            updateGui.lvHotstringLib.Add("", "AutoCorrectHotstrings.ahk", "Core\AutoCorrectHotstrings.ahk")
-            LogDebug("Radio mode changed to: REPLACE")
-        }
-    }
-    
-    ; Update radio button font colors for visual warning
-    if updateGui.radReplace != "" {
-        if mode = 0 {
-            ; Replace mode selected - turn text RED as a warning
-            updateGui.radReplace.Opt("+cFF0000")
-            LogDebug("Replace mode selected - radio button text is RED")
-        } else {
-            ; Merge mode selected - return to normal font color
-            updateGui.radReplace.Opt("+" updateGui.fontColor)
-            LogDebug("Merge mode selected - radio button text is normal color")
-        }
-    }
-}
-
-PerformUpdate(updatedFiles, rarelyUpdatedFiles, newFiles, hotstringLibUpdate, installDir, updateGui, lvUpdated, lvNew, lvHotstringLib, latestInfo) {
-    LogDebug("Starting file copy...")
-    LogDebug("lvUpdated: " (lvUpdated != "" ? "exists" : "null"))
-    LogDebug("lvNew: " (lvNew != "" ? "exists" : "null"))
-    LogDebug("lvHotstringLib: " (lvHotstringLib != "" ? "exists" : "null"))
-    
-    ; Get the form values to check which HotstringLib mode was selected
-    formValues := updateGui.Submit(0)  ; Submit without destroying the GUI
-
-    skippedFiles := []  ; Files that failed to copy due to being locked/in-use
-    if lvUpdated != "" {
-        LogDebug("Processing updated files...")
-        rowNum := 0
-        rowIndex := 0
-        loop {
-            rowNum := lvUpdated.GetNext(rowNum, "C")  ; "C" for checked rows
-            if rowNum = 0
-                break
-            
-            rowIndex++
-            LogDebug("Found checked row: " rowNum)
-            
-            ; Determine if this row is from updatedFiles or rarelyUpdatedFiles
-            if rowNum <= updatedFiles.Length {
-                file := updatedFiles[rowNum]
-                LogDebug("Copying (updated): " file.relPath)
-                result := CopyFileWithDirCreation(file.srcPath, file.path)
-                if result.skipped
-                    skippedFiles.Push(file.relPath)
-                else
-                    LogDebug("Updated: " file.relPath)
-            } else {
-                rarelyIndex := rowNum - updatedFiles.Length
-                if rarelyIndex <= rarelyUpdatedFiles.Length {
-                    file := rarelyUpdatedFiles[rarelyIndex]
-                    LogDebug("Copying (rarely updated): " file.relPath)
-                    result := CopyFileWithDirCreation(file.srcPath, file.path)
-                    if result.skipped
-                        skippedFiles.Push(file.relPath)
-                    else
-                        LogDebug("Updated: " file.relPath)
-                }
-            }
-        }
-    }
-
-    ; Copy checked new files
-    if lvNew != "" {
-        LogDebug("Processing new files...")
-        rowNum := 0
-        loop {
-            rowNum := lvNew.GetNext(rowNum, "C")  ; "C" for checked rows
-            if rowNum = 0
-                break
-            
-            LogDebug("Found checked row: " rowNum)
-            if rowNum <= newFiles.Length {
-                file := newFiles[rowNum]
-                LogDebug("Copying: " file.relPath)
-                result := CopyFileWithDirCreation(file.srcPath, file.path)
-                if result.skipped
-                    skippedFiles.Push(file.relPath)
-                else
-                    LogDebug("Added: " file.relPath)
-            }
-        }
-    }
-
-    ; Handle HotstringLib update with mode selection
-    if lvHotstringLib != "" {
-        LogDebug("Processing HotstringLib...")
-        rowNum := lvHotstringLib.GetNext(0, "C")  ; Check first (and only) row
-        if rowNum = 1 {
-            ; Determine which mode was selected based on radio button value
-            ; formValues.HotstringLibMode = 1 means first radio (append as (1), merge mode)
-            ; formValues.HotstringLibMode = 0 means second radio (replace existing)
-            
-            if formValues.HotstringLibMode = 1 {
-                ; Mode 1: Keep as HotstringLib (1).ahk - MERGE MODE
-                LogDebug("HotstringLib mode: MERGE (append as (1))")
-                
-                ; Source file from GitHub
-                srcFile := hotstringLibUpdate.srcPath
-                
-                ; Destination: Core\HotstringLib (1).ahk
-                destFile := A_ScriptDir "\..\Core\HotstringLib (1).ahk"
-                
-                LogDebug("Copying (merge mode): " srcFile " -> " destFile)
-                result := CopyFileWithDirCreation(srcFile, destFile)
-                if result.skipped
-                    skippedFiles.Push("Core\HotstringLib (1).ahk")
-                else
-                    LogDebug("Created: HotstringLib (1).ahk (existing AutoCorrectHotstrings.ahk untouched)")
-                
-            } else {
-                ; Mode 2: Replace existing AutoCorrectHotstrings.ahk - REPLACE MODE
-                LogDebug("HotstringLib mode: REPLACE (direct replacement)")
-                
-                ; Source file from GitHub
-                srcFile := hotstringLibUpdate.srcPath
-                
-                ; Destination: Core\AutoCorrectHotstrings.ahk (replacing existing)
-                destFile := A_ScriptDir "\..\Core\AutoCorrectHotstrings.ahk"
-                
-                LogDebug("Copying (replace mode): " srcFile " -> " destFile)
-                result := CopyFileWithDirCreation(srcFile, destFile)
-                if result.skipped
-                    skippedFiles.Push("Core\AutoCorrectHotstrings.ahk")
-                else
-                    LogDebug("Replaced: AutoCorrectHotstrings.ahk")
-            }
-        } else {
-            LogDebug("HotstringLib update skipped by user")
-        }
-    }
-
-    ; Store the latest update check info, including any files the user left unchecked
-    ; Walk every row in each ListView - unchecked rows become the new pending list
-    uncheckedFiles := []
-    if lvUpdated != "" {
-        checkedSet := Map()
-        rowNum := 0
-        loop {
-            rowNum := lvUpdated.GetNext(rowNum, "C")
-            if rowNum = 0
-                break
-            checkedSet[rowNum] := true
-        }
-        loop lvUpdated.GetCount() {
-            if !checkedSet.Has(A_Index) {
-                relPath := lvUpdated.GetText(A_Index, 2)
-                if relPath != ""
-                    uncheckedFiles.Push(relPath)
-            }
-        }
-    }
-    if lvNew != "" {
-        checkedSet := Map()
-        rowNum := 0
-        loop {
-            rowNum := lvNew.GetNext(rowNum, "C")
-            if rowNum = 0
-                break
-            checkedSet[rowNum] := true
-        }
-        loop lvNew.GetCount() {
-            if !checkedSet.Has(A_Index) {
-                relPath := lvNew.GetText(A_Index, 2)
-                if relPath != ""
-                    uncheckedFiles.Push(relPath)
-            }
-        }
-    }
-    ; Also add any lock-skipped files - they weren't updated either
-    for f in skippedFiles
-        uncheckedFiles.Push(f)
-
-    LogDebug("Pending files after this update: " uncheckedFiles.Length)
-
-    if Type(latestInfo) = "Map" {
-        StoreUpdateCheckInfo(latestInfo["sha"], latestInfo["date"], uncheckedFiles)
-    }
-
-    updateGui.Hide()
-
-    if skippedFiles.Length > 0 {
-        skippedList := ""
-        for f in skippedFiles
-            skippedList .= "  - " f "`n"
-        LogDebug("=== Update Completed With Locked Files ===")
-        AcMsgBox.Show(
-            "AutoCorrect2 has been updated.`n`n"
-            "The following file(s) could not be updated because they are currently in use:`n`n"
-            skippedList "`n"
-            "These have been saved to your pending list. Run the Updater again after closing the app to finish.",
-            "AutoCorrect2 Updater")
-    } else if uncheckedFiles.Length > 0 {
-        LogDebug("=== Update Completed - " uncheckedFiles.Length " file(s) left pending ===")
-        AcMsgBox.Show(
-            "AutoCorrect2 has been partially updated.`n`n"
-            "Files you unchecked have been saved to your pending list.`n"
-            "Run the Updater again to review and update them, or clear the pending list.",
-            "AutoCorrect2 Updater")
-    } else {
-        LogDebug("=== Update Completed Successfully ===")
-        AcMsgBox.Show("AutoCorrect2 has been updated successfully!", "AutoCorrect2 Updater")
-    }
-    ExitApp
-}
-
-CopyFileWithDirCreation(srcFile, destPath) {
-    SplitPath(destPath, &fileName, &outDir)
-    if !DirExist(outDir)
-        DirCreate(outDir)
+DeferItem(src, destRel, sessionDir) {
+    ; For the running Updater.exe: back it up now, copy the new one after this script exits (see RunDeferredCopies).
+    dest := InstallDir "\" destRel
+    bak  := sessionDir "\" destRel
     try {
-        FileCopy(srcFile, destPath, 1)
-        return {skipped: false, file: fileName}
-    } catch Error as e {
-        LogDebug("FileCopy failed for '" fileName "': " e.Message)
-        return {skipped: true, file: fileName, reason: "File may be in use or locked."}
+        EnsureParent(bak)
+        FileCopy(dest, bak, 1)          ; reading a running .exe is allowed; only writing is blocked
+        DeferredCopies.Push({src: src, dest: dest})
+        LogDebug("Queued for after exit: " destRel)
+        return {ok: true, kind: "replaced"}
+    } catch as e {
+        LogDebug("FAILED to queue " destRel ": " e.Message)
+        return {ok: false, kind: ""}
     }
 }
 
-IsRarelyUpdated(relPath, folders) {
-    for folder in folders
+RunDeferredCopies(*) {
+    if DeferredCopies.Length = 0
+        return
+    cmd := "ping -n 3 127.0.0.1 >nul"    ; ~2 second pause so this process has closed
+    for c in DeferredCopies
+        cmd .= ' & copy /y "' c.src '" "' c.dest '" >nul'
+    try Run(A_ComSpec ' /c "' cmd '"', , "Hide")
+}
+
+ApplyItem(action, src, destRel, sessionDir) {
+    ; Backs up, then copies or removes one file.  Returns {ok, kind} where kind is replaced/added/removed.
+    dest := InstallDir "\" destRel
+    bak  := sessionDir "\" destRel
+    try {
+        if action = "remove" {
+            EnsureParent(bak)
+            FileMove(dest, bak, 1)
+            TryRemoveEmptyDirs(dest)
+            LogDebug("Removed (moved to backup): " destRel)
+            return {ok: true, kind: "removed"}
+        }
+        existed := FileExist(dest) != ""
+        if existed {
+            EnsureParent(bak)
+            FileCopy(dest, bak, 1)
+        }
+        EnsureParent(dest)
+        FileCopy(src, dest, 1)
+        LogDebug((existed ? "Replaced: " : "Added: ") destRel)
+        return {ok: true, kind: existed ? "replaced" : "added"}
+    } catch as e {
+        LogDebug("FAILED " action " " destRel ": " e.Message)
+        return {ok: false, kind: ""}
+    }
+}
+
+; ==========================================================================
+; BACKUP SESSIONS AND UNDO
+; ==========================================================================
+WriteManifest(sessionDir, entries, ctx) {
+    f := sessionDir "\UpdateManifest.ini"
+    try {
+        DirCreate(sessionDir)
+        IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), f, "Update", "Date")
+        IniWrite(ctx.last.sha, f, "Update", "FromSha")
+        IniWrite(ctx.last.date, f, "Update", "FromDate")
+        IniWrite(ctx.last.pendingRaw, f, "Update", "FromPending")
+        IniWrite(ctx.latest.sha, f, "Update", "ToSha")
+        IniWrite(0, f, "Update", "Undone")
+        IniWrite(entries.Length, f, "Files", "Count")
+        for i, e in entries
+            IniWrite(e, f, "Files", i)
+    } catch as e {
+        LogDebug("Could not write manifest: " e.Message)
+    }
+}
+
+ListBackupSessions() {
+    ; Returns sessions newest first: {dir, name, date, count, undone, undoneAt}
+    out := []
+    names := ""
+    if DirExist(BackupDir)
+        loop Files, BackupDir "\*", "D"
+            if FileExist(A_LoopFileFullPath "\UpdateManifest.ini")
+                names .= A_LoopFileName "`n"
+    names := RTrim(names, "`n")
+    if names = ""
+        return out
+    for name in StrSplit(Sort(names, "R"), "`n") {
+        dir := BackupDir "\" name
+        f := dir "\UpdateManifest.ini"
+        out.Push({dir: dir, name: name
+            , date: IniRead(f, "Update", "Date", name)
+            , count: IniRead(f, "Files", "Count", 0)
+            , undone: IniRead(f, "Update", "Undone", 0) = "1"
+            , undoneAt: IniRead(f, "Update", "UndoneAt", "")})
+    }
+    return out
+}
+
+LatestUndoableSession() {
+    for s in ListBackupSessions()
+        if !s.undone
+            return s
+    return ""
+}
+
+ShowUndoGui() {
+    sessions := ListBackupSessions()
+    if sessions.Length = 0 {
+        AcMsgBox.Show("There are no saved updates to undo.", AppTitle)
+        ExitApp
+    }
+    ug := Gui("+AlwaysOnTop", "AutoCorrect2 Updater - Undo an Update (" UpdaterVersion ")")
+    ug.BackColor := Cfg.FormColor
+    ug.SetFont("s" Cfg.FontSize " " Cfg.FontColor)
+    ug.OnEvent("Close", (*) => ExitApp())
+    ug.OnEvent("Escape", (*) => ExitApp())
+
+    ug.Add("Text", "w640", "Pick an update to undo. Files it replaced or removed are put back, and files it added are moved out. Your current copies are saved first, inside that update's backup folder.")
+    lv := ug.Add("ListView", "w640 r8 -Multi NoSort NoSortHdr +Background" Cfg.ListColor, ["Updated on", "Files", "Status"])
+    for s in sessions
+        lv.Add(, s.date, s.count, s.undone ? "Undone " s.undoneAt : "")
+    lv.ModifyCol(1, 200)
+    lv.ModifyCol(2, 70)
+    lv.ModifyCol(3, 340)
+    lv.Modify(1, "Select Focus")
+
+    ug.Add("Button", "w180 Default", "Undo selected update").OnEvent("Click", UndoClicked.Bind(sessions, lv, ug))
+    ug.Add("Button", "x+10 w180", "Open backup folder").OnEvent("Click", OpenSessionFolder.Bind(sessions, lv))
+    ug.Add("Button", "x+10 w100", "Close").OnEvent("Click", (*) => ExitApp())
+    ug.Show()
+}
+
+OpenSessionFolder(sessions, lv, *) {
+    row := lv.GetNext(0)
+    Run(row ? sessions[row].dir : BackupDir)
+}
+
+UndoClicked(sessions, lv, ug, *) {
+    row := lv.GetNext(0)
+    if !row
+        return
+    s := sessions[row]
+    if s.undone {
+        AcMsgBox.Show("That update has already been undone.", AppTitle)
+        return
+    }
+    newerPending := false
+    loop row - 1
+        if !sessions[A_Index].undone
+            newerPending := true
+
+    msg := "Undo the update from " s.date "?`n`n" s.count " file(s) will be put back the way they were before it."
+    if newerPending
+        msg .= "`n`nNote: a newer update has not been undone. For a clean result, undo the newer one first."
+    if AcMsgBox.Show(msg, AppTitle, "48 YesNo") != "Yes"
+        return
+    ug.Hide()
+
+    f := s.dir "\UpdateManifest.ini"
+    keepDir := s.dir "\_before_undo_" FormatTime(A_Now, "yyyy-MM-dd_HHmmss")
+    n := Integer(IniRead(f, "Files", "Count", 0))
+    failed := [], done := 0
+    i := n
+    while i >= 1 {                  ; reverse order
+        entry := IniRead(f, "Files", i, "")
+        i--
+        parts := StrSplit(entry, "|", , 2)
+        if parts.Length < 2
+            continue
+        kind := parts[1], rel := parts[2]
+        cur  := InstallDir "\" rel
+        bak  := s.dir "\" rel
+        keep := keepDir "\" rel
+        try {
+            if (kind = "replaced" || kind = "removed") {
+                if !FileExist(bak)
+                    throw Error("backup copy is missing")
+                if FileExist(cur) {
+                    EnsureParent(keep)
+                    FileCopy(cur, keep, 1)
+                }
+                EnsureParent(cur)
+                FileCopy(bak, cur, 1)
+                done++
+            } else if (kind = "added") {
+                ; Don't pull out a protected file (e.g. settings) the user may have edited since.
+                if !MatchesAny(rel, ProtectedRx) && FileExist(cur) {
+                    EnsureParent(keep)
+                    FileMove(cur, keep, 1)
+                    TryRemoveEmptyDirs(cur)
+                    done++
+                }
+            }
+        } catch as e {
+            failed.Push(rel " (" e.Message ")")
+            LogDebug("Undo failed for " rel ": " e.Message)
+        }
+    }
+
+    if failed.Length = 0 {
+        IniWrite(1, f, "Update", "Undone")
+        IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm"), f, "Update", "UndoneAt")
+        ; Reset the update check so this update is offered again.
+        StoreLastCheckRaw(IniRead(f, "Update", "FromSha", ""), IniRead(f, "Update", "FromDate", "")
+            , IniRead(f, "Update", "FromPending", ""))
+        LogDebug("Undo complete: " s.name " (" done " files)")
+        AcMsgBox.Show("Undo complete: " done " file(s) put back.`n`nYour copies from just before the undo are in:`n"
+            . "Backup\" s.name "\" SubStr(keepDir, StrLen(s.dir) + 2) "`n`nRestart AutoCorrect2 so the changes take effect.", AppTitle)
+    } else {
+        list := ""
+        for x in failed
+            list .= "  - " x "`n"
+        AcMsgBox.Show("The undo was only partly done (" done " file(s) put back). These could not be restored, probably because they are in use:`n`n"
+            . list "`nClose AutoCorrect2 and its tools, then try the undo again.", AppTitle)
+    }
+    ExitApp
+}
+
+; ==========================================================================
+; LAST UPDATE CHECK
+; ==========================================================================
+ReadLastCheck() {
+    sha := "", date := "", raw := ""
+    if FileExist(CheckFile) {
+        sha  := IniRead(CheckFile, "UpdateCheck", "LastCommitHash", "")
+        date := IniRead(CheckFile, "UpdateCheck", "LastCommitDate", "")
+        raw  := IniRead(CheckFile, "UpdateCheck", "PendingFiles", "")
+    }
+    pending := []
+    for item in StrSplit(raw, "|")
+        if Trim(item) != ""
+            pending.Push(Trim(item))
+    return {sha: sha, date: date, pendingRaw: raw, pending: pending}
+}
+
+StoreLastCheck(sha, date, pendingFiles) {
+    raw := ""
+    for item in pendingFiles
+        raw .= (raw = "" ? "" : "|") item
+    StoreLastCheckRaw(sha, date, raw)
+}
+
+StoreLastCheckRaw(sha, date, pendingRaw) {
+    try {
+        EnsureParent(CheckFile)
+        IniWrite(sha, CheckFile, "UpdateCheck", "LastCommitHash")
+        IniWrite(date, CheckFile, "UpdateCheck", "LastCommitDate")
+        IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), CheckFile, "UpdateCheck", "LastCheckTime")
+        IniWrite(pendingRaw, CheckFile, "UpdateCheck", "PendingFiles")
+        LogDebug("Stored check: " sha " | pending: " pendingRaw)
+    } catch as e {
+        LogDebug("Error writing LastUpdateCheck.ini: " e.Message)
+    }
+}
+
+; ==========================================================================
+; SETTINGS, PROGRESS, LOGGING
+; ==========================================================================
+LoadSettings() {
+    f := SettingsFile
+    s := {}
+    s.FontSize        := IniRead(f, "HotstringHelper", "DefaultFontSize", "11")
+    s.MainLibName     := IniRead(f, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
+    s.CopyLibName     := IniRead(f, "Files", "NewTemporaryHotstrLib", "AutoCorrectHotstrings (1).ahk")
+    s.PersonalLibName := IniRead(f, "Files", "BoilerplateHotstringLibrary", "PersonalHotstrings.ahk")
+    s.FormColor := "0xE5E4E2"
+    s.FontColor := "c0x1F1F1F"
+    s.ListColor := "0xFFFFFF"
+    ct := InstallDir "\Data\colorThemeSettings.ini"
+    if FileExist(ct) {
+        s.FormColor := IniRead(ct, "ColorSettings", "formColor", s.FormColor)
+        s.FontColor := "c" IniRead(ct, "ColorSettings", "fontColor", "0x1F1F1F")
+        s.ListColor := IniRead(ct, "ColorSettings", "listColor", s.ListColor)
+    }
+    return s
+}
+
+MakeProgressGui() {
+    pg := Gui("+AlwaysOnTop", AppTitle)
+    pg.BackColor := Cfg.FormColor
+    pg.SetFont("s" Cfg.FontSize " " Cfg.FontColor)
+    pg.txt := pg.Add("Text", "w400 h30", "Checking for updates...")
+    pg.bar := pg.Add("Progress", "w400 h20 Range0-100", 0)
+    pg.Show("w420 h100")
+    return pg
+}
+
+SetProgress(text, pct) {
+    if IsObject(Prog) {
+        Prog.Title := "AutoCorrect2 Updater - " text " (" UpdaterVersion ")"
+        Prog.txt.Value := text
+        Prog.bar.Value := pct
+    }
+}
+
+CloseProgress() {
+    global Prog
+    if IsObject(Prog)
+        try Prog.Destroy()
+    Prog := ""
+}
+
+LogDebug(msg) {
+    if !EnableDebugLog
+        return
+    try {
+        if !DirExist(DebugDir)
+            DirCreate(DebugDir)
+        FileAppend("[" FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss") "] " msg "`n", DebugFile)
+    }
+}
+
+; ==========================================================================
+; FILE HELPERS
+; ==========================================================================
+SameContent(a, b) {
+    ; True if the files are byte-identical, or (for text files) identical apart from line endings / BOM.
+    try {
+        sa := FileGetSize(a), sb := FileGetSize(b)
+        if sa = sb {
+            if sa = 0
+                return true
+            ba := FileRead(a, "RAW"), bb := FileRead(b, "RAW")
+            if DllCall("msvcrt\memcmp", "Ptr", ba, "Ptr", bb, "UPtr", sa, "Cdecl Int") = 0
+                return true
+        }
+        SplitPath(a, , , &ext)
+        if !TextExts.Has(ext)
+            return false
+        ta := StrReplace(FileRead(a, "UTF-8"), "`r`n", "`n")
+        tb := StrReplace(FileRead(b, "UTF-8"), "`r`n", "`n")
+        return ta == tb
+    } catch {
+        return false
+    }
+}
+
+IsLocked(path) {
+    ; True if the file can't be opened for writing (a running .exe, for example).
+    try {
+        f := FileOpen(path, "a")
+        f.Close()
+        return false
+    } catch {
+        return true
+    }
+}
+
+EnsureParent(path) {
+    SplitPath(path, , &dir)
+    if !DirExist(dir)
+        DirCreate(dir)
+}
+
+TryRemoveEmptyDirs(path) {
+    ; Removes now-empty parent folders, stopping at the install folder.
+    SplitPath(path, , &dir)
+    while StrLen(dir) > StrLen(InstallDir) {
+        try DirDelete(dir, false)
+        catch
+            break
+        SplitPath(dir, , &dir)
+    }
+}
+
+CheckedRows(lv) {
+    rows := Map()
+    row := 0
+    while (row := lv.GetNext(row, "C"))
+        rows[row] := true
+    return rows
+}
+
+IsRarelyUpdated(relPath) {
+    for folder in RarelyUpdatedFolders
         if SubStr(relPath, 1, StrLen(folder)) = folder
             return true
     return false
 }
 
-NormalizePath(path) {
-    path := StrReplace(path, "/", "\")
-    while SubStr(path, -0) = "\"
-        path := SubStr(path, 1, -1)
-    return StrLower(path)
+GlobsToRegex(globs) {
+    out := []
+    for p in globs {
+        r := ""
+        loop Parse p {
+            c := A_LoopField
+            if c = "*"
+                r .= ".*"
+            else if c = "?"
+                r .= "."
+            else if InStr("\.^$|()[]{}+", c)
+                r .= "\" c
+            else
+                r .= c
+        }
+        out.Push("i)^" r "$")
+    }
+    return out
+}
+
+MatchesAny(relPath, regexList) {
+    for rx in regexList
+        if RegExMatch(relPath, rx)
+            return true
+    return false
+}
+
+NewMap() {
+    m := Map()
+    m.CaseSense := false
+    return m
+}
+
+; ==========================================================================
+; MINIMAL JSON READER (objects -> Map, arrays -> Array, null -> "")
+; Strings are passed ByRef so large replies aren't copied on every call.
+; ==========================================================================
+JsonParse(&text) {
+    pos := 1
+    return _JsonValue(&text, &pos)
+}
+
+JGet(obj, keys*) {
+    ; Safe nested lookup: JGet(c, "commit", "author", "date") returns "" if any level is missing.
+    for k in keys {
+        if (obj is Map && obj.Has(k))
+            obj := obj[k]
+        else if (obj is Array && IsInteger(k) && k >= 1 && k <= obj.Length)
+            obj := obj[k]
+        else
+            return ""
+    }
+    return obj
+}
+
+_JsonSkipWs(&text, &pos) {
+    if RegExMatch(text, "\G[ \t\r\n]+", &m, pos)
+        pos += m.Len
+}
+
+_JsonValue(&text, &pos) {
+    _JsonSkipWs(&text, &pos)
+    ch := SubStr(text, pos, 1)
+    if ch = "{" {
+        obj := Map(), pos++
+        _JsonSkipWs(&text, &pos)
+        if SubStr(text, pos, 1) = "}" {
+            pos++
+            return obj
+        }
+        loop {
+            _JsonSkipWs(&text, &pos)
+            if SubStr(text, pos, 1) != '"'
+                throw Error("JSON: expected a key at " pos)
+            key := _JsonString(&text, &pos)
+            _JsonSkipWs(&text, &pos)
+            if SubStr(text, pos, 1) != ":"
+                throw Error("JSON: expected ':' at " pos)
+            pos++
+            obj[key] := _JsonValue(&text, &pos)
+            _JsonSkipWs(&text, &pos)
+            ch := SubStr(text, pos, 1), pos++
+            if ch = "}"
+                return obj
+            if ch != ","
+                throw Error("JSON: expected ',' or '}' at " (pos - 1))
+        }
+    }
+    if ch = "[" {
+        arr := [], pos++
+        _JsonSkipWs(&text, &pos)
+        if SubStr(text, pos, 1) = "]" {
+            pos++
+            return arr
+        }
+        loop {
+            arr.Push(_JsonValue(&text, &pos))
+            _JsonSkipWs(&text, &pos)
+            ch := SubStr(text, pos, 1), pos++
+            if ch = "]"
+                return arr
+            if ch != ","
+                throw Error("JSON: expected ',' or ']' at " (pos - 1))
+        }
+    }
+    if ch = '"'
+        return _JsonString(&text, &pos)
+    if RegExMatch(text, "\G-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?", &m, pos) {
+        pos += m.Len
+        return Number(m[0])
+    }
+    if SubStr(text, pos, 4) == "true" {
+        pos += 4
+        return true
+    }
+    if SubStr(text, pos, 5) == "false" {
+        pos += 5
+        return false
+    }
+    if SubStr(text, pos, 4) == "null" {
+        pos += 4
+        return ""
+    }
+    throw Error("JSON: unexpected character at " pos)
+}
+
+_JsonString(&text, &pos) {
+    ; pos is on the opening quote.  Finds the closing quote (one not preceded by an odd number of backslashes).
+    start := pos + 1, i := start
+    loop {
+        q := InStr(text, '"', true, i)
+        if !q
+            throw Error("JSON: unterminated string at " pos)
+        bs := 0, k := q - 1
+        while (k >= start && SubStr(text, k, 1) = "\")
+            bs++, k--
+        if Mod(bs, 2) = 0
+            break
+        i := q + 1
+    }
+    raw := SubStr(text, start, q - start)
+    pos := q + 1
+    return _JsonUnescape(raw)
+}
+
+_JsonUnescape(s) {
+    if !InStr(s, "\")
+        return s
+    s := StrReplace(s, "\\", Chr(1), true)
+    s := StrReplace(s, '\"', '"', true)
+    s := StrReplace(s, "\/", "/", true)
+    s := StrReplace(s, "\n", "`n", true)
+    s := StrReplace(s, "\r", "`r", true)
+    s := StrReplace(s, "\t", "`t", true)
+    s := StrReplace(s, "\b", Chr(8), true)
+    s := StrReplace(s, "\f", Chr(12), true)
+    while RegExMatch(s, "\\u([0-9A-Fa-f]{4})", &m)
+        s := StrReplace(s, m[0], Chr(Integer("0x" m[1])), true)
+    return StrReplace(s, Chr(1), "\", true)
 }
