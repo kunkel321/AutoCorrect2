@@ -1,109 +1,30 @@
-[2026-03-22 07:59:18] === Update Started ===
-[2026-03-22 07:59:18] Script Directory: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2\Tools
-[2026-03-22 07:59:18] HotstringLib name: HotstringLib (1).ahk
-[2026-03-22 07:59:18] Checking GitHub API for latest commit...
-[2026-03-22 07:59:18] GitHub API response received, parsing JSON...
-[2026-03-22 07:59:18] Response length: 3898
-[2026-03-22 07:59:18] First 500 chars: [{"sha":"2b4adb744c805e43e6feb3c0a3f742185b016c12","node_id":"C_kwDOLty75doAKDJiNGFkYjc0NGM4MDVlNDNlNmZlYjNjMGEzZjc0MjE4NWIwMTZjMTI","commit":{"author":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-03-22T14:58:53Z"},"committer":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-03-22T14:58:53Z"},"message":"Updater.ahk and new exe versions\n\n-The Updater.ahk tool has been updated to handle error of self-update imposibility.\n-The Update.ahk code can update 
-[2026-03-22 07:59:18] shaPos: 3
-[2026-03-22 07:59:18] First quote after sha: 9
-[2026-03-22 07:59:18] End quote: 50
-[2026-03-22 07:59:18] datePos: 208
-[2026-03-22 07:59:18] colonPos: 214
-[2026-03-22 07:59:18] Quote after colon: 215
-[2026-03-22 07:59:18] End quote: 236
-[2026-03-22 07:59:18] Extracted SHA: 2b4adb744c805e43e6feb3c0a3f742185b016c12
-[2026-03-22 07:59:18] Extracted date: 2026-03-22T14:58:53Z
-[2026-03-22 07:59:18] Latest commit: SHA=2b4adb744c805e43e6feb3c0a3f742185b016c12, Date=2026-03-22T14:58:53Z
-[2026-03-22 07:59:19] LastUpdateCheck.ini not found - first run or data file missing
-[2026-03-22 07:59:19] Update available! Proceeding with file comparison...
-[2026-03-22 07:59:19] Install Dir: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2
-[2026-03-22 07:59:19] Temp Dir: C:\Users\steve\AppData\Local\Temp\AutoCorrect2_Update
-[2026-03-22 07:59:19] Cleaning temp directory...
-[2026-03-22 07:59:19] Temp directory created.
-[2026-03-22 07:59:19] Downloading from: https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/main.zip
-[2026-03-22 07:59:23] Download completed.
-[2026-03-22 07:59:23] Starting zip extraction...
-[2026-03-22 07:59:34] Zip extraction completed.
-[2026-03-22 07:59:34] Source root directory found.
-[2026-03-22 07:59:34] Building rarely-updated map...
-[2026-03-22 07:59:34] Rarely updated (offer unchecked): c:\users\steve\onedrive\documents\github\autocorrect2\data\acsettings.ini
-[2026-03-22 07:59:34] Rarely updated (offer unchecked): c:\users\steve\onedrive\documents\github\autocorrect2\data\autocorrectslog.txt
-[2026-03-22 07:59:34] Rarely updated (offer unchecked): c:\users\steve\onedrive\documents\github\autocorrect2\data\manualcorrectionslog.txt
-[2026-03-22 07:59:34] Rarely updated (offer unchecked): c:\users\steve\onedrive\documents\github\autocorrect2\data\errcontextlog.txt
-[2026-03-22 07:59:34] Scanning for updated and new files...
-[2026-03-22 07:59:34] Updated file found: desktop.ini (size: 184 ? 178)
-[2026-03-22 07:59:34] Updated file found: README.md (size: 7410 ? 7338)
-[2026-03-22 07:59:34] Found HotstringLib.ahk in GitHub
-[2026-03-22 07:59:34] HotstringLib.ahk (HotstringLib (1).ahk) is new/missing
-[2026-03-22 07:59:34] Updated file found: Core\PersonalHotstrings.ahk (size: 721 ? 710)
-[2026-03-22 07:59:34] Updated file found: Data\colorThemeSettings.ini (size: 2213 ? 2101)
-[2026-03-22 07:59:34] Updated file found: Data\GitHubComboList249k.txt (size: 2758518 ? 2509438)
-[2026-03-22 07:59:34] Rarely-updated file found (unchecked by default): Data\ManualCorrectionsLog.txt
-[2026-03-22 07:59:34] Updated file found: Data\RemovedHotstrings.txt (size: 3947 ? 3945)
-[2026-03-22 07:59:34] Updated file found: Data\unigram_freq_list_filtered_88k.csv (size: 1521828 ? 1432912)
-[2026-03-22 07:59:35] Updated file found: Resources\Dictionary\WordNet-3.0\word list readme.txt (size: 920 ? 913)
-[2026-03-22 07:59:35] Updated file found: Resources\Dictionary\WordNet-3.0\WordNet Legal Cite.txt (size: 1290 ? 1271)
-[2026-03-22 07:59:35] Updated file found: Resources\Icons\Icon Sources (size: 126 ? 125)
-[2026-03-22 07:59:35] Updated file found: Tools\ExtractPotentialMisspellings.ahk (size: 8210 ? 7997)
-[2026-03-22 07:59:35] Updated file found: Tools\UniqueStringExtractor.ahk (size: 5518 ? 5357)
-[2026-03-22 07:59:35] Updated file found: Tools\Updater.ahk (size: 31917 ? 31154 [flagged as in-use])
-[2026-03-22 07:59:35] Found 13 updated files, 1 rarely-updated files, 0 new files, and HotstringLib update: yes
-[2026-03-22 08:00:17] Starting file copy...
-[2026-03-22 08:00:17] lvUpdated: exists
-[2026-03-22 08:00:17] lvNew: null
-[2026-03-22 08:00:17] lvHotstringLib: exists
-[2026-03-22 08:00:17] Processing updated files...
-[2026-03-22 08:00:17] Found checked row: 13
-[2026-03-22 08:00:17] Copying (updated): Tools\Updater.ahk
-[2026-03-22 08:00:17] Updated: Tools\Updater.ahk
-[2026-03-22 08:00:17] Processing HotstringLib...
-[2026-03-22 08:00:17] HotstringLib update skipped by user
-[2026-03-22 08:00:17] Stored update check info: SHA=2b4adb744c805e43e6feb3c0a3f742185b016c12, Date=2026-03-22T14:58:53Z
-[2026-03-22 08:00:17] === Update Completed Successfully ===
-[2026-08-01 13:52:33] === Update Started ===
-[2026-08-01 13:52:33] Script Directory: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2\Tools
-[2026-08-01 13:52:33] HotstringLib name: AutoCorrectHotstrings (1).ahk
-[2026-08-01 13:52:33] Checking GitHub API for latest commit...
-[2026-08-01 13:52:33] GitHub API response received, parsing JSON...
-[2026-08-01 13:52:33] Response length: 3507
-[2026-08-01 13:52:33] First 500 chars: [{"sha":"eec35c87e548c9211e81d81607deca3e05a50563","node_id":"C_kwDOLty75doAKGVlYzM1Yzg3ZTU0OGM5MjExZTgxZDgxNjA3ZGVjYTNlMDVhNTA1NjM","commit":{"author":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-07-30T22:35:52Z"},"committer":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-07-30T22:35:52Z"},"message":"Update DragTools.ahk\n\n-The script was preventing the right-click-and-drag to pan feature in the ScreenSnip script from working, if AutoCorrect2 was sta
-[2026-08-01 13:52:33] shaPos: 3
-[2026-08-01 13:52:33] First quote after sha: 9
-[2026-08-01 13:52:33] End quote: 50
-[2026-08-01 13:52:33] datePos: 208
-[2026-08-01 13:52:33] colonPos: 214
-[2026-08-01 13:52:33] Quote after colon: 215
-[2026-08-01 13:52:33] End quote: 236
-[2026-08-01 13:52:33] Extracted SHA: eec35c87e548c9211e81d81607deca3e05a50563
-[2026-08-01 13:52:33] Extracted date: 2026-07-30T22:35:52Z
-[2026-08-01 13:52:33] Latest commit: SHA=eec35c87e548c9211e81d81607deca3e05a50563, Date=2026-07-30T22:35:52Z
-[2026-08-01 13:52:33] Last update check: SHA=2b4adb744c805e43e6feb3c0a3f742185b016c12, Date=2026-03-22T14:58:53Z, Pending=0 file(s)
-[2026-08-01 13:52:33] Update available! Proceeding with file comparison...
-[2026-08-01 13:52:34] Install Dir: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2
-[2026-08-01 13:52:34] Temp Dir: C:\Users\steve\AppData\Local\Temp\AutoCorrect2_Update
-[2026-08-01 13:52:34] Cleaning temp directory...
-[2026-08-01 13:52:34] Temp directory created.
-[2026-08-01 13:52:34] Downloading from: https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/main.zip
-[2026-08-01 13:52:38] Download completed.
-[2026-08-01 13:52:38] Starting zip extraction...
-[2026-08-01 13:52:48] Zip extraction completed.
-[2026-08-01 13:52:48] Source root directory found.
-[2026-08-01 13:52:48] Scanning for updated and new files...
-[2026-08-01 13:52:48] Updated file found: desktop.ini (size: 184 ? 178)
-[2026-08-01 13:52:48] Updated file found: README.md (size: 7822 ? 7749)
-[2026-08-01 13:52:48] New file found: Core\HotstringLib.ahk
-[2026-08-01 13:52:48] Updated file found: Core\PersonalHotstrings.ahk (size: 984 ? 971)
-[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\colorThemeSettings.ini
-[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\GitHubComboList249k.txt
-[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\ManualCorrectionsLog.txt
-[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\PersonalHolidays.txt
-[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\RemovedHotstrings.txt
-[2026-08-01 13:52:48] Rarely-updated file found (unchecked by default): Data\unigram_freq_list_filtered_89k.csv
-[2026-08-01 13:52:48] Updated file found: Resources\Dictionary\WordNet-3.0\word list readme.txt (size: 920 ? 913)
-[2026-08-01 13:52:48] Updated file found: Resources\Dictionary\WordNet-3.0\WordNet Legal Cite.txt (size: 1290 ? 1271)
-[2026-08-01 13:52:48] Updated file found: Resources\Icons\Icon Sources (size: 126 ? 125)
-[2026-08-01 13:52:48] Updated file found: Tools\ColorThemeIntegrator.ahk (size: 60350 ? 60385)
-[2026-08-01 13:52:48] New file found: Tools\HotstringLibStats.ahk
-[2026-08-01 13:52:48] New file found: Tools\HotstringLibStats.exe
-[2026-08-01 13:52:48] Found 7 updated files, 6 rarely-updated files, 3 new files, and HotstringLib update: no
+[2026-11-23 12:24:06] === Updater started (C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2\Tools) ===
+[2026-11-23 12:24:07] Latest: 58fb3709cfc7c13e92ae88c45a9b5a24d08a0574 | Last: 2b4adb744c805e43e6feb3c0a3f742185b016c12 | Pending: 0
+[2026-11-23 12:24:09] Compare: 93 commits, 76 changed, 10 removed, truncated=0
+[2026-11-23 12:24:09] Downloading from: https://github.com/kunkel321/AutoCorrect2/archive/refs/heads/main.zip
+[2026-11-23 12:24:18] Zip extracted to C:\Users\steve\AppData\Local\Temp\AutoCorrect2_Update\extracted\AutoCorrect2-main
+[2026-11-23 12:24:21] Offer: Tools\Updater.ahk [Updated]
+[2026-11-23 12:24:21] Scan: 2 item(s), library: no
+[2026-11-23 12:25:52] Replaced: Tools\Updater.ahk
+[2026-11-23 12:25:52] Replaced: Resources\Icons\Icon Sources
+[2026-11-23 12:25:52] Stored check: 58fb3709cfc7c13e92ae88c45a9b5a24d08a0574 | pending: 
+[2026-11-23 12:25:52] Update done: 2 replaced, 0 added, 0 removed, 0 failed, 0 pending
+[2026-11-23 12:26:18] === Update Started ===
+[2026-11-23 12:26:18] Script Directory: C:\Users\steve\OneDrive\Documents\GitHub\AutoCorrect2\Tools
+[2026-11-23 12:26:18] HotstringLib name: AutoCorrectHotstrings (1).ahk
+[2026-11-23 12:26:18] Checking GitHub API for latest commit...
+[2026-11-23 12:26:22] GitHub API response received, parsing JSON...
+[2026-11-23 12:26:22] Response length: 7341
+[2026-11-23 12:26:22] First 500 chars: [{"sha":"58fb3709cfc7c13e92ae88c45a9b5a24d08a0574","node_id":"C_kwDOLty75doAKDU4ZmIzNzA5Y2ZjN2MxM2U5MmFlODhjNDVhOWI1YTI0ZDA4YTA1NzQ","commit":{"author":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-11-22T18:02:35Z"},"committer":{"name":"Stephen Kunkel","email":"kunkel321@yahoo.com","date":"2026-11-22T18:02:35Z"},"message":"Update AutoCorrectHotstrings.ahk\n\n-The main AutoCorrect library got a major overhaul.\nDiscussion: After VitaKaninen helped me improve the wordlist tha
+[2026-11-23 12:26:22] shaPos: 3
+[2026-11-23 12:26:22] First quote after sha: 9
+[2026-11-23 12:26:22] End quote: 50
+[2026-11-23 12:26:22] datePos: 208
+[2026-11-23 12:26:22] colonPos: 214
+[2026-11-23 12:26:22] Quote after colon: 215
+[2026-11-23 12:26:22] End quote: 236
+[2026-11-23 12:26:22] Extracted SHA: 58fb3709cfc7c13e92ae88c45a9b5a24d08a0574
+[2026-11-23 12:26:22] Extracted date: 2026-11-22T18:02:35Z
+[2026-11-23 12:26:22] Latest commit: SHA=58fb3709cfc7c13e92ae88c45a9b5a24d08a0574, Date=2026-11-22T18:02:35Z
+[2026-11-23 12:26:22] Last update check: SHA=58fb3709cfc7c13e92ae88c45a9b5a24d08a0574, Date=2026-11-22T18:02:35Z, Pending=0 file(s)
+[2026-11-23 12:26:22] No updates available - commit hash matches, no pending files
