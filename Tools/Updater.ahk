@@ -5,12 +5,14 @@
 #Include "..\Includes\AcMsgBox.ahk"
 ; INI merging (shared with SettingsDefaultsMaker) -- Required.
 #Include "..\Includes\IniMerge.ahk"
+; Three-way hotstring library merge (shared with LibraryMerge) -- Required.
+#Include "..\Includes\LibMerge.ahk"
 
 /*
 AutoCorrect2 Updater Tool
 Author: kunkel321
 Tool Used: Claude
-Version: 11-23-2026 e  (also set UpdaterVersion below)
+Version: 11-24-2026 g  (also set UpdaterVersion below)
 Intended to use with AutoCorrect2 repo.
 
 HOW IT WORKS
@@ -29,9 +31,14 @@ YOUR FILES ARE NEVER OVERWRITTEN
 - ProtectedFiles (below) are only copied if you don't have them yet: your settings, your
   Personal (boilerplate) library, color theme, API key, window positions and so on.
 - IgnoredFiles are never copied at all: logs, Debug\, Backup\, LastUpdateCheck.ini, etc.
-- AutoCorrectHotstrings.ahk is never replaced unless you pick that option (shown in red).  By
-  default the new library is saved under the "NewTemporaryHotstrLib" name from acSettings.ini,
-  for comparing with the Unique String Extractor.
+- AutoCorrectHotstrings.ahk is MERGED by default (see Includes\LibMerge.ahk): the user's added,
+  edited and deleted rules are kept, GitHub's new, changed, removed and moved rules are applied,
+  and rules changed on both sides are shown for the user to choose.  Nothing is written until the
+  user clicks Merge in the review window.  The merge needs the library as the user last got it:
+  that is saved as Data\AutoCorrectHotstrings.base.txt after each merge or replace.  The first
+  time, the Updater looks through recent GitHub versions for the one closest to the user's file.
+- The other choices: save GitHub's library under the "NewTemporaryHotstrLib" name (for the Unique
+  String Extractor or Tools\LibraryMerge.ahk), or replace the user's library (shown in red).
 
 SETTINGS ARE MERGED, NOT REPLACED
 - acSettings.ini is never copied over.  Instead, settings that are new in the repository's
@@ -74,7 +81,8 @@ IgnoredFiles := [
     ".git*",
     "Data\LastUpdateCheck.ini",
     "Data\*Log*.txt",            ; AutoCorrectsLog, ManualCorrectionsLog, ErrContextLog, ACLog/MCLogContinuous
-    "Data\RemovedHotstrings.txt"
+    "Data\RemovedHotstrings.txt",
+    "Data\*.base.txt"           ; saved originals for the library merge
 ]
 
 ; Copied only if the user doesn't have the file yet; never replaced or removed.
@@ -94,13 +102,16 @@ MergedIniFiles := [
 ]
 
 ; Files the Updater itself needs.  When they change they are always updated (they can't be unticked).
-UpdaterDependencies := ["Includes\AcMsgBox.ahk", "Includes\IniMerge.ahk"]
+UpdaterDependencies := ["Includes\AcMsgBox.ahk", "Includes\IniMerge.ahk", "Includes\LibMerge.ahk"]
+
+; The library as the user last got it from GitHub (the "original" for the three-way merge)
+BaselineRel := "Data\AutoCorrectHotstrings.base.txt"
 
 ; File types compared as text (line-ending differences ignored)
 TextExtensions := ["ahk", "txt", "ini", "json", "md", "csv", "tsv"]
 ; --------------------------------------------------------------------------
 
-UpdaterVersion := "11-23-2026 e"    ; Shown in title bars and the debug log
+UpdaterVersion := "11-24-2026 g"    ; Shown in title bars and the debug log
 AppTitle := "AutoCorrect2 Updater (" UpdaterVersion ")"
 SplitPath(A_ScriptDir, , &InstallDir)
 DebugDir   := InstallDir "\Debug"
@@ -492,8 +503,12 @@ CheckLibrary(src, ctx, added) {
         added.Push(MakeItem(UpstreamLibRel, src, "Core\" Cfg.MainLibName, "copy", "New - AutoCorrect library", true))
         return ""
     }
-    if SameContent(src, mainDest)
+    if SameContent(src, mainDest) {
+        ; Same as GitHub's: a good moment to record the original for future merges.
+        if !FileExist(InstallDir "\" BaselineRel)
+            try FileCopy(src, InstallDir "\" BaselineRel)
         return ""
+    }
     if FileExist(copyDest) && SameContent(src, copyDest) {
         LogDebug("Library: GitHub version already saved as " Cfg.CopyLibName)
         return ""
@@ -519,7 +534,7 @@ ShowUpdateGui(scan, ctx) {
     ; Layout: commit list (top left) and its message (top right); files across the full width below;
     ; options and buttons along the bottom.
     ; Controls are created roughly here and positioned by UpdateGuiSize, so the window can be resized.
-    g := Gui("+AlwaysOnTop +Resize +MinSize820x560", "AutoCorrect2 - Select Updates (" UpdaterVersion ")")
+    g := Gui("+AlwaysOnTop +Resize +MinSize1000x560", "AutoCorrect2 - Select Updates (" UpdaterVersion ")")
     g.BackColor := Cfg.FormColor
     g.SetFont("s" Cfg.FontSize " " Cfg.FontColor)
     g.OnEvent("Close", (*) => ExitApp())
@@ -553,7 +568,10 @@ ShowUpdateGui(scan, ctx) {
     }
 
     ; --- What's new (right) ---
-    st.cHead := g.Add("Text", "w400 cBlue", ctx.header)
+    headText := ctx.header
+    if ctx.commits.Length
+        headText := RTrim(headText, ":") " (double-click one to open it on GitHub):"
+    st.cHead := g.Add("Text", "w400 cBlue", headText)
     if ctx.commits.Length {
         st.lvC := g.Add("ListView", "w400 r5 -Multi NoSort NoSortHdr +Background" Cfg.ListColor, ["Date", "Change"])
         for c in ctx.commits
@@ -563,15 +581,17 @@ ShowUpdateGui(scan, ctx) {
         st.lvC.Modify(1, "Select Focus")
         st.lvC.OnEvent("ItemSelect", CommitSelected.Bind(ctx.commits, st.edMsg))
         st.lvC.OnEvent("DoubleClick", CommitDoubleClick.Bind(ctx.commits))
-        st.hint := g.Add("Text", "w400", "Double-click a change to open it on GitHub.")
+        st.hint := g.Add("Text", "w400", "Full message of the selected change:")
     }
 
     ; --- Bottom: library, options, buttons ---
     if IsObject(scan.lib) {
         AddBottom(st, g.Add("Text", "w400 cBlue", "AutoCorrect library" (scan.lib.pending ? " (skipped last time)" : "") ":"), 0)
         st.cbLib := AddBottom(st, g.Add("Checkbox", "w400" (scan.lib.checked ? " Checked" : ""), "Get the new AutoCorrectHotstrings.ahk from GitHub"), 0)
-        st.radCopy := AddBottom(st, g.Add("Radio", "w400 h40 Checked", "Save it as Core\" Cfg.CopyLibName ". Your " Cfg.MainLibName " is not changed. Compare the two afterward with the Unique String Extractor."), 20)
-        st.radReplace := AddBottom(st, g.Add("Radio", "w400 h40", "WARNING: Replace your " Cfg.MainLibName ". Any rules you added, fixed or removed will be lost. (The old file is backed up.)"), 20)
+        st.radMerge := AddBottom(st, g.Add("Radio", "w400 r1 Checked", "Merge GitHub's changes into your " Cfg.MainLibName " (recommended: your own changes are kept, and you review it first)"), 20)
+        st.radCopy := AddBottom(st, g.Add("Radio", "w400 r1", "Save it as Core\" Cfg.CopyLibName ", to compare or merge later (your library is not changed)"), 20)
+        st.radReplace := AddBottom(st, g.Add("Radio", "w400 r1", "WARNING: Replace your " Cfg.MainLibName " (rules you added, fixed or removed are lost; the old file is backed up)"), 20)
+        st.radMerge.OnEvent("Click", LibModeChanged.Bind(st))
         st.radCopy.OnEvent("Click", LibModeChanged.Bind(st))
         st.radReplace.OnEvent("Click", LibModeChanged.Bind(st))
         st.cbLib.OnEvent("Click", LibModeChanged.Bind(st))
@@ -709,6 +729,7 @@ CommitDoubleClick(commits, lv, row, *) {
 
 LibModeChanged(st, *) {
     enabled := st.cbLib.Value
+    st.radMerge.Enabled := enabled
     st.radCopy.Enabled := enabled
     st.radReplace.Enabled := enabled
     st.radReplace.SetFont((enabled && st.radReplace.Value) ? "cRed" : Cfg.FontColor)
@@ -745,15 +766,35 @@ PerformUpdate(st, *) {
 
     libNote := ""
     if IsObject(scan.lib) {
-        if st.cbLib.Value {
+        if st.cbLib.Value && st.radMerge.Value {
+            r := MergeLibrary(scan.lib.src, sessionDir, stamp)
+            if r.ok {
+                for e in r.entries
+                    manifest.Push(e)
+                counts["replaced"] += 1
+                libNote := r.note "`n`n"
+            } else {
+                pending.Push(UpstreamLibRel)
+                if r.cancelled
+                    libNote := "The library merge was cancelled, so your library was not changed. It will be offered again next time.`n`n"
+                else
+                    failed.Push("Core\" Cfg.MainLibName " (merge: " r.error ")")
+            }
+        } else if st.cbLib.Value {
             replaceMode := st.radReplace.Value
             destRel := "Core\" (replaceMode ? Cfg.MainLibName : Cfg.CopyLibName)
             r := ApplyItem("copy", scan.lib.src, destRel, sessionDir)
             if r.ok {
                 manifest.Push(r.kind "|" destRel)
                 counts[r.kind] += 1
-                if !replaceMode
-                    libNote := "The new library was saved as Core\" Cfg.CopyLibName ". Use the Unique String Extractor to compare it with your " Cfg.MainLibName ".`n`n"
+                if replaceMode {
+                    ; The replaced library is now the original for the next merge.
+                    rb := ApplyItem("copy", scan.lib.src, BaselineRel, sessionDir)
+                    if rb.ok
+                        manifest.Push(rb.kind "|" BaselineRel)
+                } else {
+                    libNote := "The new library was saved as Core\" Cfg.CopyLibName ". You can merge it later with Tools\LibraryMerge.`n`n"
+                }
             } else {
                 failed.Push(destRel)
                 pending.Push(UpstreamLibRel)
@@ -795,6 +836,117 @@ PerformUpdate(st, *) {
         AcMsgBox.Show(msg, AppTitle)
     }
     ExitApp
+}
+
+; ==========================================================================
+; LIBRARY MERGE
+; ==========================================================================
+MergeLibrary(src, sessionDir, stamp) {
+    ; Three-way merge of GitHub's library into the user's.  Returns {ok, cancelled, error, entries, note}.
+    mainRel  := "Core\" Cfg.MainLibName
+    mainPath := InstallDir "\" mainRel
+    try {
+        mineText := FileRead(mainPath, "UTF-8")
+        theirsText := FileRead(src, "UTF-8")
+        base := GetLibraryBase(mineText)
+        res := LibMerge_Run(base.text, mineText, theirsText, LibMerge_ReadRemoved(Cfg.RemovedFile))
+        LogDebug("Library merge planned. " StrReplace(LibMerge_Summary(res, base.note), "`n", " | "))
+    } catch as e {
+        LogDebug("Library merge failed: " e.Message)
+        return {ok: false, cancelled: false, error: e.Message}
+    }
+
+    style := {formColor: Cfg.FormColor, fontColor: Cfg.FontColor, listColor: Cfg.ListColor, fontSize: Cfg.FontSize}
+    if !LibMerge_Review(res, base.note, style, "Merge AutoCorrect Library (" UpdaterVersion ")") {
+        LogDebug("Library merge cancelled by user")
+        return {ok: false, cancelled: true, error: ""}
+    }
+
+    try {
+        merged := LibMerge_Build(res)
+        enc := IniDoc_DetectEncoding(FileRead(mainPath, "RAW"))
+        bak := sessionDir "\" mainRel
+        EnsureParent(bak)
+        FileCopy(mainPath, bak, 1)
+        IniDoc_Write(mainPath, merged, enc)
+    } catch as e {
+        LogDebug("Library merge could not be written: " e.Message)
+        return {ok: false, cancelled: false, error: e.Message}
+    }
+    entries := ["replaced|" mainRel]
+    rb := ApplyItem("copy", src, BaselineRel, sessionDir)     ; GitHub's library is the next original
+    if rb.ok
+        entries.Push(rb.kind "|" BaselineRel)
+    report := DebugDir "\LibraryMerge_" stamp ".txt"
+    LibMerge_WriteReport(res, report, base.note)
+    L := res.lists
+    LogDebug("Library merged into " mainRel "; report: " report)
+    return {ok: true, entries: entries
+        , note: "Library merged: " L["added"].Length " new and " L["tookTheirs"].Length " updated rules from GitHub, "
+            . L["deleted"].Length " removed, and all " (L["yoursOnly"].Length + L["keptYours"].Length + L["stayDeleted"].Length)
+            . " of your own changes kept. Details: Debug\LibraryMerge_" stamp ".txt. It's a good idea to run the Conflicting String Locator now."}
+}
+
+GetLibraryBase(mineText) {
+    ; The original to compare against: the saved copy, else the closest recent GitHub version.
+    path := InstallDir "\" BaselineRel
+    if FileExist(path)
+        return {text: FileRead(path, "UTF-8"), note: "your saved copy of GitHub's library from your last library update"}
+    found := FindLibraryBaseOnGitHub(mineText)
+    if IsObject(found)
+        return found
+    return {text: "", note: "none could be found, so every rule that differs is treated as a conflict"
+        . " (rules listed in RemovedHotstrings.txt are not added back)"}
+}
+
+FindLibraryBaseOnGitHub(mineText) {
+    ; Downloads recent versions of the library and picks the one most like the user's file.
+    global Prog
+    r := HttpGet(ApiBase "/commits?sha=" Branch "&path=Core/AutoCorrectHotstrings.ahk&per_page=10")
+    if r.status != 200 {
+        LogDebug("Base search: " HttpErrorText(r))
+        return ""
+    }
+    body := r.text
+    try list := JsonParse(&body)
+    catch
+        return ""
+    if !(list is Array) || list.Length = 0
+        return ""
+
+    M := LibMerge_Parse(mineText)
+    mine := Map()
+    for k, rule in M.rules
+        mine[rule.val] := true
+    best := "", bestScore := -1
+    Prog := MakeProgressGui()
+    for n, c in list {
+        cm := CommitFromJson(c)
+        SetProgress("Finding the original of your library (" n " of " list.Length ")...", Round(n * 100 / list.Length))
+        tmp := A_Temp "\AC2_libbase_" SubStr(cm.sha, 1, 10) ".ahk"
+        try {
+            Download("https://raw.githubusercontent.com/" RepoOwner "/" RepoName "/" cm.sha "/Core/AutoCorrectHotstrings.ahk", tmp)
+            text := FileRead(tmp, "UTF-8")
+            FileDelete(tmp)
+        } catch {
+            continue
+        }
+        P := LibMerge_Parse(text)
+        common := 0
+        for k, rule in P.rules
+            if mine.Has(rule.val)
+                common++
+        score := common / Max(1, P.order.Length + M.order.Length - common)
+        LogDebug("Base candidate " SubStr(cm.sha, 1, 7) " (" SubStr(cm.date, 1, 10) "): " Round(score * 100, 1) "% match")
+        if score > bestScore {
+            bestScore := score
+            best := {text: text, note: "GitHub's library from " SubStr(cm.date, 1, 10) " (the closest match to yours, " Round(score * 100) "%)"}
+        }
+        if score >= 0.999
+            break
+    }
+    CloseProgress()
+    return best
 }
 
 DeferItem(src, destRel, sessionDir) {
@@ -900,7 +1052,8 @@ ListBackupSessions() {
             , date: IniRead(f, "Update", "Date", name)
             , count: IniRead(f, "Files", "Count", 0)
             , undone: IniRead(f, "Update", "Undone", 0) = "1"
-            , undoneAt: IniRead(f, "Update", "UndoneAt", "")})
+            , undoneAt: IniRead(f, "Update", "UndoneAt", "")
+            , kind: IniRead(f, "Update", "Kind", "Update")})
     }
     return out
 }
@@ -927,7 +1080,7 @@ ShowUndoGui() {
     ug.Add("Text", "w640", "Pick an update to undo. Files it replaced or removed are put back, and files it added are moved out. Your current copies are saved first, inside that update's backup folder.")
     lv := ug.Add("ListView", "w640 r8 -Multi NoSort NoSortHdr +Background" Cfg.ListColor, ["Updated on", "Files", "Status"])
     for s in sessions
-        lv.Add(, s.date, s.count, s.undone ? "Undone " s.undoneAt : "")
+        lv.Add(, s.date, s.count, (s.kind = "LibraryMerge" ? "Library Merge tool. " : "") (s.undone ? "Undone " s.undoneAt : ""))
     lv.ModifyCol(1, 200)
     lv.ModifyCol(2, 70)
     lv.ModifyCol(3, 340)
@@ -1009,8 +1162,9 @@ UndoClicked(sessions, lv, ug, *) {
     if failed.Length = 0 {
         IniWrite(1, f, "Update", "Undone")
         IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm"), f, "Update", "UndoneAt")
-        ; Reset the update check so this update is offered again.
-        StoreLastCheckRaw(IniRead(f, "Update", "FromSha", ""), IniRead(f, "Update", "FromDate", "")
+        ; Reset the update check so this update is offered again (not for a Library Merge tool session).
+        if IniRead(f, "Update", "Kind", "") != "LibraryMerge"
+            StoreLastCheckRaw(IniRead(f, "Update", "FromSha", ""), IniRead(f, "Update", "FromDate", "")
             , IniRead(f, "Update", "FromPending", ""))
         LogDebug("Undo complete: " s.name " (" done " files)")
         AcMsgBox.Show("Undo complete: " done " file(s) put back.`n`nYour copies from just before the undo are in:`n"
@@ -1072,6 +1226,7 @@ LoadSettings() {
     s.MainLibName     := IniRead(f, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
     s.CopyLibName     := IniRead(f, "Files", "NewTemporaryHotstrLib", "AutoCorrectHotstrings (1).ahk")
     s.PersonalLibName := IniRead(f, "Files", "BoilerplateHotstringLibrary", "PersonalHotstrings.ahk")
+    s.RemovedFile     := InstallDir "\Data\" IniRead(f, "Files", "RemovedHsFile", "RemovedHotstrings.txt")
     s.FormColor := "0xE5E4E2"
     s.FontColor := "c0x1F1F1F"
     s.ListColor := "0xFFFFFF"
