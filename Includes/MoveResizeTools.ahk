@@ -1,4 +1,4 @@
-﻿#SingleInstance
+#SingleInstance
 #Requires AutoHotkey v2+
 
 ; MOVE TOOL and RESIZE TOOL
@@ -69,12 +69,13 @@ Return
 }
 
 ;##################### SNIP DETECTION ########################
-; ScreenSnip.ahk names every snip window "SnipperWindow"; the class check keeps
-; the title from matching some unrelated app's window.
+; ScreenSnip.ahk names every snip window "Snip".  The test is EXACT equality, not
+; "contains", so Snip Puzzle / Snip Jigsaw / ScreenSnip's help window don't count;
+; the class check keeps the title from matching some unrelated app's window.
 IsSnipWindow(win)
 {
 	try
-		return WinGetTitle(win) = "SnipperWindow" && WinGetClass(win) = "AutoHotkeyGUI"
+		return WinGetTitle(win) = "Snip" && WinGetClass(win) = "AutoHotkeyGUI"
 	catch
 		return false
 }

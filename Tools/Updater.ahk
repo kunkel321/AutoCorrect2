@@ -3,12 +3,14 @@
 
 ; #Include custom message box -- Required.
 #Include "..\Includes\AcMsgBox.ahk"
+; INI merging (shared with SettingsDefaultsMaker) -- Required.
+#Include "..\Includes\IniMerge.ahk"
 
 /*
 AutoCorrect2 Updater Tool
 Author: kunkel321
 Tool Used: Claude
-Version: 11-23-2026 d  (also set UpdaterVersion below)
+Version: 11-23-2026 e  (also set UpdaterVersion below)
 Intended to use with AutoCorrect2 repo.
 
 HOW IT WORKS
@@ -30,6 +32,14 @@ YOUR FILES ARE NEVER OVERWRITTEN
 - AutoCorrectHotstrings.ahk is never replaced unless you pick that option (shown in red).  By
   default the new library is saved under the "NewTemporaryHotstrLib" name from acSettings.ini,
   for comparing with the Unique String Extractor.
+
+SETTINGS ARE MERGED, NOT REPLACED
+- acSettings.ini is never copied over.  Instead, settings that are new in the repository's
+  Data\acSettings.default.ini are added to the user's acSettings.ini (with their comments), and
+  existing values are left exactly as they are.  Renamed keys carry the user's value over (see
+  [UpdaterRenames] in the defaults file).  Double-click the settings row to see what will change.
+- A user with no acSettings.ini gets a copy of acSettings.default.ini.
+- Steve: build acSettings.default.ini with Tools\SettingsDefaultsMaker.ahk before pushing.
 
 BACKUP AND UNDO
 - Before any file is replaced or removed, the old copy is saved to Backup\<date_time>\, along
@@ -78,11 +88,19 @@ ProtectedFiles := [
     "Data\PersonalHolidays.txt"
 ]
 
+; INI files that are merged instead of copied (see "SETTINGS ARE MERGED" above).
+MergedIniFiles := [
+    {defaults: "Data\acSettings.default.ini", target: "Data\acSettings.ini"}
+]
+
+; Files the Updater itself needs.  When they change they are always updated (they can't be unticked).
+UpdaterDependencies := ["Includes\AcMsgBox.ahk", "Includes\IniMerge.ahk"]
+
 ; File types compared as text (line-ending differences ignored)
 TextExtensions := ["ahk", "txt", "ini", "json", "md", "csv", "tsv"]
 ; --------------------------------------------------------------------------
 
-UpdaterVersion := "11-23-2026 d"    ; Shown in title bars and the debug log
+UpdaterVersion := "11-23-2026 e"    ; Shown in title bars and the debug log
 AppTitle := "AutoCorrect2 Updater (" UpdaterVersion ")"
 SplitPath(A_ScriptDir, , &InstallDir)
 DebugDir   := InstallDir "\Debug"
@@ -96,6 +114,12 @@ Cfg := LoadSettings()
 ProtectedFiles.Push("Core\" Cfg.PersonalLibName, "Core\" Cfg.CopyLibName)
 IgnoredRx   := GlobsToRegex(IgnoredFiles)
 ProtectedRx := GlobsToRegex(ProtectedFiles)
+MergeTargets := NewMap()
+for pair in MergedIniFiles
+    MergeTargets[pair.target] := pair.defaults
+DependencySet := NewMap()
+for dep in UpdaterDependencies
+    DependencySet[dep] := true
 TextExts := NewMap()
 for ext in TextExtensions
     TextExts[ext] := true
@@ -346,7 +370,7 @@ ScanForUpdates(srcRoot, ctx) {
     loop Files, srcRoot "\*", "FR" {
         src := A_LoopFileFullPath
         rel := SubStr(src, StrLen(srcRoot) + 2)
-        if MatchesAny(rel, IgnoredRx)
+        if MatchesAny(rel, IgnoredRx) || MergeTargets.Has(rel)
             continue
         if (rel = UpstreamLibRel) {
             lib := CheckLibrary(src, ctx, added)
@@ -394,6 +418,34 @@ ScanForUpdates(srcRoot, ctx) {
         LogDebug("Offer: " rel " [" status "]")
     }
 
+    ; Settings files: merge new keys in, never replace
+    for pair in MergedIniFiles {
+        defSrc := srcRoot "\" pair.defaults
+        if !FileExist(defSrc)
+            continue
+        target := InstallDir "\" pair.target
+        token := "merge:" pair.target
+        wasPending := ctx.pending.Has(token)
+        if !FileExist(target) {
+            added.Push(MakeItem(token, defSrc, pair.target, "copy", "New - default settings", true))
+            continue
+        }
+        try {
+            plan := IniMerge_Plan(defSrc, target)
+        } catch as e {
+            LogDebug("Settings check failed for " pair.target ": " e.Message)
+            continue
+        }
+        if !plan.changed
+            continue
+        n := plan.added.Length + plan.renamed.Length
+        item := MakeItem(token, defSrc, pair.target, "mergeini"
+            , (wasPending ? "Skipped last time - " : "") n " new setting" (n = 1 ? "" : "s") " to add (yours kept)", !wasPending)
+        item.plan := plan
+        updated.InsertAt(1, item)
+        LogDebug("Settings merge offered: " pair.target " (" n " keys)")
+    }
+
     ; Files removed or renamed on GitHub (plus removals skipped last time)
     removeList := ctx.removedUp.Clone()
     for token in ctx.pending
@@ -420,6 +472,14 @@ ScanForUpdates(srcRoot, ctx) {
     for group in [updated, added, removedItems, differs]
         for it in group
             items.Push(it)
+    ; The Updater's own includes are always updated when they change.
+    for it in items {
+        if it.action = "copy" && DependencySet.Has(it.destRel) {
+            it.required := true
+            it.checked := true
+            it.status := (InStr(it.status, "New") = 1 ? "New" : "Updated") " - needed by the Updater"
+        }
+    }
     return {items: items, lib: lib}
 }
 
@@ -449,7 +509,7 @@ CheckLibrary(src, ctx, added) {
 
 MakeItem(rel, src, destRel, action, status, checked) {
     return {rel: rel, src: src, destRel: destRel, action: action, status: status, checked: checked
-        , token: (action = "remove" ? "-" rel : rel), deferred: false}
+        , token: (action = "remove" ? "-" rel : rel), deferred: false, required: false, plan: ""}
 }
 
 ; ==========================================================================
@@ -469,7 +529,12 @@ ShowUpdateGui(scan, ctx) {
 
     ; --- Files (left) ---
     n := scan.items.Length
-    st.fHead := g.Add("Text", "x10 y10 w400 cBlue", n ? "Files (" n "). Ticked files will be updated:" : "No other files need updating.")
+    hasMerge := false
+    for it in scan.items
+        if it.action = "mergeini"
+            hasMerge := true
+    st.fHead := g.Add("Text", "x10 y10 w400 cBlue", !n ? "No other files need updating."
+        : "Files (" n "). Ticked files will be updated" (hasMerge ? " (double-click the settings row to see what's new)" : "") ":")
     st.fHead.GetPos(, , , &th)
     st.textH := th
     if n {
@@ -479,10 +544,12 @@ ShowUpdateGui(scan, ctx) {
             st.lvF.Add(it.checked ? "Check" : "", fname, it.status, fdir = "" ? "(main folder)" : fdir)
         }
         lvF := st.lvF
+        lvF.OnEvent("ItemCheck", FileRowChecked.Bind(scan.items))
+        lvF.OnEvent("DoubleClick", FileRowDoubleClick.Bind(scan.items))
         st.btnTick := g.Add("Button", "w100", "Tick all")
         st.btnTick.OnEvent("Click", (*) => lvF.Modify(0, "+Check"))
         st.btnUntick := g.Add("Button", "w100", "Untick all")
-        st.btnUntick.OnEvent("Click", (*) => lvF.Modify(0, "-Check"))
+        st.btnUntick.OnEvent("Click", (*) => UntickAll(scan.items, lvF))
     }
 
     ; --- What's new (right) ---
@@ -607,6 +674,29 @@ UpdateGuiSize(st, g, minMax, w, h) {
     DllCall("RedrawWindow", "Ptr", g.Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 0x0001 | 0x0004 | 0x0080)
 }
 
+FileRowChecked(items, lv, row, checked, *) {
+    ; The Updater's own includes can't be unticked.
+    if !checked && row && items[row].required
+        lv.Modify(row, "+Check")
+}
+
+UntickAll(items, lv) {
+    lv.Modify(0, "-Check")
+    for i, it in items
+        if it.required
+            lv.Modify(i, "+Check")
+}
+
+FileRowDoubleClick(items, lv, row, *) {
+    if !row
+        return
+    it := items[row]
+    if it.action = "mergeini"
+        AcMsgBox.Show(IniMerge_Describe(it.plan), "Settings changes - " it.destRel)
+    else if it.required
+        AcMsgBox.Show(it.destRel " is used by the Updater itself, so it is always updated when it changes.", AppTitle)
+}
+
 CommitSelected(commits, edMsg, lv, row, selected, *) {
     if selected && row
         edMsg.Value := StrReplace(commits[row].msg, "`n", "`r`n")
@@ -632,11 +722,11 @@ PerformUpdate(st, *) {
 
     stamp := FormatTime(A_Now, "yyyy-MM-dd_HHmmss")
     sessionDir := BackupDir "\" stamp
-    manifest := [], failed := [], pending := []
+    manifest := [], failed := [], pending := [], notes := ""
     counts := Map("replaced", 0, "added", 0, "removed", 0)
 
     for i, it in scan.items {
-        if !checked.Has(i) {
+        if !checked.Has(i) && !it.required {
             if remember
                 pending.Push(it.token)
             continue
@@ -645,6 +735,8 @@ PerformUpdate(st, *) {
         if r.ok {
             manifest.Push(r.kind "|" it.destRel)
             counts[r.kind] += 1
+            if r.HasOwnProp("note")
+                notes .= r.note "`n`n"
         } else {
             failed.Push(it.destRel)
             pending.Push(it.token)
@@ -684,7 +776,7 @@ PerformUpdate(st, *) {
         ExitApp
     }
     msg := "AutoCorrect2 has been updated: " counts["replaced"] " replaced, " counts["added"] " added, " counts["removed"] " removed.`n`n"
-    msg .= libNote
+    msg .= notes libNote
     if failed.Length {
         msg .= "These could not be updated (probably in use). Close AutoCorrect2 and its tools, then run the Updater again:`n"
         for f in failed
@@ -735,6 +827,18 @@ ApplyItem(action, src, destRel, sessionDir) {
     dest := InstallDir "\" destRel
     bak  := sessionDir "\" destRel
     try {
+        if action = "mergeini" {
+            ; Re-plan now, in case the file changed since the window opened.
+            plan := IniMerge_Plan(src, dest)
+            EnsureParent(bak)
+            FileCopy(dest, bak, 1)
+            if plan.changed
+                IniMerge_Apply(plan)
+            n := plan.added.Length + plan.renamed.Length
+            LogDebug("Merged settings into " destRel ": " plan.added.Length " added, " plan.renamed.Length " renamed")
+            return {ok: true, kind: "replaced"
+                , note: "Settings: " n " new setting" (n = 1 ? " was" : "s were") " added to " destRel ". Your existing values were not changed."}
+        }
         if action = "remove" {
             EnsureParent(bak)
             FileMove(dest, bak, 1)
@@ -1077,6 +1181,8 @@ CheckedRows(lv) {
 }
 
 IsRarelyUpdated(relPath) {
+    if RegExMatch(relPath, "i)\.default\.ini$")     ; defaults files stay current
+        return false
     for folder in RarelyUpdatedFolders
         if SubStr(relPath, 1, StrLen(folder)) = folder
             return true

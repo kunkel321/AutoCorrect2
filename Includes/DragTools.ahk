@@ -1,4 +1,4 @@
-﻿#SingleInstance
+#SingleInstance
 #Requires AutoHotkey v2+
 
 ; DRAG TOOLS
@@ -46,8 +46,9 @@ DTOwnsButton := false
 ; WinActive-based on purpose: a freshly captured snip is not the active window
 ; yet, and nudging the capture region right after grabbing it is the single most
 ; common moment to want the pan. Every ScreenSnip snip is created as
-; Gui('-Caption +AlwaysOnTop ...', 'SnipperWindow'), so title+class identify one
-; exactly. Guarded because the window can vanish between the two queries, and
+; Gui('-Caption +AlwaysOnTop ...', 'Snip'), so title+class identify one exactly.
+; The title test is equality, not WinTitle 'contains' matching, so ScreenSnip's
+; other windows (Snip Puzzle, Snip Jigsaw, help) are never mistaken for snips. Guarded because the window can vanish between the two queries, and
 ; because a cursor over bare desktop yields hwnd 0, which makes both throw.
 ; Returning false on any failure is the safe direction — DragTools simply keeps
 ; the button, which is the pre-existing behaviour.
@@ -55,7 +56,7 @@ MouseOverSnipWindow() {
     MouseGetPos(, , &w)
     try {
         return WinGetClass('ahk_id ' w) = 'AutoHotkeyGUI'
-            && WinGetTitle('ahk_id ' w) = 'SnipperWindow'
+            && WinGetTitle('ahk_id ' w) = 'Snip'
     } catch {
         return false
     }
