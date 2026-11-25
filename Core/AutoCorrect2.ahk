@@ -171,7 +171,7 @@ class Config {
     static LogRuleLocation := 1         ; Add the rule's library and line (BP:311) to each log line
     static SuppressAfterBackspace := 1  ; Backspacing a correction mutes that rule briefly
     static SuppressSeconds := 5         ; ...for this long, measured from the Backspace
-    static ShowTrayExtras := 1          ; Tray menu: Run Printer Tool, Show Calendar, System Up Time (unrelated to autocorrection; 0 hides them)
+    static TrayMenuCfg := Map()         ; Populated by LoadSettings() from [TrayMenu]: item key -> shown (true/false)
 
 
     ; ============================================================
@@ -217,6 +217,15 @@ class Config {
     
     static EnsureSettingsFileExists() {
         if !FileExist(this.SettingsFile) {
+            ; First run (or the ini was deleted): start from the neutral defaults that ship with
+            ; AutoCorrect2.  The Updater keeps acSettings.ini up to date from the same file.
+            defaultsFile := "..\Data\acSettings.default.ini"
+            if FileExist(defaultsFile) {
+                try {
+                    FileCopy(defaultsFile, this.SettingsFile)
+                    return
+                }
+            }
             acMsgBox.show("The settings file was not found at:`n"
                 . this.SettingsFile 
                 . "`nDefault values will be used."
@@ -347,7 +356,17 @@ class Config {
         this.LogRuleLocation            := this.ReadIni("ACSystem", "LogRuleLocation", 1)
         this.SuppressAfterBackspace     := this.ReadIni("ACSystem", "SuppressAfterBackspace", 1)
         this.SuppressSeconds            := this.ReadIni("ACSystem", "SuppressSeconds", 5)
-        this.ShowTrayExtras             := this.ReadIni("ACSystem", "ShowTrayExtras", 1)
+
+        ; [TrayMenu] Section
+        ; ItemKey=1 shows a system tray menu item, ItemKey=0 hides it.  A missing key means shown,
+        ; so an older ini never loses menu items.  See SetupTrayMenu() for the keys.
+        this.TrayMenuCfg := Map()
+        this.TrayMenuCfg.CaseSense := false
+        trayText := ""
+        try trayText := IniRead(this.SettingsFile, "TrayMenu")
+        for line in StrSplit(trayText, "`n", "`r")
+            if RegExMatch(line, "^([^=;][^=]*)=(.*)$", &m)
+                this.TrayMenuCfg[Trim(m[1])] := (Trim(m[2]) != "0")
 
         ; [ControlButtons] Section
         ; Read entire section in one call; parse into a Map of {show, close} objects.
@@ -366,6 +385,9 @@ class Config {
             this.ControlButtonCfg[name] := {show: show, close: doClose}
         }
     }
+
+    ; True unless [TrayMenu] hides the item (ItemKey=0).
+    static ShowTrayItem(key) => !this.TrayMenuCfg.Has(key) || this.TrayMenuCfg[key]
 
     ; ============================================================
     ; ===== THEME COLORS (kept separate from app settings) =====
@@ -515,49 +537,53 @@ SetupTrayMenu() {
     acMenu.SetIcon(Config.ScriptName, "..\Resources\Icons\AhkBluePsicon.ico")
     acMenu.Default := Config.ScriptName
     
-    acMenu.Add("Edit This Script", (*) => EditThisScript())
-    acMenu.SetIcon("Edit This Script", "..\Resources\Icons\edit-Blue.ico")
-    
-    acMenu.Add("Hotstring Library", (*) => OpenHotstringLibrary())
-    acMenu.SetIcon("Hotstring Library", "..\Resources\Icons\library-Blue.ico")
+    ; Every item below can be hidden in the [TrayMenu] section of acSettings.ini (ItemKey=0).
+    ; The top item (opens Hotstring Helper) and "Exit Script" are always shown.
+    AddItem("EditThisScript", "Edit This Script", (*) => EditThisScript(), "edit-Blue.ico")
+    AddItem("HotstringLibrary", "Hotstring Library", (*) => OpenHotstringLibrary(), "library-Blue.ico")
+    AddItem("AutoCorrectLog", "Open AutoCorrect Log", (*) => Utils.OpenFileAtEnd(Config.AutoCorrectsLogFile), "log-Blue.ico")
+    AddItem("ResetHHWindowPosition", "Reset HH Window Position", (*) => WindowPos.Reset(), "repeat-Blue.ico") ; Forgets the saved spot; next open is centered.
+    AddItem("SettingsManager", "Open Settings Manager", (*) => Run(Config.SettingsManager), "settings-Blue.ico")
+    AddItem("SettingsDashboard", "Open Settings Dashboard", (*) => OpenSettingsDashboard(), "settings-Blue.ico")
+    if FileExist("..\Tools\Updater.exe")
+        AddItem("CheckForUpdates", "Check for Updates", (*) => Run("..\Tools\Updater.exe"), "update-Blue.ico")
+    AddItem("RestartScript", "Restart Script", (*) => Reload(), "repeat-Blue.ico")
+    AddItem("OpenFolder", "Open AutoCorrect2 Folder", (*) => OpenAC2Folder(), "open-file-Blue.ico")
+    AddItem("GitHub", "Go to GitHub Repository", (*) => Run("https://github.com/kunkel321/AutoCorrect2"), "github-Blue.ico")
+    ; Handy, but not autocorrect-related.
+    AddItem("PrinterTool", "Run Printer Tool", (*) => RunPrinterTool(), "printer-Blue.ico")
+    AddItem("Calendar", "Show Calendar", (*) => RunDateTool(), "calendar-Blue.ico")
+    AddItem("SystemUpTime", "System Up Time", (*) => UpTime(), "clock-Blue.ico")
+    AddItem("ListLinesDebug", "List Lines Debug", (*) => ListLines(), "ListLines-Blue.ico")
 
-    acMenu.Add("Open AutoCorrect Log", (*) => Utils.OpenFileAtEnd(Config.AutoCorrectsLogFile))
-    acMenu.SetIcon("Open AutoCorrect Log", "..\Resources\Icons\log-Blue.ico")
-    
-    acMenu.Add("Reload Script", (*) => Reload())
-    acMenu.SetIcon("Reload Script", "..\Resources\Icons\repeat-Blue.ico")
-
-    acMenu.Add("Reset HH Window Position", (*) => WindowPos.Reset()) ; Forgets the saved spot; next open is centered.
-    acMenu.SetIcon("Reset HH Window Position", "..\Resources\Icons\repeat-Blue.ico")
-
-    acMenu.Add("Open Settings Manager", (*) => Run(Config.SettingsManager))
-    acMenu.SetIcon("Open Settings Manager", "..\Resources\Icons\Settings-blue.ico")
-    
-    ; Handy but not autocorrect-related, so they can be hidden: ShowTrayExtras=0 in [ACSystem].
-    if Config.ShowTrayExtras {
-        acMenu.Add("Run Printer Tool", (*) => RunPrinterTool())
-        acMenu.SetIcon("Run Printer Tool", "..\Resources\Icons\printer-Blue.ico")
-        
-        acMenu.Add("Show Calendar", (*) => RunDateTool())
-        acMenu.SetIcon("Show Calendar", "..\Resources\Icons\calendar-Blue.ico")
-        
-        acMenu.Add("System Up Time", (*) => UpTime())
-        acMenu.SetIcon("System Up Time", "..\Resources\Icons\clock-Blue.ico")
-    }
-    
-    acMenu.Add("List Lines Debug", (*) => ListLines())
-    acMenu.SetIcon("List Lines Debug", "..\Resources\Icons\ListLines-Blue.ico")
-    
-    acMenu.Add("Enable AutoCorrections", (*) => ToggleAutoCorrections())
-    if Config.AutoCorrectionsEnabled
+    if AddItem("EnableAutoCorrections", "Enable AutoCorrections", (*) => ToggleAutoCorrections())
+        && Config.AutoCorrectionsEnabled
         acMenu.Check("Enable AutoCorrections")
-    
-    acMenu.Add("Exit Script", (*) => ExitApp())
+
+    acMenu.Add("Exit Script", (*) => ExitApp())  ; Always shown.
     acMenu.SetIcon("Exit Script", "..\Resources\Icons\exit-Blue.ico")
 
-    acMenu.Add("Start with Windows", (*) => StartUpAC()) ; Add menu item at the bottom.
-    if FileExist(A_Startup "\" Config.ScriptName ".lnk")
+    ; "Start with Windows" goes at the bottom.
+    if AddItem("StartWithWindows", "Start with Windows", (*) => StartUpAC())
+        && FileExist(A_Startup "\" Config.ScriptName ".lnk")
         acMenu.Check("Start with Windows")
+
+    ; Adds a tray menu item unless [TrayMenu] hides it.  Returns true if the item was added.
+    AddItem(key, label, action, icon := "") {
+        if !Config.ShowTrayItem(key)
+            return false
+        acMenu.Add(label, action)
+        if icon != ""
+            try acMenu.SetIcon(label, "..\Resources\Icons\" icon)
+        return true
+    }
+
+    ; Opens the AutoCorrect2 folder in the file manager from acSettings.ini (or Explorer).
+    OpenAC2Folder(*) {
+        SplitPath(A_ScriptDir,, &parentDir)
+        fm := (Config.FileManager = "" || !FileExist(Config.FileManager)) ? "explorer.exe" : Config.FileManager
+        Run('"' fm '" "' parentDir '"')
+    }
     ; This function is only accessed via the systray menu item.  It toggles adding/removing
     ; link to this script in Windows Start up folder.  Applies custom icon too.
     StartUpAC(*) {	
@@ -587,10 +613,10 @@ SetupTrayMenu() {
         Config.AutoCorrectionsEnabled := !Config.AutoCorrectionsEnabled
         acMenu := A_TrayMenu
         if Config.AutoCorrectionsEnabled {
-            acMenu.Check("Enable AutoCorrections")
+            try acMenu.Check("Enable AutoCorrections")     ; the item may be hidden in [TrayMenu]
             acMsgBox.show("AutoCorrections are now ENABLED", , "icon!")
         } else {
-            acMenu.Uncheck("Enable AutoCorrections")
+            try acMenu.Uncheck("Enable AutoCorrections")
             acMsgBox.show("AutoCorrections are now DISABLED", , "icon!")
         }
     }
@@ -611,6 +637,14 @@ _ControlBtnAction(action, doClose, *) {
     action.Call()
     if doClose
         UI.MainForm.Hide()
+}
+
+; Used by the tray menu and the Control Panel.  Shows a placeholder until the app exists.
+OpenSettingsDashboard(*) {
+    if FileExist("..\Tools\SettingsDashboard.exe")
+        Run("..\Tools\SettingsDashboard.exe")
+    else
+        acMsgBox.show("The Settings Dashboard is under construction.`n`nFor now, please use the Settings Manager.",, "icon!")
 }
 
 OpenHotstringLibrary(*) {
@@ -1093,7 +1127,8 @@ class UI {
             "MCAnalyze",             "Analyze MC Log",
             "Report",                "HotString Report",
             "SettingsMan",           "Settings Manager",
-            "HotkeyRef",             "Hotkey Reference",
+            "SettingsDash",          "Settings Dashboard",
+            "HotkeyHub",             "Hotkey Reference",
             "Suggester",             "Hotstring Suggester",
             "HsAnalyzer",            "Hotstring Analyzer",
             "HsAuditor",             "Hotstring Auditor",
@@ -1101,7 +1136,7 @@ class UI {
             "TypoInvaders",          "TypoInvaders",
             "ConflictLocator",       "Conflict Locator",
             "Updater",               "Check for Updates",
-            "UniqueStringExtractor", "Compare Libraries",
+            "LibraryMerge",          "Merge Libraries",
             "BulkFunctionizer",      "Bulk Functionizer",
             "NonWords",              "Non-Word List",
             "OpenFolder",            "AutoCorrect2 Folder",
@@ -1253,6 +1288,13 @@ class UI {
             action: (*) => Run(Config.SettingsManager),
             icon: A_ScriptDir "\..\Resources\Icons\settings-Blue.ico"
         })
+
+        this.controlButtons.Push({
+            name: "SettingsDash",
+            text: " Settings Dashboard",
+            action: (*) => OpenSettingsDashboard(),
+            icon: A_ScriptDir "\..\Resources\Icons\settings-Blue.ico"
+        })
                 
         ; Check if tool is present, add button.
         if FileExist("..\Tools\HotkeyHub.exe") {
@@ -1333,13 +1375,13 @@ class UI {
                 icon: A_ScriptDir "\..\Resources\Icons\update-Blue.ico"
             })
         }
-        
+
         ; Check if tool is present, add button.
-        if FileExist("..\Tools\UniqueStringExtractor.exe") {
+        if FileExist("..\Tools\LibraryMerge.exe") {
             this.controlButtons.Push({
-                name: "UniqueStringExtractor",
-                text: " Compare Two Versions of AutoCorrectHotstrings", 
-                action: (*) => Run("..\Tools\UniqueStringExtractor.exe"),
+                name: "LibraryMerge",
+                text: " Merge a Newer AutoCorrect Library", 
+                action: (*) => Run("..\Tools\LibraryMerge.exe"),
                 icon: A_ScriptDir "\..\Resources\Icons\diff-files-Blue.ico"
             })
         }
@@ -5363,6 +5405,9 @@ class HelpSystem {
                 case "SettingsMan":
                     this.helpTexts["ControlButton_SettingsMan"] := "Runs the AutoCorrect2 Settings Manager Tool, which is a GUI-based tool for edting the user config initialization file, `"acSettings.ini`"."
                     
+                case "SettingsDash":
+                    this.helpTexts["ControlButton_SettingsDash"] := "Opens the Settings Dashboard, a friendlier companion to the Settings Manager.`n`nIt is still under construction.  Until it's ready, use the Settings Manager."
+
                 case "Suggester":
                     this.helpTexts["ControlButton_Suggester"] := "Launches the Hotstring Suggester tool.`n`nThis tool helps generate related hotstrings based on an existing entry.  It is useful for creating variations of a hotstring.  When creating a mult-match word middle AutoCorrect item via trimming the ends, it is possible to over-trim.  The Suggester tool helps you choose which letter to put back--that's why it was made.`n`nThe Suggester tool is usually accessed via Alt+Clicking the Append button, or via the ACLogAnalyer report, though you can run it directly, and type/paste in a hotstring."
                     
@@ -5382,10 +5427,10 @@ class HelpSystem {
                     this.helpTexts["ControlButton_ConflictLocator"] := "This runs an INTRA-script scan, checking for hotstrings in the main part of your " Config.HotstringLibrary " file that might conflict with each other. A report document is created in the \Data\ folder and the report is opened upon completion of the scan.  It uses the same algorithms as the validiy tool.  It is thorough and is slow.  Please see AutoCorrect2 User Manual for more information."
 
                 case "Updater":
-                    this.helpTexts["ControlButton_Updater"] := "Launches the Updater tool, which checks the AutoCorrect2 GitHub repository for newer versions of the suite files.`n`nThe last-seen commit is recorded in Data\LastUpdateCheck.ini, so repeat checks are fast when nothing has changed.`n`nAutoCorrectHotstrings.ahk gets special treatment: rather than being overwritten, you are given the option to save the incoming version under a different name so that your own custom hotstrings are not lost.  Use the Compare Two Versions of AutoCorrectHotstrings tool afterward to merge them.`n`nFiles you skip are remembered and offered again on the next check."
+                    this.helpTexts["ControlButton_Updater"] := "Launches the Updater tool, which checks the AutoCorrect2 GitHub repository for newer versions of the suite files, shows what changed (the commit messages), and lets you pick which files to update.`n`nYour own files are never overwritten: acSettings.ini gets any new settings added without changing your values, and your hotstring library is merged -- your own additions, edits and deletions are kept, and you review the result before anything is written.`n`nOld copies are saved in the Backup folder first, so an update can be undone from the Updater.  Files you leave unticked are offered again next time."
                     
-                case "UniqueStringExtractor":
-                    this.helpTexts["ControlButton_UniqueStringExtractor"] := "This runs an INTER-script scan to compare two versions of the hotstring library:`n`n" Config.HotstringLibrary "`n" Config.NewTemporaryHotstrLib "`n`nIt will alert the user of hotstrings that are unique to each version.  This is meant to facilitate merging two versions of the library. It is recommended to choose a convenient temporary name for one the new version, such as `"AutoCorrectHotstrings (1).ahk`" then program that into the acSettings.ini file (current name is shown above) and use the same temporary name each time.  The tool will default to those paths.  If either is not found, a file chooser dialog will appear. A report document is created in the \Data\ folder and the report is opened upon completion of the scan."
+                case "LibraryMerge":
+                    this.helpTexts["ControlButton_LibraryMerge"] := "Opens the Library Merge tool, which merges a newer version of the AutoCorrect library into yours without losing your own changes.`n`nThe Updater already does this when you choose Merge, so this is for when you saved GitHub's library as a copy instead, or got a newer library some other way (a manual download, GitHub Desktop).`n`nYour additions, edits and deletions are kept, and the newer library's added, changed and removed rules are applied.  Rules changed on both sides are shown for you to choose.  Your library is backed up first, and the merge can be undone from the Updater."
 
                 case "BulkFunctionizer":
                     this.helpTexts["ControlButton_BulkFunctionizer"] := "This is for users who want to apply f() functions to multiple plain hotstrings at once, or to update the`n`n`"Web Freq | Fixes X Words`" metrics.`n`nThis tool is also for users who do not want their AutoCorrect items embedded in the f() function calls, so want to remove them.`n`nThe `"BulkFunctionizer`" tool adds or removes them."

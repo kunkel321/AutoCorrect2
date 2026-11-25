@@ -122,18 +122,19 @@ LibMerge_ReadRemoved(path) {
 LibMerge_Run(baseText, mineText, theirsText, removed := "") {
     ; Returns {B, M, T, decide: Map key -> action, lists: Map category -> [keys], conflicts: [...]}
     ; Actions: mine, theirs, delete, add, move, skip, conflict
-    B := LibMerge_Parse(baseText), M := LibMerge_Parse(mineText), T := LibMerge_Parse(theirsText)
+    ; NOTE: AHK names ignore case, so the parsed files are baseDoc/mineDoc/theirsDoc and single rules b/m/t.
+    baseDoc := LibMerge_Parse(baseText), mineDoc := LibMerge_Parse(mineText), theirsDoc := LibMerge_Parse(theirsText)
     lists := Map()
     for cat in ["same", "keptYours", "yoursOnly", "stayDeleted", "tookTheirs", "added", "deleted", "moved", "skipRemoved"]
         lists[cat] := []
     keys := Map()
-    for src in [B, M, T]
+    for src in [baseDoc, mineDoc, theirsDoc]
         for k in src.rules
             keys[k] := true
 
     decide := Map(), conflicts := []
     for k in keys {
-        b := B.rules.Get(k, ""), m := M.rules.Get(k, ""), t := T.rules.Get(k, "")
+        b := baseDoc.rules.Get(k, ""), m := mineDoc.rules.Get(k, ""), t := theirsDoc.rules.Get(k, "")
         bv := IsObject(b) ? b.val : ""
         mv := IsObject(m) ? m.val : ""
         tv := IsObject(t) ? t.val : ""
@@ -181,7 +182,7 @@ LibMerge_Run(baseText, mineText, theirsText, removed := "") {
     for k, d in decide {
         if !(d = "mine" || d = "theirs")
             continue
-        b := B.rules.Get(k, ""), m := M.rules.Get(k, ""), t := T.rules.Get(k, "")
+        b := baseDoc.rules.Get(k, ""), m := mineDoc.rules.Get(k, ""), t := theirsDoc.rules.Get(k, "")
         if IsObject(b) && IsObject(m) && IsObject(t) && b.sec != t.sec && m.sec = b.sec
             moves.Push(k)
     }
@@ -189,7 +190,7 @@ LibMerge_Run(baseText, mineText, theirsText, removed := "") {
         decide[k] := "move"
         lists["moved"].Push(k)
     }
-    return {B: B, M: M, T: T, decide: decide, lists: lists, conflicts: conflicts}
+    return {B: baseDoc, M: mineDoc, T: theirsDoc, decide: decide, lists: lists, conflicts: conflicts}
 }
 
 LibMerge_Build(res) {
