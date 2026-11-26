@@ -3,7 +3,10 @@
 
 ; ============================================================================
 ; Settings Manager - Standalone GUI for editing INI configuration files
-; Version: 9-9-2026
+; Version: 11-25-2026
+;   11-25-2026: Validate Metadata no longer deletes the description of a key that is
+;   in the JSON but not the INI.  It asks, per key: add it to the INI (new key) or
+;   remove the description (stale key).  See ResolveUnusedKeys().
 ; 
 ; A dedicated GUI application for viewing and editing INI settings with
 ; metadata-driven features: type-specific editing, auto-generation, validation,
@@ -1165,7 +1168,8 @@ ValidateMetadata() {
     
     if (unusedKeys.Length > 0) {
         report .= "⚠ UNUSED IN JSON (" unusedKeys.Length " keys):`n"
-        report .= "  (These keys are in JSON but not in INI)`n"
+        report .= "  (In the JSON but not the INI: new keys your INI doesn't have yet,`n"
+        report .= "   or old keys the scripts no longer use.  You'll choose which, next.)`n"
         for key in unusedKeys {
             report .= "  • " key "`n"
         }
@@ -1184,28 +1188,7 @@ ValidateMetadata() {
         result := MsgBox(report, "Metadata Validation Report", "YesNo Icon! 4096")
         
         if (result = "Yes") {
-            jsonPath := metadataPath  ; was hard-coded to the AutoCorrect2 filename
-            
-            ; Proceed with merge to add missing keys and remove unused keys
-            if MergeKeysIntoJSON(missingKeys, unusedKeys, jsonPath) {
-                summaryMsg := "Metadata updated successfully!`n`n"
-                
-                if (missingKeys.Length > 0) {
-                    summaryMsg .= "Added: " missingKeys.Length " new keys`n"
-                }
-                if (unusedKeys.Length > 0) {
-                    summaryMsg .= "Removed: " unusedKeys.Length " unused keys`n"
-                }
-                
-                summaryMsg .= "`nSettings will now be reloaded."
-                
-                MsgBox(summaryMsg, "Success", "Icon! 4096")
-                
-                ; Reload everything
-                Btn_Reload()
-            } else {
-                MsgBox("Error updating metadata. Changes were not saved.", "Error", "Iconx 4096")
-            }
+            SyncMetadata(missingKeys, unusedKeys)
         } else {
             ; User clicked No - just copy report to clipboard
             A_Clipboard := report
@@ -1221,6 +1204,114 @@ ValidateMetadata() {
         ToolTip("Report copied to clipboard")
         SetTimer(() => ToolTip(), 2000)
     }
+}
+
+; ----------------------------------------------------------------------------
+; Shared by Validate Metadata and Manage Metadata: add skeletons for INI keys the
+; JSON lacks, let the user sort out JSON keys the INI lacks, then write and reload.
+; ----------------------------------------------------------------------------
+SyncMetadata(missingKeys, unusedKeys) {
+    global metadataPath
+    toRemove := [], addedToIni := 0
+    if (unusedKeys.Length > 0) {
+        res := ResolveUnusedKeys(unusedKeys)
+        if (!IsObject(res) && missingKeys.Length = 0)
+            return                                   ; cancelled, and nothing else to do
+        if IsObject(res)
+            toRemove := res.remove, addedToIni := res.added
+    }
+    if (missingKeys.Length = 0 && toRemove.Length = 0 && addedToIni = 0)
+        return
+    if (missingKeys.Length > 0 || toRemove.Length > 0) {
+        if !MergeKeysIntoJSON(missingKeys, toRemove, metadataPath) {
+            MsgBox("Error updating metadata. Changes were not saved.", "Error", "Iconx 4096")
+            return
+        }
+    }
+    summaryMsg := "Done.`n`n"
+    if (missingKeys.Length > 0)
+        summaryMsg .= "Descriptions started for " missingKeys.Length " INI key(s) the JSON lacked.`n"
+    if (addedToIni > 0)
+        summaryMsg .= "Added to the INI: " addedToIni " key(s).`n"
+    if (toRemove.Length > 0)
+        summaryMsg .= "Descriptions removed: " toRemove.Length " stale key(s).`n"
+    MsgBox(summaryMsg "`nSettings will now be reloaded.", "Success", "Icon! 4096")
+    Btn_Reload()
+}
+
+; Keys in the JSON but not the INI are either NEW (the INI is older than the JSON --
+; the key should be added) or STALE (renamed or dropped in the scripts -- its
+; description should go).  Two files can't tell which, so the user decides, per key.
+; A key found in "<IniName>.default.ini" beside the INI is ticked to start with and
+; takes its value from there; otherwise the JSON's "default" field is used, if any.
+; Returns {remove: [keys to drop from the JSON], added: n}, or "" if cancelled.
+ResolveUnusedKeys(unusedKeys) {
+    global iniPath, mainGui, FormColor, FontColor, ListColor, DefaultFontSize
+    defPath := RegExReplace(iniPath, "i)\.ini$", ".default.ini")
+    hasDef := (defPath != iniPath) && FileExist(defPath)
+    SplitPath(iniPath, &iniName)
+    SplitPath(defPath, &defName)
+    rows := []
+    for fullKey in unusedKeys {
+        p := InStr(fullKey, ".")
+        sec := SubStr(fullKey, 1, p - 1), key := SubStr(fullKey, p + 1)
+        val := "", src := ""
+        if (hasDef && (v := IniRead(defPath, sec, key, Chr(1))) != Chr(1))
+            val := v, src := defName
+        else if ((md := GetMetadata(sec, key)).Has("default"))
+            val := md["default"], src := "JSON default"
+        rows.Push({full: fullKey, sec: sec, key: key, val: val, src: src})
+    }
+
+    res := {choice: ""}
+    owner := ""
+    try owner := " +Owner" mainGui.Hwnd
+    g := Gui("+AlwaysOnTop" owner, "Keys in the metadata but not in " iniName)
+    g.BackColor := FormColor
+    g.SetFont(DefaultFontSize " " FontColor)
+    g.Add("Text", "x10 y10 w660", "These keys have descriptions in the JSON but are missing from " iniName ".  Each one is either"
+        . "`n  - NEW: your INI is older than the JSON, so the key should be added, or"
+        . "`n  - STALE: the scripts no longer use it, so its description should be removed."
+        . "`n`nTick keys, then pick what to do with the ticked ones.  Unticked keys are left alone."
+        . (hasDef ? "`nTicked to start with: the keys " defName " has (those are almost always new)." : ""))
+    lv := g.Add("ListView", "x10 y+10 w660 r" Min(15, Max(4, rows.Length)) " Checked -Multi Background" ListColor
+        , ["Key", "Value it would get", "From"])
+    for r in rows
+        lv.Add((hasDef && r.src = defName) ? "Check" : "", r.full, r.val, r.src = "" ? "(blank)" : r.src)
+    lv.ModifyCol(1, 330), lv.ModifyCol(2, 190), lv.ModifyCol(3, "AutoHdr")
+    g.Add("Button", "x10 y+10 w210 h30", "Add ticked to the INI").OnEvent("Click", (*) => (res.choice := "add", g.Hide()))
+    g.Add("Button", "x+8 yp w250 h30", "Remove ticked descriptions").OnEvent("Click", (*) => (res.choice := "remove", g.Hide()))
+    g.Add("Button", "x+8 yp w100 h30", "Cancel").OnEvent("Click", (*) => g.Hide())
+    g.OnEvent("Close", (*) => g.Hide())
+    g.OnEvent("Escape", (*) => g.Hide())
+    g.Show()
+    WinWaitClose(g.Hwnd)                              ; hidden counts as closed
+
+    ticked := [], row := 0
+    while (row := lv.GetNext(row, "Checked"))
+        ticked.Push(rows[row])
+    g.Destroy()
+
+    if (res.choice = "" || ticked.Length = 0)
+        return ""
+    if (res.choice = "remove") {
+        out := []
+        for r in ticked
+            out.Push(r.full)
+        return {remove: out, added: 0}
+    }
+    n := 0
+    for r in ticked {
+        ; IniRead strips one pair of outer quotes, so a value holding quotes of its
+        ; own is written wrapped in an extra pair to survive the next read.
+        v := InStr(r.val, '"') ? '"' r.val '"' : r.val
+        try {
+            IniWrite(v, iniPath, r.sec, r.key)
+            n += 1
+        } catch as err
+            MsgBox("Could not write " r.full " to the INI:`n" err.Message, "Error", "Iconx 4096")
+    }
+    return {remove: [], added: n}
 }
 
 quote(str) {
@@ -1278,8 +1369,9 @@ FindUnusedKeys() {
         while (pos := RegExMatch(jsonContent, regex, &match, pos)) {
             fullKey := match[1]
             
-            ; Skip special entries like _Comment
-            if !InStr(fullKey, "_") {
+            ; Skip special entries like _Comment.  (Was !InStr(fullKey, "_"), which also
+            ; skipped real keys with an underscore, e.g. HotstringHelper.CODE_DEBUG_LOG.)
+            if SubStr(fullKey, 1, 1) != "_" && InStr(fullKey, ".") {
                 if !allSettings.Has(fullKey) {
                     unusedKeys.Push(fullKey)
                 }
@@ -1542,7 +1634,7 @@ ShowManageMissingKeysDialog(missingKeys, unusedKeys) {
     }
     
     if (unusedKeys.Length > 0) {
-        message .= "UNUSED KEYS TO REMOVE (" unusedKeys.Length "):`n"
+        message .= "IN THE JSON BUT NOT THE INI (" unusedKeys.Length ") -- you'll choose, next:`n"
         for key in unusedKeys {
             message .= "  • " key "`n"
         }
@@ -1577,21 +1669,7 @@ Btn_ManageMissingKeys(GuiCtrlObj := "", Info := "") {
     result := ShowManageMissingKeysDialog(missingKeys, unusedKeys)
     
     if (result = "Yes") {
-        ; Proceed with merge
-        jsonPath := metadataPath  ; was hard-coded to the AutoCorrect2 filename
-        
-        if MergeKeysIntoJSON(missingKeys, unusedKeys, jsonPath) {
-            MsgBox("Metadata updated successfully!`n`n"
-                . "Added: " missingKeys.Length " new keys`n"
-                . "Removed: " unusedKeys.Length " unused keys`n`n"
-                . "Settings will now be reloaded.",
-                "Success", "Icon!" "4096")
-            
-            ; Reload everything
-            Btn_Reload()
-        } else {
-            MsgBox("Error updating metadata. Changes were not saved.", "Error", "Iconx 4096")
-        }
+        SyncMetadata(missingKeys, unusedKeys)
     }
 }
 

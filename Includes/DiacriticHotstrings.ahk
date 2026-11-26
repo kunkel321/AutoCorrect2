@@ -7,11 +7,10 @@
 ; of the accented letters, it's already too late.  Delete the file and redownload it. 
 ; Version date: 11-14-2026  
 ;------------------------------------------------------------------------------
-; ---- No sort section for items with diacritics. These must appear before main list ----
-:B0X:decollete::f("décolleté") ; adj. (of a garment) having a low-cut neckline
-:B0X:manana::f("mañana") ; Spanish: Tomorrow. 
-; ---- End of diacritic no sort section ----
 
+:B0X*C:uber::f("über") ; Fixes 1 word
+:B0X:cafe::f("café") ; Fixes 1 word
+:B0X:cafes::f("cafés") ; Fixes 1 word
 :B0X:Bjorn::f("Bjørn") ; An old norse name.  Means "Bear."
 :B0X:Fohn wind::f("Föhn wind") ; A type of dry, relatively warm, downslope wind that occurs in the lee (downwind side) of a mountain range.
 :B0X:Quebecois::f("Québécois") ; adj. of or relating to Quebec
@@ -99,6 +98,7 @@
 :B0X:fin de siecle::f("fin de siècle") ; adj. relating to or characteristic of the end of a century (especially the end of the 19th century)
 :B0X:flambe::f("flambé") ; verb pour liquor over and ignite (a dish)
 :B0X:fleche::f("flèche") ; a type of church spire; a team cycling competition; an aggressive offensive fencing technique; a defensive fortification; ships of the Royal Navy
+:B0X:fuhrer::f("Führer") ; German word for leader.
 :B0X:folie a deux::f("folie à deux") ; noun the simultaneous occurrence of symptoms of a mental disorder (as delusions) in two persons who are closely related (as siblings or man and wife)
 :B0X:folies a deux::f("folies à deux")
 :B0X:fouette::f("fouetté") ; From Ballet: The working leg is extended and whipped around
@@ -128,6 +128,7 @@
 :B0X:lycee::f("lycée") ; noun a school for students intermediate between elementary school and college; usually grades 9 to 12
 :B0X:macedoine::f("macédoine") ; noun mixed diced fruits or vegetables; hot or cold
 :B0X:macrame::f("macramé") ; noun a coarse lace; made by weaving and knotting cords; verb make knotted patterns
+:B0X:manana::f("mañana") ; Spanish: Tomorrow. 
 :B0X:maitre d'hotel::f("maître d'hôtel") ; noun a dining-room attendant who is in charge of the waiters and the seating of customers
 :B0X:malaguena::f("malagueña") ; A Spanish dance or folk tune resembling the fandango.
 :B0X:manege::f("manège") ; The art of horsemanship or of training horses.
@@ -171,6 +172,7 @@
 :B0X:pied-a-terre::f("pied-à-terre") ; noun lodging for occasional or secondary use
 :B0X:pina colada::f("Piña Colada") ; noun a mixed drink made of pineapple juice and coconut cream and rum
 :B0X:pinata::f("piñata") ; noun plaything consisting of a container filled with toys and candy; suspended from a height for blindfolded children to break with sticks
+:B0X:pinon::f("piñon") ; noun any of several low-growing pines of western North America.
 :B0X:pique::f("piqué") ; noun tightly woven fabric with raised cords; a sudden outburst of anger; verb cause to feel resentment or indignation
 :B0X:piqued::f("piquéd") ;noun Animosity or ill-feeling, Offence taken. transitive verb To wound the pride of To arouse, stir, provoke.
 :B0X:pirana::f("piraña") ; noun small voraciously carnivorous freshwater fishes of South America that attack and destroy living animals
@@ -192,7 +194,6 @@
 :B0X:saute::f("sauté") ; adj. fried quickly in a little fat; noun a dish of sauteed food; verb fry briefly over high heat
 :B0X:seance::f("séance") ; noun a meeting of spiritualists
 :B0X:senor::f("señor") ; noun a Spanish title or form of address for a man; similar to the English `Mr' or `sir'. senora/señorita ; noun a Spanish title or form of address for a married woman; similar to the English `Mrs' or `madam'
-:B0X:sinn fein::f("Sinn Féin") ; noun an Irish republican political movement founded in 1905 to promote independence from England
 :B0X:smorgasbord::f("smörgåsbord") ; noun served as a buffet meal; a collection containing a variety of sorts of things
 :B0X:smorgastarta::f("smörgåstårta") ; "sandwich-cake" or "sandwich-torte" is a dish of Swedish origin
 :B0X:soigne::f("soigné") ; adj. polished and well-groomed; showing sophisticated elegance
@@ -211,4 +212,4 @@
 :B0X:vis a vis::f("vis à vis") ; adv. face-to-face
 :B0X:vis-a-vis::f("vis-à-vis") ; See above
 :B0X:voila::f("voilà") ; Behold.  There you are.
-; ::pinon::piñon ; noun any of several low-growing pines of western North America ; commented out: Is nullified by :*?:pinon::pion
+; :B0X:decollete::f("décolleté") ; adj. (of a garment) having a low-cut neckline ; commented-out Is nullified by  :?:llete::lette . 

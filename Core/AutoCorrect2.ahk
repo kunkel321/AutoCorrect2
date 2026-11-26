@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-20-2026 
+; Version: 11-26-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Inspired by: AutoCorrect.ahk (Jim Biancolo) https://www.biancolo.com/blog/autocorrect/
@@ -118,6 +118,10 @@ class Config {
     static DefaultAutoCorrectOpts := "B0X"
     static MakeAcFuncByDefault := 1
     static MakeBpFuncByDefault := 1
+    static AcLogByDefault := 1               ; new AC entries: pre-tick Log   (only when Function is ticked)
+    static AcPasteByDefault := 0             ; new AC entries: pre-tick Paste (only when Function is ticked)
+    static BpLogByDefault := 0               ; same two for new boilerplate entries
+    static BpPasteByDefault := 0
     static AutoCommentWithFreqAndStats := 1
     static AutoEnterNewEntry := 1
     static AutoOpenExamPane := 1
@@ -325,6 +329,10 @@ class Config {
         this.DefaultAutoCorrectOpts     := this.ReadIni("HotstringHelper", "DefaultAutoCorrectOpts", "B0X")
         this.MakeAcFuncByDefault        := this.ReadIni("HotstringHelper", "MakeAcFuncByDefault", 1)
         this.MakeBpFuncByDefault        := this.ReadIni("HotstringHelper", "MakeBpFuncByDefault", 1)
+        this.AcLogByDefault             := this.ReadIni("HotstringHelper", "AcLogByDefault", 1)
+        this.AcPasteByDefault           := this.ReadIni("HotstringHelper", "AcPasteByDefault", 0)
+        this.BpLogByDefault             := this.ReadIni("HotstringHelper", "BpLogByDefault", 0)
+        this.BpPasteByDefault           := this.ReadIni("HotstringHelper", "BpPasteByDefault", 0)
         this.AutoCommentWithFreqAndStats := this.ReadIni("HotstringHelper", "AutoCommentWithFreqAndStats", 1)
         this.AutoEnterNewEntry          := this.ReadIni("HotstringHelper", "AutoEnterNewEntry", 1)
         this.AutoOpenExamPane           := this.ReadIni("HotstringHelper", "AutoOpenExamPane", 1)
@@ -851,6 +859,8 @@ class UI {
 
         ; Remember the window position when the user finishes dragging it.
         OnMessage(0x0232, WindowPos.Save.Bind(WindowPos)) ; WM_EXITSIZEMOVE
+        ; Keep HH its own size when it is dragged to a monitor with a different scale.
+        DpiKeepSize.Watch(this.MainForm.Hwnd)
     }
 
     ; Create the trigger string section
@@ -2013,7 +2023,7 @@ class UIActions {
         nowFunc := isFunc ? 1 : 0
         if nowFunc != wasFunc {
             if nowFunc
-                UI.Controls["LogCheck"].Value := 1
+                UIActions.ApplyLogPasteDefaults(UIActions.IsBpEntry())
             else {
                 UI.Controls["LogCheck"].Value   := 0
                 UI.Controls["PasteCheck"].Value := 0
@@ -2242,8 +2252,25 @@ class UIActions {
             UI.Controls["PasteCheck"].Value := 0
             UI.Controls["LogCheck"].Value   := 0
         } else
-            UI.Controls["LogCheck"].Value   := 1 ; f()'s own default; left unticked, an empty-clipboard form wrote f(r, 0) rules that never log
+            this.ApplyLogPasteDefaults(this.IsBpEntry()) ; per [HotstringHelper] Ac/BpLogByDefault.  (Log used to stay unticked here, so an empty-clipboard form wrote f(r, 0) rules that never log.)
         this.FormAsFunction()
+    }
+
+    ; Pre-ticks Log and Paste for a NEW entry, from AcLogByDefault / AcPasteByDefault or
+    ; BpLogByDefault / BpPasteByDefault.  Both need f(), so both stay unticked when the
+    ; Function box is.  Call it after setting the Function box.  (An existing rule loaded
+    ; from the clipboard keeps its own Log/Paste instead -- see the hsRegex parse.)
+    static ApplyLogPasteDefaults(isBP) {
+        isFunc := UI.Controls["FunctionCheck"].Value
+        UI.Controls["LogCheck"].Value   := isFunc && (isBP ? Config.BpLogByDefault   : Config.AcLogByDefault)   ? 1 : 0
+        UI.Controls["PasteCheck"].Value := isFunc && (isBP ? Config.BpPasteByDefault : Config.AcPasteByDefault) ? 1 : 0
+    }
+    ; Is the form currently a boilerplate entry?  The AC/BP radios decide when they are
+    ; in use and one is picked; otherwise the AC/BP guess made when HH opened.
+    static IsBpEntry() {
+        if Config.SeparateLibForBoilerplates && State.LibrarySelection != ""
+            return State.LibrarySelection = "BP"
+        return State.IsBoilerplate
     }
 
     ; Handle Paste or Log checkbox click — if either checked, ensure Function is checked too
@@ -3925,6 +3952,57 @@ class WindowPos {
     }
 }
 
+; Dragged onto a monitor with a different scale (e.g. 125% -> 100%), Windows shrank
+; HH's FRAME to the new scale while the controls inside kept their size, so the right
+; and bottom edges were cut off.  (Same problem as the Settings Dashboard, same fix.)
+; So: note the window's outer size when a drag starts, and put it back after the drag
+; if it changed.  HH has no resize border, so a drag can only move it -- any size
+; change during one is this shrink.  (MoveResizeTools' Ctrl+Alt+right-drag resizes
+; without a drag loop, so it is not undone.)  The thread is switched to per-monitor
+; mode while measuring: during and right after a drag it can be system-aware, where
+; GetWindowRect gives scaled rather than physical pixels (see ScreenSnip's SnipDpiEnter).
+class DpiKeepSize {
+    static hwnd := 0, w := 0, h := 0
+    static Watch(hwnd) {
+        this.hwnd := hwnd
+        OnMessage(0x0231, this.Start.Bind(this))   ; WM_ENTERSIZEMOVE
+        OnMessage(0x0232, this.Stop.Bind(this))    ; WM_EXITSIZEMOVE
+    }
+    static Start(wParam, lParam, msg, hwnd) {
+        if hwnd != this.hwnd
+            return
+        prev := this.DpiEnter()
+        this.OuterSize(&w, &h), this.w := w, this.h := h
+        this.DpiLeave(prev)
+    }
+    static Stop(wParam, lParam, msg, hwnd) {
+        if hwnd = this.hwnd && this.w
+            SetTimer(this.Restore.Bind(this), -50)  ; after Windows has finished with the window
+    }
+    static Restore() {
+        prev := this.DpiEnter()
+        this.OuterSize(&w, &h)
+        if w != this.w || h != this.h
+            DllCall("SetWindowPos", "Ptr", this.hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", this.w, "Int", this.h
+                , "UInt", 0x16)                     ; SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+        this.DpiLeave(prev)
+    }
+    static OuterSize(&w, &h) {
+        rc := Buffer(16, 0)
+        DllCall("GetWindowRect", "Ptr", this.hwnd, "Ptr", rc)
+        w := NumGet(rc, 8, "Int") - NumGet(rc, 0, "Int"), h := NumGet(rc, 12, "Int") - NumGet(rc, 4, "Int")
+    }
+    static DpiEnter() {
+        prev := 0
+        try prev := DllCall("SetThreadDpiAwarenessContext", "Ptr", -3, "Ptr")
+        return prev
+    }
+    static DpiLeave(prev) {
+        if prev
+            try DllCall("SetThreadDpiAwarenessContext", "Ptr", prev, "Ptr")
+    }
+}
+
 ; HH Replacement box spell check through the Windows spell checker (ISpellChecker,
 ; Win8+, offline; same dictionary as Windows' red squiggles).  A plain Edit can't
 ; draw squiggles, so misspelled text turns red, and right-clicking a misspelled word
@@ -4681,8 +4759,7 @@ class Utils {
             
             State.IsBoilerplate := 1
             UI.Controls["FunctionCheck"].Value := Config.MakeBpFuncByDefault
-            UI.Controls["PasteCheck"].Value    := 0
-            UI.Controls["LogCheck"].Value      := Config.MakeBpFuncByDefault ; user: log everything
+            UIActions.ApplyLogPasteDefaults(true)         ; BpLogByDefault / BpPasteByDefault
             
             ; Set BP radio button if dual library support is enabled
             if Config.SeparateLibForBoilerplates && UI.Controls.Has("BPRadio") {
@@ -4740,7 +4817,7 @@ class Utils {
             if Config.EmptyFormDefaults {
                 UI.Controls["OptionsEdit"].Text := Config.DefaultAutoCorrectOpts
                 UI.Controls["FunctionCheck"].Value := Config.MakeAcFuncByDefault
-                UI.Controls["LogCheck"].Value      := Config.MakeAcFuncByDefault
+                UIActions.ApplyLogPasteDefaults(false)    ; AcLogByDefault / AcPasteByDefault
                 if Config.SeparateLibForBoilerplates && UI.Controls.Has("ACRadio") {
                     UI.Controls["ACRadio"].Value := 1
                     State.LibrarySelection := "AC"
@@ -4766,8 +4843,7 @@ class Utils {
             UI.Controls["ReplacementEdit"].Value := Trim(StrLower(content))
             UI.Controls["OptionsEdit"].Text := Config.DefaultAutoCorrectOpts
             UI.Controls["FunctionCheck"].Value := Config.MakeAcFuncByDefault
-            UI.Controls["PasteCheck"].Value    := 0
-            UI.Controls["LogCheck"].Value      := Config.MakeAcFuncByDefault
+            UIActions.ApplyLogPasteDefaults(false)        ; AcLogByDefault / AcPasteByDefault
         }
         
         ; Ensure replacement field is editable
@@ -5328,9 +5404,9 @@ class HelpSystem {
         
         this.helpTexts["FunctionCheck"] := "When checked, your hotstring will be created using the f() function that enables logging, backspace (error-correction) detection, automatic rarefication, and Descolada InputBuffering.`n`nIf this box is checked, `"B0`" and `"X`" hotstring options will be applied, even if they are not included above.`n`nThe `"Paste`" and `"Log`" checkboxes require Function to be enabled. Unchecking Function will also uncheck both.`n`nTip: If you never want function calls by default, set `"MakeAcFuncByDefault`" and/or `"MakeBpFuncByDefault`" to 0 in the `"HotstringHelper`" section of the Settings Manager. Also checkout the BulkFunctionizer script in the Control Pane."
         
-        this.helpTexts["LogCheck"] := "When checked, the f() function will log this hotstring's usage to the AutoCorrections log file each time it fires.`n`nLogging is useful for tracking which hotstrings are actively correcting your typos, and for feeding the ACLogAnalyzer and related statistics tools.`n`nThis checkbox is on by default for AutoCorrect items and off by default for boilerplate items, since boilerplate expansions are typically intentional and less useful to track.`n`nRequires the `"Function`" checkbox to be enabled. Checking this box will auto-enable Function if it is currently off, and unchecking the Function box will uncheck log and paste.`n`nLogging can be globally disabled via `"EnableLogging`" in the `"ACSystem`" section of the Settings Manager, which overrides this per-hotstring setting.`n`nNote: Log and Paste are (optional) second and third parameters of the f() function.  Log=Yes and Paste=No are the defaults, so when this is the case, the hotstring function call is created without those parameters."
+        this.helpTexts["LogCheck"] := "When checked, the f() function will log this hotstring's usage to the AutoCorrections log file each time it fires.`n`nLogging is useful for tracking which hotstrings are actively correcting your typos, and for feeding the ACLogAnalyzer and related statistics tools.`n`nWhether it starts ticked for a new entry is set by `"AcLogByDefault`" (AutoCorrect entries) and `"BpLogByDefault`" (boilerplate entries) in the `"HotstringHelper`" section of the Settings Manager.  Unless you change them, Log starts on for AutoCorrect entries and off for boilerplates, since boilerplates are used on purpose and there is nothing to tune.`n`nRequires the `"Function`" checkbox to be enabled. Checking this box will auto-enable Function if it is currently off, and unchecking the Function box will uncheck log and paste.`n`nLogging can be globally disabled via `"EnableLogging`" in the `"ACSystem`" section of the Settings Manager, which overrides this per-hotstring setting.`n`nNote: Log and Paste are (optional) second and third parameters of the f() function.  Log=Yes and Paste=No are the defaults, so when this is the case, the hotstring function call is created without those parameters."
         
-        this.helpTexts["PasteCheck"] := "When checked, the f() function will send the replacement text via clipboard paste instead of simulated keystrokes.`n`nThis is useful for large boilerplate entries where keystroke-based sending can be slow or unreliable, especially with special characters or long multi-line text.`n`nFor short AutoCorrect entries, leave this unchecked — paste mode adds a small delay and is unnecessary for brief replacements.`n`nRequires the `"Function`" checkbox to be enabled. Checking this box will auto-enable Function if it is currently off, and unchecking the Function box will uncheck log and paste.`n`nNote: Log and Paste are (optional) second and third parameters of the f() function.  Log=Yes and Paste=No are the defaults, so when this is the case, the hotstring function call is created without those parameters."
+        this.helpTexts["PasteCheck"] := "When checked, the f() function will send the replacement text via clipboard paste instead of simulated keystrokes.`n`nThis is useful for large boilerplate entries where keystroke-based sending can be slow or unreliable, especially with special characters or long multi-line text.`n`nFor short AutoCorrect entries, leave this unchecked — paste mode adds a small delay and is unnecessary for brief replacements.`n`nWhether it starts ticked for a new entry is set by `"AcPasteByDefault`" (AutoCorrect entries) and `"BpPasteByDefault`" (boilerplate entries) in the `"HotstringHelper`" section of the Settings Manager.  Both are off unless you change them.`n`nRequires the `"Function`" checkbox to be enabled. Checking this box will auto-enable Function if it is currently off, and unchecking the Function box will uncheck log and paste.`n`nNote: Log and Paste are (optional) second and third parameters of the f() function.  Log=Yes and Paste=No are the defaults, so when this is the case, the hotstring function call is created without those parameters."
         
         this.helpTexts["ACRadio"] := "Selects AutoCorrect (AC) library destination.`n`nWhen `'Separate Libraries for Boilerplates`' is enabled in settings, this radio button overrides the automatic detection and forces the hotstring to be saved to the AutoCorrect library (AutoCorrectHotstrings.ahk).`n`nThe AC button is automatically pre-selected when you select three or fewer words, on one line, and press Win+H.`n`nYou can manually switch to the BP radio button if you want to save an autocorrect entry to the Boilerplate library instead."
         

@@ -156,6 +156,18 @@
     "type": "hotkey",
     "restart": "..\\Tools\\HotkeyHub.exe"
   },
+  "Hotkeys.NonWordFlagHk": {
+    "label": "Flag Non-Word Hotkey",
+    "help": "Hotkey for the Non-Word List module (Includes\\NonWordList.ahk).  Select a word (or a line from the Bulk Functionizer's report) and press it to flag the word(s) as not real words.  Flagged words go to Debug\\NonWords.txt; nothing is removed from the Exam Pane word list until you click 'Apply to Word List' in the Non-Word List window.  Blank (the default) = no hotkey, since most users never need this tool; e.g. !+n for Alt+Shift+N.",
+    "type": "hotkey",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "Hotkeys.NonWordManagerHk": {
+    "label": "Non-Word List Window Hotkey",
+    "help": "Optional hotkey that opens the Non-Word List review window, where flagged words can be looked up, removed from the list, or applied to the Exam Pane word list in one batch.  The window is also on a Control Panel button.  Blank (the default) = no hotkey.",
+    "type": "hotkey",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
   "Shared.DefaultEditor": {
     "label": "Default Editor",
     "help": "Executable name of your preferred text editor.  The .ahk scripts will use VScode if it is in the default install location.  If not, then this 'backup default' will be used.",
@@ -332,7 +344,7 @@
   },
   "HotstringHelper.FirstLettersToInclude": {
     "label": "First Letters to Include",
-    "help": "When creating acronyms for boilerplate text, how many of the first letters to include from each word.  For example, the acronym for the preceding sentence is 'wcafb', if the value is 5",
+    "help": "When Hotstring Helper suggests a trigger for boilerplate text, it takes the FIRST LETTER of each word (skipping short words: see MinWordLength) until it has this many letters.  So this is the most letters the suggested trigger has, not letters per word.  For example, with 5 (and MinWordLength 2), 'Thank you for your business, we appreciate it' gives 'tyfyb'.  The trigger also gets BoilerplatePrefix in front and BoilerplateSuffix after it.  0 = no letters (the trigger box gets just the prefix and suffix).",
     "type": "integer",
     "min": 1,
     "max": 10,
@@ -341,7 +353,7 @@
   },
   "HotstringHelper.MinWordLength": {
     "label": "Minimum Word Length",
-    "help": "Minimum length a word must be to include its first letters in boilerplate acronyms.  This allows us to exclude short words like 'of', 'in', 'a', etc.  If the min length is 2, then the acronym for the preceding sentence is 'mlwmi'.",
+    "help": "Words this long or SHORTER are skipped when Hotstring Helper builds a suggested boilerplate trigger (see FirstLettersToInclude), so short words like 'of', 'in' and 'a' don't add a letter.  Only words longer than this count.  With 2, the trigger for this sentence's start 'Words this long or shorter are skipped' is 'wtlsa'.  (Punctuation counts as part of a word.)",
     "type": "integer",
     "min": 1,
     "max": 10,
@@ -421,6 +433,46 @@
     "options": [
       "0=Unchecked by default",
       "1=Use f() function by default"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.AcLogByDefault": {
+    "label": "Log New AC Entries By Default",
+    "help": "If enabled, the '[ ] Log' checkbox in Hotstring Helper starts checked for new AutoCorrect entries, so each time the hotstring fires, f() writes it to the AutoCorrections log (used by the Log Analyzer and the stats tools).  When Log is checked, f(\"text\") is written without a second parameter, since logging is f()'s default; when unchecked, f(\"text\", 0). Only applies when the '[ ] Function' box is also checked, since Log and Paste are the optional second and third parameters of f(); unchecking Function unchecks both.  This only sets how the box starts for a new entry -- it can still be changed for each hotstring.  An existing hotstring loaded into Hotstring Helper keeps its own Log/Paste values.",
+    "type": "boolean",
+    "options": [
+      "0=Unchecked by default",
+      "1=Checked by default"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.AcPasteByDefault": {
+    "label": "Paste New AC Entries By Default",
+    "help": "If enabled, the '[ ] Paste' checkbox in Hotstring Helper starts checked for new AutoCorrect entries, so f() sends the replacement by clipboard paste instead of simulated keystrokes.  Paste mode adds a small delay, so for short autocorrections this is normally left off. Only applies when the '[ ] Function' box is also checked, since Log and Paste are the optional second and third parameters of f(); unchecking Function unchecks both.  This only sets how the box starts for a new entry -- it can still be changed for each hotstring.  An existing hotstring loaded into Hotstring Helper keeps its own Log/Paste values.",
+    "type": "boolean",
+    "options": [
+      "0=Unchecked by default",
+      "1=Checked by default"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.BpLogByDefault": {
+    "label": "Log New BP Entries By Default",
+    "help": "If enabled, the '[ ] Log' checkbox in Hotstring Helper starts checked for new boilerplate entries, so each use of the boilerplate is written to the AutoCorrections log.  Off by default: boilerplate expansions are intentional, not typos, so logging them gives the Log Analyzer nothing to tune. Only applies when the '[ ] Function' box is also checked, since Log and Paste are the optional second and third parameters of f(); unchecking Function unchecks both.  This only sets how the box starts for a new entry -- it can still be changed for each hotstring.  An existing hotstring loaded into Hotstring Helper keeps its own Log/Paste values.",
+    "type": "boolean",
+    "options": [
+      "0=Unchecked by default",
+      "1=Checked by default"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "HotstringHelper.BpPasteByDefault": {
+    "label": "Paste New BP Entries By Default",
+    "help": "If enabled, the '[ ] Paste' checkbox in Hotstring Helper starts checked for new boilerplate entries, so f() sends the replacement by clipboard paste instead of simulated keystrokes.  Pasting is faster and more reliable for long or multi-line text and special characters. Only applies when the '[ ] Function' box is also checked, since Log and Paste are the optional second and third parameters of f(); unchecking Function unchecks both.  This only sets how the box starts for a new entry -- it can still be changed for each hotstring.  An existing hotstring loaded into Hotstring Helper keeps its own Log/Paste values.",
+    "type": "boolean",
+    "options": [
+      "0=Unchecked by default",
+      "1=Checked by default"
     ],
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
@@ -649,17 +701,6 @@
     "max": 60,
     "default": "5",
     "restart": "..\\Core\\AutoCorrect2.exe"
-  },
-  "ACSystem.ShowTrayExtras": {
-    "label": "Show Tray Extras",
-    "help": "In the Windows System Tray Menu for AutoCorrect2, should we show the menu items for\n\t-Printer Tool\n\t-Date Tool\n\t-UpTime\nor should they be hidden?",
-    "type": "boolean",
-    "options": [
-      "0=Hide Them",
-      "1=Show Them"
-    ]
-  ,
-  "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "MCLogger.ShowEachHotString": {
     "label": "Show Each Hotstring",
@@ -968,9 +1009,16 @@
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
-  "ControlButtons.HotkeyRef": {
+  "ControlButtons.SettingsDash": {
+    "label": "Settings Dashboard",
+    "help": "This is the setting for the \"Settings Dashboard\" button in the Control Pane.  It opens the Settings Dashboard (Tools\\SettingsDashboard.exe), a task-based companion to the Settings Manager.  Until that tool is installed, the button shows a \"still under construction\" message.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.HotkeyHub": {
     "label": "Hotkey Reference Tool",
-    "help": "This is the setting for the \"Hotkey Reference Tool\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "help": "This is the setting for the \"Hotkey Reference Tool\" button in the Control Pane.  It opens Hotkey Hub (Tools\\HotkeyHub.exe), which lists the hotkeys of the suite and of other running scripts.  The button only appears if HotkeyHub.exe is present.  (This key replaces the old HotkeyRef key.)  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
@@ -1024,16 +1072,23 @@
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
-  "ControlButtons.UniqueStringExtractor": {
-    "label": "Compare Two Versions of HotstringLib",
-    "help": "This is the setting for the \"Compare Two Versions of HotstringLib\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+  "ControlButtons.LibraryMerge": {
+    "label": "Merge a Newer AutoCorrect Library",
+    "help": "This is the setting for the \"Merge a Newer AutoCorrect Library\" button in the Control Pane.  It opens Library Merge (Tools\\LibraryMerge.exe), which merges a newly downloaded AutoCorrectHotstrings.ahk into yours, keeping your own additions, edits and removals.  The button only appears if LibraryMerge.exe is present.  (This key replaces the old UniqueStringExtractor key.)  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
-  "ControlButtons.Defunctionizer": {
-    "label": "Defunctionize Hotstrings",
-    "help": "This is the setting for the \"Defunctionize Hotstrings\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+  "ControlButtons.BulkFunctionizer": {
+    "label": "Functionize Hotstrings",
+    "help": "This is the setting for the \"Functionize Hotstrings\" button in the Control Pane.  It opens the Bulk Functionizer (Tools\\BulkFunctionizer.exe), which converts plain hotstrings to f() form (or back) and rebuilds their Web Freq / Fixes comments.  The button only appears if BulkFunctionizer.exe is present.  (This key replaces the old Defunctionizer key.)  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
+    "type": "text",
+    "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "ControlButtons.NonWords": {
+    "label": "Non-Word List",
+    "help": "This is the setting for the \"Non-Word List\" button in the Control Pane.  It opens the Non-Word List window (Includes\\NonWordList.ahk), for reviewing words flagged as not real words and then removing them from the Exam Pane word list in one batch.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
     "restart": "..\\Core\\AutoCorrect2.exe"
@@ -1057,6 +1112,166 @@
     "help": "This is the setting for the \"Change Color Theme\" button in the Control Pane.  There should be two parts, separated by a comma.\n- First part: 1/0 where one includes the button in the Control Pane.\n- Second part: stay/close where stay means that the Hotstring Helper dialog should stay open after the button is pressed.\n(Note: The specifics of what the button does is hard-coded in AutoCorrect2.ahk.)",
     "type": "text",
     "validation": "(?i)^(0|1), ?(stay|close)$",
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.EditThisScript": {
+    "label": "Tray: Edit This Script",
+    "help": "Opens AutoCorrect2.ahk in your editor (see DefaultEditor / EditorCmd in [Shared]).  Same as the AutoCorrect2EditThisScriptHk hotkey.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.HotstringLibrary": {
+    "label": "Tray: Hotstring Library",
+    "help": "Opens your autocorrect library (Files.HotstringLibrary) in your editor.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.AutoCorrectLog": {
+    "label": "Tray: Open AutoCorrect Log",
+    "help": "Opens the autocorrection log (Files.AutoCorrectsLogFile), scrolled to the newest entries.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.ResetHHWindowPosition": {
+    "label": "Tray: Reset HH Window Position",
+    "help": "Forgets where you last dragged Hotstring Helper, so it opens centered next time.  Only matters when HotstringHelper.RememberWindowPosition=1.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.SettingsManager": {
+    "label": "Tray: Open Settings Manager",
+    "help": "Opens the Settings Manager, which edits acSettings.ini by section and key.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.SettingsDashboard": {
+    "label": "Tray: Open Settings Dashboard",
+    "help": "Opens the Settings Dashboard, which edits the same settings grouped by task.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.CheckForUpdates": {
+    "label": "Tray: Check for Updates",
+    "help": "Runs the Updater (Tools\\Updater.exe) to check GitHub for a newer version.  The item only appears if Updater.exe is present.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.RestartScript": {
+    "label": "Tray: Restart Script",
+    "help": "Reloads AutoCorrect2, for example after editing the library or acSettings.ini by hand.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.OpenFolder": {
+    "label": "Tray: Open AutoCorrect2 Folder",
+    "help": "Opens the AutoCorrect2 folder in your file manager (Files.FileManagerPath, or Windows Explorer if that is blank).\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.GitHub": {
+    "label": "Tray: Go to GitHub Repository",
+    "help": "Opens the AutoCorrect2 page on GitHub in your browser.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.PrinterTool": {
+    "label": "Tray: Run Printer Tool",
+    "help": "Opens the Printer Tool, for checking or changing your default printer.  Not autocorrect-related; it sends the tool's hotkey (Alt+Shift+P).\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.Calendar": {
+    "label": "Tray: Show Calendar",
+    "help": "Opens the DateTool calendar (with personal holidays from Data\\PersonalHolidays.txt).  Not autocorrect-related; it sends the tool's hotkey (Alt+Shift+D).\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.SystemUpTime": {
+    "label": "Tray: System Up Time",
+    "help": "Shows how long the computer has been on since it was last started.  Same as the SystemUpTimeHk hotkey.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.ListLinesDebug": {
+    "label": "Tray: List Lines Debug",
+    "help": "Opens AutoHotkey's ListLines window, showing the script lines that ran most recently.  For troubleshooting.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.EnableAutoCorrections": {
+    "label": "Tray: Enable AutoCorrections",
+    "help": "The on/off switch for all autocorrections.  A check mark means they are on; click it to pause or resume them.  If you hide this item, there is no menu way to pause AutoCorrect (the SkipList settings still work per program).\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
+    "restart": "..\\Core\\AutoCorrect2.exe"
+  },
+  "TrayMenu.StartWithWindows": {
+    "label": "Tray: Start with Windows",
+    "help": "Adds or removes a shortcut to AutoCorrect2 in your Windows Startup folder.  A check mark means AutoCorrect2 starts when you log in.\n\n1 = show the item, 0 = hide it.  A missing key means shown.  The top item (opens Hotstring Helper) and \"Exit Script\" are always shown.",
+    "type": "boolean",
+    "options": [
+      "0=Hide in tray menu",
+      "1=Show in tray menu"
+    ],
     "restart": "..\\Core\\AutoCorrect2.exe"
   },
   "HotkeyHub.ShowHidden": {
