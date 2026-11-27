@@ -10,7 +10,7 @@ _Stephen Kunkel (kunkel321)_
 - Then press _Win+H_
 
 # Youtube Screencasts
-The quality is not great.  Sorry. 
+The quality is not great.  Sorry. Also, at this point the videos are a bit dated.  I'll remake them one of these years...
 
 -intro-initial setup 12-30-2025 https://www.youtube.com/watch?v=cI6NwprfvpE
 
@@ -28,10 +28,11 @@ The quality is not great.  Sorry.
 
 # Setup/Update Recommendation
 - I don't really do compiled installable "releases," so, for the first-time setup, download the entire AutoCorrect-main.zip from the above [<> Code] drop button.
-- For subsequent updates, use the Updater.exe tool in the Tools folder
+- For subsequent updates, use the Updater.exe tool in the Tools folder.
+- Be sure to check out the Tools\SettingsDashboard.exe tool.
 
 # Contributors
-It's worth noting that only one other person -- Robert -- has contributed code _via the GitHub push mechanism_, but many others have made **significant** contributions by other means (usually the AutoHotkey forums).  I'll list them here eventually, but they can also be found in the code comments of the various ahk files in the repository. 
+It's worth noting that only one other person -- Robert -- has contributed code _via the GitHub push mechanism_, but many others have made **significant** contributions by other means (usually the AutoHotkey forums).  In November 2026 several valuable improvements came from collaboration with @VitaKaninen.  I'll list the rest of them here eventually, but they can also be found in the code comments of the various ahk files in the repository. 
 
 # Hotstring Helper 2 – Quick Sheet
 ![Screenshot of hotstringhelper main gui](https://github.com/kunkel321/AutoCorrect2/blob/main/Resources/Images/GUI%20quicksheet.png)
