@@ -1,10 +1,11 @@
 ﻿#SingleInstance
 #Requires AutoHotkey v2+
 #Include "..\Includes\AcMsgBox.ahk" ; <--- Required.
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 /*
 File: ExtractPotentialMisspellings.ahk
 Made by kunkel321 using Claude AI. 
-Version 3-19-2026 
+Version 11-27-2026 
 
 For use with the AutoCorrect2 library of hotstrings.
 AHK v2 Script to extract words that are potentially misspelled by certain AutoCorrect hotstrings.  It doesn't remove them from the HotstringsLib file, it just generates a separate list of them.
@@ -165,6 +166,7 @@ if (misspelledWords != "") {
     }
     
     myGui := Gui("", titleText)
+    DpiKeepSize.Watch(myGui)   ; keep its size across monitors with different scales
     myGui.SetFont("s10", "Segoe UI")
     myGui.Add("Text", "w900", headerText)
     resultsEdit := myGui.Add("Edit", "r15 w900 ReadOnly", misspelledWords)

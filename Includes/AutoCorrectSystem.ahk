@@ -1,7 +1,8 @@
+#Include "%A_LineFile%\..\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 ; This is AutoCorrectSystem.ahk
 ; Part of the AutoCorrect2 system
 ; Contains the logger and backspace detection functionality and other things
-; Version: 11-14-2026
+; Version: 11-27-2026
 ; 8-3-2026 restructure: keepText() is now the single source of truth for
 ; "Backspace pressed after autocorrection."  When its InputHook ends with
 ; Backspace, it calls BackspaceContextLogger.NotifyBackspaced() directly.
@@ -852,6 +853,7 @@ StringAndFixReport(caller := "Button") {
 
     ; Create the GUI report window
     fixRepGui := Gui(, windowTitle)
+    DpiKeepSize.Watch(fixRepGui)   ; keep its size across monitors with different scales
     fixRepGui.SetFont(Config.FontColor)
     fixRepGui.SetFont(Config.LargeFontSize)
     fixRepGui.BackColor := Config.FormColor

@@ -1,3 +1,4 @@
+#Include "%A_LineFile%\..\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 /*
 ================================================================
 Non-Word List Module to be #Include'd in AutoCorrect2.ahk
@@ -34,7 +35,7 @@ Three ways to flag:
 Optional second hotkey to open the review window: NonWordManagerHk in [Hotkeys] (blank = none).
 
             By: Kunkel321
-            Date: 11-15-2026
+            Date: 11-27-2026
             Tool Used: Claude
 */
 
@@ -345,6 +346,7 @@ class NonWords {
 
     static ShowPicker(cands, note, btn, owner) {
         pk := Gui("+Owner" owner.Hwnd " -MinimizeBox", "Flag as Non-Words")
+        DpiKeepSize.Watch(pk)   ; keep its size across monitors with different scales
         this._Theme(pk)
         pk.Add("Text", "w340", "Remove which of these from the word list?")
         lv := pk.Add("ListView", "w340 Checked -Hdr r" Max(3, Min(cands.Length, 12)) " " this._Bg(), ["Word"])
@@ -502,6 +504,7 @@ class NonWords {
         SplitPath(Config.WordListFile, &fileName)
         ; AlwaysOnTop, like HH itself -- otherwise HH covers it when opened from the Control Panel.
         g := Gui("+AlwaysOnTop", "Non-Word List")
+        DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
         this._Theme(g)
         g.Add("Text", "w600", "Words flagged for removal from " fileName ".  Nothing changes in the word list until you click Apply.")
         lv := g.Add("ListView", "w600 r16 " this._Bg(), ["Word", "Note", "Flagged"])

@@ -6,7 +6,7 @@ MCLoggerHelpText := "
 (
 MCLogger — The Manual Correction Logger
 Part of the AutoCorrect2 suite.
-Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 11-10-2026
+Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 11-27-2026
 Repository: https://github.com/kunkel321/AutoCorrect2
 
 OVERVIEW
@@ -83,6 +83,7 @@ https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120220&start=180#p605321
 )"
 
 #Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. Required.
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 SettingsManager := "..\Tools\SettingsManager.exe" ; Optional (appears on systray menu)
 HsAnalyzer := "..\Tools\HotstringAnalyzer.exe" ; Optional (appears on systray menu)
@@ -1004,6 +1005,7 @@ runAnalysis(*) {
    ; =========
 
 	global cl := Gui()  ; "cl" for "Culled"
+	DpiKeepSize.Watch(cl)   ; keep its size across monitors with different scales
    cl.Title := "MCLogger — Manual Correction Report"
    cl.SetFont('s12 c' fontColor)  
    cl.BackColor := formColor

@@ -1,7 +1,7 @@
 /*
 =====================================================
             AUTO CORRECTION LOG ANALYZER
-                Updated: 3-17-2026 
+                Updated: 11-27-2026 
 =====================================================
 
 Determines frequency of items in AutoCorrects Log file, then reports the analysis
@@ -29,6 +29,7 @@ in a GUI ListView. User can:
 
 #SingleInstance Force
 #Requires AutoHotkey v2+
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 ; ======= Main Class Definition =======
 class ACLogAnalyzer {
@@ -351,6 +352,7 @@ class ACLogAnalyzer {
         this.WorkingItem := " (No lookup history)"
         guiTitle := "AC Analysis Report"
         this.ACAGui := Gui(this.Config.PinToTop ? "+AlwaysOnTop" : "", guiTitle)
+        DpiKeepSize.Watch(this.ACAGui)   ; keep its size across monitors with different scales
         this.ACAGui.SetFont("s12 " (this.FontColor ? "c" this.FontColor : ""))
         this.ACAGui.BackColor := this.FormColor
         
@@ -644,6 +646,7 @@ class ACLogAnalyzer {
                 this.ContextGui.Destroy()
                 
             this.ContextGui := Gui("+AlwaysOnTop")
+            DpiKeepSize.Watch(this.ContextGui)   ; keep its size across monitors with different scales
             this.ContextGui.SetFont("s15 " (this.FontColor ? "c" this.FontColor : ""))
             this.ContextGui.BackColor := this.FormColor
             
@@ -688,6 +691,7 @@ class ACLogAnalyzer {
             this.ConfirmGui.Destroy()
             
         this.ConfirmGui := Gui("+AlwaysOnTop")
+        DpiKeepSize.Watch(this.ConfirmGui)   ; keep its size across monitors with different scales
         this.ConfirmGui.SetFont("s12 " (this.FontColor ? "c" this.FontColor : ""))
         this.ConfirmGui.BackColor := this.FormColor
         

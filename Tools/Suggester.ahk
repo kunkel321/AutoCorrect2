@@ -1,7 +1,7 @@
 /*
 =====================================================
             HOTSTRING SUGGESTER TOOL
-                Updated:  11-21-2026
+                Updated:  11-27-2026
 =====================================================
 Analyzes hotstrings and suggests lengthened/modified alternatives
 that might be better matches. This standalone tool can be called
@@ -53,6 +53,7 @@ Total time is shown in the results window title.
 
 #SingleInstance Force
 #Requires AutoHotkey v2+
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 SetWorkingDir(A_ScriptDir)
 
 TraySetIcon("..\Resources\Icons\lightbulb-Blue.ico") ; icon for 'add new column'
@@ -208,6 +209,7 @@ class HotstringSuggester {
     ; Show the input form when no arguments are provided
     static ShowInputForm() {
         inputGui := Gui("", "Hotstring Suggester - Input")
+        DpiKeepSize.Watch(inputGui)   ; keep its size across monitors with different scales
         inputGui.BackColor := this.Config.FormColor
         inputGui.SetFont("s12 " (this.Config.FontColor != "" ? "c" this.Config.FontColor : ""))
 
@@ -654,6 +656,7 @@ class HotstringSuggester {
         ; Create new suggestion window
         this.SuggestGui := Gui("+AlwaysOnTop", "Hotstring Suggester - Results"
             . (this.ElapsedText != "" ? "   (" this.ElapsedText ")" : ""))
+        DpiKeepSize.Watch(this.SuggestGui)   ; keep its size across monitors with different scales
         this.SuggestGui.SetFont("s12 " (this.Config.FontColor != "" ? "c" this.Config.FontColor : ""))
         this.SuggestGui.BackColor := this.Config.FormColor
 

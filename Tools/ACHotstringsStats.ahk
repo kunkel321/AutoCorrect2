@@ -1,7 +1,7 @@
 /*
 =====================================================
         HOTSTRING LIBRARY STATISTICS ANALYZER
-                Version: 11-26-2025
+                Version: 11-27-2026
 =====================================================
 
 Made by kunkel321, using Claude AI, for the AutoCorrect2 Suite.
@@ -30,6 +30,7 @@ Recommend keeping this file in AutoCorrect2\Tools\
 
 #SingleInstance Force
 #Requires AutoHotkey v2+
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 ; ======= Main Class Definition =======
 class HotstringLibStats {
@@ -249,6 +250,7 @@ class HotstringLibStats {
     static ShowResults() {
         try {
             this.LSGui := Gui()
+            DpiKeepSize.Watch(this.LSGui)   ; keep its size across monitors with different scales
             this.LSGui.Title := "Hotstring Library Statistics"
             this.LSGui.Opt("+AlwaysOnTop")
             

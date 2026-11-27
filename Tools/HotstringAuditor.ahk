@@ -3,7 +3,7 @@
 ; Part of the AutoCorrect2 Suite.  No dependencies beyond AutoHotkey v2.
 ; AHK port of AuditHotstringLib.py (VitaKaninen, 2026-09).
 ; ============================================================
-; Version Date: 11-20-2026
+; Version Date: 11-27-2026
 ;
 ; Simulates AutoHotkey's hotstring firing order across every correctly-spelled
 ; word in the word list and reports what actually breaks.  Reads the libraries
@@ -62,7 +62,9 @@
 ; ============================================================
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 SetWorkingDir(A_ScriptDir)
+TraySetIcon("shell32.dll",266) ; icon image of a file box
 
 settings := "..\Data\acSettings.ini"
 libAC   := "..\Core\" IniRead(settings, "Files", "HotstringLibrary", "AutoCorrectHotstrings.ahk")
@@ -103,6 +105,7 @@ if (A_Args.Length && A_Args[1] = "all")
 
 ; ================================================================ startup GUI
 g := Gui(, "Hotstring Auditor")
+DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
 g.SetFont("s10")
 g.MarginX := 12, g.MarginY := 10
 g.OnEvent("Close", OnClose)

@@ -1,11 +1,12 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 /*******************************************************************************
 Title:      Hotkey Hub  --  hotkey cheatsheet, launcher, and conflict finder
 Author:     Stephen Kunkel321
 Tool Used:  Claude AI
-Version:    9-22-2026
+Version:    11-27-2026
 Repository: https://github.com/kunkel321/AutoCorrect2
 
 A merge of HotKeyTool.ahk (icons, .lnk app launching, systray/startup) and
@@ -44,7 +45,7 @@ HotkeyHubHelpText := "
 (
 Hotkey Hub -- hotkey cheatsheet, launcher, and conflict finder
 Part of the AutoCorrect2 suite.
-Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 9-22-2026
+Author: kunkel321  |  AI Tool: Claude (Anthropic)  |  Version: 11-27-2026
 Repository: https://github.com/kunkel321/AutoCorrect2
 
 OVERVIEW
@@ -1184,6 +1185,7 @@ NormalizeHK(hk) {
 ; ==============================================================================
 BuildGui() {
     g := Gui("+Resize +MinSize700x320", Cfg.guiTitle)
+    DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
     g.MarginX := 10, g.MarginY := 10
     g.BackColor := Theme.form
     g.SetFont("s" Cfg.fontSize " " Theme.fontOpt)

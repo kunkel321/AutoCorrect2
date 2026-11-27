@@ -7,7 +7,7 @@
 ;======== DateTool-H =========================================================
 ; https://www.autohotkey.com/boards/viewtopic.php?f=83&t=124254
 
-; The 'H' is for 'Holidays.'   Version: 7-24-2026  
+; The 'H' is for 'Holidays.'   Version: 11-27-2026  
 ; A simple popup calendar that has US Holidays in bold font.
 ; Original calendar-with-bolded-dates v1 code by PhiLho
 ; https://www.autohotkey.com/board/topic/13441-monthcal-setdaystate/
@@ -31,6 +31,9 @@
 ; -Personal dates (birthdays, anniversaries) moved out to an external file,
 ;  ..\Data\PersonalHolidays.txt, so they survive updates to this script.
 ;  Each line is validated on its own; a bad line is skipped, never fatal.
+; November 2026
+; -Windows keep their size when dragged to a monitor with a different scale
+;  (DateTool_DpiKeepSize class, near the end; embedded so DateTool stays self-contained).
 
 ; MARK: Help
 ;======== Directions for Use: Date Hotstrings ==================================
@@ -218,6 +221,7 @@ SendDateHS(sFormat, sMode) {
     if sInput = "h" { ;help is called
         SendInput("{BackSpace 4}")
         myHSgui := Gui("AlwaysOnTop", "DateTool Hotstring Help")
+        DateTool_DpiKeepSize.Watch(myHSgui)
         myHSgui.SetFont("s10", "Courier New")
         myHSgui.Add("Text", , sHSHelp)
         myHSgui.Show
@@ -763,6 +767,7 @@ MCRemake(*) {
         Y := 200 ; near top
         MCGUI := Gui("+AlwaysOnTop -MinimizeBox +LastFound +ToolWindow", guiTitle)
     }
+    DateTool_DpiKeepSize.Watch(MCGUI)   ; keep its size across monitors with different scales
     
     MCGUI.OnEvent("Close", MCGUIClose)
     MCGUI.OnEvent("Escape", MCGUIClose)
@@ -817,6 +822,7 @@ F1::monthCalHelp() ; Show help for monthCal ; hide
 
 monthCalHelp(*) {
     myMCgui := Gui("AlwaysOnTop", "DateTool monthCal Help")
+    DateTool_DpiKeepSize.Watch(myMCgui)
     myMCgui.SetFont("s10", "Courier New")
     myMCgui.Add("Text", , sMCHelp)
     myMCgui.Show
@@ -2290,4 +2296,99 @@ DTDebug(message) {
         FileAppend("Debug: " formatTime(A_Now, "MMM-dd hh:mm:ss") ": " message "`n", "..\Data\Datetool_error_debug_log.txt")
     }
 }
+; MARK: DPI keep-size
+; ============================================================================
+; DateTool_DpiKeepSize -- keeps DateTool's windows their own size when they are
+; dragged to a monitor with a different scale (otherwise Windows shrinks the frame
+; but not the contents, and the edges get cut off).
+; A copy of AutoCorrect2's Includes\DpiKeepSize.ahk, embedded so DateTool stays a
+; self-contained, stand-alone tool.  It has its own class name because AutoCorrect2
+; #Includes both files, and two classes can't share a name.  Keep the two in step.
+; How: note the outer size and monitor DPI when a drag starts; when it ends, put
+; the size back if it changed and the window is on a monitor with a different DPI
+; (or has no resize border).  The message handlers only observe: they return
+; nothing, so no message is marked handled.
+; ============================================================================
+class DateTool_DpiKeepSize {
+    static wins := Map()        ; hwnd -> {w, h, dpi} noted when a drag starts
+    static hooked := false
+
+    static Watch(guiOrHwnd) {
+        hwnd := IsObject(guiOrHwnd) ? guiOrHwnd.Hwnd : guiOrHwnd
+        if !hwnd
+            return
+        this.wins[hwnd] := {w: 0, h: 0, dpi: 0}
+        if !this.hooked {
+            this.hooked := true
+            OnMessage(0x0231, this._Start.Bind(this))     ; WM_ENTERSIZEMOVE
+            OnMessage(0x0232, this._Stop.Bind(this))      ; WM_EXITSIZEMOVE
+            OnMessage(0x0002, this._Gone.Bind(this))      ; WM_DESTROY
+        }
+    }
+
+    static _Start(wParam, lParam, msg, hwnd) {
+        if !this.wins.Has(hwnd)
+            return
+        prev := this._DpiEnter()
+        this._Size(hwnd, &w, &h)
+        e := this.wins[hwnd]
+        e.w := w, e.h := h, e.dpi := this._MonitorDpi(hwnd)
+        this._DpiLeave(prev)
+    }
+
+    static _Stop(wParam, lParam, msg, hwnd) {
+        if this.wins.Has(hwnd) && this.wins[hwnd].w
+            SetTimer(this._Restore.Bind(this, hwnd), -50)  ; after Windows has finished with the window
+    }
+
+    static _Gone(wParam, lParam, msg, hwnd) {
+        if this.wins.Has(hwnd)
+            this.wins.Delete(hwnd)
+    }
+
+    static _Restore(hwnd) {
+        if !this.wins.Has(hwnd) || !DllCall("IsWindow", "Ptr", hwnd)
+            return
+        e := this.wins[hwnd]
+        prev := this._DpiEnter()
+        this._Size(hwnd, &w, &h)
+        if w != e.w || h != e.h {
+            dpi := this._MonitorDpi(hwnd)
+            resizable := false
+            try resizable := WinGetStyle(hwnd) & 0x40000          ; WS_THICKFRAME
+            if (dpi && e.dpi && dpi != e.dpi) || !resizable
+                DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", e.w, "Int", e.h
+                    , "UInt", 0x16)                                ; SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+        }
+        this._DpiLeave(prev)
+    }
+
+    static _Size(hwnd, &w, &h) {
+        rc := Buffer(16, 0)
+        DllCall("GetWindowRect", "Ptr", hwnd, "Ptr", rc)
+        w := NumGet(rc, 8, "Int") - NumGet(rc, 0, "Int")
+        h := NumGet(rc, 12, "Int") - NumGet(rc, 4, "Int")
+    }
+
+    static _MonitorDpi(hwnd) {
+        try {
+            hMon := DllCall("MonitorFromWindow", "Ptr", hwnd, "UInt", 2, "Ptr")    ; MONITOR_DEFAULTTONEAREST
+            if DllCall("shcore\GetDpiForMonitor", "Ptr", hMon, "Int", 0, "UInt*", &dx := 0, "UInt*", &dy := 0) = 0
+                return dx
+        }
+        return 0
+    }
+
+    static _DpiEnter() {
+        prev := 0
+        try prev := DllCall("SetThreadDpiAwarenessContext", "Ptr", -3, "Ptr")    ; PER_MONITOR_AWARE
+        return prev
+    }
+
+    static _DpiLeave(prev) {
+        if prev
+            try DllCall("SetThreadDpiAwarenessContext", "Ptr", prev, "Ptr")
+    }
+}
+
 ; MARK: END

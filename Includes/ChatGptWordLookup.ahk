@@ -1,3 +1,4 @@
+#Include "%A_LineFile%\..\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 /*
 ================================================================
 AI Word Lookup Module to be #Include'd in AutoCorrect2.ahk
@@ -35,7 +36,7 @@ Files (all in ..\Data\):
 Requires an OpenAI account and prepaid API tokens. See SetupMessage below.
 
 			By: Kunkel321
-			Date: 11-17-2026
+			Date: 11-27-2026
 			Tool Used: Claude
 Credit:  Originally based on the app 'ChatGPT-AutoHotkey-Utility' by kdalanon.
 https://github.com/kdalanon/ChatGPT-AutoHotkey-Utility
@@ -201,6 +202,7 @@ AiWord_OpenDialog(word) {
 	c := Map()
 	ui := { entries: [] }        ; parallel to drop-down items, minus the placeholder
 	g := Gui("+Resize +MinSize560x480", "AutoCorrect2 — Ask AI")
+	DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
 	AiWordState.Gui := g, AiWordState.Ctl := c
 	g.MarginX := 12, g.MarginY := 10
 	g.SetFont(AiWordCfg.FontSize, "Segoe UI")

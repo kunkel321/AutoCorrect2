@@ -5,7 +5,7 @@ SetWorkingDir(A_ScriptDir)
 ; ========================================
 ; This is AutoCorrect2, with HotstringHelper2
 ; A comprehensive tool for creating, managing, and analyzing hotstrings
-; Version: 11-26-2026 
+; Version: 11-27-2026 
 ; Author: kunkel321
 ; AI Used: Claude
 ; Inspired by: AutoCorrect.ahk (Jim Biancolo) https://www.biancolo.com/blog/autocorrect/
@@ -530,6 +530,7 @@ IsSkiplistedFocused() {
 #HotIf
 
 #Include "..\Includes\AcMsgBox.ahk" ; For custom msgbox system. -- REQUIRED
+#Include "..\Includes\DpiKeepSize.ahk" ; Keeps windows their size across monitors with different scales. -- REQUIRED
 
 ; Initialize configuration
 Config.Init()
@@ -859,8 +860,9 @@ class UI {
 
         ; Remember the window position when the user finishes dragging it.
         OnMessage(0x0232, WindowPos.Save.Bind(WindowPos)) ; WM_EXITSIZEMOVE
-        ; Keep HH its own size when it is dragged to a monitor with a different scale.
-        DpiKeepSize.Watch(this.MainForm.Hwnd)
+        ; Keep HH its own size when it is dragged to a monitor with a different scale
+        ; (Includes\DpiKeepSize.ahk).
+        DpiKeepSize.Watch(this.MainForm)
     }
 
     ; Create the trigger string section
@@ -2875,6 +2877,7 @@ class UIActions {
 			this.ValidityDialog.Destroy()
 			
 		this.ValidityDialog := Gui(, "Validity Report")
+		DpiKeepSize.Watch(this.ValidityDialog)   ; keep its size across monitors with different scales
 		this.ValidityDialog.BackColor := Config.FormColor
 		
 		; Set font
@@ -3871,6 +3874,7 @@ class Dictionary {
         }
     
         dictGui := Gui()
+        DpiKeepSize.Watch(dictGui)   ; keep its size across monitors with different scales
         dictGui.SetFont(Config.LargeFontSize, "Segoe UI")
         dictGui.SetFont(Config.FontColor)
         dictGui.BackColor := Config.FormColor
@@ -3949,57 +3953,6 @@ class WindowPos {
         try FileDelete(this.File)
         try if DllCall("IsWindowVisible", "Ptr", UI.MainForm.Hwnd)
             UI.MainForm.Show("AutoSize yCenter")
-    }
-}
-
-; Dragged onto a monitor with a different scale (e.g. 125% -> 100%), Windows shrank
-; HH's FRAME to the new scale while the controls inside kept their size, so the right
-; and bottom edges were cut off.  (Same problem as the Settings Dashboard, same fix.)
-; So: note the window's outer size when a drag starts, and put it back after the drag
-; if it changed.  HH has no resize border, so a drag can only move it -- any size
-; change during one is this shrink.  (MoveResizeTools' Ctrl+Alt+right-drag resizes
-; without a drag loop, so it is not undone.)  The thread is switched to per-monitor
-; mode while measuring: during and right after a drag it can be system-aware, where
-; GetWindowRect gives scaled rather than physical pixels (see ScreenSnip's SnipDpiEnter).
-class DpiKeepSize {
-    static hwnd := 0, w := 0, h := 0
-    static Watch(hwnd) {
-        this.hwnd := hwnd
-        OnMessage(0x0231, this.Start.Bind(this))   ; WM_ENTERSIZEMOVE
-        OnMessage(0x0232, this.Stop.Bind(this))    ; WM_EXITSIZEMOVE
-    }
-    static Start(wParam, lParam, msg, hwnd) {
-        if hwnd != this.hwnd
-            return
-        prev := this.DpiEnter()
-        this.OuterSize(&w, &h), this.w := w, this.h := h
-        this.DpiLeave(prev)
-    }
-    static Stop(wParam, lParam, msg, hwnd) {
-        if hwnd = this.hwnd && this.w
-            SetTimer(this.Restore.Bind(this), -50)  ; after Windows has finished with the window
-    }
-    static Restore() {
-        prev := this.DpiEnter()
-        this.OuterSize(&w, &h)
-        if w != this.w || h != this.h
-            DllCall("SetWindowPos", "Ptr", this.hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", this.w, "Int", this.h
-                , "UInt", 0x16)                     ; SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
-        this.DpiLeave(prev)
-    }
-    static OuterSize(&w, &h) {
-        rc := Buffer(16, 0)
-        DllCall("GetWindowRect", "Ptr", this.hwnd, "Ptr", rc)
-        w := NumGet(rc, 8, "Int") - NumGet(rc, 0, "Int"), h := NumGet(rc, 12, "Int") - NumGet(rc, 4, "Int")
-    }
-    static DpiEnter() {
-        prev := 0
-        try prev := DllCall("SetThreadDpiAwarenessContext", "Ptr", -3, "Ptr")
-        return prev
-    }
-    static DpiLeave(prev) {
-        if prev
-            try DllCall("SetThreadDpiAwarenessContext", "Ptr", prev, "Ptr")
     }
 }
 
@@ -4350,6 +4303,7 @@ class Utils {
     ; Show spelling suggestion in a GUI
     static ShowSpellingSuggestionGui(originalText, suggestion) {
         suggestionGui := Gui("+AlwaysOnTop")
+        DpiKeepSize.Watch(suggestionGui)   ; keep its size across monitors with different scales
         suggestionGui.SetFont(Config.LargeFontSize)
         suggestionGui.SetFont(Config.FontColor)
         suggestionGui.BackColor := Config.FormColor
@@ -5586,6 +5540,7 @@ class HelpSystem {
     ; Create the window once; _SetContent() swaps title and text afterwards.
     static _BuildWindow() {
         this.helpGui := Gui("AlwaysOnTop", "HotString Helper Help")
+        DpiKeepSize.Watch(this.helpGui)   ; keep its size across monitors with different scales
         this.helpGui.SetFont("s10", "Courier New")
         fontColor := Config.FontColor != "" ? "c" SubStr(Config.FontColor, -6) : ""
         this.helpGui.SetFont(fontColor)

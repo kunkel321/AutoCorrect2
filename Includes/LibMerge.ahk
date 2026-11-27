@@ -1,10 +1,11 @@
-﻿#Requires AutoHotkey v2.0
+﻿#Include "%A_LineFile%\..\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
+#Requires AutoHotkey v2.0
 /*
 LibMerge.ahk -- three-way merge for the AutoCorrect hotstring library.
 Shared by Tools\Updater.ahk and Tools\LibraryMerge.ahk.
 Author: kunkel321
 Tool Used: Claude
-Version: 11-24-2026
+Version: 11-27-2026
 
 THE IDEA
 Two files can't tell who changed what.  Three can: the ORIGINAL (the library as the user last got it
@@ -322,6 +323,7 @@ LibMerge_Show(rule) => IsObject(rule) ? rule.show : "(none)"
 ; ---------------------------------------------------------------------------
 LibMerge_Review(res, baseNote, style, title := "Merge AutoCorrect Library") {
     g := Gui("+AlwaysOnTop +Resize +MinSize900x420", title)
+    DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
     g.BackColor := style.formColor
     g.SetFont("s" style.fontSize " " style.fontColor)
     state := {ok: false, res: res}

@@ -1,7 +1,7 @@
 ; ============================================================
 ; AcMsgBox - Custom Message Box with GUI Styling
 ; Intended for use with AutoCorrect2 apps.
-; Version 3-17-2026
+; Version 11-27-2026
 ; ============================================================
 ; Replacement for standard MsgBox() with custom GUI styling
 ; 
@@ -101,6 +101,9 @@
 ; AcMsgBox.show("You chose " styledResult)
 
 ; ============================================================
+
+; Keeps the dialog its own size when dragged to a monitor with a different scale.
+#Include "%A_LineFile%\..\DpiKeepSize.ahk"
 
 class AcMsgBox {
     ; ===== CONFIGURATION - Customize these paths for your setup =====
@@ -213,10 +216,12 @@ class AcMsgBox {
                 textCtrl := msgGui.Add("Edit", "x18 y10" editOpts, Text)
         }
         
-        ; Add buttons with placeholder Y position (will be repositioned after show)
+        ; ===== Add buttons =====
+        ; Buttons are added WITHOUT a width, so AHK sizes each one to fit its
+        ; text on a single line. We then measure them and give all of them the
+        ; width of the widest one. (A fixed width is what caused long captions
+        ; like "Undo last update" to wrap onto two lines.)
         buttonCount := buttons.Length
-        buttonWidth := AcMsgBox.CalculateButtonWidth(buttons)
-        totalButtonWidth := (buttonCount * buttonWidth) + ((buttonCount - 1) * 10)
         
         ; Reset font size to default for buttons (don't use custom LargeFontSize)
         msgGui.SetFont("s" . Integer(ButtonFontSize))
@@ -224,9 +229,8 @@ class AcMsgBox {
         buttonResult := ""
         buttonControls := []
         
-        ; Add buttons with placeholder position (will be repositioned after show)
         for index, btnText in buttons {
-            btn := msgGui.Add("Button", "x10 y300 w" buttonWidth, btnText)  ; x10, y300 are placeholders
+            btn := msgGui.Add("Button", "x10 y300", btnText)  ; x10, y300 are placeholders
             btn.OnEvent("Click", (GuiCtrlObj, Info) => (
                 buttonResult := GuiCtrlObj.Text,
                 msgGui.Destroy()
@@ -234,40 +238,41 @@ class AcMsgBox {
             buttonControls.Push(btn)
         }
         
-        ; ===== Show GUI to allow auto-sizing of text control =====
-        msgGui.Show()
+        ; ===== Measure and lay out =====
+        ; GetPos, Move and Show all use the same units here, so no DPI conversion is needed.
+        gap := 10                  ; space between buttons
+        sidePad := 20              ; left/right padding around button row
+        buttonWidth := 70          ; minimum button width
+        buttonHeight := 0
+        for btn in buttonControls {
+            btn.GetPos(,, &bw, &bh)
+            buttonWidth := Max(buttonWidth, bw + 16)  ; a little breathing room
+            buttonHeight := Max(buttonHeight, bh)
+        }
+        totalButtonWidth := (buttonCount * buttonWidth) + ((buttonCount - 1) * gap)
+        
+        ; Buttons go below the text (and below the icon, if there is one)
+        textCtrl.GetPos(&x, &y, &w, &h)
+        buttonY := y + h + 15
+        if (iconExists)
+            buttonY := Max(buttonY, 68)
+        
+        ; Window client width: wide enough for the text, the button row, and a sensible minimum
+        clientW := Max(x + w + 18, totalButtonWidth + 2 * sidePad, 270)
+        clientH := buttonY + buttonHeight + 15
+        
+        ; Center the button row
+        startX := Round((clientW - totalButtonWidth) / 2)
+        for index, btn in buttonControls
+            btn.Move(startX + (index - 1) * (buttonWidth + gap), buttonY, buttonWidth, buttonHeight)
+        
+        ; Show once, at the final size
+        msgGui.Show("w" clientW " h" clientH)
+        DpiKeepSize.Watch(msgGui)   ; keep its size if dragged to a monitor with a different scale
         
         ; Set focus to first button so user can press Enter
         if (buttonControls.Length > 0)
             buttonControls[1].Focus()
-        
-        ; ===== Measure text control and reposition buttons =====
-        textCtrl.GetPos(&x, &y, &w, &h)
-        buttonY := y + h + 15  ; 15px padding below text
-        
-        ; Ensure buttons don't overlap icon (icon is at y10, height 48, so minimum Y is 68)
-        if (iconExists && buttonY < 68)
-            buttonY := 68
-        
-        ; Get the actual window width and center buttons
-        msgGui.GetPos(,,&guiWidth,)
-        
-        ; Calculate minimum width to fit 3 buttons with gaps and padding
-        minWidth := (3 * buttonWidth) + (2 * 10) + 40
-        if (guiWidth < minWidth) {
-            guiWidth := minWidth
-            msgGui.Show("w" minWidth)
-        }
-        
-        centerX := (guiWidth - totalButtonWidth) / 2
-        
-        for index, btn in buttonControls {
-            xPos := centerX + ((index - 1) * (buttonWidth + 10))
-            btn.Move(xPos, buttonY)
-        }
-        
-        ; Adjust window size to fit repositioned buttons
-        msgGui.Show("h" . (buttonY + 60))  ; 60px for button height + padding
         
         ; Handle Escape key (closes dialog)
         msgGui.OnEvent("Close", (GuiCtrlObj) => (

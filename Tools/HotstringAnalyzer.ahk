@@ -1,11 +1,12 @@
 ﻿#Requires AutoHotkey v2.0
 #SingleInstance Force
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 ; ============================================================
 ; Hotstring / Manual Correction Analyzer
 ; Made for use with the AutoCorrect2 Suite of applications
 ; By: kunkel321 using ChatGPT and Claude.
-; Version Date: 6-29-2026
+; Version Date: 11-27-2026
 ; ============================================================
 ;
 ; On startup a file-selection GUI appears offering:
@@ -64,6 +65,7 @@ else
 ; ============================================================
 
 selGui := Gui("+AlwaysOnTop", "Hotstring Analyzer — Select Input File")
+DpiKeepSize.Watch(selGui)   ; keep its size across monitors with different scales
 selGui.SetFont("s11")
 selGui.Add("Text",, "Select a file to analyze:")
 selGui.Add("Text",, "")   ; spacer

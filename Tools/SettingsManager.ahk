@@ -1,9 +1,10 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 ; ============================================================================
 ; Settings Manager - Standalone GUI for editing INI configuration files
-; Version: 11-25-2026
+; Version: 11-27-2026
 ;   11-25-2026: Validate Metadata no longer deletes the description of a key that is
 ;   in the JSON but not the INI.  It asks, per key: add it to the INI (new key) or
 ;   remove the description (stale key).  See ResolveUnusedKeys().
@@ -406,6 +407,7 @@ EditBoolean(section, key, originalValue) {
     global mainGui, allSettings, isDirty, lvSettings, DefaultFontSize, FormColor, FontColor, settingsMetadata
     
     editGui := Gui()
+    DpiKeepSize.Watch(editGui)   ; keep its size across monitors with different scales
     editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Boolean Setting"
     editGui.BackColor := FormColor
@@ -518,6 +520,7 @@ EditInteger(section, key, originalValue) {
     maxVal := metadata.Has("max") ? metadata["max"] : 999999
     
     editGui := Gui()
+    DpiKeepSize.Watch(editGui)   ; keep its size across monitors with different scales
     editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Integer Setting"
     editGui.BackColor := FormColor
@@ -596,6 +599,7 @@ EditFloat(section, key, originalValue) {
     fmt := "{:." decimals "f}"
     
     editGui := Gui()
+    DpiKeepSize.Watch(editGui)   ; keep its size across monitors with different scales
     editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Decimal Setting"
     editGui.BackColor := FormColor
@@ -686,6 +690,7 @@ EditHotkey(section, key, originalValue) {
     global mainGui, allSettings, isDirty, lvSettings, DefaultFontSize, FormColor, FontColor
     
     editGui := Gui()
+    DpiKeepSize.Watch(editGui)   ; keep its size across monitors with different scales
     editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Hotkey Setting"
     editGui.BackColor := FormColor
@@ -750,6 +755,7 @@ EditText(section, key, originalValue) {
     global mainGui, allSettings, isDirty, lvSettings, DefaultFontSize, FormColor, FontColor, ListColor, settingsMetadata
     
     editGui := Gui()
+    DpiKeepSize.Watch(editGui)   ; keep its size across monitors with different scales
     editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Edit Text Setting"
     editGui.BackColor := FormColor
@@ -820,6 +826,7 @@ EditList(section, key, originalValue) {
     
     ; Create the dialog
     editGui := Gui()
+    DpiKeepSize.Watch(editGui)   ; keep its size across monitors with different scales
     editGui.Opt("+AlwaysOnTop +4096")
     editGui.Title := "Select from List"
     editGui.BackColor := FormColor
@@ -1267,6 +1274,7 @@ ResolveUnusedKeys(unusedKeys) {
     owner := ""
     try owner := " +Owner" mainGui.Hwnd
     g := Gui("+AlwaysOnTop" owner, "Keys in the metadata but not in " iniName)
+    DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
     g.BackColor := FormColor
     g.SetFont(DefaultFontSize " " FontColor)
     g.Add("Text", "x10 y10 w660", "These keys have descriptions in the JSON but are missing from " iniName ".  Each one is either"
@@ -2137,6 +2145,7 @@ CreateGUI() {
     global winW, winH, START_W, START_H, MIN_W, MIN_H, STATUS_DEFAULT_TEXT
 
     mainGui := Gui()
+    DpiKeepSize.Watch(mainGui)   ; keep its size across monitors with different scales
     mainGui.Opt("+AlwaysOnTop +Resize +MinSize" MIN_W "x" MIN_H)
     mainGui.Title := AppName
     mainGui.OnEvent("Close", GUI_Close)

@@ -2,6 +2,7 @@
 #SingleInstance Force
 
 #Include "..\Includes\AcMsgBox.ahk"
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 #Include "..\Includes\IniMerge.ahk"
 #Include "..\Includes\LibMerge.ahk"
 
@@ -9,7 +10,7 @@
 Library Merge
 Author: kunkel321
 Tool Used: Claude
-Version: 11-24-2026
+Version: 11-27-2026
 
 Merges a newer AutoCorrectHotstrings.ahk (for example the "(1)" copy the Updater saved) into your
 own library, without losing your changes.  It's the same merge the Updater does; see
@@ -44,6 +45,7 @@ if FileExist(ctFile) {
 }
 
 g := Gui("+AlwaysOnTop", AppTitle)
+DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
 g.BackColor := FormColor
 g.SetFont("s" FontSize " " FontColor)
 g.OnEvent("Close", (*) => ExitApp())

@@ -1,10 +1,11 @@
 #SingleInstance Force
 #Requires AutoHotkey v2.0
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 SetWorkingDir(A_ScriptDir)
 
 ; ========================================
 ; BulkFunctionizer -- part of the AutoCorrect2 suite (lives in Tools\)
-; Version: 11-20-2026
+; Version: 11-27-2026
 ; Author: kunkel321
 ; AI Used: Claude
 ;
@@ -830,6 +831,7 @@ class App {
     static Build() {
         c := BFConfig
         g := Gui("+Resize +MinSize900x440", "AC2 Bulk Functionizer")
+        DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
         g.BackColor := c.FormColor
         g.SetFont("s10 " c.FontColor, "Segoe UI")
 

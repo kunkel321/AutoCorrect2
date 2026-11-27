@@ -7,7 +7,7 @@ This app is designed for inclusion in the AutoCorrect2 Suite at
 https://github.com/kunkel321/AutoCorrect2
 Author: kunkel321
 Tool used: Claude AI
-Version: 2-26-2026 
+Version: 11-27-2026 
 
 PURPOSE:
 This tool analyzes AutoCorrect log data and generates interactive HTML charts
@@ -49,6 +49,7 @@ This approach keeps everything self-contained in one HTML file that works offlin
 
 #SingleInstance Force
 #Requires AutoHotkey v2+
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 ; ======= Main Class Definition =======
 ; This class encapsulates all functionality for the statistics analyzer.
@@ -98,6 +99,7 @@ class ACLogStatistics {
 
     static ShowSelectionGui() {
         this.StatsGui := GuiObj := Gui(, "AC Log Statistics")
+        DpiKeepSize.Watch(GuiObj)   ; keep its size across monitors with different scales
         GuiObj.BackColor := "0xF0F0F0"
         GuiObj.SetFont("s13")
 
@@ -506,6 +508,14 @@ class ACLogStatistics {
         labelsJson := this.ArrayToJson(formattedLabels)
         backspacedJson := this.ArrayToJson(backspacedData)
         keptJson := this.ArrayToJson(keptData)
+
+        ; Build % kept array (one value per X label)
+        pctKeptData := []
+        for i, k in keptData {
+            total := k + backspacedData[i]
+            pctKeptData.Push(total > 0 ? Format("{:.1f}", k / total * 100) : 0)
+        }
+        pctKeptJson := this.ArrayToJson(pctKeptData)
         
         ; Evaluate all summary statistics
         totalEntries := this.GetTotalEntries()
@@ -658,6 +668,7 @@ class ACLogStatistics {
         const ctx = document.getElementById('backspaceChart').getContext('2d');
         const backspacedData = {{BACKSPACED_JSON}};
         const keptData = {{KEPT_JSON}};
+        const pctKeptData = {{PCT_KEPT_JSON}};
         
         const chart = new Chart(ctx, {
             type: 'bar',
@@ -669,14 +680,29 @@ class ACLogStatistics {
                         data: backspacedData,
                         backgroundColor: '#FF6384',
                         borderColor: '#FF4560',
-                        borderWidth: 1
+                        borderWidth: 1,
+                        yAxisID: 'yCount'
                     },
                     {
                         label: 'Kept (--)',
                         data: keptData,
                         backgroundColor: '#4BC0C0',
                         borderColor: '#2BADA8',
-                        borderWidth: 1
+                        borderWidth: 1,
+                        yAxisID: 'yCount'
+                    },
+                    {
+                        type: 'line',
+                        label: '% Kept',
+                        data: pctKeptData,
+                        borderColor: '#FFD700',
+                        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        fill: false,
+                        tension: 0.3,
+                        yAxisID: 'yPct'
                     }
                 ]
             },
@@ -687,17 +713,13 @@ class ACLogStatistics {
                     legend: {
                         position: 'top',
                         labels: {
-                            font: {
-                                size: 13
-                            }
+                            font: { size: 13 }
                         }
                     },
                     title: {
                         display: true,
                         text: 'Backspaced vs Kept Entries',
-                        font: {
-                            size: 16
-                        }
+                        font: { size: 16 }
                     },
                     tooltip: {
                         callbacks: {
@@ -706,31 +728,50 @@ class ACLogStatistics {
                                 const dataIndex = context.dataIndex;
                                 const value = context.parsed.y;
                                 const label = context.dataset.label || '';
-                                
+
+                                if (datasetIndex === 2) {
+                                    return label + ': ' + value + '%';
+                                }
+
                                 const bs = backspacedData[dataIndex];
                                 const kept = keptData[dataIndex];
                                 const total = bs + kept;
-                                
-                                // Calculate percentage for this specific dataset
                                 let pct;
                                 if (datasetIndex === 0) {
-                                    // Backspaced dataset
                                     pct = total > 0 ? (bs / total * 100).toFixed(1) : 0;
                                 } else {
-                                    // Kept dataset
                                     pct = total > 0 ? (kept / total * 100).toFixed(1) : 0;
                                 }
-                                
                                 return label + ': ' + value + ' | ' + pct + '%';
                             }
                         }
                     }
                 },
                 scales: {
-                    y: {
+                    yCount: {
+                        type: 'linear',
+                        position: 'left',
                         beginAtZero: true,
+                        ticks: { stepSize: 1 },
+                        title: {
+                            display: true,
+                            text: 'Count'
+                        }
+                    },
+                    yPct: {
+                        type: 'linear',
+                        position: 'right',
+                        beginAtZero: true,
+                        max: 100,
                         ticks: {
-                            stepSize: 1
+                            callback: function(value) { return value + '%'; }
+                        },
+                        title: {
+                            display: true,
+                            text: '% Kept'
+                        },
+                        grid: {
+                            drawOnChartArea: false  // prevents right-axis gridlines overlapping left
                         }
                     }
                 }
@@ -751,6 +792,7 @@ class ACLogStatistics {
         html := StrReplace(html, "{{LABELS_JSON}}", labelsJson)
         html := StrReplace(html, "{{BACKSPACED_JSON}}", backspacedJson)
         html := StrReplace(html, "{{KEPT_JSON}}", keptJson)
+        html := StrReplace(html, "{{PCT_KEPT_JSON}}", pctKeptJson)
         
         return html
     }

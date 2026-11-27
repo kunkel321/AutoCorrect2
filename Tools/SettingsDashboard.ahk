@@ -1,5 +1,6 @@
 ﻿#Requires AutoHotkey v2.0
 #SingleInstance Force
+#Include "..\Includes\DpiKeepSize.ahk"    ; keeps the window its size across monitors with different scales
 ; ============================================================================
 ; SettingsDashboard -- a friendlier companion to Tools\SettingsManager.ahk.  Lives in Tools\.
 ; Based on VitaKaninen's "SettingsManager-Mockup v2.ahk" (Nov 2026), reworked by Steve + Claude.
@@ -41,7 +42,7 @@
 ; Column budget inside the panel:  controls CX..RX-44,  (i) at RX-42,  reset arrow at RX-20.
 ; ============================================================================
 
-global VERSION := "1.2  (11-26-2026)"    ; bump with every change, so a screenshot shows which build it is
+global VERSION := "1.4  (11-27-2026)"    ; bump with every change, so a screenshot shows which build it is
 global TEST := false, MODE := "paged", SHOWINI := true
 
 ; ── DPI awareness (same as ScreenSnip) ────────────────────────────────────────
@@ -80,7 +81,6 @@ global CURSEC := "", CURGRP := 0, CURGRPTITLE := ""
 global G, P, NavLB, SearchEd, TitleTxt, DescTxt, StatusTxt, LogPrev := 0, AcPrev := 0
 global VIEW := "", QUERY := "", SHOWN := 0, SCROLLY := 0, VIRTH := 0
 global IniTime := FileExist(IniPath) ? FileGetTime(IniPath, "M") : "", BackedUp := false
-global WinOuterW := 0, WinOuterH := 0          ; outer size once shown (see KeepSize)
 global WINW := 960, WINH := 650                         ; the main window's client size
 global PX := 245, PY := 76, PW := 705, PH := 522        ; the scrolling panel, in the main window (PW includes its scroll bar)
 global X0 := 10, CX := 400, RX := 680                   ; columns inside the panel: labels, controls, right edge
@@ -98,7 +98,7 @@ if MODE = "list"
     NavLB.Choose(2)
 GoNav()
 G.Show("w" WINW " h" WINH)
-RememberSize()
+DpiKeepSize.Watch(G)
 
 ; ============================================================================
 ; SETTINGS.  DefSec starts a section, DefGrp a titled group in it, Add a setting.
@@ -578,8 +578,6 @@ BuildGui() {
     OnMessage(0x0114, OnHScroll)    ; slider readout while dragging
     OnMessage(0x0115, OnVScroll)    ; the panel's scroll bar
     OnMessage(0x020A, OnWheel)      ; wheel scrolls the panel, even over a slider or list
-    OnMessage(0x02E0, (w, l, m, hwnd) => (hwnd = G.Hwnd ? SetTimer(KeepSize, -50) : 0))  ; WM_DPICHANGED
-    OnMessage(0x0232, (w, l, m, hwnd) => (hwnd = G.Hwnd ? SetTimer(KeepSize, -50) : 0))  ; WM_EXITSIZEMOVE: a drag ended
     UpdateBP(), UpdateLogPreview(), CheckClashes(), UpdateStatus()
 }
 
@@ -1136,44 +1134,6 @@ OnVScroll(wParam, lParam, msg, hwnd) {
     }
     SyncNav()
     return 0
-}
-; Keeping the window its own size on a monitor with a different scale.
-; Moved to such a monitor, the window's FRAME was shrunk to that monitor's scale while the
-; controls inside kept their size, so the right edge was cut off.  (Neither answering
-; WM_GETDPISCALEDSIZE / WM_DPICHANGED nor per-monitor awareness stopped it.)  So: note the
-; outer size once shown, and after a scale change or the end of a drag, put it back if it
-; changed.  The thread is switched to per-monitor mode for the measuring: a timer started
-; during a drag runs system-aware, where GetWindowRect gives scaled, not physical, pixels
-; (see ScreenSnip's SnipDpiEnter).  The window has no +Resize, so any other size is wrong.
-OuterSize(&w, &h) {
-    rc := Buffer(16, 0)
-    DllCall("GetWindowRect", "Ptr", G.Hwnd, "Ptr", rc)
-    w := NumGet(rc, 8, "Int") - NumGet(rc, 0, "Int"), h := NumGet(rc, 12, "Int") - NumGet(rc, 4, "Int")
-}
-RememberSize() {
-    global WinOuterW, WinOuterH
-    prev := DpiEnter()
-    OuterSize(&WinOuterW, &WinOuterH)
-    DpiLeave(prev)
-}
-KeepSize() {
-    if !WinOuterW
-        return
-    prev := DpiEnter()
-    OuterSize(&w, &h)
-    if w != WinOuterW || h != WinOuterH
-        DllCall("SetWindowPos", "Ptr", G.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", WinOuterW, "Int", WinOuterH
-            , "UInt", 0x16)                            ; SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
-    DpiLeave(prev)
-}
-DpiEnter() {
-    prev := 0
-    try prev := DllCall("SetThreadDpiAwarenessContext", "Ptr", -3, "Ptr")
-    return prev
-}
-DpiLeave(prev) {
-    if prev
-        try DllCall("SetThreadDpiAwarenessContext", "Ptr", prev, "Ptr")
 }
 S16(v) => v > 0x7FFF ? v - 0x10000 : v
 OnWheel(wParam, lParam, msg, hwnd) {

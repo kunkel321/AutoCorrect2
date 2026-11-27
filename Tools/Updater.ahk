@@ -3,6 +3,7 @@
 
 ; #Include custom message box -- Required.
 #Include "..\Includes\AcMsgBox.ahk"
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 ; INI merging (shared with SettingsDefaultsMaker) -- Required.
 #Include "..\Includes\IniMerge.ahk"
 ; Three-way hotstring library merge (shared with LibraryMerge) -- Required.
@@ -12,7 +13,7 @@
 AutoCorrect2 Updater Tool
 Author: kunkel321
 Tool Used: Claude
-Version: 11-24-2026 g  (also set UpdaterVersion below)
+Version: 11-27-2026  (also set UpdaterVersion below)
 Intended to use with AutoCorrect2 repo.
 
 HOW IT WORKS
@@ -111,7 +112,7 @@ BaselineRel := "Data\AutoCorrectHotstrings.base.txt"
 TextExtensions := ["ahk", "txt", "ini", "json", "md", "csv", "tsv"]
 ; --------------------------------------------------------------------------
 
-UpdaterVersion := "11-24-2026 g"    ; Shown in title bars and the debug log
+UpdaterVersion := "11-27-2026"    ; Shown in title bars and the debug log
 AppTitle := "AutoCorrect2 Updater (" UpdaterVersion ")"
 SplitPath(A_ScriptDir, , &InstallDir)
 DebugDir   := InstallDir "\Debug"
@@ -535,6 +536,7 @@ ShowUpdateGui(scan, ctx) {
     ; options and buttons along the bottom.
     ; Controls are created roughly here and positioned by UpdateGuiSize, so the window can be resized.
     g := Gui("+AlwaysOnTop +Resize +MinSize1000x560", "AutoCorrect2 - Select Updates (" UpdaterVersion ")")
+    DpiKeepSize.Watch(g)   ; keep its size across monitors with different scales
     g.BackColor := Cfg.FormColor
     g.SetFont("s" Cfg.FontSize " " Cfg.FontColor)
     g.OnEvent("Close", (*) => ExitApp())
@@ -1072,6 +1074,7 @@ ShowUndoGui() {
         ExitApp
     }
     ug := Gui("+AlwaysOnTop", "AutoCorrect2 Updater - Undo an Update (" UpdaterVersion ")")
+    DpiKeepSize.Watch(ug)   ; keep its size across monitors with different scales
     ug.BackColor := Cfg.FormColor
     ug.SetFont("s" Cfg.FontSize " " Cfg.FontColor)
     ug.OnEvent("Close", (*) => ExitApp())

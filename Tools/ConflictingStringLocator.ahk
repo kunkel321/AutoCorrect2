@@ -3,7 +3,7 @@
 ;                    a.k.a. DEAD STRING FINDER
 ; Author: kunkel321
 ; Tool used: Claude AI
-; Updated: 11-22-2026
+; Updated: 11-27-2026
 ;===============================================================================
 ; Part of the AutoCorrect2 Suite of Tools.  Get new versions from
 ; github.com/kunkel321/autocorrect2
@@ -18,6 +18,7 @@
 
 #SingleInstance
 #Requires AutoHotkey v2+
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 ^Esc::ExitApp ; Emergency kill switch
 
@@ -395,6 +396,7 @@ RunScan() {
 BuildOptionsGui() {
 	global OptGui, ChkSec, ChkSaveTxt, OptStatus, OptProgress, BtnRun
 	OptGui := Gui("-MinimizeBox", Title)
+	DpiKeepSize.Watch(OptGui)   ; keep its size across monitors with different scales
 	OptGui.SetFont("s10", "Segoe UI")
 	OptGui.OnEvent("Close", (*) => ExitApp())
 
@@ -481,6 +483,7 @@ BuildReviewGui() {
 	global RevGui, LV, DdlFilter, EdDetail, RevSummary, RevStatus, RevButtons
 	; -DPIScale: every size below is in real pixels, scaled by Dpi(), so resizing math stays consistent
 	RevGui := Gui("+Resize -DPIScale +MinSize" Dpi(820) "x" Dpi(440), Title " - Review")
+	DpiKeepSize.Watch(RevGui)   ; keep its size across monitors with different scales
 	RevGui.SetFont("s10", "Segoe UI")
 	RevGui.OnEvent("Close", (*) => ExitApp())
 	RevGui.OnEvent("Size", OnRevSize)

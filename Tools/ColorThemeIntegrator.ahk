@@ -1,7 +1,7 @@
 ﻿
 /*
 Color Theme Integrator
-Kunkel321: 6-22-2026
+Kunkel321: 11-27-2026
 https://github.com/kunkel321/ColorThemeIntegrator
 https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132310
 
@@ -52,6 +52,7 @@ The script looks for command line arguments when it starts.  If there are comman
 
 #SingleInstance
 #Requires AutoHotkey v2+
+#Include "..\Includes\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 
 ^Esc::ExitApp                       ; Ctrl+Esc Terminates entire script.
 guiTitle := "Color Theme Integrator" ; OK to change title (here only).
@@ -134,6 +135,7 @@ Else {  ; If ini file doesn't exist, just use these default values.
 
 ; --- Build gui ---
 global myGui := Gui(pinToTop? "+AlwaysOnTop" : "", guiTitle)
+DpiKeepSize.Watch(myGui)   ; keep its size across monitors with different scales
 ;myGui.SetFont("s12 " fontColor? " c" fontColor : "")
 myGui.SetFont("s12")
 myGui.BackColor := formColor
@@ -283,6 +285,7 @@ saveFave(*) {
     global myGui, listColor, fontColor, formColor, favesDropList
     ; Create input box for theme name
     inputGui := Gui()
+    DpiKeepSize.Watch(inputGui)   ; keep its size across monitors with different scales
     inputGui.BackColor := formColor
     inputGui.SetFont("s12 c" fontColor)
     inputGui.Add("Text",, "Enter theme name:")
@@ -409,6 +412,7 @@ renameFave(*) {
 
     ; Create input box for the new name, pre-filled with the old one.
     inputGui := Gui()
+    DpiKeepSize.Watch(inputGui)   ; keep its size across monitors with different scales
     inputGui.BackColor := formColor
     inputGui.SetFont("s12 c" fontColor)
     inputGui.Add("Text",, "Rename '" oldName "' to:")
@@ -1136,6 +1140,7 @@ exportClip(*)
 ; Called via save button.  Saves colors to ini file. 
 SaveColors(*) {
     Global sav := Gui()
+    DpiKeepSize.Watch(sav)   ; keep its size across monitors with different scales
     sav.BackColor := formColor
     sav.SetFont("s12 c" fontColor)
     Global savCkBx := sav.Add("Checkbox", "Checked1", "Restart those of these scripts that are running.")

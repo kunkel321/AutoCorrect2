@@ -1,7 +1,8 @@
+#Include "%A_LineFile%\..\DpiKeepSize.ahk"   ; keeps its windows their size across monitors with different scales
 /*
 =====================================================
         HOTSTRING QUICK LOOKUP TOOL
-            Version: 11-23-2025
+            Version: 11-27-2026
 =====================================================
 
 Allows quick lookup of individual hotstrings from the AutoCorrectsLog.txt file.
@@ -143,6 +144,7 @@ class HotstringQuickLookup {
         }
         
         this.hqlGui := Gui()
+        DpiKeepSize.Watch(this.hqlGui)   ; keep its size across monitors with different scales
         this.hqlGui.Title := "Hotstring Quick Lookup"
         this.hqlGui.Opt("+AlwaysOnTop")
         
@@ -435,6 +437,7 @@ class HotstringQuickLookup {
         
         ; Create context display GUI
         contextGui := Gui()
+        DpiKeepSize.Watch(contextGui)   ; keep its size across monitors with different scales
         contextGui.Opt("+AlwaysOnTop")
         contextGui.SetFont("s12", "Segoe UI")
         
